@@ -280,11 +280,13 @@ class DeepSeekAPI {
 
   /**
    * Build a generation prompt based on type
+   * Returns an object with full prompt and instruction-only version
    */
   buildGenerationPrompt(type, options = {}) {
     const { characterCard, currentContent, customPrompt, persona } = options;
 
-    let prompt = '';
+    let storyContext = '';
+    let instruction = '';
 
     // Include current content if it exists (up to ~16,000 tokens = ~64,000 characters)
     if (currentContent && currentContent.trim()) {
@@ -293,29 +295,32 @@ class DeepSeekAPI {
         ? '...' + currentContent.slice(-maxChars)
         : currentContent;
 
-      prompt += `Here is the current story so far:\n\n${contentToInclude}\n\n---\n\n`;
+      storyContext = `Here is the current story so far:\n\n${contentToInclude}\n\n---\n\n`;
     }
 
     // Add specific instruction based on type
     switch (type) {
       case 'continue':
-        prompt += 'Continue the story naturally from where it left off. Write the next 2-3 paragraphs, maintaining the established tone and style.';
+        instruction = 'Continue the story naturally from where it left off. Write the next 2-3 paragraphs, maintaining the established tone and style.';
         break;
 
       case 'character':
         const charName = characterCard?.data?.name || 'the character';
-        prompt += `Write the next part of the story from ${charName}'s perspective. Focus on their thoughts, actions, and dialogue. Write 2-3 paragraphs.`;
+        instruction = `Write the next part of the story from ${charName}'s perspective. Focus on their thoughts, actions, and dialogue. Write 2-3 paragraphs.`;
         break;
 
       case 'custom':
-        prompt += customPrompt || 'Continue the story.';
+        instruction = customPrompt || 'Continue the story.';
         break;
 
       default:
-        prompt += 'Continue the story.';
+        instruction = 'Continue the story.';
     }
 
-    return prompt;
+    return {
+      fullPrompt: storyContext + instruction,
+      instruction: instruction  // Just the instruction without the story context
+    };
   }
 
   /**

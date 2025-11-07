@@ -371,14 +371,14 @@ class NovelWriterApp {
     }
 
     // Build prompt
-    const prompt = this.deepSeekAPI.buildGenerationPrompt(type, {
+    const { fullPrompt, instruction } = this.deepSeekAPI.buildGenerationPrompt(type, {
       characterCard: this.characterCard,
       currentContent: this.editor.value,
       customPrompt: null,
       persona: this.persona
     });
 
-    await this.generateWithPrompt(prompt);
+    await this.generateWithPrompt(fullPrompt, instruction);
   }
 
   openCustomPromptModal() {
@@ -397,14 +397,14 @@ class NovelWriterApp {
     this.closeModal(this.customPromptModal);
 
     // Build prompt with custom type
-    const prompt = this.deepSeekAPI.buildGenerationPrompt('custom', {
+    const { fullPrompt, instruction } = this.deepSeekAPI.buildGenerationPrompt('custom', {
       characterCard: this.characterCard,
       currentContent: this.editor.value,
       customPrompt: customPrompt,
       persona: this.persona
     });
 
-    await this.generateWithPrompt(prompt);
+    await this.generateWithPrompt(fullPrompt, instruction);
   }
 
   async rewriteToFirstPerson() {
@@ -449,14 +449,15 @@ Rewritten version:`;
       // Clear editor and prepare for rewrite
       this.editor.value = '';
 
-      await this.generateWithPrompt(rewritePrompt);
+      // For rewrite, use the prompt as both full and instruction (special case)
+      await this.generateWithPrompt(rewritePrompt, 'Rewrite to first-person omniscient');
     } catch (error) {
       console.error('Rewrite error:', error);
       this.showToast(`Rewrite failed: ${error.message}`, 'error');
     }
   }
 
-  async generateWithPrompt(prompt) {
+  async generateWithPrompt(prompt, instruction = null) {
     try {
       // Disable generation buttons
       this.setGenerationEnabled(false);
@@ -520,8 +521,10 @@ Rewritten version:`;
         }
       }
 
-      // Add to conversation history (content only, not reasoning)
-      this.deepSeekAPI.addToHistory(prompt, generatedContent);
+      // Add to conversation history (instruction only, not the full story content)
+      // This prevents the story from being duplicated in history
+      const historyPrompt = instruction || prompt;
+      this.deepSeekAPI.addToHistory(historyPrompt, generatedContent);
 
       // Save document
       this.saveDocument();
@@ -584,6 +587,10 @@ Rewritten version:`;
     const content = localStorage.getItem('novelwriter-document');
     if (content) {
       this.editor.value = content;
+      // Clear conversation history when loading a document
+      if (this.deepSeekAPI) {
+        this.deepSeekAPI.clearHistory();
+      }
       this.showToast('Document loaded', 'success');
     } else {
       this.showToast('No saved document found', 'info');
@@ -593,7 +600,10 @@ Rewritten version:`;
   clearDocument() {
     if (confirm('Are you sure you want to clear the entire document? This cannot be undone.')) {
       this.editor.value = '';
-      this.deepSeekAPI?.clearHistory();
+      // Clear conversation history since document is the source of truth
+      if (this.deepSeekAPI) {
+        this.deepSeekAPI.clearHistory();
+      }
       this.saveDocument();
       this.showToast('Document cleared', 'info');
     }
