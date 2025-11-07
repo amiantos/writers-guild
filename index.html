@@ -71,6 +71,9 @@
           <button id="customPromptBtn" class="btn btn-secondary" disabled>
             Custom Prompt
           </button>
+          <button id="rewriteFirstPersonBtn" class="btn btn-secondary" disabled>
+            Rewrite to First Person
+          </button>
         </div>
         <div id="generationStatus" class="generation-status hidden">
           <div class="spinner"></div>
@@ -172,6 +175,22 @@
             <span>Show prompt viewer</span>
           </label>
           <small>Display a button to view the full prompt sent to the API.</small>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="firstPersonToggle" checked>
+            <span>Enforce first-person omniscient</span>
+          </label>
+          <small>Write from persona's perspective using "I". AI will not write for the persona unless explicitly asked.</small>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="filterAsterisksToggle" checked>
+            <span>Filter asterisks (*)</span>
+          </label>
+          <small>Remove asterisks from character cards and generated content (common in RP chats but not novel-style writing).</small>
         </div>
       </div>
       <div class="modal-footer">

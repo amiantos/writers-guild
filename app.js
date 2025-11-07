@@ -12,7 +12,9 @@ class NovelWriterApp {
       maxTokens: 4000,
       showReasoning: false,
       autoSave: true,
-      showPrompt: false
+      showPrompt: false,
+      firstPerson: true,
+      filterAsterisks: true
     };
     this.deepSeekAPI = null;
     this.autoSaveInterval = null;
@@ -69,6 +71,7 @@ class NovelWriterApp {
     this.continueStoryBtn = document.getElementById('continueStoryBtn');
     this.characterResponseBtn = document.getElementById('characterResponseBtn');
     this.customPromptBtn = document.getElementById('customPromptBtn');
+    this.rewriteFirstPersonBtn = document.getElementById('rewriteFirstPersonBtn');
     this.generationStatus = document.getElementById('generationStatus');
     this.statusText = document.getElementById('statusText');
 
@@ -86,6 +89,8 @@ class NovelWriterApp {
     this.showReasoningToggle = document.getElementById('showReasoningToggle');
     this.autoSaveToggle = document.getElementById('autoSaveToggle');
     this.showPromptToggle = document.getElementById('showPromptToggle');
+    this.firstPersonToggle = document.getElementById('firstPersonToggle');
+    this.filterAsterisksToggle = document.getElementById('filterAsterisksToggle');
     this.saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
     // Persona modal
@@ -130,6 +135,7 @@ class NovelWriterApp {
     this.continueStoryBtn.addEventListener('click', () => this.generate('continue'));
     this.characterResponseBtn.addEventListener('click', () => this.generate('character'));
     this.customPromptBtn.addEventListener('click', () => this.openCustomPromptModal());
+    this.rewriteFirstPersonBtn.addEventListener('click', () => this.rewriteToFirstPerson());
     this.generateCustomBtn.addEventListener('click', () => this.generateCustom());
 
     // Document controls
@@ -187,6 +193,14 @@ class NovelWriterApp {
     result = result.replace(/\{\{character\}\}/gi, charName);
 
     return result;
+  }
+
+  // Filter asterisks from text
+  filterAsterisks(text) {
+    if (!text || !this.settings.filterAsterisks) return text;
+
+    // Remove asterisks entirely
+    return text.replace(/\*/g, '');
   }
 
   // Character Management
@@ -310,6 +324,8 @@ class NovelWriterApp {
     this.showReasoningToggle.checked = this.settings.showReasoning;
     this.autoSaveToggle.checked = this.settings.autoSave;
     this.showPromptToggle.checked = this.settings.showPrompt;
+    this.firstPersonToggle.checked = this.settings.firstPerson;
+    this.filterAsterisksToggle.checked = this.settings.filterAsterisks;
     this.openModal(this.settingsModal);
   }
 
@@ -321,6 +337,8 @@ class NovelWriterApp {
     this.settings.showReasoning = this.showReasoningToggle.checked;
     this.settings.autoSave = this.autoSaveToggle.checked;
     this.settings.showPrompt = this.showPromptToggle.checked;
+    this.settings.firstPerson = this.firstPersonToggle.checked;
+    this.settings.filterAsterisks = this.filterAsterisksToggle.checked;
 
     // Initialize DeepSeek API with new key
     if (this.settings.apiKey) {
@@ -389,6 +407,55 @@ class NovelWriterApp {
     await this.generateWithPrompt(prompt);
   }
 
+  async rewriteToFirstPerson() {
+    if (!this.settings.apiKey) {
+      this.showToast('Please set your DeepSeek API key in settings', 'error');
+      this.openSettingsModal();
+      return;
+    }
+
+    if (!this.editor.value.trim()) {
+      this.showToast('No content to rewrite', 'error');
+      return;
+    }
+
+    if (!confirm('This will replace the entire document with a rewritten version in first-person omniscient perspective. Continue?')) {
+      return;
+    }
+
+    if (!this.deepSeekAPI) {
+      this.deepSeekAPI = new DeepSeekAPI(this.settings.apiKey);
+    }
+
+    const personaName = this.persona?.name || 'the narrator';
+
+    const rewritePrompt = `Rewrite the following story in first-person omniscient perspective, where "I" is ${personaName}.
+
+The narrator (${personaName}) should observe and describe the events, including the thoughts and feelings of other characters, but should not take actions or speak dialogue unless it makes sense for them to be part of the scene.
+
+Maintain the plot, events, and character interactions, but shift the narrative voice to first-person omniscient.
+
+Remove any asterisks (*) used for actions - write everything as prose.
+
+Here is the story to rewrite:
+
+${this.editor.value}
+
+---
+
+Rewritten version:`;
+
+    try {
+      // Clear editor and prepare for rewrite
+      this.editor.value = '';
+
+      await this.generateWithPrompt(rewritePrompt);
+    } catch (error) {
+      console.error('Rewrite error:', error);
+      this.showToast(`Rewrite failed: ${error.message}`, 'error');
+    }
+  }
+
   async generateWithPrompt(prompt) {
     try {
       // Disable generation buttons
@@ -403,14 +470,15 @@ class NovelWriterApp {
       }
 
       // Capture prompts for debugging
-      this.lastSystemPrompt = this.deepSeekAPI.buildSystemPrompt(this.characterCard, this.persona);
+      this.lastSystemPrompt = this.deepSeekAPI.buildSystemPrompt(this.characterCard, this.persona, this.settings);
       this.lastUserPrompt = prompt;
 
       // Start generation
       const { stream, abort } = await this.deepSeekAPI.generateStreaming(prompt, {
         characterCard: this.characterCard,
         persona: this.persona,
-        maxTokens: this.settings.maxTokens
+        maxTokens: this.settings.maxTokens,
+        settings: this.settings
       });
 
       let generatedContent = '';
@@ -436,7 +504,9 @@ class NovelWriterApp {
             this.statusText.textContent = 'Writing...';
           }
 
-          generatedContent += chunk.content;
+          // Filter asterisks from generated content
+          const filteredContent = this.filterAsterisks(chunk.content);
+          generatedContent += filteredContent;
 
           // Insert accumulated content at cursor position
           this.editor.value = textBefore + generatedContent + textAfter;
@@ -625,6 +695,7 @@ class NovelWriterApp {
     this.continueStoryBtn.disabled = !enabled;
     this.characterResponseBtn.disabled = !enabled;
     this.customPromptBtn.disabled = !enabled;
+    this.rewriteFirstPersonBtn.disabled = !enabled;
   }
 
   // Modal Management

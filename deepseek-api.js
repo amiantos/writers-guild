@@ -39,43 +39,58 @@ class DeepSeekAPI {
   }
 
   /**
+   * Filter asterisks from text
+   */
+  filterAsterisks(text, shouldFilter) {
+    if (!text || !shouldFilter) return text;
+    return text.replace(/\*/g, '');
+  }
+
+  /**
    * Build system prompt from character card and persona
    */
-  buildSystemPrompt(characterCard, persona) {
+  buildSystemPrompt(characterCard, persona, settings = {}) {
     let prompt = 'You are a creative writing assistant helping to write a novel-style story.\n\n';
 
     // Add character information
     if (characterCard && characterCard.data) {
       const char = characterCard.data;
+      const filterAst = settings.filterAsterisks;
 
-      // Use custom system prompt if provided (with replacements)
+      // Use custom system prompt if provided (with replacements and filtering)
       if (char.system_prompt) {
-        prompt += this.replacePlaceholders(char.system_prompt, characterCard, persona) + '\n\n';
+        const processed = this.replacePlaceholders(char.system_prompt, characterCard, persona);
+        prompt += this.filterAsterisks(processed, filterAst) + '\n\n';
       }
 
       prompt += '=== CHARACTER PROFILE ===\n';
       prompt += `Name: ${char.name}\n`;
 
       if (char.description) {
-        prompt += `Description: ${this.replacePlaceholders(char.description, characterCard, persona)}\n`;
+        const processed = this.replacePlaceholders(char.description, characterCard, persona);
+        prompt += `Description: ${this.filterAsterisks(processed, filterAst)}\n`;
       }
 
       if (char.personality) {
-        prompt += `Personality: ${this.replacePlaceholders(char.personality, characterCard, persona)}\n`;
+        const processed = this.replacePlaceholders(char.personality, characterCard, persona);
+        prompt += `Personality: ${this.filterAsterisks(processed, filterAst)}\n`;
       }
 
       if (char.scenario) {
-        prompt += `\nCurrent Scenario: ${this.replacePlaceholders(char.scenario, characterCard, persona)}\n`;
+        const processed = this.replacePlaceholders(char.scenario, characterCard, persona);
+        prompt += `\nCurrent Scenario: ${this.filterAsterisks(processed, filterAst)}\n`;
       }
 
-      // Add writing style examples (with replacements)
+      // Add writing style examples (with replacements and filtering)
       if (char.mes_example) {
-        prompt += `\n=== DIALOGUE STYLE EXAMPLES ===\n${this.replacePlaceholders(char.mes_example, characterCard, persona)}\n`;
+        const processed = this.replacePlaceholders(char.mes_example, characterCard, persona);
+        prompt += `\n=== DIALOGUE STYLE EXAMPLES ===\n${this.filterAsterisks(processed, filterAst)}\n`;
       }
 
-      // Add post-history instructions (with replacements)
+      // Add post-history instructions (with replacements and filtering)
       if (char.post_history_instructions) {
-        prompt += `\n=== WRITING GUIDELINES ===\n${this.replacePlaceholders(char.post_history_instructions, characterCard, persona)}\n`;
+        const processed = this.replacePlaceholders(char.post_history_instructions, characterCard, persona);
+        prompt += `\n=== WRITING GUIDELINES ===\n${this.filterAsterisks(processed, filterAst)}\n`;
       }
     }
 
@@ -98,6 +113,22 @@ class DeepSeekAPI {
     prompt += `Maintain consistency with established characters and plot.\n`;
     prompt += `Focus on showing rather than telling, with vivid descriptions and natural dialogue.\n`;
 
+    // Add first-person perspective instructions
+    if (settings.firstPerson && persona && persona.name) {
+      prompt += `\n=== PERSPECTIVE ===\n`;
+      prompt += `Write in first-person omniscient perspective where "I" is ${persona.name}.\n`;
+      prompt += `${persona.name} is the narrator who observes and describes events.\n`;
+      prompt += `The narrator can describe the thoughts and feelings of other characters.\n`;
+      prompt += `The narrator should NOT take actions or speak dialogue unless explicitly part of the scene.\n`;
+      prompt += `DO NOT write actions or dialogue for ${persona.name} unless the user specifically requests it.\n`;
+      prompt += `Write what ${persona.name} observes, not what ${persona.name} does.\n`;
+    }
+
+    // Add asterisk filtering instruction
+    if (settings.filterAsterisks) {
+      prompt += `\nDo not use asterisks (*) for actions. Write everything as prose.\n`;
+    }
+
     return prompt;
   }
 
@@ -112,7 +143,7 @@ class DeepSeekAPI {
       throw new Error('API key not set');
     }
 
-    const systemPrompt = this.buildSystemPrompt(options.characterCard, options.persona);
+    const systemPrompt = this.buildSystemPrompt(options.characterCard, options.persona, options.settings);
 
     const messages = [
       { role: 'system', content: systemPrompt },
