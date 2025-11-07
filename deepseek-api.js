@@ -8,7 +8,6 @@ class DeepSeekAPI {
     this.apiKey = apiKey;
     this.baseURL = 'https://api.deepseek.com/v1';
     this.model = 'deepseek-reasoner';
-    this.conversationHistory = [];
   }
 
   /**
@@ -143,9 +142,9 @@ class DeepSeekAPI {
 
     const systemPrompt = this.buildSystemPrompt(options.characterCard, options.persona, options.settings);
 
+    // No conversation history - document content is included in userPrompt
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...this.conversationHistory,
       { role: 'user', content: userPrompt }
     ];
 
@@ -239,11 +238,11 @@ class DeepSeekAPI {
       throw new Error('API key not set');
     }
 
-    const systemPrompt = this.buildSystemPrompt(options.characterCard, options.persona);
+    const systemPrompt = this.buildSystemPrompt(options.characterCard, options.persona, options.settings);
 
+    // No conversation history - document content is included in userPrompt
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...this.conversationHistory,
       { role: 'user', content: userPrompt }
     ];
 
@@ -321,41 +320,6 @@ class DeepSeekAPI {
     };
   }
 
-  /**
-   * Add to conversation history (excludes reasoning_content per API docs)
-   */
-  addToHistory(userPrompt, assistantContent) {
-    this.conversationHistory.push(
-      { role: 'user', content: userPrompt },
-      { role: 'assistant', content: assistantContent }
-    );
-
-    // Keep history manageable (last 20 messages = 10 exchanges)
-    if (this.conversationHistory.length > 20) {
-      this.conversationHistory = this.conversationHistory.slice(-20);
-    }
-  }
-
-  /**
-   * Clear conversation history
-   */
-  clearHistory() {
-    this.conversationHistory = [];
-  }
-
-  /**
-   * Get conversation history
-   */
-  getHistory() {
-    return [...this.conversationHistory];
-  }
-
-  /**
-   * Set conversation history (for loading saved sessions)
-   */
-  setHistory(history) {
-    this.conversationHistory = history || [];
-  }
 }
 
 // Export for use in other modules

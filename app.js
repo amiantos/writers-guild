@@ -521,11 +521,6 @@ Rewritten version:`;
         }
       }
 
-      // Add to conversation history (instruction only, not the full story content)
-      // This prevents the story from being duplicated in history
-      const historyPrompt = instruction || prompt;
-      this.deepSeekAPI.addToHistory(historyPrompt, generatedContent);
-
       // Save document
       this.saveDocument();
 
@@ -587,10 +582,6 @@ Rewritten version:`;
     const content = localStorage.getItem('novelwriter-document');
     if (content) {
       this.editor.value = content;
-      // Clear conversation history when loading a document
-      if (this.deepSeekAPI) {
-        this.deepSeekAPI.clearHistory();
-      }
       this.showToast('Document loaded', 'success');
     } else {
       this.showToast('No saved document found', 'info');
@@ -600,10 +591,6 @@ Rewritten version:`;
   clearDocument() {
     if (confirm('Are you sure you want to clear the entire document? This cannot be undone.')) {
       this.editor.value = '';
-      // Clear conversation history since document is the source of truth
-      if (this.deepSeekAPI) {
-        this.deepSeekAPI.clearHistory();
-      }
       this.saveDocument();
       this.showToast('Document cleared', 'info');
     }
@@ -767,11 +754,6 @@ Rewritten version:`;
 
     // Save settings
     localStorage.setItem('novelwriter-settings', JSON.stringify(this.settings));
-
-    // Save conversation history
-    if (this.deepSeekAPI) {
-      localStorage.setItem('novelwriter-history', JSON.stringify(this.deepSeekAPI.getHistory()));
-    }
   }
 
   loadFromLocalStorage() {
@@ -820,17 +802,6 @@ Rewritten version:`;
     // Initialize API if key exists
     if (this.settings.apiKey) {
       this.deepSeekAPI = new DeepSeekAPI(this.settings.apiKey);
-
-      // Load conversation history
-      const historyData = localStorage.getItem('novelwriter-history');
-      if (historyData) {
-        try {
-          const history = JSON.parse(historyData);
-          this.deepSeekAPI.setHistory(history);
-        } catch (e) {
-          console.error('Failed to load conversation history:', e);
-        }
-      }
     }
   }
 }
