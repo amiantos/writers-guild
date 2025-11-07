@@ -45,7 +45,20 @@ class NovelWriterApp {
     this.characterDesc = document.getElementById('characterDesc');
     this.characterAvatar = document.getElementById('characterAvatar');
     this.characterUpload = document.getElementById('characterUpload');
+    this.editCharacterBtn = document.getElementById('editCharacterBtn');
     this.clearCharacterBtn = document.getElementById('clearCharacterBtn');
+
+    // Character modal
+    this.characterModal = document.getElementById('characterModal');
+    this.charNameInput = document.getElementById('charNameInput');
+    this.charDescInput = document.getElementById('charDescInput');
+    this.charPersonalityInput = document.getElementById('charPersonalityInput');
+    this.charScenarioInput = document.getElementById('charScenarioInput');
+    this.charFirstMesInput = document.getElementById('charFirstMesInput');
+    this.charMesExampleInput = document.getElementById('charMesExampleInput');
+    this.charSystemPromptInput = document.getElementById('charSystemPromptInput');
+    this.charPostHistoryInput = document.getElementById('charPostHistoryInput');
+    this.saveCharacterBtn = document.getElementById('saveCharacterBtn');
 
     // Persona
     this.personaSummary = document.getElementById('personaSummary');
@@ -105,7 +118,9 @@ class NovelWriterApp {
   setupEventListeners() {
     // Character upload
     this.characterUpload.addEventListener('change', (e) => this.handleCharacterUpload(e));
+    this.editCharacterBtn.addEventListener('click', () => this.openCharacterModal());
     this.clearCharacterBtn.addEventListener('click', () => this.clearCharacter());
+    this.saveCharacterBtn.addEventListener('click', () => this.saveCharacter());
 
     // Persona
     this.editPersonaBtn.addEventListener('click', () => this.openPersonaModal());
@@ -226,6 +241,43 @@ class NovelWriterApp {
       this.updateUI();
       this.showToast('Character cleared', 'info');
     }
+  }
+
+  openCharacterModal() {
+    if (!this.characterCard) return;
+
+    const char = this.characterCard.data;
+
+    // Populate fields with current character data
+    this.charNameInput.value = char.name || '';
+    this.charDescInput.value = char.description || '';
+    this.charPersonalityInput.value = char.personality || '';
+    this.charScenarioInput.value = char.scenario || '';
+    this.charFirstMesInput.value = char.first_mes || '';
+    this.charMesExampleInput.value = char.mes_example || '';
+    this.charSystemPromptInput.value = char.system_prompt || '';
+    this.charPostHistoryInput.value = char.post_history_instructions || '';
+
+    this.openModal(this.characterModal);
+  }
+
+  saveCharacter() {
+    if (!this.characterCard) return;
+
+    // Update character card data
+    this.characterCard.data.name = this.charNameInput.value.trim();
+    this.characterCard.data.description = this.charDescInput.value.trim();
+    this.characterCard.data.personality = this.charPersonalityInput.value.trim();
+    this.characterCard.data.scenario = this.charScenarioInput.value.trim();
+    this.characterCard.data.first_mes = this.charFirstMesInput.value.trim();
+    this.characterCard.data.mes_example = this.charMesExampleInput.value.trim();
+    this.characterCard.data.system_prompt = this.charSystemPromptInput.value.trim();
+    this.characterCard.data.post_history_instructions = this.charPostHistoryInput.value.trim();
+
+    this.saveToLocalStorage();
+    this.updateUI();
+    this.closeModal(this.characterModal);
+    this.showToast('Character updated', 'success');
   }
 
   // Persona Management

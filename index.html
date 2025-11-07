@@ -35,7 +35,10 @@
             <h3 id="characterName">No Character</h3>
             <p id="characterDesc" class="character-desc"></p>
           </div>
-          <button id="clearCharacterBtn" class="btn btn-small btn-secondary">Clear Character</button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <button id="editCharacterBtn" class="btn btn-small btn-secondary">Edit</button>
+            <button id="clearCharacterBtn" class="btn btn-small btn-secondary">Clear</button>
+          </div>
         </div>
         <div id="noCharacter" class="no-character">
           <p>No character loaded</p>
@@ -218,6 +221,106 @@
       </div>
       <div class="modal-footer">
         <button id="savePersonaBtn" class="btn btn-primary">Save Persona</button>
+        <button class="btn btn-secondary close-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Editor Modal -->
+  <div id="characterModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h2>Edit Character Card</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <div class="form-group">
+          <label for="charNameInput">Name</label>
+          <input
+            type="text"
+            id="charNameInput"
+            class="input-field"
+            placeholder="Character name"
+          >
+        </div>
+
+        <div class="form-group">
+          <label for="charDescInput">Description</label>
+          <textarea
+            id="charDescInput"
+            class="input-field textarea-field"
+            rows="4"
+            placeholder="Physical appearance, background, biography..."
+          ></textarea>
+          <small>Can use {{user}} for persona name</small>
+        </div>
+
+        <div class="form-group">
+          <label for="charPersonalityInput">Personality</label>
+          <textarea
+            id="charPersonalityInput"
+            class="input-field textarea-field"
+            rows="4"
+            placeholder="Personality traits, mannerisms, speech patterns..."
+          ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="charScenarioInput">Scenario</label>
+          <textarea
+            id="charScenarioInput"
+            class="input-field textarea-field"
+            rows="3"
+            placeholder="Current situation, setting, context..."
+          ></textarea>
+          <small>Can use {{user}} and {{char}}/{{character}} placeholders</small>
+        </div>
+
+        <div class="form-group">
+          <label for="charFirstMesInput">First Message</label>
+          <textarea
+            id="charFirstMesInput"
+            class="input-field textarea-field"
+            rows="4"
+            placeholder="Initial greeting or opening scene..."
+          ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="charMesExampleInput">Dialogue Examples</label>
+          <textarea
+            id="charMesExampleInput"
+            class="input-field textarea-field"
+            rows="5"
+            placeholder="Example dialogue to guide writing style..."
+          ></textarea>
+          <small>Optional: Examples of how the character speaks</small>
+        </div>
+
+        <div class="form-group">
+          <label for="charSystemPromptInput">System Prompt (Advanced)</label>
+          <textarea
+            id="charSystemPromptInput"
+            class="input-field textarea-field"
+            rows="3"
+            placeholder="Custom system instructions..."
+          ></textarea>
+          <small>Optional: Override default system prompt</small>
+        </div>
+
+        <div class="form-group">
+          <label for="charPostHistoryInput">Post-History Instructions (Advanced)</label>
+          <textarea
+            id="charPostHistoryInput"
+            class="input-field textarea-field"
+            rows="3"
+            placeholder="Instructions added after conversation history..."
+          ></textarea>
+          <small>Optional: Strong influence on generation style</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveCharacterBtn" class="btn btn-primary">Save Character</button>
         <button class="btn btn-secondary close-btn">Cancel</button>
       </div>
     </div>
