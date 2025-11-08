@@ -22,6 +22,25 @@
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary-color: #5ca3ff;
+    --primary-hover: #4a90e2;
+    --secondary-color: #8e9297;
+    --secondary-hover: #a0a4a8;
+    --danger-color: #ff6b6b;
+    --success-color: #51cf66;
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #2a2a2a;
+    --bg-tertiary: #3a3a3a;
+    --text-primary: #cfcfcf;
+    --text-secondary: #a0a0a0;
+    --border-color: #404040;
+    --shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   line-height: 1.6;
@@ -303,7 +322,7 @@ body {
   width: 100%;
   height: 100%;
   padding: 1.5rem;
-  font-family: "Georgia", "Times New Roman", serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 1rem;
   line-height: 1.8;
   border: 1px solid var(--border-color);
