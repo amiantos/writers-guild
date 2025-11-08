@@ -7,6 +7,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import fsSync from 'fs';
 import yaml from 'yaml';
 
 // Middleware
@@ -85,11 +86,19 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/generate', generateRouter);
 
 // Serve static client files
-const clientPath = path.join(__dirname, '../client');
+// In Docker, client is copied to ./public/, outside Docker it's ../client
+const clientPath = fsSync.existsSync(path.join(__dirname, 'public'))
+  ? path.join(__dirname, 'public')
+  : path.join(__dirname, '../client');
+
 app.use(express.static(clientPath));
 
 // Serve shared files
-const sharedPath = path.join(__dirname, '../shared');
+// In Docker, shared is copied to ./shared/, outside Docker it's ../shared
+const sharedPath = fsSync.existsSync(path.join(__dirname, 'shared'))
+  ? path.join(__dirname, 'shared')
+  : path.join(__dirname, '../shared');
+
 app.use('/shared', express.static(sharedPath));
 
 // Fallback to index.html for client-side routing

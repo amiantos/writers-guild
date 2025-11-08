@@ -50,6 +50,8 @@ class NovelWriterApp {
     // Story selector
     this.storySelector = document.getElementById('storySelector');
     this.newStoryBtn = document.getElementById('newStoryBtn');
+    this.renameStoryBtn = document.getElementById('renameStoryBtn');
+    this.deleteStoryBtn = document.getElementById('deleteStoryBtn');
 
     // Editor
     this.editor = document.getElementById('storyEditor');
@@ -157,6 +159,12 @@ class NovelWriterApp {
     }
     if (this.newStoryBtn) {
       this.newStoryBtn.addEventListener('click', () => this.createNewStory());
+    }
+    if (this.renameStoryBtn) {
+      this.renameStoryBtn.addEventListener('click', () => this.renameCurrentStory());
+    }
+    if (this.deleteStoryBtn) {
+      this.deleteStoryBtn.addEventListener('click', () => this.deleteCurrentStory());
     }
 
     // Character library
@@ -400,6 +408,61 @@ class NovelWriterApp {
     // Switch to new story
     this.currentStoryId = newStoryId;
     await this.loadCurrentStory();
+  }
+
+  async renameCurrentStory() {
+    if (!this.currentStoryId) return;
+
+    const currentStory = this.stories.find(s => s.id === this.currentStoryId);
+    const newTitle = prompt('Enter new title:', currentStory?.title || '');
+
+    if (!newTitle || !newTitle.trim()) return;
+
+    try {
+      await apiClient.updateStory(this.currentStoryId, { title: newTitle.trim() });
+
+      // Update local stories list
+      const story = this.stories.find(s => s.id === this.currentStoryId);
+      if (story) {
+        story.title = newTitle.trim();
+      }
+
+      this.updateUI();
+      this.showToast('Story renamed!', 'success');
+    } catch (error) {
+      console.error('Failed to rename story:', error);
+      this.showToast('Failed to rename story', 'error');
+    }
+  }
+
+  async deleteCurrentStory() {
+    if (!this.currentStoryId) return;
+
+    const currentStory = this.stories.find(s => s.id === this.currentStoryId);
+    const confirmMsg = `Delete story "${currentStory?.title || 'this story'}"? This cannot be undone.`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      await apiClient.deleteStory(this.currentStoryId);
+
+      // Remove from local stories list
+      this.stories = this.stories.filter(s => s.id !== this.currentStoryId);
+
+      // Switch to first remaining story or create new one
+      if (this.stories.length > 0) {
+        this.currentStoryId = this.stories[0].id;
+        await this.loadCurrentStory();
+      } else {
+        await this.createFirstStory();
+      }
+
+      this.updateUI();
+      this.showToast('Story deleted', 'success');
+    } catch (error) {
+      console.error('Failed to delete story:', error);
+      this.showToast('Failed to delete story', 'error');
+    }
   }
 
   // ==================== Character Management ====================
@@ -946,6 +1009,12 @@ class NovelWriterApp {
 
       // Stream generation from server
       for await (const chunk of apiClient.generateStream(this.currentStoryId, type, null, characterId)) {
+        // Capture prompts if sent
+        if (chunk.prompts) {
+          this.lastSystemPrompt = chunk.prompts.system;
+          this.lastUserPrompt = chunk.prompts.user;
+        }
+
         if (chunk.reasoning && this.settings.showReasoning) {
           reasoningText += chunk.reasoning;
           this.reasoningContent.innerHTML = this.formatReasoning(reasoningText);
@@ -1041,6 +1110,12 @@ class NovelWriterApp {
 
       // Stream generation
       for await (const chunk of apiClient.generateStream(this.currentStoryId, 'custom', customPrompt)) {
+        // Capture prompts if sent
+        if (chunk.prompts) {
+          this.lastSystemPrompt = chunk.prompts.system;
+          this.lastUserPrompt = chunk.prompts.user;
+        }
+
         if (chunk.reasoning && this.settings.showReasoning) {
           reasoningText += chunk.reasoning;
           this.reasoningContent.innerHTML = this.formatReasoning(reasoningText);
@@ -1141,6 +1216,12 @@ Do NOT use first-person (I, me, my) or present tense.`;
 
       // Stream rewrite
       for await (const chunk of apiClient.generateStream(this.currentStoryId, 'custom', rewritePrompt)) {
+        // Capture prompts if sent
+        if (chunk.prompts) {
+          this.lastSystemPrompt = chunk.prompts.system;
+          this.lastUserPrompt = chunk.prompts.user;
+        }
+
         if (chunk.reasoning && this.settings.showReasoning) {
           reasoningText += chunk.reasoning;
           this.reasoningContent.innerHTML = this.formatReasoning(reasoningText);
@@ -1371,8 +1452,15 @@ Do NOT use first-person (I, me, my) or present tense.`;
   // ==================== Prompt Viewer ====================
 
   openPromptViewer() {
-    // TODO: Implement prompt viewer with actual prompts from generation
-    this.showToast('Prompt viewer: Coming soon', 'info');
+    if (!this.lastSystemPrompt && !this.lastUserPrompt) {
+      this.showToast('No prompts available. Generate content first.', 'info');
+      return;
+    }
+
+    this.systemPromptDisplay.value = this.lastSystemPrompt || 'No system prompt';
+    this.userPromptDisplay.value = this.lastUserPrompt || 'No user prompt';
+
+    this.openModal(this.promptViewerModal);
   }
 
   // ==================== Modal Management ====================

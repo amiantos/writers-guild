@@ -76,14 +76,22 @@ router.post('/', asyncHandler(async (req, res) => {
     }
   }
 
-  // Select character for generation
+  // Select character(s) for generation
   let characterCard = null;
-  if (characterId) {
-    // Use specified character
-    const selectedChar = characterCards.find(c => c.id === characterId);
-    characterCard = selectedChar ? selectedChar.data : (characterCards.length > 0 ? characterCards[0].data : null);
+  let allCharacterCards = null;
+
+  if (type === 'character') {
+    // Character-based generation: use specified character or first
+    if (characterId) {
+      const selectedChar = characterCards.find(c => c.id === characterId);
+      characterCard = selectedChar ? selectedChar.data : (characterCards.length > 0 ? characterCards[0].data : null);
+    } else {
+      characterCard = characterCards.length > 0 ? characterCards[0].data : null;
+    }
   } else {
-    // Default to first character
+    // Continue/Custom: include ALL characters
+    allCharacterCards = characterCards.map(c => c.data);
+    // Still pass first as main for backward compatibility
     characterCard = characterCards.length > 0 ? characterCards[0].data : null;
   }
 
@@ -93,6 +101,7 @@ router.post('/', asyncHandler(async (req, res) => {
   // Build generation prompt
   const { fullPrompt } = deepseek.buildGenerationPrompt(type, {
     characterCard,
+    allCharacterCards, // Pass all characters for continue/custom
     currentContent: story.content,
     customPrompt,
     persona,
@@ -111,9 +120,30 @@ router.post('/', asyncHandler(async (req, res) => {
   res.flushHeaders();
 
   try {
+    // Build system prompt for debugging
+    const systemPrompt = deepseek.buildSystemPrompt(
+      characterCard,
+      persona,
+      settings,
+      allCharacterCards
+    );
+
+    // Send prompts as first event for debugging
+    res.write(`data: ${JSON.stringify({
+      prompts: {
+        system: systemPrompt,
+        user: fullPrompt
+      }
+    })}\n\n`);
+
+    if (res.flush) {
+      res.flush();
+    }
+
     // Start generation with streaming
     const { stream } = await deepseek.generateStreaming(fullPrompt, {
       characterCard,
+      allCharacterCards,
       persona,
       maxTokens: settings.maxTokens || 4000,
       settings,

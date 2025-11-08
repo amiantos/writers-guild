@@ -5,7 +5,9 @@
       "WebSearch",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:api-docs.deepseek.com)",
-      "Bash(node server.js:*)"
+      "Bash(node server.js:*)",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose up:*)"
     ],
     "deny": [],
     "ask": []

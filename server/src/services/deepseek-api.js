@@ -46,14 +46,44 @@ export class DeepSeekAPI {
   }
 
   /**
-   * Build system prompt from character card and persona
+   * Build system prompt from character card(s) and persona
    */
-  buildSystemPrompt(characterCard, persona, settings = {}) {
+  buildSystemPrompt(characterCard, persona, settings = {}, allCharacterCards = null) {
     let prompt =
       "You are a creative writing assistant helping to write a novel-style story.\n\n";
 
-    // Add character information
-    if (characterCard && characterCard.data) {
+    // If we have multiple characters (for continue/custom), add all of them
+    if (allCharacterCards && allCharacterCards.length > 0) {
+      const filterAst = settings.filterAsterisks;
+
+      prompt += "=== CHARACTER PROFILES ===\n\n";
+
+      allCharacterCards.forEach((card, index) => {
+        const char = card.data;
+
+        if (index > 0) prompt += "\n---\n\n";
+
+        prompt += `Character ${index + 1}: ${char.name}\n`;
+
+        if (char.description) {
+          const processed = this.replacePlaceholders(char.description, card, persona);
+          prompt += `Description: ${this.filterAsterisks(processed, filterAst)}\n`;
+        }
+
+        if (char.personality) {
+          const processed = this.replacePlaceholders(char.personality, card, persona);
+          prompt += `Personality: ${this.filterAsterisks(processed, filterAst)}\n`;
+        }
+
+        if (char.scenario) {
+          const processed = this.replacePlaceholders(char.scenario, card, persona);
+          prompt += `Scenario: ${this.filterAsterisks(processed, filterAst)}\n`;
+        }
+      });
+
+      prompt += "\n";
+    } else if (characterCard && characterCard.data) {
+      // Single character (for character-based generation)
       const char = characterCard.data;
       const filterAst = settings.filterAsterisks;
 
@@ -190,7 +220,8 @@ export class DeepSeekAPI {
     const systemPrompt = this.buildSystemPrompt(
       options.characterCard,
       options.persona,
-      options.settings
+      options.settings,
+      options.allCharacterCards
     );
 
     // No conversation history - document content is included in userPrompt
@@ -294,7 +325,8 @@ export class DeepSeekAPI {
     const systemPrompt = this.buildSystemPrompt(
       options.characterCard,
       options.persona,
-      options.settings
+      options.settings,
+      options.allCharacterCards
     );
 
     // No conversation history - document content is included in userPrompt
