@@ -128,6 +128,7 @@
           <button id="loadBtn" class="btn btn-secondary">Load</button>
           <button id="clearBtn" class="btn btn-secondary">Clear</button>
           <button id="exportBtn" class="btn btn-secondary">Export TXT</button>
+          <button id="selectGreetingBtn" class="btn btn-secondary">Select Greeting</button>
         </div>
       </section>
     </aside>
@@ -649,6 +650,27 @@
       <div class="modal-footer">
         <button id="saveEntryBtn" class="btn btn-primary">Save Entry</button>
         <button id="deleteEntryBtn" class="btn btn-secondary">Delete Entry</button>
+        <button class="btn btn-secondary close-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Greeting Selector Modal -->
+  <div id="greetingSelectorModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
+      <div class="modal-header">
+        <h2>Select Greeting</h2>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+        <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+          Choose a greeting from your characters to start your story. This will replace the current story content.
+        </p>
+        <div id="greetingList">
+          <p class="text-secondary">Loading greetings...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
         <button class="btn btn-secondary close-btn">Cancel</button>
       </div>
     </div>

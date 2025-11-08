@@ -125,6 +125,11 @@ class NovelWriterApp {
     this.loadBtn = document.getElementById('loadBtn');
     this.clearBtn = document.getElementById('clearBtn');
     this.exportBtn = document.getElementById('exportBtn');
+    this.selectGreetingBtn = document.getElementById('selectGreetingBtn');
+
+    // Greeting selector modal
+    this.greetingSelectorModal = document.getElementById('greetingSelectorModal');
+    this.greetingList = document.getElementById('greetingList');
 
     // Settings
     this.settingsBtn = document.getElementById('settingsBtn');
@@ -302,6 +307,9 @@ class NovelWriterApp {
     }
     if (this.exportBtn) {
       this.exportBtn.addEventListener('click', () => this.exportDocument());
+    }
+    if (this.selectGreetingBtn) {
+      this.selectGreetingBtn.addEventListener('click', () => this.openGreetingSelector());
     }
 
     // Settings
@@ -1930,6 +1938,148 @@ Do NOT use first-person (I, me, my) or present tense.`;
     URL.revokeObjectURL(url);
 
     this.showToast('Story exported!', 'success');
+  }
+
+  async openGreetingSelector() {
+    if (!this.characters || this.characters.length === 0) {
+      this.showToast('No characters in this story. Import a character first!', 'error');
+      return;
+    }
+
+    this.openModal(this.greetingSelectorModal);
+
+    try {
+      // Collect all greetings from all characters
+      const allGreetings = [];
+
+      for (const char of this.characters) {
+        try {
+          const cardData = await apiClient.getCharacter(char.id);
+          const characterName = cardData.data?.name || 'Unknown';
+
+          // Add first_mes as greeting 0
+          if (cardData.data?.first_mes) {
+            allGreetings.push({
+              characterId: char.id,
+              characterName,
+              greetingIndex: 0,
+              label: 'First Message',
+              content: cardData.data.first_mes
+            });
+          }
+
+          // Add alternate_greetings
+          if (cardData.data?.alternate_greetings && cardData.data.alternate_greetings.length > 0) {
+            cardData.data.alternate_greetings.forEach((greeting, index) => {
+              allGreetings.push({
+                characterId: char.id,
+                characterName,
+                greetingIndex: index + 1,
+                label: `Greeting ${index + 1}`,
+                content: greeting
+              });
+            });
+          }
+        } catch (error) {
+          console.error(`Failed to load greetings for character ${char.id}:`, error);
+        }
+      }
+
+      this.renderGreetingList(allGreetings);
+    } catch (error) {
+      console.error('Failed to load greetings:', error);
+      this.greetingList.innerHTML = '<p class="text-secondary">Failed to load greetings</p>';
+    }
+  }
+
+  renderGreetingList(greetings) {
+    if (greetings.length === 0) {
+      this.greetingList.innerHTML = '<p class="text-secondary">No greetings available from your characters.</p>';
+      return;
+    }
+
+    this.greetingList.innerHTML = '';
+
+    // Group by character
+    const byCharacter = {};
+    greetings.forEach(g => {
+      if (!byCharacter[g.characterName]) {
+        byCharacter[g.characterName] = [];
+      }
+      byCharacter[g.characterName].push(g);
+    });
+
+    Object.entries(byCharacter).forEach(([characterName, characterGreetings]) => {
+      // Character header
+      const header = document.createElement('h3');
+      header.style.marginTop = '1rem';
+      header.style.marginBottom = '0.5rem';
+      header.style.fontSize = '1rem';
+      header.textContent = characterName;
+      this.greetingList.appendChild(header);
+
+      // Greetings
+      characterGreetings.forEach(greeting => {
+        const item = document.createElement('div');
+        item.style.border = '1px solid var(--border-color)';
+        item.style.borderRadius = '8px';
+        item.style.padding = '1rem';
+        item.style.marginBottom = '0.75rem';
+        item.style.backgroundColor = 'var(--bg-secondary)';
+        item.style.cursor = 'pointer';
+        item.style.transition = 'background-color 0.2s';
+
+        item.onmouseenter = () => {
+          item.style.backgroundColor = 'var(--bg-tertiary)';
+        };
+        item.onmouseleave = () => {
+          item.style.backgroundColor = 'var(--bg-secondary)';
+        };
+
+        const label = document.createElement('div');
+        label.style.fontWeight = '600';
+        label.style.marginBottom = '0.5rem';
+        label.textContent = greeting.label;
+
+        const preview = document.createElement('div');
+        preview.style.fontSize = '0.875rem';
+        preview.style.color = 'var(--text-secondary)';
+        const previewText = greeting.content.length > 150
+          ? greeting.content.substring(0, 150) + '...'
+          : greeting.content;
+        preview.textContent = previewText;
+
+        item.appendChild(label);
+        item.appendChild(preview);
+
+        item.onclick = () => this.selectGreeting(greeting);
+
+        this.greetingList.appendChild(item);
+      });
+    });
+  }
+
+  async selectGreeting(greeting) {
+    if (!confirm(`Replace current story content with this greeting?\n\nThis will overwrite everything in the current story.`)) {
+      return;
+    }
+
+    try {
+      // Replace editor content and save
+      this.editor.value = greeting.content + '\n\n';
+      await this.saveDocument();
+
+      this.closeModal(this.greetingSelectorModal);
+      this.showToast(`Greeting from ${greeting.characterName} loaded!`, 'success');
+
+      // Position cursor at end
+      this.editor.focus();
+      this.editor.selectionStart = this.editor.value.length;
+      this.editor.selectionEnd = this.editor.value.length;
+    } catch (error) {
+      console.error('Failed to select greeting:', error);
+      this.showToast('Failed to load greeting: ' + error.message, 'error');
+    }
   }
 
   // ==================== UI Management ====================

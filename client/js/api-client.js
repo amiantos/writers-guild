@@ -72,6 +72,11 @@ class ApiClient {
     return this.request('/api/characters');
   }
 
+  async getCharacter(characterId) {
+    const response = await this.request(`/api/characters/${characterId}/data`);
+    return response.character || response;
+  }
+
   async importCharacter(file) {
     const formData = new FormData();
     formData.append('character', file);
