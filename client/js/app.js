@@ -14,6 +14,9 @@ class NovelWriterApp {
     this.autoSaveInterval = null;
     this.lastSystemPrompt = "";
     this.lastUserPrompt = "";
+    // Lorebook state
+    this.lorebooks = [];           // All lorebooks in library
+    this.storyLorebooks = [];      // Active lorebooks for current story
 
     // DOM Elements
     this.initializeElements();
@@ -149,6 +152,18 @@ class NovelWriterApp {
     this.reasoningContent = document.getElementById('reasoningContent');
     this.closeReasoningBtn = document.getElementById('closeReasoningBtn');
 
+    // Lorebook library
+    this.lorebookLibraryBtn = document.getElementById('lorebookLibraryBtn');
+    this.lorebookLibraryModal = document.getElementById('lorebookLibraryModal');
+    this.lorebookLibraryGrid = document.getElementById('lorebookLibraryGrid');
+    this.lorebookUpload = document.getElementById('lorebookUpload');
+
+    // Lorebook manager
+    this.manageLorebooksBtn = document.getElementById('manageLorebooksBtn');
+    this.storyLorebookModal = document.getElementById('storyLorebookModal');
+    this.storyLorebookList = document.getElementById('storyLorebookList');
+    this.lorebookCount = document.getElementById('lorebookCount');
+
     // Toast container
     this.toastContainer = document.getElementById('toastContainer');
   }
@@ -199,6 +214,17 @@ class NovelWriterApp {
     }
     if (this.clearPersonaBtn) {
       this.clearPersonaBtn.addEventListener('click', () => this.clearStoryPersona());
+    }
+
+    // Lorebook
+    if (this.lorebookLibraryBtn) {
+      this.lorebookLibraryBtn.addEventListener('click', () => this.openLorebookLibrary());
+    }
+    if (this.manageLorebooksBtn) {
+      this.manageLorebooksBtn.addEventListener('click', () => this.openStoryLorebookManager());
+    }
+    if (this.lorebookUpload) {
+      this.lorebookUpload.addEventListener('change', (e) => this.handleLorebookUpload(e));
     }
 
     // Generation
@@ -348,6 +374,9 @@ class NovelWriterApp {
       // Load characters for this story
       await this.loadCharacters();
 
+      // Load lorebooks for this story
+      await this.loadStoryLorebooks();
+
       this.updateUI();
     } catch (error) {
       console.error('Failed to load story:', error);
@@ -495,6 +524,16 @@ class NovelWriterApp {
       // Reload characters
       await this.loadCharacters();
       this.showToast(`Character "${result.name}" added to story!`, 'success');
+
+      // Check for embedded lorebook
+      if (result.embeddedLorebook) {
+        const add = confirm(`This character includes a lorebook: "${result.embeddedLorebook.name}" with ${result.embeddedLorebook.entryCount} entries.\n\nAdd it to this story?`);
+        if (add) {
+          await apiClient.addLorebookToStory(this.currentStoryId, result.embeddedLorebook.id);
+          await this.loadStoryLorebooks();
+          this.showToast('Lorebook added to story!', 'success');
+        }
+      }
     } catch (error) {
       console.error('Failed to import character:', error);
       this.showToast('Failed to import character: ' + error.message, 'error');
@@ -864,6 +903,253 @@ class NovelWriterApp {
       console.error('Failed to clear persona:', error);
       this.showToast('Failed to clear persona: ' + error.message, 'error');
     }
+  }
+
+  // ==================== Lorebook Management ====================
+
+  async loadStoryLorebooks() {
+    if (!this.currentStoryId) return;
+
+    try {
+      const { lorebooks } = await apiClient.listStoryLorebooks(this.currentStoryId);
+      this.storyLorebooks = lorebooks || [];
+      this.updateLorebookCount();
+    } catch (error) {
+      console.error('Failed to load story lorebooks:', error);
+      this.storyLorebooks = [];
+      this.updateLorebookCount();
+    }
+  }
+
+  updateLorebookCount() {
+    if (this.lorebookCount) {
+      const count = this.storyLorebooks?.length || 0;
+      if (count === 0) {
+        this.lorebookCount.textContent = 'No lorebooks active';
+      } else {
+        this.lorebookCount.textContent = `${count} lorebook${count !== 1 ? 's' : ''} active`;
+      }
+    }
+  }
+
+  async openLorebookLibrary() {
+    this.openModal(this.lorebookLibraryModal);
+
+    try {
+      const { lorebooks } = await apiClient.listAllLorebooks();
+      this.renderLorebookLibrary(lorebooks || []);
+    } catch (error) {
+      console.error('Failed to load lorebook library:', error);
+      this.lorebookLibraryGrid.innerHTML = '<p class="text-secondary">Failed to load lorebooks</p>';
+    }
+  }
+
+  renderLorebookLibrary(lorebooks) {
+    if (lorebooks.length === 0) {
+      this.lorebookLibraryGrid.innerHTML = '<p class="text-secondary">No lorebooks in library. Import one to get started!</p>';
+      return;
+    }
+
+    this.lorebookLibraryGrid.innerHTML = '';
+
+    lorebooks.forEach(lorebook => {
+      const card = document.createElement('div');
+      card.className = 'character-card';
+
+      const title = document.createElement('div');
+      title.style.fontWeight = '600';
+      title.style.marginBottom = '0.5rem';
+      title.textContent = lorebook.name;
+
+      const desc = document.createElement('div');
+      desc.style.fontSize = '0.875rem';
+      desc.style.color = 'var(--text-secondary)';
+      desc.style.marginBottom = '0.5rem';
+      desc.textContent = lorebook.description || 'No description';
+
+      const badge = document.createElement('div');
+      badge.style.fontSize = '0.75rem';
+      badge.style.color = 'var(--text-secondary)';
+      badge.textContent = `${lorebook.entryCount || 0} entries`;
+
+      const actions = document.createElement('div');
+      actions.style.display = 'grid';
+      actions.style.gridTemplateColumns = '1fr 1fr';
+      actions.style.gap = '0.5rem';
+      actions.style.marginTop = '0.75rem';
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn btn-small btn-primary';
+      addBtn.textContent = 'Add to Story';
+      addBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await this.toggleStoryLorebook(lorebook.id, true);
+        this.closeModal(this.lorebookLibraryModal);
+      };
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn btn-small btn-secondary';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await this.deleteLorebookFromLibrary(lorebook.id);
+      };
+
+      actions.appendChild(addBtn);
+      actions.appendChild(deleteBtn);
+
+      card.appendChild(title);
+      card.appendChild(desc);
+      card.appendChild(badge);
+      card.appendChild(actions);
+
+      this.lorebookLibraryGrid.appendChild(card);
+    });
+  }
+
+  async openStoryLorebookManager() {
+    if (!this.currentStoryId) {
+      this.showToast('Please create a story first', 'error');
+      return;
+    }
+
+    this.openModal(this.storyLorebookModal);
+    await this.renderStoryLorebookManager();
+  }
+
+  async renderStoryLorebookManager() {
+    try {
+      const { lorebooks: allLorebooks } = await apiClient.listAllLorebooks();
+
+      if (!allLorebooks || allLorebooks.length === 0) {
+        this.storyLorebookList.innerHTML = '<p class="text-secondary">No lorebooks in library. Import one from the Lorebook Library first.</p>';
+        return;
+      }
+
+      this.storyLorebookList.innerHTML = '';
+
+      allLorebooks.forEach(lorebook => {
+        const isActive = this.storyLorebooks.some(sl => sl.id === lorebook.id);
+
+        const item = document.createElement('div');
+        item.style.display = 'flex';
+        item.style.alignItems = 'center';
+        item.style.padding = '0.75rem';
+        item.style.borderBottom = '1px solid var(--border-color)';
+        item.style.cursor = 'pointer';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = isActive;
+        checkbox.style.marginRight = '0.75rem';
+        checkbox.style.cursor = 'pointer';
+
+        const label = document.createElement('div');
+        label.style.flex = '1';
+        label.style.cursor = 'pointer';
+
+        const name = document.createElement('div');
+        name.style.fontWeight = '500';
+        name.textContent = lorebook.name;
+
+        const desc = document.createElement('div');
+        desc.style.fontSize = '0.75rem';
+        desc.style.color = 'var(--text-secondary)';
+        desc.style.marginTop = '0.25rem';
+        desc.textContent = lorebook.description || 'No description';
+
+        const entries = document.createElement('div');
+        entries.style.fontSize = '0.7rem';
+        entries.style.color = 'var(--text-secondary)';
+        entries.style.marginTop = '0.25rem';
+        entries.textContent = `${lorebook.entryCount || 0} entries`;
+
+        label.appendChild(name);
+        label.appendChild(desc);
+        label.appendChild(entries);
+
+        item.appendChild(checkbox);
+        item.appendChild(label);
+
+        // Toggle on click
+        const toggle = async () => {
+          checkbox.checked = !checkbox.checked;
+          await this.toggleStoryLorebook(lorebook.id, checkbox.checked);
+        };
+
+        item.addEventListener('click', (e) => {
+          if (e.target !== checkbox) {
+            toggle();
+          }
+        });
+
+        checkbox.addEventListener('change', async () => {
+          await this.toggleStoryLorebook(lorebook.id, checkbox.checked);
+        });
+
+        this.storyLorebookList.appendChild(item);
+      });
+    } catch (error) {
+      console.error('Failed to render lorebook manager:', error);
+      this.storyLorebookList.innerHTML = '<p class="text-secondary">Failed to load lorebooks</p>';
+    }
+  }
+
+  async toggleStoryLorebook(lorebookId, add) {
+    if (!this.currentStoryId) return;
+
+    try {
+      if (add) {
+        await apiClient.addLorebookToStory(this.currentStoryId, lorebookId);
+        this.showToast('Lorebook added to story', 'success');
+      } else {
+        await apiClient.removeLorebookFromStory(this.currentStoryId, lorebookId);
+        this.showToast('Lorebook removed from story', 'success');
+      }
+
+      await this.loadStoryLorebooks();
+      await this.renderStoryLorebookManager();
+    } catch (error) {
+      console.error('Failed to toggle lorebook:', error);
+      this.showToast(`Failed to ${add ? 'add' : 'remove'} lorebook: ${error.message}`, 'error');
+    }
+  }
+
+  async deleteLorebookFromLibrary(lorebookId) {
+    if (!confirm('Permanently delete this lorebook from your library? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteLorebook(lorebookId);
+      this.showToast('Lorebook deleted from library', 'success');
+
+      const { lorebooks } = await apiClient.listAllLorebooks();
+      this.renderLorebookLibrary(lorebooks || []);
+
+      await this.loadStoryLorebooks();
+    } catch (error) {
+      console.error('Failed to delete lorebook:', error);
+      this.showToast('Failed to delete lorebook: ' + error.message, 'error');
+    }
+  }
+
+  async handleLorebookUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const result = await apiClient.importLorebook(file);
+      this.showToast(`Lorebook "${result.name}" imported successfully!`, 'success');
+
+      const { lorebooks } = await apiClient.listAllLorebooks();
+      this.renderLorebookLibrary(lorebooks || []);
+    } catch (error) {
+      console.error('Failed to import lorebook:', error);
+      this.showToast('Failed to import lorebook: ' + error.message, 'error');
+    }
+
+    event.target.value = '';
   }
 
   // ==================== Settings Management ====================

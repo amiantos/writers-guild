@@ -80,6 +80,20 @@
         </div>
       </section>
 
+      <!-- Lorebook Section -->
+      <section class="sidebar-section">
+        <h2>Story Lorebooks</h2>
+        <button id="lorebookLibraryBtn" class="btn btn-secondary" style="margin-bottom: 0.5rem;">
+          Lorebook Library
+        </button>
+        <button id="manageLorebooksBtn" class="btn btn-secondary">
+          Manage Story Lorebooks
+        </button>
+        <div id="lorebookSummary" class="persona-summary">
+          <p id="lorebookCount" style="font-size: 0.875rem; color: var(--text-secondary);">0 lorebooks active</p>
+        </div>
+      </section>
+
       <!-- Generation Controls -->
       <section class="sidebar-section">
         <h2>Generate Content</h2>
@@ -400,6 +414,51 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lorebook Library Modal -->
+  <div id="lorebookLibraryModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
+      <div class="modal-header">
+        <h2>Lorebook Library</h2>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+        <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+          <label for="lorebookUpload" class="btn btn-primary" style="margin: 0;">
+            Import Lorebook JSON
+          </label>
+          <input type="file" id="lorebookUpload" accept=".json,.lorebook" style="display: none;">
+        </div>
+        <div id="lorebookLibraryGrid" class="character-library-grid">
+          <p class="text-secondary">Loading lorebooks...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary close-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Story Lorebook Manager Modal -->
+  <div id="storyLorebookModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 600px; max-height: 80vh;">
+      <div class="modal-header">
+        <h2>Manage Story Lorebooks</h2>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+        <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+          Select which lorebooks to include in this story. Active lorebooks will inject relevant information based on story content.
+        </p>
+        <div id="storyLorebookList">
+          <p class="text-secondary">Loading lorebooks...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary close-btn">Done</button>
       </div>
     </div>
   </div>
