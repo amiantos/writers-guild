@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ursceal</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="css/styles.css">
 </head>
 
 <body>
@@ -13,6 +13,12 @@
   <header class="app-header">
     <div class="header-left">
       <h1>Úrscéal</h1>
+      <div class="story-controls">
+        <select id="storySelector" class="story-selector">
+          <option>Loading...</option>
+        </select>
+        <button id="newStoryBtn" class="btn btn-small btn-primary" title="Create New Story">+</button>
+      </div>
     </div>
     <div class="header-right">
       <button id="settingsBtn" class="icon-btn" title="Settings">
@@ -29,24 +35,27 @@
     <aside class="sidebar">
       <!-- Character Card Section -->
       <section class="sidebar-section">
-        <h2>Character Card</h2>
+        <h2>Characters</h2>
+        <input type="file" id="characterUpload" accept="image/png" style="display: none;">
+
         <div id="characterInfo" class="character-info hidden">
           <div class="character-avatar" id="characterAvatar"></div>
           <div class="character-details">
             <h3 id="characterName">No Character</h3>
             <p id="characterDesc" class="character-desc"></p>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-            <button id="editCharacterBtn" class="btn btn-small btn-secondary">Edit</button>
-            <button id="clearCharacterBtn" class="btn btn-small btn-secondary">Clear</button>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
+            <label for="characterUpload" class="btn btn-small btn-primary" style="text-align: center; margin: 0;">
+              Add More
+            </label>
+            <button id="clearCharacterBtn" class="btn btn-small btn-secondary">Clear All</button>
           </div>
         </div>
         <div id="noCharacter" class="no-character">
-          <p>No character loaded</p>
+          <p>No characters in this story</p>
           <label for="characterUpload" class="btn btn-primary">
             Import Character Card
           </label>
-          <input type="file" id="characterUpload" accept="image/png" style="display: none;">
         </div>
       </section>
 
@@ -337,9 +346,9 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Scripts -->
-  <script src="tavern-parser.js"></script>
-  <script src="deepseek-api.js"></script>
-  <script src="app.js"></script>
+  <script src="/shared/tavern-parser.js"></script>
+  <script src="js/api-client.js"></script>
+  <script src="js/app.js"></script>
 </body>
 
 </html>

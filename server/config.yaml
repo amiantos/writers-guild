@@ -1,0 +1,18 @@
+# Úrscéal Server Configuration
+
+server:
+  port: 8000
+  host: '0.0.0.0'
+
+data:
+  # Data directory for stories, characters, and settings
+  root: '../data'
+
+security:
+  # CORS configuration
+  cors:
+    origins:
+      - 'http://localhost:8000'
+      - 'http://127.0.0.1:8000'
+
+  # Future: Add basic auth, CSRF protection, etc.

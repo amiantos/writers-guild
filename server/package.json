@@ -1,0 +1,29 @@
+{
+  "name": "ursceal-server",
+  "version": "2.0.0",
+  "description": "Úrscéal - Novel writing application server",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "novel",
+    "writing",
+    "ai",
+    "deepseek"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.0",
+    "cors": "^2.8.5",
+    "helmet": "^8.1.0",
+    "body-parser": "^1.20.2",
+    "compression": "^1.8.1",
+    "multer": "^2.0.2",
+    "yaml": "^2.8.1",
+    "uuid": "^11.0.3"
+  }
+}

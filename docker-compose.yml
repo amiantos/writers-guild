@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  ursceal:
+    build: .
+    container_name: ursceal-server
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+      - ./server/config.yaml:/app/config.yaml
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped

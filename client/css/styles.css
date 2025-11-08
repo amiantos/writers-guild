@@ -49,6 +49,41 @@ body {
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--primary-color);
+  margin-right: 1rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.story-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.story-selector {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  min-width: 200px;
+  transition: border-color 0.2s;
+}
+
+.story-selector:hover {
+  border-color: var(--primary-color);
+}
+
+.story-selector:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
 }
 
 .header-right {
