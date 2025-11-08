@@ -76,4 +76,66 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
+// ==================== Story-Character Associations ====================
+
+// Get characters for this story
+router.get('/:id/characters', asyncHandler(async (req, res) => {
+  const characters = await storage.listStoryCharacters(req.params.id);
+
+  // Load character data from JSON files
+  const charactersWithData = await Promise.all(
+    characters.map(async (char) => {
+      try {
+        const cardData = await storage.getCharacter(char.id);
+        const hasImage = await storage.hasCharacterImage(char.id);
+
+        return {
+          id: char.id,
+          name: cardData.data?.name || 'Unknown',
+          description: cardData.data?.description || '',
+          imageUrl: hasImage ? `/api/characters/${char.id}/image` : null,
+        };
+      } catch (error) {
+        console.error(`Failed to load character ${char.id}:`, error);
+        return {
+          id: char.id,
+          name: 'Unknown',
+          description: 'Failed to load',
+          imageUrl: null,
+        };
+      }
+    })
+  );
+
+  res.json({ characters: charactersWithData });
+}));
+
+// Add existing character to story
+router.post('/:id/characters', asyncHandler(async (req, res) => {
+  const { characterId } = req.body;
+
+  if (!characterId) {
+    throw new AppError('Character ID is required', 400);
+  }
+
+  await storage.addCharacterToStory(req.params.id, characterId);
+  res.json({ success: true });
+}));
+
+// Remove character from story (doesn't delete character)
+router.delete('/:id/characters/:characterId', asyncHandler(async (req, res) => {
+  const { id: storyId, characterId } = req.params;
+  await storage.removeCharacterFromStory(storyId, characterId);
+  res.json({ success: true });
+}));
+
+// Set story persona (use a character as persona)
+router.put('/:id/persona', asyncHandler(async (req, res) => {
+  const { characterId } = req.body; // Can be null to unset
+
+  await storage.setStoryPersona(req.params.id, characterId);
+  res.json({ success: true });
+}));
+
 export default router;
+

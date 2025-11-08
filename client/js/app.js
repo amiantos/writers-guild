@@ -7,9 +7,9 @@ class NovelWriterApp {
   constructor() {
     // State
     this.currentStoryId = null;
+    this.currentStory = null; // Track full story metadata
     this.stories = [];
     this.characters = [];
-    this.persona = null;
     this.settings = null;
     this.autoSaveInterval = null;
     this.lastSystemPrompt = "";
@@ -26,9 +26,6 @@ class NovelWriterApp {
     try {
       // Load settings first
       await this.loadSettings();
-
-      // Load persona
-      await this.loadPersona();
 
       // Load stories list
       await this.loadStories();
@@ -57,6 +54,16 @@ class NovelWriterApp {
     // Editor
     this.editor = document.getElementById('storyEditor');
 
+    // Character library
+    this.characterLibraryBtn = document.getElementById('characterLibraryBtn');
+    this.characterLibraryModal = document.getElementById('characterLibraryModal');
+    this.characterLibraryGrid = document.getElementById('characterLibraryGrid');
+    this.characterUploadLibrary = document.getElementById('characterUploadLibrary');
+    this.createCharacterBtn = document.getElementById('createCharacterBtn');
+
+    // Character editor state
+    this.editingCharacterId = null;
+
     // Character
     this.characterInfo = document.getElementById('characterInfo');
     this.noCharacter = document.getElementById('noCharacter');
@@ -69,6 +76,7 @@ class NovelWriterApp {
 
     // Character modal
     this.characterModal = document.getElementById('characterModal');
+    this.charImageInput = document.getElementById('charImageInput');
     this.charNameInput = document.getElementById('charNameInput');
     this.charDescInput = document.getElementById('charDescInput');
     this.charPersonalityInput = document.getElementById('charPersonalityInput');
@@ -82,14 +90,15 @@ class NovelWriterApp {
     // Persona
     this.personaSummary = document.getElementById('personaSummary');
     this.personaName = document.getElementById('personaName');
+    this.personaType = document.getElementById('personaType');
+    this.selectPersonaBtn = document.getElementById('selectPersonaBtn');
     this.editPersonaBtn = document.getElementById('editPersonaBtn');
 
-    // Persona modal
-    this.personaModal = document.getElementById('personaModal');
-    this.personaNameInput = document.getElementById('personaNameInput');
-    this.personaDescInput = document.getElementById('personaDescInput');
-    this.personaStyleInput = document.getElementById('personaStyleInput');
-    this.savePersonaBtn = document.getElementById('savePersonaBtn');
+    // Persona selector modal
+    this.personaSelectorModal = document.getElementById('personaSelectorModal');
+    this.personaSelectorGrid = document.getElementById('personaSelectorGrid');
+    this.clearPersonaBtn = document.getElementById('clearPersonaBtn');
+
 
     // Generation
     this.continueStoryBtn = document.getElementById('continueStoryBtn');
@@ -146,6 +155,17 @@ class NovelWriterApp {
       this.newStoryBtn.addEventListener('click', () => this.createNewStory());
     }
 
+    // Character library
+    if (this.characterLibraryBtn) {
+      this.characterLibraryBtn.addEventListener('click', () => this.openCharacterLibrary());
+    }
+    if (this.createCharacterBtn) {
+      this.createCharacterBtn.addEventListener('click', () => this.openCharacterCreator());
+    }
+    if (this.characterUploadLibrary) {
+      this.characterUploadLibrary.addEventListener('change', (e) => this.handleLibraryCharacterUpload(e));
+    }
+
     // Character
     if (this.characterUpload) {
       this.characterUpload.addEventListener('change', (e) => this.handleCharacterUpload(e));
@@ -161,11 +181,11 @@ class NovelWriterApp {
     }
 
     // Persona
-    if (this.editPersonaBtn) {
-      this.editPersonaBtn.addEventListener('click', () => this.openPersonaModal());
+    if (this.selectPersonaBtn) {
+      this.selectPersonaBtn.addEventListener('click', () => this.openPersonaSelector());
     }
-    if (this.savePersonaBtn) {
-      this.savePersonaBtn.addEventListener('click', () => this.savePersona());
+    if (this.clearPersonaBtn) {
+      this.clearPersonaBtn.addEventListener('click', () => this.clearStoryPersona());
     }
 
     // Generation
@@ -270,16 +290,6 @@ class NovelWriterApp {
     }
   }
 
-  async loadPersona() {
-    try {
-      const { persona } = await apiClient.getPersona();
-      this.persona = persona;
-    } catch (error) {
-      console.error('Failed to load persona:', error);
-      this.persona = null;
-    }
-  }
-
   async loadStories() {
     try {
       const { stories } = await apiClient.listStories();
@@ -317,6 +327,7 @@ class NovelWriterApp {
 
     try {
       const { story } = await apiClient.getStory(this.currentStoryId);
+      this.currentStory = story; // Save full story metadata
       this.editor.value = story.content || '';
 
       // Load characters for this story
@@ -333,7 +344,7 @@ class NovelWriterApp {
     if (!this.currentStoryId) return;
 
     try {
-      const { characters } = await apiClient.listCharacters(this.currentStoryId);
+      const { characters } = await apiClient.listStoryCharacters(this.currentStoryId);
       this.characters = characters || [];
       this.updateUI();
     } catch (error) {
@@ -399,18 +410,23 @@ class NovelWriterApp {
     }
 
     try {
-      const result = await apiClient.uploadCharacter(this.currentStoryId, file);
+      // Step 1: Import PNG to global library
+      const result = await apiClient.importCharacter(file);
 
-      // If story is empty and character has first message, populate it
+      // Step 2: Add to current story
+      await apiClient.addCharacterToStory(this.currentStoryId, result.id);
+
+      // Step 3: If story is empty and character has first message, populate it
       if (!this.editor.value.trim() && result.firstMessage) {
         this.editor.value = result.firstMessage + '\n\n';
         await this.saveDocument();
       }
 
+      // Reload characters
       await this.loadCharacters();
-      this.showToast(`Character "${result.name}" imported!`, 'success');
+      this.showToast(`Character "${result.name}" added to story!`, 'success');
     } catch (error) {
-      console.error('Failed to upload character:', error);
+      console.error('Failed to import character:', error);
       this.showToast('Failed to import character: ' + error.message, 'error');
     }
 
@@ -421,60 +437,362 @@ class NovelWriterApp {
   async clearCharacter() {
     if (!this.characters || this.characters.length === 0) return;
 
-    if (!confirm('Remove all characters from this story?')) return;
+    if (!confirm('Remove all characters from this story? (They will remain in your character library)')) return;
 
     try {
-      // Delete all characters
+      // Remove all characters from story (doesn't delete from library)
       for (const char of this.characters) {
-        await apiClient.deleteCharacter(this.currentStoryId, char.id);
+        await apiClient.removeCharacterFromStory(this.currentStoryId, char.id);
       }
       this.characters = [];
       this.updateUI();
-      this.showToast('Characters removed', 'success');
+      this.showToast('Characters removed from story', 'success');
     } catch (error) {
       console.error('Failed to clear characters:', error);
       this.showToast('Failed to remove characters', 'error');
     }
   }
 
-  openCharacterModal() {
-    // For now, show message that character editing isn't implemented yet
-    // TODO: Implement character editing via re-upload
-    this.showToast('Character editing: re-upload PNG to update', 'info');
+  openCharacterCreator() {
+    this.editingCharacterId = null;
+    document.getElementById('characterModalTitle').textContent = 'Create New Character';
+
+    // Clear all fields
+    if (this.charImageInput) this.charImageInput.value = '';
+    this.charNameInput.value = '';
+    this.charDescInput.value = '';
+    this.charPersonalityInput.value = '';
+    this.charScenarioInput.value = '';
+    this.charFirstMesInput.value = '';
+    this.charMesExampleInput.value = '';
+    this.charSystemPromptInput.value = '';
+    this.charPostHistoryInput.value = '';
+
+    // Close library modal to prevent overlap
+    this.closeModal(this.characterLibraryModal);
+
+    this.openModal(this.characterModal);
   }
 
-  saveCharacter() {
-    // TODO: Implement character editing
-    this.closeModal(this.characterModal);
-  }
-
-  // ==================== Persona Management ====================
-
-  openPersonaModal() {
-    if (this.persona) {
-      this.personaNameInput.value = this.persona.name || '';
-      this.personaDescInput.value = this.persona.description || '';
-      this.personaStyleInput.value = this.persona.writingStyle || '';
-    }
-    this.openModal(this.personaModal);
-  }
-
-  async savePersona() {
-    const persona = {
-      name: this.personaNameInput.value.trim(),
-      description: this.personaDescInput.value.trim(),
-      writingStyle: this.personaStyleInput.value.trim(),
-    };
+  async openCharacterEditor(characterId) {
+    this.editingCharacterId = characterId;
+    document.getElementById('characterModalTitle').textContent = 'Edit Character';
 
     try {
-      const { persona: saved } = await apiClient.updatePersona(persona);
-      this.persona = saved;
-      this.updateUI();
-      this.closeModal(this.personaModal);
-      this.showToast('Persona saved', 'success');
+      const { character } = await apiClient.getCharacterData(characterId);
+      const data = character.data;
+
+      if (this.charImageInput) this.charImageInput.value = '';
+      this.charNameInput.value = data.name || '';
+      this.charDescInput.value = data.description || '';
+      this.charPersonalityInput.value = data.personality || '';
+      this.charScenarioInput.value = data.scenario || '';
+      this.charFirstMesInput.value = data.first_mes || '';
+      this.charMesExampleInput.value = data.mes_example || '';
+      this.charSystemPromptInput.value = data.system_prompt || '';
+      this.charPostHistoryInput.value = data.post_history_instructions || '';
+
+      // Close library modal to prevent overlap
+      this.closeModal(this.characterLibraryModal);
+
+      this.openModal(this.characterModal);
     } catch (error) {
-      console.error('Failed to save persona:', error);
-      this.showToast('Failed to save persona', 'error');
+      console.error('Failed to load character for editing:', error);
+      this.showToast('Failed to load character', 'error');
+    }
+  }
+
+  async saveCharacter() {
+    const characterData = {
+      name: this.charNameInput.value.trim(),
+      description: this.charDescInput.value.trim(),
+      personality: this.charPersonalityInput.value.trim(),
+      scenario: this.charScenarioInput.value.trim(),
+      first_mes: this.charFirstMesInput.value.trim(),
+      mes_example: this.charMesExampleInput.value.trim(),
+      system_prompt: this.charSystemPromptInput.value.trim(),
+    };
+
+    if (!characterData.name) {
+      this.showToast('Character name is required', 'error');
+      return;
+    }
+
+    // Get image file if selected
+    const imageFile = this.charImageInput && this.charImageInput.files[0];
+
+    try {
+      if (this.editingCharacterId) {
+        // Update existing character
+        if (imageFile) {
+          await apiClient.updateCharacterWithImage(this.editingCharacterId, characterData, imageFile);
+        } else {
+          await apiClient.updateCharacter(this.editingCharacterId, characterData);
+        }
+        this.showToast('Character updated!', 'success');
+      } else {
+        // Create new character
+        const result = await apiClient.createCharacterWithImage(characterData, imageFile);
+        this.showToast(`Character "${result.name}" created!`, 'success');
+      }
+
+      this.closeModal(this.characterModal);
+
+      // Re-open library to show updates
+      await this.openCharacterLibrary();
+
+      // Reload story characters in case we edited one in use
+      await this.loadCharacters();
+    } catch (error) {
+      console.error('Failed to save character:', error);
+      this.showToast('Failed to save character: ' + error.message, 'error');
+    }
+  }
+
+  // ==================== Character Library ====================
+
+  async openCharacterLibrary() {
+    this.openModal(this.characterLibraryModal);
+
+    try {
+      const { characters } = await apiClient.listAllCharacters();
+      this.renderCharacterLibrary(characters || []);
+    } catch (error) {
+      console.error('Failed to load character library:', error);
+      this.characterLibraryGrid.innerHTML = '<p class="text-secondary">Failed to load characters</p>';
+    }
+  }
+
+  renderCharacterLibrary(characters) {
+    if (characters.length === 0) {
+      this.characterLibraryGrid.innerHTML = '<p class="text-secondary">No characters in library. Import one to get started!</p>';
+      return;
+    }
+
+    this.characterLibraryGrid.innerHTML = '';
+
+    characters.forEach(char => {
+      const card = document.createElement('div');
+      card.className = 'character-card';
+
+      // Avatar
+      const avatar = document.createElement('div');
+      avatar.className = 'character-card-avatar';
+      if (char.imageUrl) {
+        avatar.style.backgroundImage = `url(${char.imageUrl})`;
+      } else {
+        avatar.textContent = char.name.charAt(0).toUpperCase();
+      }
+
+      // Name
+      const name = document.createElement('div');
+      name.className = 'character-card-name';
+      name.textContent = char.name;
+
+      // Description
+      const desc = document.createElement('div');
+      desc.className = 'character-card-desc';
+      desc.textContent = char.description || 'No description';
+
+      // Actions
+      const actions = document.createElement('div');
+      actions.className = 'character-card-actions';
+      actions.style.display = 'grid';
+      actions.style.gridTemplateColumns = '1fr 1fr';
+      actions.style.gap = '0.5rem';
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn btn-small btn-primary';
+      addBtn.textContent = 'Add';
+      addBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await this.addExistingCharacterToStory(char.id);
+      };
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn btn-small btn-secondary';
+      editBtn.textContent = 'Edit';
+      editBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await this.openCharacterEditor(char.id);
+      };
+
+      actions.appendChild(addBtn);
+      actions.appendChild(editBtn);
+
+      // Delete button (full width, below other buttons)
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'btn btn-small btn-secondary';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.style.gridColumn = '1 / -1';
+      deleteBtn.style.marginTop = '0.25rem';
+      deleteBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await this.deleteCharacterFromLibrary(char.id);
+      };
+
+      card.appendChild(avatar);
+      card.appendChild(name);
+      card.appendChild(desc);
+      card.appendChild(actions);
+      card.appendChild(deleteBtn);
+
+      this.characterLibraryGrid.appendChild(card);
+    });
+  }
+
+  async handleLibraryCharacterUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const result = await apiClient.importCharacter(file);
+      this.showToast(`Character "${result.name}" imported to library!`, 'success');
+
+      // Refresh library view
+      const { characters } = await apiClient.listAllCharacters();
+      this.renderCharacterLibrary(characters || []);
+    } catch (error) {
+      console.error('Failed to import character:', error);
+      this.showToast('Failed to import character: ' + error.message, 'error');
+    }
+
+    // Reset file input
+    event.target.value = '';
+  }
+
+  async addExistingCharacterToStory(characterId) {
+    if (!this.currentStoryId) {
+      this.showToast('Please create a story first', 'error');
+      return;
+    }
+
+    try {
+      await apiClient.addCharacterToStory(this.currentStoryId, characterId);
+      await this.loadCharacters();
+      this.showToast('Character added to story!', 'success');
+    } catch (error) {
+      console.error('Failed to add character to story:', error);
+      this.showToast('Failed to add character: ' + error.message, 'error');
+    }
+  }
+
+  async deleteCharacterFromLibrary(characterId) {
+    if (!confirm('Permanently delete this character from your library? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteCharacter(characterId);
+      this.showToast('Character deleted from library', 'success');
+
+      // Refresh library view
+      const { characters } = await apiClient.listAllCharacters();
+      this.renderCharacterLibrary(characters || []);
+
+      // Reload current story characters in case it was removed
+      await this.loadCharacters();
+    } catch (error) {
+      console.error('Failed to delete character:', error);
+      this.showToast('Failed to delete character: ' + error.message, 'error');
+    }
+  }
+
+  // ==================== Persona Management (Character-Only) ====================
+
+  async openPersonaSelector() {
+    if (!this.currentStoryId) {
+      this.showToast('Please create a story first', 'error');
+      return;
+    }
+
+    this.openModal(this.personaSelectorModal);
+
+    try {
+      const { characters } = await apiClient.listAllCharacters();
+      this.renderPersonaSelector(characters || []);
+    } catch (error) {
+      console.error('Failed to load characters for persona:', error);
+      this.personaSelectorGrid.innerHTML = '<p class="text-secondary">Failed to load characters</p>';
+    }
+  }
+
+  renderPersonaSelector(characters) {
+    if (characters.length === 0) {
+      this.personaSelectorGrid.innerHTML = '<p class="text-secondary">No characters in library. Import one first!</p>';
+      return;
+    }
+
+    this.personaSelectorGrid.innerHTML = '';
+
+    characters.forEach(char => {
+      const card = document.createElement('div');
+      card.className = 'character-card';
+
+      // Avatar
+      const avatar = document.createElement('div');
+      avatar.className = 'character-card-avatar';
+      if (char.imageUrl) {
+        avatar.style.backgroundImage = `url(${char.imageUrl})`;
+      } else {
+        avatar.textContent = char.name.charAt(0).toUpperCase();
+      }
+
+      // Name
+      const name = document.createElement('div');
+      name.className = 'character-card-name';
+      name.textContent = char.name;
+
+      // Description
+      const desc = document.createElement('div');
+      desc.className = 'character-card-desc';
+      desc.textContent = char.description || 'No description';
+
+      // Use as Persona button
+      const useBtn = document.createElement('button');
+      useBtn.className = 'btn btn-small btn-primary';
+      useBtn.textContent = 'Use as Persona';
+      useBtn.style.width = '100%';
+      useBtn.onclick = async () => {
+        await this.setCharacterAsPersona(char.id);
+      };
+
+      card.appendChild(avatar);
+      card.appendChild(name);
+      card.appendChild(desc);
+      card.appendChild(useBtn);
+
+      this.personaSelectorGrid.appendChild(card);
+    });
+  }
+
+  async setCharacterAsPersona(characterId) {
+    if (!this.currentStoryId) return;
+
+    try {
+      await apiClient.setStoryPersona(this.currentStoryId, characterId);
+      await this.loadCurrentStory(); // Reload to update personaCharacterId
+      this.updateUI();
+      this.closeModal(this.personaSelectorModal);
+      this.showToast('Character set as persona for this story!', 'success');
+    } catch (error) {
+      console.error('Failed to set persona:', error);
+      this.showToast('Failed to set persona: ' + error.message, 'error');
+    }
+  }
+
+  async clearStoryPersona() {
+    if (!this.currentStoryId) return;
+
+    try {
+      await apiClient.setStoryPersona(this.currentStoryId, null);
+      await this.loadCurrentStory(); // Reload to update personaCharacterId
+      this.updateUI();
+      this.closeModal(this.personaSelectorModal);
+      this.showToast('Persona cleared', 'success');
+    } catch (error) {
+      console.error('Failed to clear persona:', error);
+      this.showToast('Failed to clear persona: ' + error.message, 'error');
     }
   }
 
@@ -928,11 +1246,28 @@ Do NOT use first-person (I, me, my) or present tense.`;
     }
   }
 
-  updatePersonaDisplay() {
-    if (this.persona && this.persona.name) {
-      this.personaName.textContent = this.persona.name;
+  async updatePersonaDisplay() {
+    // Check if current story has a persona character set
+    if (this.currentStory && this.currentStory.personaCharacterId) {
+      // Using a character as persona
+      try {
+        const { character } = await apiClient.getCharacterData(this.currentStory.personaCharacterId);
+        this.personaName.textContent = character.data?.name || 'Unknown';
+        if (this.personaType) {
+          this.personaType.textContent = 'Selected for this story';
+        }
+      } catch (error) {
+        console.error('Failed to load persona character:', error);
+        this.personaName.textContent = 'Error loading';
+        if (this.personaType) {
+          this.personaType.textContent = '';
+        }
+      }
     } else {
       this.personaName.textContent = 'Not set';
+      if (this.personaType) {
+        this.personaType.textContent = 'Click "Select Character" to set';
+      }
     }
   }
 

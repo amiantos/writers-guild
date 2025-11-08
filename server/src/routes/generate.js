@@ -51,24 +51,55 @@ router.post('/', asyncHandler(async (req, res) => {
   // Load story
   const story = await storage.getStory(storyId);
 
-  // Load persona
-  const persona = await storage.getPersona();
+  console.log('[Generate] Story loaded:', {
+    id: story.id,
+    title: story.title,
+    characterCount: story.characterIds?.length || 0,
+    hasPersonaCharacter: !!story.personaCharacterId
+  });
 
-  // Load and parse all characters for this story
+  // Load persona (character only)
+  let persona = null;
+  if (story.personaCharacterId) {
+    // Use a character as persona
+    try {
+      const cardData = await storage.getCharacter(story.personaCharacterId);
+
+      // Convert character card to persona format
+      persona = {
+        name: cardData.data?.name || 'User',
+        description: cardData.data?.description || '',
+        writingStyle: cardData.data?.personality || ''
+      };
+
+      console.log('[Generate] Using character as persona:', persona.name);
+    } catch (error) {
+      console.error('[Generate] Failed to load persona character:', error);
+      persona = null;
+    }
+  } else {
+    console.log('[Generate] No persona set for this story');
+  }
+
+  // Load all characters for this story
   const characterCards = [];
   for (const charId of story.characterIds || []) {
     try {
-      const pngBuffer = await storage.getCharacter(storyId, charId);
-      const cardData = await CharacterParser.parseCard(pngBuffer);
+      const cardData = await storage.getCharacter(charId);
       characterCards.push(cardData);
+      console.log('[Generate] Loaded character:', cardData.data?.name || 'Unknown');
     } catch (error) {
-      console.error(`Failed to load character ${charId}:`, error);
+      console.error(`[Generate] Failed to load character ${charId}:`, error);
     }
   }
 
   // For multi-character stories, use the first character for now
-  // TODO: Could enhance this to let user select which character for character-based generation
+  // TODO: Let user select which character for character-based generation
   const characterCard = characterCards.length > 0 ? characterCards[0] : null;
+
+  if (characterCard) {
+    console.log('[Generate] Using character for generation:', characterCard.data?.name || 'Unknown');
+  }
 
   // Initialize DeepSeek API
   const deepseek = new DeepSeekAPI(settings.apiKey);

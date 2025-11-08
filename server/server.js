@@ -18,7 +18,6 @@ import bodyParser from 'body-parser';
 // Import route handlers
 import storiesRouter from './src/routes/stories.js';
 import charactersRouter from './src/routes/characters.js';
-import personasRouter from './src/routes/personas.js';
 import settingsRouter from './src/routes/settings.js';
 import generateRouter from './src/routes/generate.js';
 
@@ -82,7 +81,6 @@ app.use((req, res, next) => {
 // API routes
 app.use('/api/stories', storiesRouter);
 app.use('/api/characters', charactersRouter);
-app.use('/api/persona', personasRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/generate', generateRouter);
 

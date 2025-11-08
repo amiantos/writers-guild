@@ -35,7 +35,11 @@
     <aside class="sidebar">
       <!-- Character Card Section -->
       <section class="sidebar-section">
-        <h2>Characters</h2>
+        <h2>Story Characters</h2>
+        <button id="characterLibraryBtn" class="btn btn-secondary" style="margin-bottom: 0.5rem;">
+          Character Library
+        </button>
+
         <input type="file" id="characterUpload" accept="image/png" style="display: none;">
 
         <div id="characterInfo" class="character-info hidden">
@@ -46,9 +50,9 @@
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
             <label for="characterUpload" class="btn btn-small btn-primary" style="text-align: center; margin: 0;">
-              Add More
+              Import New
             </label>
-            <button id="clearCharacterBtn" class="btn btn-small btn-secondary">Clear All</button>
+            <button id="clearCharacterBtn" class="btn btn-small btn-secondary">Remove All</button>
           </div>
         </div>
         <div id="noCharacter" class="no-character">
@@ -61,10 +65,11 @@
 
       <!-- Persona Section -->
       <section class="sidebar-section">
-        <h2>Persona (Your Character)</h2>
-        <button id="editPersonaBtn" class="btn btn-secondary">Edit Persona</button>
+        <h2>Persona</h2>
+        <button id="selectPersonaBtn" class="btn btn-secondary">Select Character</button>
         <div id="personaSummary" class="persona-summary">
           <p id="personaName">Not set</p>
+          <p id="personaType" style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;"></p>
         </div>
       </section>
 
@@ -197,46 +202,20 @@
     </div>
   </div>
 
-  <!-- Persona Editor Modal -->
-  <div id="personaModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Edit Persona</h2>
-        <button class="close-btn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="personaNameInput">Name</label>
-          <input type="text" id="personaNameInput" class="input-field" placeholder="Your character's name">
-        </div>
-
-        <div class="form-group">
-          <label for="personaDescInput">Description</label>
-          <textarea id="personaDescInput" class="input-field textarea-field" rows="4"
-            placeholder="Physical appearance, background, traits..."></textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="personaStyleInput">Writing Style Preferences</label>
-          <textarea id="personaStyleInput" class="input-field textarea-field" rows="3"
-            placeholder="How should this character be written? (e.g., introspective, action-oriented, descriptive...)"></textarea>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button id="savePersonaBtn" class="btn btn-primary">Save Persona</button>
-        <button class="btn btn-secondary close-btn">Cancel</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Character Editor Modal -->
   <div id="characterModal" class="modal hidden">
     <div class="modal-content" style="max-width: 700px;">
       <div class="modal-header">
-        <h2>Edit Character Card</h2>
+        <h2 id="characterModalTitle">Edit Character</h2>
         <button class="close-btn">&times;</button>
       </div>
       <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <div class="form-group">
+          <label for="charImageInput">Character Image (Optional)</label>
+          <input type="file" id="charImageInput" class="input-field" accept="image/png,image/jpeg,image/jpg" style="padding: 0.4rem;">
+          <small>Optional: Upload an image for this character</small>
+        </div>
+
         <div class="form-group">
           <label for="charNameInput">Name</label>
           <input type="text" id="charNameInput" class="input-field" placeholder="Character name">
@@ -313,6 +292,53 @@
       <div class="modal-footer">
         <button id="generateCustomBtn" class="btn btn-primary">Generate</button>
         <button class="btn btn-secondary close-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Persona Selector Modal -->
+  <div id="personaSelectorModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
+      <div class="modal-header">
+        <h2>Select Persona for This Story</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+        <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+          Choose a character from your library to use as the persona (narrator perspective) for this story.
+        </p>
+        <div id="personaSelectorGrid" class="character-library-grid">
+          <p class="text-secondary">Loading characters...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="clearPersonaBtn" class="btn btn-secondary">Clear Persona</button>
+        <button class="btn btn-secondary close-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Library Modal -->
+  <div id="characterLibraryModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
+      <div class="modal-header">
+        <h2>Character Library</h2>
+        <button class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+        <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+          <button id="createCharacterBtn" class="btn btn-primary">Create New Character</button>
+          <label for="characterUploadLibrary" class="btn btn-secondary" style="margin: 0;">
+            Import PNG
+          </label>
+          <input type="file" id="characterUploadLibrary" accept="image/png" style="display: none;">
+        </div>
+        <div id="characterLibraryGrid" class="character-library-grid">
+          <p class="text-secondary">Loading characters...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary close-btn">Close</button>
       </div>
     </div>
   </div>

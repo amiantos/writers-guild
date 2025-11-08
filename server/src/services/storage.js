@@ -12,7 +12,7 @@ export class StorageService {
   constructor(dataRoot) {
     this.dataRoot = dataRoot;
     this.storiesDir = path.join(dataRoot, 'stories');
-    this.personasDir = path.join(dataRoot, 'personas');
+    this.charactersDir = path.join(dataRoot, 'characters');
     this.settingsFile = path.join(dataRoot, 'settings.json');
 
     this.initializeStorage();
@@ -24,7 +24,7 @@ export class StorageService {
   async initializeStorage() {
     try {
       await fs.mkdir(this.storiesDir, { recursive: true });
-      await fs.mkdir(this.personasDir, { recursive: true });
+      await fs.mkdir(this.charactersDir, { recursive: true });
 
       // Create default settings if not exists
       if (!fsSync.existsSync(this.settingsFile)) {
@@ -137,9 +137,8 @@ export class StorageService {
     const storyPath = path.join(this.storiesDir, storyId);
     const now = new Date().toISOString();
 
-    // Create story directory structure
+    // Create story directory
     await fs.mkdir(storyPath, { recursive: true });
-    await fs.mkdir(path.join(storyPath, 'characters'), { recursive: true });
 
     // Create metadata
     const metadata = {
@@ -148,7 +147,8 @@ export class StorageService {
       description,
       created: now,
       modified: now,
-      characterIds: []
+      characterIds: [],        // Array of character IDs (references to global library)
+      personaCharacterId: null // Optional: use a character as persona for this story
     };
 
     await this.writeJSON(path.join(storyPath, 'metadata.json'), metadata);
@@ -219,51 +219,151 @@ export class StorageService {
     return { success: true };
   }
 
-  // ==================== Character Operations ====================
+  // ==================== Character Operations (Global Library) ====================
 
   /**
-   * List characters for a story
+   * Get character data file path
    */
-  async listStoryCharacters(storyId) {
-    const charactersDir = path.join(this.storiesDir, storyId, 'characters');
+  getCharacterDataPath(characterId) {
+    return path.join(this.charactersDir, `${characterId}.json`);
+  }
 
-    if (!await this.exists(charactersDir)) {
+  /**
+   * Get character image file path
+   */
+  getCharacterImagePath(characterId) {
+    return path.join(this.charactersDir, `${characterId}-image.png`);
+  }
+
+  /**
+   * List all characters in global library
+   */
+  async listAllCharacters() {
+    if (!await this.exists(this.charactersDir)) {
       return [];
     }
 
-    const files = await fs.readdir(charactersDir);
-    const pngFiles = files.filter(f => f.endsWith('.png'));
+    const files = await fs.readdir(this.charactersDir);
+    const jsonFiles = files.filter(f => f.endsWith('.json'));
 
-    return pngFiles.map(filename => ({
-      id: path.parse(filename).name,
-      filename,
-      storyId
+    return jsonFiles.map(filename => ({
+      id: path.parse(filename).name
     }));
   }
 
   /**
-   * Get character file path
+   * List characters for a specific story
    */
-  getCharacterPath(storyId, characterId) {
-    return path.join(this.storiesDir, storyId, 'characters', `${characterId}.png`);
+  async listStoryCharacters(storyId) {
+    const metadataPath = path.join(this.storiesDir, storyId, 'metadata.json');
+
+    if (!await this.exists(metadataPath)) {
+      return [];
+    }
+
+    const metadata = await this.readJSON(metadataPath);
+    const characterIds = metadata.characterIds || [];
+
+    // Return character IDs that exist in global library
+    const characters = [];
+    for (const charId of characterIds) {
+      const charPath = this.getCharacterDataPath(charId);
+      if (await this.exists(charPath)) {
+        characters.push({ id: charId });
+      }
+    }
+
+    return characters;
   }
 
   /**
-   * Save character PNG
+   * Save character data to global library
    */
-  async saveCharacter(storyId, characterId, pngBuffer) {
-    const storyPath = path.join(this.storiesDir, storyId);
-    const metadataPath = path.join(storyPath, 'metadata.json');
+  async saveCharacter(characterId, characterData, imageBuffer = null) {
+    const dataPath = this.getCharacterDataPath(characterId);
+    await this.writeJSON(dataPath, characterData);
+
+    // Save image if provided
+    if (imageBuffer) {
+      const imagePath = this.getCharacterImagePath(characterId);
+      await fs.writeFile(imagePath, imageBuffer);
+    }
+
+    return { id: characterId };
+  }
+
+  /**
+   * Get character data from global library
+   */
+  async getCharacter(characterId) {
+    const dataPath = this.getCharacterDataPath(characterId);
+
+    if (!await this.exists(dataPath)) {
+      throw new Error(`Character not found: ${characterId}`);
+    }
+
+    return await this.readJSON(dataPath);
+  }
+
+  /**
+   * Get character image buffer (if exists)
+   */
+  async getCharacterImage(characterId) {
+    const imagePath = this.getCharacterImagePath(characterId);
+
+    if (!await this.exists(imagePath)) {
+      return null;
+    }
+
+    return await fs.readFile(imagePath);
+  }
+
+  /**
+   * Check if character has image
+   */
+  async hasCharacterImage(characterId) {
+    const imagePath = this.getCharacterImagePath(characterId);
+    return await this.exists(imagePath);
+  }
+
+  /**
+   * Delete character from global library
+   */
+  async deleteCharacter(characterId) {
+    const dataPath = this.getCharacterDataPath(characterId);
+    const imagePath = this.getCharacterImagePath(characterId);
+
+    // Delete data file
+    if (await this.exists(dataPath)) {
+      await fs.unlink(dataPath);
+    }
+
+    // Delete image if exists
+    if (await this.exists(imagePath)) {
+      await fs.unlink(imagePath);
+    }
+
+    // Note: This doesn't remove from stories - caller should check if in use
+    return { success: true };
+  }
+
+  /**
+   * Add character to story (create reference)
+   */
+  async addCharacterToStory(storyId, characterId) {
+    const metadataPath = path.join(this.storiesDir, storyId, 'metadata.json');
 
     if (!await this.exists(metadataPath)) {
       throw new Error(`Story not found: ${storyId}`);
     }
 
-    // Save PNG file
-    const characterPath = this.getCharacterPath(storyId, characterId);
-    await fs.writeFile(characterPath, pngBuffer);
+    // Verify character exists in global library
+    const characterPath = this.getCharacterDataPath(characterId);
+    if (!await this.exists(characterPath)) {
+      throw new Error(`Character not found: ${characterId}`);
+    }
 
-    // Add character ID to story metadata if not already present
+    // Add to story's character list
     const metadata = await this.readJSON(metadataPath);
     if (!metadata.characterIds.includes(characterId)) {
       metadata.characterIds.push(characterId);
@@ -271,66 +371,57 @@ export class StorageService {
       await this.writeJSON(metadataPath, metadata);
     }
 
-    return { id: characterId, storyId };
+    return { success: true };
   }
 
   /**
-   * Get character PNG buffer
+   * Remove character from story (remove reference, don't delete)
    */
-  async getCharacter(storyId, characterId) {
-    const characterPath = this.getCharacterPath(storyId, characterId);
-
-    if (!await this.exists(characterPath)) {
-      throw new Error(`Character not found: ${characterId}`);
-    }
-
-    return await fs.readFile(characterPath);
-  }
-
-  /**
-   * Delete character
-   */
-  async deleteCharacter(storyId, characterId) {
-    const characterPath = this.getCharacterPath(storyId, characterId);
+  async removeCharacterFromStory(storyId, characterId) {
     const metadataPath = path.join(this.storiesDir, storyId, 'metadata.json');
 
-    if (await this.exists(characterPath)) {
-      await fs.unlink(characterPath);
+    if (!await this.exists(metadataPath)) {
+      throw new Error(`Story not found: ${storyId}`);
     }
 
-    // Remove from story metadata
-    if (await this.exists(metadataPath)) {
-      const metadata = await this.readJSON(metadataPath);
-      metadata.characterIds = metadata.characterIds.filter(id => id !== characterId);
-      metadata.modified = new Date().toISOString();
-      await this.writeJSON(metadataPath, metadata);
+    const metadata = await this.readJSON(metadataPath);
+    metadata.characterIds = metadata.characterIds.filter(id => id !== characterId);
+
+    // If this character was the persona, clear that too
+    if (metadata.personaCharacterId === characterId) {
+      metadata.personaCharacterId = null;
     }
+
+    metadata.modified = new Date().toISOString();
+    await this.writeJSON(metadataPath, metadata);
 
     return { success: true };
   }
 
-  // ==================== Persona Operations ====================
-
   /**
-   * Get current persona
+   * Set character as persona for story
    */
-  async getPersona() {
-    const personaPath = path.join(this.personasDir, 'default.json');
+  async setStoryPersona(storyId, characterId) {
+    const metadataPath = path.join(this.storiesDir, storyId, 'metadata.json');
 
-    if (!await this.exists(personaPath)) {
-      return null;
+    if (!await this.exists(metadataPath)) {
+      throw new Error(`Story not found: ${storyId}`);
     }
 
-    return await this.readJSON(personaPath);
-  }
+    // Verify character exists (can be null to unset)
+    if (characterId) {
+      const characterPath = this.getCharacterDataPath(characterId);
+      if (!await this.exists(characterPath)) {
+        throw new Error(`Character not found: ${characterId}`);
+      }
+    }
 
-  /**
-   * Save persona
-   */
-  async savePersona(persona) {
-    const personaPath = path.join(this.personasDir, 'default.json');
-    await this.writeJSON(personaPath, persona);
-    return persona;
+    const metadata = await this.readJSON(metadataPath);
+    metadata.personaCharacterId = characterId;
+    metadata.modified = new Date().toISOString();
+    await this.writeJSON(metadataPath, metadata);
+
+    return { success: true };
   }
 
   // ==================== Settings Operations ====================

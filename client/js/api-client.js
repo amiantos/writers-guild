@@ -66,17 +66,17 @@ class ApiClient {
     });
   }
 
-  // ==================== Characters ====================
+  // ==================== Characters (Global Library) ====================
 
-  async listCharacters(storyId) {
-    return this.request(`/api/characters/story/${storyId}`);
+  async listAllCharacters() {
+    return this.request('/api/characters');
   }
 
-  async uploadCharacter(storyId, file) {
+  async importCharacter(file) {
     const formData = new FormData();
     formData.append('character', file);
 
-    const url = `${this.baseURL}/api/characters/story/${storyId}`;
+    const url = `${this.baseURL}/api/characters/import`;
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
@@ -84,32 +84,99 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: response.statusText }));
-      throw new Error(error.error || `Upload failed: ${response.statusText}`);
+      throw new Error(error.error || `Import failed: ${response.statusText}`);
     }
 
     return response.json();
   }
 
-  async getCharacterData(storyId, characterId) {
-    return this.request(`/api/characters/${storyId}/${characterId}/data`);
+  async createCharacter(characterData) {
+    return this.request('/api/characters', {
+      method: 'POST',
+      body: JSON.stringify(characterData),
+    });
   }
 
-  async deleteCharacter(storyId, characterId) {
-    return this.request(`/api/characters/${storyId}/${characterId}`, {
+  async createCharacterWithImage(characterData, imageFile) {
+    const formData = new FormData();
+    formData.append('characterData', JSON.stringify(characterData));
+    if (imageFile) {
+      formData.append('image', imageFile);
+    }
+
+    const url = `${this.baseURL}/api/characters/create`;
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || `Create failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async updateCharacter(characterId, updates) {
+    return this.request(`/api/characters/${characterId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async updateCharacterWithImage(characterId, characterData, imageFile) {
+    const formData = new FormData();
+    formData.append('characterData', JSON.stringify(characterData));
+    formData.append('image', imageFile);
+
+    const url = `${this.baseURL}/api/characters/${characterId}/update-with-image`;
+    const response = await fetch(url, {
+      method: 'PUT',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || `Update failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getCharacterData(characterId) {
+    return this.request(`/api/characters/${characterId}/data`);
+  }
+
+  async deleteCharacter(characterId) {
+    return this.request(`/api/characters/${characterId}`, {
       method: 'DELETE',
     });
   }
 
-  // ==================== Personas ====================
+  // ==================== Story-Character Associations ====================
 
-  async getPersona() {
-    return this.request('/api/persona');
+  async listStoryCharacters(storyId) {
+    return this.request(`/api/stories/${storyId}/characters`);
   }
 
-  async updatePersona(persona) {
-    return this.request('/api/persona', {
+  async addCharacterToStory(storyId, characterId) {
+    return this.request(`/api/stories/${storyId}/characters`, {
+      method: 'POST',
+      body: JSON.stringify({ characterId }),
+    });
+  }
+
+  async removeCharacterFromStory(storyId, characterId) {
+    return this.request(`/api/stories/${storyId}/characters/${characterId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setStoryPersona(storyId, characterId) {
+    return this.request(`/api/stories/${storyId}/persona`, {
       method: 'PUT',
-      body: JSON.stringify(persona),
+      body: JSON.stringify({ characterId }),
     });
   }
 

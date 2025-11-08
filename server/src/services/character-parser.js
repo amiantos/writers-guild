@@ -40,13 +40,113 @@ export class CharacterParser {
   }
 
   /**
-   * Encode character card to PNG buffer
-   * Takes existing PNG buffer and character data, returns new PNG with embedded data
+   * Create a minimal PNG with embedded character data
+   * Creates a 1x1 transparent PNG with character data in tEXt chunk
    */
-  static async encodeCard(pngBuffer, characterData) {
-    // For now, just return the original buffer
-    // TODO: Implement proper PNG chunk encoding
-    return pngBuffer;
+  static createPNGWithCharacterData(characterData) {
+    // Base64 encode the character data JSON
+    const jsonString = JSON.stringify(characterData);
+    const base64Data = Buffer.from(jsonString, 'utf8').toString('base64');
+
+    // Create tEXt chunk with 'chara' keyword
+    const keyword = 'chara';
+    const keywordBytes = Buffer.from(keyword, 'latin1');
+    const textBytes = Buffer.from(base64Data, 'latin1');
+
+    // tEXt chunk: keyword + null byte + text
+    const textData = Buffer.concat([
+      keywordBytes,
+      Buffer.from([0]), // Null separator
+      textBytes
+    ]);
+
+    // Calculate CRC for tEXt chunk
+    const textType = Buffer.from('tEXt', 'latin1');
+    const textCRC = this.calculateCRC(Buffer.concat([textType, textData]));
+
+    // Build tEXt chunk: length + type + data + CRC
+    const textChunk = Buffer.concat([
+      this.uint32ToBuffer(textData.length),
+      textType,
+      textData,
+      this.uint32ToBuffer(textCRC)
+    ]);
+
+    // Minimal 1x1 transparent PNG
+    const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+    // IHDR chunk (1x1, RGBA, 8-bit)
+    const ihdrData = Buffer.from([
+      0, 0, 0, 1, // Width: 1
+      0, 0, 0, 1, // Height: 1
+      8,          // Bit depth: 8
+      6,          // Color type: RGBA
+      0,          // Compression: deflate
+      0,          // Filter: adaptive
+      0           // Interlace: none
+    ]);
+    const ihdrType = Buffer.from('IHDR', 'latin1');
+    const ihdrCRC = this.calculateCRC(Buffer.concat([ihdrType, ihdrData]));
+    const ihdrChunk = Buffer.concat([
+      this.uint32ToBuffer(ihdrData.length),
+      ihdrType,
+      ihdrData,
+      this.uint32ToBuffer(ihdrCRC)
+    ]);
+
+    // IDAT chunk (1x1 transparent pixel)
+    const idatData = Buffer.from([0x78, 0x9c, 0x62, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01]);
+    const idatType = Buffer.from('IDAT', 'latin1');
+    const idatCRC = this.calculateCRC(Buffer.concat([idatType, idatData]));
+    const idatChunk = Buffer.concat([
+      this.uint32ToBuffer(idatData.length),
+      idatType,
+      idatData,
+      this.uint32ToBuffer(idatCRC)
+    ]);
+
+    // IEND chunk
+    const iendType = Buffer.from('IEND', 'latin1');
+    const iendCRC = this.calculateCRC(iendType);
+    const iendChunk = Buffer.concat([
+      this.uint32ToBuffer(0),
+      iendType,
+      this.uint32ToBuffer(iendCRC)
+    ]);
+
+    // Combine all chunks
+    return Buffer.concat([
+      pngSignature,
+      ihdrChunk,
+      textChunk,
+      idatChunk,
+      iendChunk
+    ]);
+  }
+
+  /**
+   * Convert uint32 to 4-byte buffer (big-endian)
+   */
+  static uint32ToBuffer(value) {
+    const buffer = Buffer.allocUnsafe(4);
+    buffer.writeUInt32BE(value, 0);
+    return buffer;
+  }
+
+  /**
+   * Calculate CRC-32 checksum
+   */
+  static calculateCRC(buffer) {
+    let crc = 0xFFFFFFFF;
+
+    for (let i = 0; i < buffer.length; i++) {
+      crc ^= buffer[i];
+      for (let j = 0; j < 8; j++) {
+        crc = (crc & 1) ? ((crc >>> 1) ^ 0xEDB88320) : (crc >>> 1);
+      }
+    }
+
+    return (crc ^ 0xFFFFFFFF) >>> 0;
   }
 
   /**
