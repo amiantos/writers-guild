@@ -13,6 +13,7 @@ export class StorageService {
     this.dataRoot = dataRoot;
     this.storiesDir = path.join(dataRoot, 'stories');
     this.charactersDir = path.join(dataRoot, 'characters');
+    this.lorebooksDir = path.join(dataRoot, 'lorebooks');
     this.settingsFile = path.join(dataRoot, 'settings.json');
 
     this.initializeStorage();
@@ -25,6 +26,7 @@ export class StorageService {
     try {
       await fs.mkdir(this.storiesDir, { recursive: true });
       await fs.mkdir(this.charactersDir, { recursive: true });
+      await fs.mkdir(this.lorebooksDir, { recursive: true });
 
       // Create default settings if not exists
       if (!fsSync.existsSync(this.settingsFile)) {
@@ -36,7 +38,12 @@ export class StorageService {
           autoSave: true,
           showPrompt: false,
           thirdPerson: true,
-          filterAsterisks: true
+          filterAsterisks: true,
+          // Lorebook settings
+          lorebookScanDepth: 2000,     // Tokens to scan (approx 8000 chars)
+          lorebookTokenBudget: 1800,   // Max tokens for lorebook content
+          lorebookRecursionDepth: 3,   // Max recursive activation depth
+          lorebookEnableRecursion: true
         });
       }
 
@@ -149,7 +156,8 @@ export class StorageService {
       created: now,
       modified: now,
       characterIds: [],        // Array of character IDs (references to global library)
-      personaCharacterId: null // Optional: use a character as persona for this story
+      personaCharacterId: null, // Optional: use a character as persona for this story
+      lorebookIds: []          // Array of lorebook IDs (references to global library)
     };
 
     await this.writeJSON(path.join(storyPath, 'metadata.json'), metadata);
@@ -421,6 +429,172 @@ export class StorageService {
     metadata.personaCharacterId = characterId;
     metadata.modified = new Date().toISOString();
     await this.writeJSON(metadataPath, metadata);
+
+    return { success: true };
+  }
+
+  // ==================== Lorebook Operations (Global Library) ====================
+
+  /**
+   * Get lorebook file path
+   */
+  getLorebookPath(lorebookId) {
+    return path.join(this.lorebooksDir, `${lorebookId}.json`);
+  }
+
+  /**
+   * List all lorebooks in global library
+   */
+  async listAllLorebooks() {
+    if (!await this.exists(this.lorebooksDir)) {
+      return [];
+    }
+
+    const files = await fs.readdir(this.lorebooksDir);
+    const jsonFiles = files.filter(f => f.endsWith('.json'));
+
+    const lorebooks = [];
+    for (const filename of jsonFiles) {
+      const lorebookId = path.parse(filename).name;
+      const lorebookPath = this.getLorebookPath(lorebookId);
+
+      try {
+        const data = await this.readJSON(lorebookPath);
+        lorebooks.push({
+          id: lorebookId,
+          name: data.name || 'Untitled',
+          description: data.description || '',
+          entryCount: data.entries ? data.entries.length : 0
+        });
+      } catch (error) {
+        console.error(`Failed to read lorebook ${lorebookId}:`, error);
+      }
+    }
+
+    return lorebooks;
+  }
+
+  /**
+   * List lorebooks for a specific story
+   */
+  async listStoryLorebooks(storyId) {
+    const metadataPath = path.join(this.storiesDir, storyId, 'metadata.json');
+
+    if (!await this.exists(metadataPath)) {
+      return [];
+    }
+
+    const metadata = await this.readJSON(metadataPath);
+    const lorebookIds = metadata.lorebookIds || [];
+
+    // Return lorebooks that exist in global library
+    const lorebooks = [];
+    for (const lorebookId of lorebookIds) {
+      const lorebookPath = this.getLorebookPath(lorebookId);
+      if (await this.exists(lorebookPath)) {
+        try {
+          const data = await this.readJSON(lorebookPath);
+          lorebooks.push({
+            id: lorebookId,
+            name: data.name || 'Untitled',
+            description: data.description || '',
+            entryCount: data.entries ? data.entries.length : 0
+          });
+        } catch (error) {
+          console.error(`Failed to read lorebook ${lorebookId}:`, error);
+        }
+      }
+    }
+
+    return lorebooks;
+  }
+
+  /**
+   * Save lorebook data to global library
+   */
+  async saveLorebook(lorebookId, lorebookData) {
+    const lorebookPath = this.getLorebookPath(lorebookId);
+    await this.writeJSON(lorebookPath, lorebookData);
+    return { id: lorebookId };
+  }
+
+  /**
+   * Get lorebook data from global library
+   */
+  async getLorebook(lorebookId) {
+    const lorebookPath = this.getLorebookPath(lorebookId);
+
+    if (!await this.exists(lorebookPath)) {
+      throw new Error(`Lorebook not found: ${lorebookId}`);
+    }
+
+    return await this.readJSON(lorebookPath);
+  }
+
+  /**
+   * Delete lorebook from global library
+   */
+  async deleteLorebook(lorebookId) {
+    const lorebookPath = this.getLorebookPath(lorebookId);
+
+    if (await this.exists(lorebookPath)) {
+      await fs.unlink(lorebookPath);
+    }
+
+    // Note: This doesn't remove from stories - caller should check if in use
+    return { success: true };
+  }
+
+  /**
+   * Add lorebook to story (create reference)
+   */
+  async addLorebookToStory(storyId, lorebookId) {
+    const metadataPath = path.join(this.storiesDir, storyId, 'metadata.json');
+
+    if (!await this.exists(metadataPath)) {
+      throw new Error(`Story not found: ${storyId}`);
+    }
+
+    // Verify lorebook exists in global library
+    const lorebookPath = this.getLorebookPath(lorebookId);
+    if (!await this.exists(lorebookPath)) {
+      throw new Error(`Lorebook not found: ${lorebookId}`);
+    }
+
+    // Add to story's lorebook list
+    const metadata = await this.readJSON(metadataPath);
+
+    // Initialize lorebookIds if it doesn't exist (for backwards compatibility)
+    if (!metadata.lorebookIds) {
+      metadata.lorebookIds = [];
+    }
+
+    if (!metadata.lorebookIds.includes(lorebookId)) {
+      metadata.lorebookIds.push(lorebookId);
+      metadata.modified = new Date().toISOString();
+      await this.writeJSON(metadataPath, metadata);
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Remove lorebook from story (remove reference, don't delete)
+   */
+  async removeLorebookFromStory(storyId, lorebookId) {
+    const metadataPath = path.join(this.storiesDir, storyId, 'metadata.json');
+
+    if (!await this.exists(metadataPath)) {
+      throw new Error(`Story not found: ${storyId}`);
+    }
+
+    const metadata = await this.readJSON(metadataPath);
+
+    if (metadata.lorebookIds) {
+      metadata.lorebookIds = metadata.lorebookIds.filter(id => id !== lorebookId);
+      metadata.modified = new Date().toISOString();
+      await this.writeJSON(metadataPath, metadata);
+    }
 
     return { success: true };
   }

@@ -193,6 +193,93 @@ class ApiClient {
     });
   }
 
+  // ==================== Lorebooks ====================
+
+  async listAllLorebooks() {
+    return this.request('/api/lorebooks');
+  }
+
+  async getLorebook(lorebookId) {
+    return this.request(`/api/lorebooks/${lorebookId}`);
+  }
+
+  async importLorebook(file) {
+    const formData = new FormData();
+    formData.append('lorebook', file);
+
+    return fetch(`${this.baseURL}/api/lorebooks/import`, {
+      method: 'POST',
+      body: formData,
+    }).then(response => {
+      if (!response.ok) {
+        return response.json().then(err => {
+          throw new Error(err.error || 'Failed to import lorebook');
+        });
+      }
+      return response.json();
+    });
+  }
+
+  async createLorebook(name, description = '') {
+    return this.request('/api/lorebooks/create', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    });
+  }
+
+  async updateLorebook(lorebookId, updates) {
+    return this.request(`/api/lorebooks/${lorebookId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteLorebook(lorebookId) {
+    return this.request(`/api/lorebooks/${lorebookId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Lorebook entries
+  async addLorebookEntry(lorebookId, entryData) {
+    return this.request(`/api/lorebooks/${lorebookId}/entries`, {
+      method: 'POST',
+      body: JSON.stringify(entryData),
+    });
+  }
+
+  async updateLorebookEntry(lorebookId, entryId, updates) {
+    return this.request(`/api/lorebooks/${lorebookId}/entries/${entryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async deleteLorebookEntry(lorebookId, entryId) {
+    return this.request(`/api/lorebooks/${lorebookId}/entries/${entryId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ==================== Story-Lorebook Associations ====================
+
+  async listStoryLorebooks(storyId) {
+    return this.request(`/api/stories/${storyId}/lorebooks`);
+  }
+
+  async addLorebookToStory(storyId, lorebookId) {
+    return this.request(`/api/stories/${storyId}/lorebooks`, {
+      method: 'POST',
+      body: JSON.stringify({ lorebookId }),
+    });
+  }
+
+  async removeLorebookFromStory(storyId, lorebookId) {
+    return this.request(`/api/stories/${storyId}/lorebooks/${lorebookId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // ==================== Generation ====================
 
   /**

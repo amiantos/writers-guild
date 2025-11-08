@@ -35,6 +35,10 @@ router.put('/', asyncHandler(async (req, res) => {
     showPrompt,
     thirdPerson,
     filterAsterisks,
+    lorebookScanDepth,
+    lorebookTokenBudget,
+    lorebookRecursionDepth,
+    lorebookEnableRecursion,
   } = req.body;
 
   // Get current settings
@@ -51,6 +55,10 @@ router.put('/', asyncHandler(async (req, res) => {
     ...(showPrompt !== undefined && { showPrompt: Boolean(showPrompt) }),
     ...(thirdPerson !== undefined && { thirdPerson: Boolean(thirdPerson) }),
     ...(filterAsterisks !== undefined && { filterAsterisks: Boolean(filterAsterisks) }),
+    ...(lorebookScanDepth !== undefined && { lorebookScanDepth: parseInt(lorebookScanDepth) || 2000 }),
+    ...(lorebookTokenBudget !== undefined && { lorebookTokenBudget: parseInt(lorebookTokenBudget) || 1800 }),
+    ...(lorebookRecursionDepth !== undefined && { lorebookRecursionDepth: parseInt(lorebookRecursionDepth) || 3 }),
+    ...(lorebookEnableRecursion !== undefined && { lorebookEnableRecursion: Boolean(lorebookEnableRecursion) }),
   };
 
   const saved = await storage.saveSettings(updated);

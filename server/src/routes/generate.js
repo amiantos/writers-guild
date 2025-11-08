@@ -8,6 +8,7 @@ import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { StorageService } from '../services/storage.js';
 import { CharacterParser } from '../services/character-parser.js';
 import { DeepSeekAPI } from '../services/deepseek-api.js';
+import { LorebookActivator } from '../services/lorebook-activator.js';
 
 const router = express.Router();
 
@@ -95,6 +96,34 @@ router.post('/', asyncHandler(async (req, res) => {
     characterCard = characterCards.length > 0 ? characterCards[0].data : null;
   }
 
+  // Load and activate lorebooks for this story
+  let activatedLorebooks = [];
+  if (story.lorebookIds && story.lorebookIds.length > 0) {
+    try {
+      // Load all lorebooks for this story
+      const lorebooks = [];
+      for (const lorebookId of story.lorebookIds) {
+        try {
+          const lorebookData = await storage.getLorebook(lorebookId);
+          lorebooks.push(lorebookData);
+        } catch (error) {
+          console.error(`Failed to load lorebook ${lorebookId}:`, error);
+        }
+      }
+
+      // Activate lorebook entries based on story content
+      if (lorebooks.length > 0) {
+        const activator = new LorebookActivator(settings);
+        activatedLorebooks = activator.activate(lorebooks, story.content || '');
+
+        console.log(`Activated ${activatedLorebooks.length} lorebook entries from ${lorebooks.length} lorebook(s)`);
+      }
+    } catch (error) {
+      console.error('Failed to activate lorebooks:', error);
+      // Continue without lorebooks rather than failing the request
+    }
+  }
+
   // Initialize DeepSeek API
   const deepseek = new DeepSeekAPI(settings.apiKey);
 
@@ -125,7 +154,8 @@ router.post('/', asyncHandler(async (req, res) => {
       characterCard,
       persona,
       settings,
-      allCharacterCards
+      allCharacterCards,
+      activatedLorebooks
     );
 
     // Send prompts as first event for debugging
@@ -145,6 +175,7 @@ router.post('/', asyncHandler(async (req, res) => {
       characterCard,
       allCharacterCards,
       persona,
+      lorebookEntries: activatedLorebooks,
       maxTokens: settings.maxTokens || 4000,
       temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
       settings,

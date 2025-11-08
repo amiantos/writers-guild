@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { StorageService } from '../services/storage.js';
 import { CharacterParser } from '../services/character-parser.js';
+import { LorebookParser } from '../services/lorebook-parser.js';
 
 const router = express.Router();
 
@@ -86,12 +87,40 @@ router.post('/import', upload.single('character'), asyncHandler(async (req, res)
     // Save character data as JSON and image separately
     await storage.saveCharacter(characterId, cardData, req.file.buffer);
 
+    // Check for embedded lorebook (V2 character cards)
+    let embeddedLorebook = null;
+    if (cardData.data?.character_book && cardData.data.character_book.entries && cardData.data.character_book.entries.length > 0) {
+      try {
+        // Parse embedded lorebook
+        const lorebookData = LorebookParser.parseEmbeddedLorebook(cardData.data.character_book);
+
+        // Give it a name based on the character
+        lorebookData.name = `${cardData.data.name}'s Lorebook`;
+        lorebookData.description = lorebookData.description || `Lorebook for ${cardData.data.name}`;
+
+        // Save to global lorebook library
+        const lorebookId = uuidv4();
+        await storage.saveLorebook(lorebookId, lorebookData);
+
+        embeddedLorebook = {
+          id: lorebookId,
+          name: lorebookData.name,
+          entryCount: lorebookData.entries.length
+        };
+
+        console.log(`Extracted embedded lorebook from ${cardData.data.name}: ${lorebookData.entries.length} entries`);
+      } catch (error) {
+        console.error('Failed to parse embedded lorebook:', error);
+      }
+    }
+
     res.status(201).json({
       id: characterId,
       name: cardData.data?.name || 'Unknown',
       description: cardData.data?.description || '',
       imageUrl: `/api/characters/${characterId}/image`,
       firstMessage: cardData.data?.first_mes || '',
+      embeddedLorebook: embeddedLorebook // Will be null if no lorebook
     });
   } catch (error) {
     throw new AppError(`Invalid character card: ${error.message}`, 400);

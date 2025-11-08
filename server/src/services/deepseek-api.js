@@ -46,9 +46,9 @@ export class DeepSeekAPI {
   }
 
   /**
-   * Build system prompt from character card(s) and persona
+   * Build system prompt from character card(s), persona, and lorebook entries
    */
-  buildSystemPrompt(characterCard, persona, settings = {}, allCharacterCards = null) {
+  buildSystemPrompt(characterCard, persona, settings = {}, allCharacterCards = null, lorebookEntries = null) {
     let prompt =
       "You are a creative writing assistant helping to write a novel-style story.\n\n";
 
@@ -152,6 +152,28 @@ export class DeepSeekAPI {
       // Note: post_history_instructions are intentionally ignored
     }
 
+    // Add lorebook entries (after character profiles)
+    if (lorebookEntries && lorebookEntries.length > 0) {
+      const filterAst = settings.filterAsterisks;
+
+      prompt += `\n=== WORLD INFORMATION ===\n\n`;
+
+      lorebookEntries.forEach((entry, index) => {
+        if (index > 0) prompt += '\n\n';
+
+        // Optionally include comment for debugging
+        if (entry.comment && settings.showPrompt) {
+          prompt += `<!-- ${entry.comment} -->\n`;
+        }
+
+        // Filter asterisks from lorebook content if enabled
+        const content = this.filterAsterisks(entry.content, filterAst);
+        prompt += content;
+      });
+
+      prompt += '\n';
+    }
+
     // Add user persona
     if (persona && persona.name) {
       const filterAst = settings.filterAsterisks;
@@ -221,7 +243,8 @@ export class DeepSeekAPI {
       options.characterCard,
       options.persona,
       options.settings,
-      options.allCharacterCards
+      options.allCharacterCards,
+      options.lorebookEntries
     );
 
     // No conversation history - document content is included in userPrompt
@@ -327,7 +350,8 @@ export class DeepSeekAPI {
       options.characterCard,
       options.persona,
       options.settings,
-      options.allCharacterCards
+      options.allCharacterCards,
+      options.lorebookEntries
     );
 
     // No conversation history - document content is included in userPrompt

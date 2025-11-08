@@ -137,5 +137,32 @@ router.put('/:id/persona', asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
+// ==================== Story-Lorebook Associations ====================
+
+// Get lorebooks for this story
+router.get('/:id/lorebooks', asyncHandler(async (req, res) => {
+  const lorebooks = await storage.listStoryLorebooks(req.params.id);
+  res.json({ lorebooks });
+}));
+
+// Add existing lorebook to story
+router.post('/:id/lorebooks', asyncHandler(async (req, res) => {
+  const { lorebookId } = req.body;
+
+  if (!lorebookId) {
+    throw new AppError('Lorebook ID is required', 400);
+  }
+
+  await storage.addLorebookToStory(req.params.id, lorebookId);
+  res.json({ success: true });
+}));
+
+// Remove lorebook from story (doesn't delete lorebook)
+router.delete('/:id/lorebooks/:lorebookId', asyncHandler(async (req, res) => {
+  const { id: storyId, lorebookId } = req.params;
+  await storage.removeLorebookFromStory(storyId, lorebookId);
+  res.json({ success: true });
+}));
+
 export default router;
 

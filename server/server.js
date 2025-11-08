@@ -21,6 +21,7 @@ import storiesRouter from './src/routes/stories.js';
 import charactersRouter from './src/routes/characters.js';
 import settingsRouter from './src/routes/settings.js';
 import generateRouter from './src/routes/generate.js';
+import lorebooksRouter from './src/routes/lorebooks.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -84,6 +85,7 @@ app.use('/api/stories', storiesRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/generate', generateRouter);
+app.use('/api/lorebooks', lorebooksRouter);
 
 // Serve static client files
 // In Docker, client is copied to ./public/, outside Docker it's ../client
