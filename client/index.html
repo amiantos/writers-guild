@@ -458,8 +458,9 @@
       </div>
       <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
         <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
-          <label for="lorebookUpload" class="btn btn-primary" style="margin: 0;">
-            Import Lorebook JSON
+          <button id="createLorebookBtn" class="btn btn-primary">Create New Lorebook</button>
+          <label for="lorebookUpload" class="btn btn-secondary" style="margin: 0;">
+            Import JSON
           </label>
           <input type="file" id="lorebookUpload" accept=".json,.lorebook" style="display: none;">
         </div>
@@ -657,21 +658,38 @@
 
   <!-- Greeting Selector Modal -->
   <div id="greetingSelectorModal" class="modal hidden">
-    <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
+    <div class="modal-content" style="max-width: 900px; max-height: 85vh;">
       <div class="modal-header">
-        <h2>Select Greeting</h2>
+        <h2 id="greetingCharacterName">Select Greeting</h2>
         <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
-        <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-          Choose a greeting from your characters to start your story. This will replace the current story content.
-        </p>
-        <div id="greetingList">
+      <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+        <!-- Current greeting display -->
+        <div id="currentGreetingDisplay" style="min-height: 300px;">
           <p class="text-secondary">Loading greetings...</p>
         </div>
+
+        <!-- Greeting counter -->
+        <div id="greetingCounter" style="text-align: center; margin-top: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+          <span id="greetingIndexDisplay"></span>
+        </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary close-btn">Cancel</button>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <!-- Navigation arrows on the left -->
+        <div style="display: flex; gap: 0.5rem;">
+          <button id="greetingPrevBtn" class="btn btn-secondary">
+            <i class="fa-solid fa-chevron-left"></i> Previous
+          </button>
+          <button id="greetingNextBtn" class="btn btn-secondary">
+            Next <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+
+        <!-- Action buttons on the right -->
+        <div style="display: flex; gap: 0.5rem;">
+          <button id="selectCurrentGreetingBtn" class="btn btn-primary">Use This Greeting</button>
+          <button class="btn btn-secondary close-btn">Cancel</button>
+        </div>
       </div>
     </div>
   </div>

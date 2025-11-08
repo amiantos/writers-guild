@@ -129,7 +129,16 @@ class NovelWriterApp {
 
     // Greeting selector modal
     this.greetingSelectorModal = document.getElementById('greetingSelectorModal');
-    this.greetingList = document.getElementById('greetingList');
+    this.greetingCharacterName = document.getElementById('greetingCharacterName');
+    this.currentGreetingDisplay = document.getElementById('currentGreetingDisplay');
+    this.greetingPrevBtn = document.getElementById('greetingPrevBtn');
+    this.greetingNextBtn = document.getElementById('greetingNextBtn');
+    this.greetingIndexDisplay = document.getElementById('greetingIndexDisplay');
+    this.selectCurrentGreetingBtn = document.getElementById('selectCurrentGreetingBtn');
+
+    // Greeting carousel state
+    this.allGreetings = [];
+    this.currentGreetingIndex = 0;
 
     // Settings
     this.settingsBtn = document.getElementById('settingsBtn');
@@ -169,6 +178,7 @@ class NovelWriterApp {
     this.lorebookLibraryModal = document.getElementById('lorebookLibraryModal');
     this.lorebookLibraryGrid = document.getElementById('lorebookLibraryGrid');
     this.lorebookUpload = document.getElementById('lorebookUpload');
+    this.createLorebookBtn = document.getElementById('createLorebookBtn');
 
     // Lorebook manager
     this.manageLorebooksBtn = document.getElementById('manageLorebooksBtn');
@@ -262,6 +272,9 @@ class NovelWriterApp {
     if (this.lorebookLibraryBtn) {
       this.lorebookLibraryBtn.addEventListener('click', () => this.openLorebookLibrary());
     }
+    if (this.createLorebookBtn) {
+      this.createLorebookBtn.addEventListener('click', () => this.createNewLorebook());
+    }
     if (this.manageLorebooksBtn) {
       this.manageLorebooksBtn.addEventListener('click', () => this.openStoryLorebookManager());
     }
@@ -310,6 +323,15 @@ class NovelWriterApp {
     }
     if (this.selectGreetingBtn) {
       this.selectGreetingBtn.addEventListener('click', () => this.openGreetingSelector());
+    }
+    if (this.greetingPrevBtn) {
+      this.greetingPrevBtn.addEventListener('click', () => this.previousGreeting());
+    }
+    if (this.greetingNextBtn) {
+      this.greetingNextBtn.addEventListener('click', () => this.nextGreeting());
+    }
+    if (this.selectCurrentGreetingBtn) {
+      this.selectCurrentGreetingBtn.addEventListener('click', () => this.selectCurrentGreeting());
     }
 
     // Settings
@@ -1218,6 +1240,24 @@ class NovelWriterApp {
     event.target.value = '';
   }
 
+  async createNewLorebook() {
+    const name = prompt('Enter lorebook name:');
+    if (!name || !name.trim()) return;
+
+    const description = prompt('Enter description (optional):') || '';
+
+    try {
+      const result = await apiClient.createLorebook(name.trim(), description.trim());
+      this.showToast(`Lorebook "${result.name}" created!`, 'success');
+
+      // Open editor for the new lorebook
+      await this.openLorebookEditor(result.id);
+    } catch (error) {
+      console.error('Failed to create lorebook:', error);
+      this.showToast('Failed to create lorebook: ' + error.message, 'error');
+    }
+  }
+
   async openLorebookEditor(lorebookId) {
     this.currentLorebookId = lorebookId;
 
@@ -1946,11 +1986,9 @@ Do NOT use first-person (I, me, my) or present tense.`;
       return;
     }
 
-    this.openModal(this.greetingSelectorModal);
-
     try {
       // Collect all greetings from all characters
-      const allGreetings = [];
+      this.allGreetings = [];
 
       for (const char of this.characters) {
         try {
@@ -1959,7 +1997,7 @@ Do NOT use first-person (I, me, my) or present tense.`;
 
           // Add first_mes as greeting 0
           if (cardData.data?.first_mes) {
-            allGreetings.push({
+            this.allGreetings.push({
               characterId: char.id,
               characterName,
               greetingIndex: 0,
@@ -1971,11 +2009,11 @@ Do NOT use first-person (I, me, my) or present tense.`;
           // Add alternate_greetings
           if (cardData.data?.alternate_greetings && cardData.data.alternate_greetings.length > 0) {
             cardData.data.alternate_greetings.forEach((greeting, index) => {
-              allGreetings.push({
+              this.allGreetings.push({
                 characterId: char.id,
                 characterName,
                 greetingIndex: index + 1,
-                label: `Greeting ${index + 1}`,
+                label: `Alternate Greeting ${index + 1}`,
                 content: greeting
               });
             });
@@ -1985,81 +2023,68 @@ Do NOT use first-person (I, me, my) or present tense.`;
         }
       }
 
-      this.renderGreetingList(allGreetings);
+      if (this.allGreetings.length === 0) {
+        this.showToast('No greetings available from your characters', 'error');
+        return;
+      }
+
+      // Start at first greeting
+      this.currentGreetingIndex = 0;
+      this.openModal(this.greetingSelectorModal);
+      this.displayCurrentGreeting();
+
+      // Add keyboard navigation
+      this.greetingKeyHandler = (e) => {
+        if (e.key === 'ArrowLeft') this.previousGreeting();
+        if (e.key === 'ArrowRight') this.nextGreeting();
+      };
+      document.addEventListener('keydown', this.greetingKeyHandler);
     } catch (error) {
       console.error('Failed to load greetings:', error);
-      this.greetingList.innerHTML = '<p class="text-secondary">Failed to load greetings</p>';
+      this.showToast('Failed to load greetings', 'error');
     }
   }
 
-  renderGreetingList(greetings) {
-    if (greetings.length === 0) {
-      this.greetingList.innerHTML = '<p class="text-secondary">No greetings available from your characters.</p>';
-      return;
-    }
+  displayCurrentGreeting() {
+    const greeting = this.allGreetings[this.currentGreetingIndex];
 
-    this.greetingList.innerHTML = '';
+    // Update header with character name
+    this.greetingCharacterName.textContent = `${greeting.characterName} - ${greeting.label}`;
 
-    // Group by character
-    const byCharacter = {};
-    greetings.forEach(g => {
-      if (!byCharacter[g.characterName]) {
-        byCharacter[g.characterName] = [];
-      }
-      byCharacter[g.characterName].push(g);
-    });
+    // Display full greeting content
+    this.currentGreetingDisplay.innerHTML = '';
+    const content = document.createElement('div');
+    content.style.whiteSpace = 'pre-wrap';
+    content.style.lineHeight = '1.6';
+    content.style.fontSize = '0.95rem';
+    content.textContent = greeting.content;
+    this.currentGreetingDisplay.appendChild(content);
 
-    Object.entries(byCharacter).forEach(([characterName, characterGreetings]) => {
-      // Character header
-      const header = document.createElement('h3');
-      header.style.marginTop = '1rem';
-      header.style.marginBottom = '0.5rem';
-      header.style.fontSize = '1rem';
-      header.textContent = characterName;
-      this.greetingList.appendChild(header);
+    // Update counter
+    this.greetingIndexDisplay.textContent = `${this.currentGreetingIndex + 1} of ${this.allGreetings.length}`;
 
-      // Greetings
-      characterGreetings.forEach(greeting => {
-        const item = document.createElement('div');
-        item.style.border = '1px solid var(--border-color)';
-        item.style.borderRadius = '8px';
-        item.style.padding = '1rem';
-        item.style.marginBottom = '0.75rem';
-        item.style.backgroundColor = 'var(--bg-secondary)';
-        item.style.cursor = 'pointer';
-        item.style.transition = 'background-color 0.2s';
-
-        item.onmouseenter = () => {
-          item.style.backgroundColor = 'var(--bg-tertiary)';
-        };
-        item.onmouseleave = () => {
-          item.style.backgroundColor = 'var(--bg-secondary)';
-        };
-
-        const label = document.createElement('div');
-        label.style.fontWeight = '600';
-        label.style.marginBottom = '0.5rem';
-        label.textContent = greeting.label;
-
-        const preview = document.createElement('div');
-        preview.style.fontSize = '0.875rem';
-        preview.style.color = 'var(--text-secondary)';
-        const previewText = greeting.content.length > 150
-          ? greeting.content.substring(0, 150) + '...'
-          : greeting.content;
-        preview.textContent = previewText;
-
-        item.appendChild(label);
-        item.appendChild(preview);
-
-        item.onclick = () => this.selectGreeting(greeting);
-
-        this.greetingList.appendChild(item);
-      });
-    });
+    // Update button states
+    this.greetingPrevBtn.disabled = this.currentGreetingIndex === 0;
+    this.greetingNextBtn.disabled = this.currentGreetingIndex === this.allGreetings.length - 1;
   }
 
-  async selectGreeting(greeting) {
+  previousGreeting() {
+    if (this.currentGreetingIndex > 0) {
+      this.currentGreetingIndex--;
+      this.displayCurrentGreeting();
+    }
+  }
+
+  nextGreeting() {
+    if (this.currentGreetingIndex < this.allGreetings.length - 1) {
+      this.currentGreetingIndex++;
+      this.displayCurrentGreeting();
+    }
+  }
+
+  async selectCurrentGreeting() {
+    const greeting = this.allGreetings[this.currentGreetingIndex];
+
     if (!confirm(`Replace current story content with this greeting?\n\nThis will overwrite everything in the current story.`)) {
       return;
     }
@@ -2068,6 +2093,12 @@ Do NOT use first-person (I, me, my) or present tense.`;
       // Replace editor content and save
       this.editor.value = greeting.content + '\n\n';
       await this.saveDocument();
+
+      // Remove keyboard handler
+      if (this.greetingKeyHandler) {
+        document.removeEventListener('keydown', this.greetingKeyHandler);
+        this.greetingKeyHandler = null;
+      }
 
       this.closeModal(this.greetingSelectorModal);
       this.showToast(`Greeting from ${greeting.characterName} loaded!`, 'success');
@@ -2249,6 +2280,12 @@ Do NOT use first-person (I, me, my) or present tense.`;
 
   closeModal(modal) {
     modal.classList.add('hidden');
+
+    // Cleanup greeting selector keyboard handler
+    if (modal === this.greetingSelectorModal && this.greetingKeyHandler) {
+      document.removeEventListener('keydown', this.greetingKeyHandler);
+      this.greetingKeyHandler = null;
+    }
   }
 
   // ==================== Toast Notifications ====================
