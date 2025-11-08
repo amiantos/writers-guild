@@ -17,6 +17,9 @@ class NovelWriterApp {
     // Lorebook state
     this.lorebooks = [];           // All lorebooks in library
     this.storyLorebooks = [];      // Active lorebooks for current story
+    this.currentLorebookId = null; // Currently editing lorebook
+    this.currentLorebook = null;   // Full lorebook data being edited
+    this.currentEntryId = null;    // Currently editing entry
 
     // DOM Elements
     this.initializeElements();
@@ -168,6 +171,36 @@ class NovelWriterApp {
     this.storyLorebookList = document.getElementById('storyLorebookList');
     this.lorebookCount = document.getElementById('lorebookCount');
 
+    // Lorebook editor
+    this.lorebookEditorModal = document.getElementById('lorebookEditorModal');
+    this.lorebookEditorTitle = document.getElementById('lorebookEditorTitle');
+    this.lorebookNameInput = document.getElementById('lorebookNameInput');
+    this.lorebookDescriptionInput = document.getElementById('lorebookDescriptionInput');
+    this.lorebookEntriesContainer = document.getElementById('lorebookEntriesContainer');
+    this.addEntryBtn = document.getElementById('addEntryBtn');
+    this.saveLorebookBtn = document.getElementById('saveLorebookBtn');
+
+    // Entry editor
+    this.entryEditorModal = document.getElementById('entryEditorModal');
+    this.entryEditorTitle = document.getElementById('entryEditorTitle');
+    this.entryCommentInput = document.getElementById('entryCommentInput');
+    this.entryKeysInput = document.getElementById('entryKeysInput');
+    this.entryContentInput = document.getElementById('entryContentInput');
+    this.entryInsertionOrderInput = document.getElementById('entryInsertionOrderInput');
+    this.entryEnabledToggle = document.getElementById('entryEnabledToggle');
+    this.entryConstantToggle = document.getElementById('entryConstantToggle');
+    this.entryCaseSensitiveToggle = document.getElementById('entryCaseSensitiveToggle');
+    this.entryMatchWholeWordsToggle = document.getElementById('entryMatchWholeWordsToggle');
+    this.entryUseRegexToggle = document.getElementById('entryUseRegexToggle');
+    this.entryPreventRecursionToggle = document.getElementById('entryPreventRecursionToggle');
+    this.entrySecondaryKeysInput = document.getElementById('entrySecondaryKeysInput');
+    this.entrySelectiveLogicSelect = document.getElementById('entrySelectiveLogicSelect');
+    this.entryProbabilityInput = document.getElementById('entryProbabilityInput');
+    this.entryUseProbabilityToggle = document.getElementById('entryUseProbabilityToggle');
+    this.entryGroupInput = document.getElementById('entryGroupInput');
+    this.saveEntryBtn = document.getElementById('saveEntryBtn');
+    this.deleteEntryBtn = document.getElementById('deleteEntryBtn');
+
     // Toast container
     this.toastContainer = document.getElementById('toastContainer');
   }
@@ -230,6 +263,18 @@ class NovelWriterApp {
     if (this.lorebookUpload) {
       this.lorebookUpload.addEventListener('change', (e) => this.handleLorebookUpload(e));
     }
+    if (this.saveLorebookBtn) {
+      this.saveLorebookBtn.addEventListener('click', () => this.saveLorebook());
+    }
+    if (this.addEntryBtn) {
+      this.addEntryBtn.addEventListener('click', () => this.openEntryEditor(null));
+    }
+    if (this.saveEntryBtn) {
+      this.saveEntryBtn.addEventListener('click', () => this.saveEntry());
+    }
+    if (this.deleteEntryBtn) {
+      this.deleteEntryBtn.addEventListener('click', () => this.deleteEntry());
+    }
 
     // Generation
     if (this.continueStoryBtn) {
@@ -285,14 +330,14 @@ class NovelWriterApp {
       });
     });
 
-    // Close modals on outside click
-    document.querySelectorAll('.modal').forEach((modal) => {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          this.closeModal(modal);
-        }
-      });
-    });
+    // Close modals on outside click (disabled - users prefer manual close only)
+    // document.querySelectorAll('.modal').forEach((modal) => {
+    //   modal.addEventListener('click', (e) => {
+    //     if (e.target === modal) {
+    //       this.closeModal(modal);
+    //     }
+    //   });
+    // });
 
     // Editor auto-save trigger (debounced)
     if (this.editor) {
@@ -978,9 +1023,17 @@ class NovelWriterApp {
 
       const actions = document.createElement('div');
       actions.style.display = 'grid';
-      actions.style.gridTemplateColumns = '1fr 1fr';
+      actions.style.gridTemplateColumns = '1fr 1fr 1fr';
       actions.style.gap = '0.5rem';
       actions.style.marginTop = '0.75rem';
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn btn-small btn-secondary';
+      editBtn.textContent = 'Edit';
+      editBtn.onclick = async (e) => {
+        e.stopPropagation();
+        await this.openLorebookEditor(lorebook.id);
+      };
 
       const addBtn = document.createElement('button');
       addBtn.className = 'btn btn-small btn-primary';
@@ -999,6 +1052,7 @@ class NovelWriterApp {
         await this.deleteLorebookFromLibrary(lorebook.id);
       };
 
+      actions.appendChild(editBtn);
       actions.appendChild(addBtn);
       actions.appendChild(deleteBtn);
 
@@ -1154,6 +1208,277 @@ class NovelWriterApp {
     }
 
     event.target.value = '';
+  }
+
+  async openLorebookEditor(lorebookId) {
+    this.currentLorebookId = lorebookId;
+
+    try {
+      const { lorebook } = await apiClient.getLorebook(lorebookId);
+      this.currentLorebook = lorebook;
+
+      // Populate metadata fields
+      this.lorebookNameInput.value = lorebook.name || '';
+      this.lorebookDescriptionInput.value = lorebook.description || '';
+      this.lorebookEditorTitle.textContent = `Edit: ${lorebook.name}`;
+
+      // Render entries
+      this.renderLorebookEntries(lorebook.entries || []);
+
+      this.openModal(this.lorebookEditorModal);
+    } catch (error) {
+      console.error('Failed to load lorebook:', error);
+      this.showToast('Failed to load lorebook: ' + error.message, 'error');
+    }
+  }
+
+  renderLorebookEntries(entries) {
+    if (!entries || entries.length === 0) {
+      this.lorebookEntriesContainer.innerHTML = '<p class="text-secondary">No entries yet. Click "Add Entry" to create one.</p>';
+      return;
+    }
+
+    this.lorebookEntriesContainer.innerHTML = '';
+
+    entries.forEach(entry => {
+      const entryCard = document.createElement('div');
+      entryCard.style.border = '1px solid var(--border-color)';
+      entryCard.style.borderRadius = '8px';
+      entryCard.style.padding = '1rem';
+      entryCard.style.marginBottom = '0.75rem';
+      entryCard.style.backgroundColor = 'var(--bg-secondary)';
+
+      // Header with comment and edit button
+      const header = document.createElement('div');
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'center';
+      header.style.marginBottom = '0.5rem';
+
+      const comment = document.createElement('div');
+      comment.style.fontWeight = '600';
+      comment.textContent = entry.comment || `Entry ${entry.id}`;
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn btn-small btn-secondary';
+      editBtn.textContent = 'Edit';
+      editBtn.onclick = () => this.openEntryEditor(entry.id);
+
+      header.appendChild(comment);
+      header.appendChild(editBtn);
+
+      // Keys
+      const keys = document.createElement('div');
+      keys.style.fontSize = '0.875rem';
+      keys.style.marginBottom = '0.5rem';
+      keys.innerHTML = `<strong>Keys:</strong> ${entry.keys.join(', ') || 'None'}`;
+
+      // Content preview (truncated)
+      const content = document.createElement('div');
+      content.style.fontSize = '0.875rem';
+      content.style.color = 'var(--text-secondary)';
+      const preview = entry.content.length > 100
+        ? entry.content.substring(0, 100) + '...'
+        : entry.content;
+      content.textContent = preview;
+
+      // Metadata badges
+      const badges = document.createElement('div');
+      badges.style.marginTop = '0.5rem';
+      badges.style.display = 'flex';
+      badges.style.gap = '0.5rem';
+      badges.style.flexWrap = 'wrap';
+
+      const createBadge = (text, color) => {
+        const badge = document.createElement('span');
+        badge.style.fontSize = '0.7rem';
+        badge.style.padding = '0.15rem 0.4rem';
+        badge.style.borderRadius = '4px';
+        badge.style.backgroundColor = color || 'var(--bg-tertiary)';
+        badge.style.color = 'var(--text-primary)';
+        badge.textContent = text;
+        return badge;
+      };
+
+      if (!entry.enabled) badges.appendChild(createBadge('Disabled', '#888'));
+      if (entry.constant) badges.appendChild(createBadge('Always Active', '#4a90e2'));
+      if (entry.useRegex) badges.appendChild(createBadge('Regex', '#9b59b6'));
+      if (entry.useProbability) badges.appendChild(createBadge(`${entry.probability}%`, '#e67e22'));
+      if (entry.group) badges.appendChild(createBadge(`Group: ${entry.group}`, '#27ae60'));
+      badges.appendChild(createBadge(`Order: ${entry.insertionOrder}`, '#95a5a6'));
+
+      entryCard.appendChild(header);
+      entryCard.appendChild(keys);
+      entryCard.appendChild(content);
+      entryCard.appendChild(badges);
+
+      this.lorebookEntriesContainer.appendChild(entryCard);
+    });
+  }
+
+  async saveLorebook() {
+    if (!this.currentLorebookId) return;
+
+    const name = this.lorebookNameInput.value.trim();
+    if (!name) {
+      this.showToast('Lorebook name is required', 'error');
+      return;
+    }
+
+    try {
+      await apiClient.updateLorebook(this.currentLorebookId, {
+        name,
+        description: this.lorebookDescriptionInput.value.trim()
+      });
+
+      this.showToast('Lorebook updated!', 'success');
+      this.closeModal(this.lorebookEditorModal);
+
+      // Refresh library view if it's open
+      if (!this.lorebookLibraryModal.classList.contains('hidden')) {
+        const { lorebooks } = await apiClient.listAllLorebooks();
+        this.renderLorebookLibrary(lorebooks || []);
+      }
+
+      // Refresh story lorebooks
+      await this.loadStoryLorebooks();
+    } catch (error) {
+      console.error('Failed to save lorebook:', error);
+      this.showToast('Failed to save lorebook: ' + error.message, 'error');
+    }
+  }
+
+  openEntryEditor(entryId) {
+    this.currentEntryId = entryId;
+
+    if (entryId === null) {
+      // Creating new entry
+      this.entryEditorTitle.textContent = 'New Entry';
+      this.entryCommentInput.value = '';
+      this.entryKeysInput.value = '';
+      this.entryContentInput.value = '';
+      this.entryInsertionOrderInput.value = '100';
+      this.entryEnabledToggle.checked = true;
+      this.entryConstantToggle.checked = false;
+      this.entryCaseSensitiveToggle.checked = false;
+      this.entryMatchWholeWordsToggle.checked = false;
+      this.entryUseRegexToggle.checked = false;
+      this.entryPreventRecursionToggle.checked = false;
+      this.entrySecondaryKeysInput.value = '';
+      this.entrySelectiveLogicSelect.value = '0';
+      this.entryProbabilityInput.value = '100';
+      this.entryUseProbabilityToggle.checked = false;
+      this.entryGroupInput.value = '';
+      this.deleteEntryBtn.style.display = 'none';
+    } else {
+      // Editing existing entry
+      const entry = this.currentLorebook.entries.find(e => e.id === entryId);
+      if (!entry) {
+        this.showToast('Entry not found', 'error');
+        return;
+      }
+
+      this.entryEditorTitle.textContent = `Edit: ${entry.comment || `Entry ${entry.id}`}`;
+      this.entryCommentInput.value = entry.comment || '';
+      this.entryKeysInput.value = entry.keys.join(', ');
+      this.entryContentInput.value = entry.content || '';
+      this.entryInsertionOrderInput.value = entry.insertionOrder || 100;
+      this.entryEnabledToggle.checked = entry.enabled !== false;
+      this.entryConstantToggle.checked = entry.constant || false;
+      this.entryCaseSensitiveToggle.checked = entry.caseSensitive || false;
+      this.entryMatchWholeWordsToggle.checked = entry.matchWholeWords || false;
+      this.entryUseRegexToggle.checked = entry.useRegex || false;
+      this.entryPreventRecursionToggle.checked = entry.preventRecursion || false;
+      this.entrySecondaryKeysInput.value = (entry.secondaryKeys || []).join(', ');
+      this.entrySelectiveLogicSelect.value = entry.selectiveLogic || 0;
+      this.entryProbabilityInput.value = entry.probability !== undefined ? entry.probability : 100;
+      this.entryUseProbabilityToggle.checked = entry.useProbability || false;
+      this.entryGroupInput.value = entry.group || '';
+      this.deleteEntryBtn.style.display = 'inline-block';
+    }
+
+    this.openModal(this.entryEditorModal);
+  }
+
+  async saveEntry() {
+    if (!this.currentLorebookId) return;
+
+    const keys = this.entryKeysInput.value.split(',').map(k => k.trim()).filter(k => k);
+    const content = this.entryContentInput.value.trim();
+
+    if (keys.length === 0) {
+      this.showToast('At least one keyword is required', 'error');
+      return;
+    }
+
+    if (!content) {
+      this.showToast('Content is required', 'error');
+      return;
+    }
+
+    const entryData = {
+      comment: this.entryCommentInput.value.trim(),
+      keys,
+      secondaryKeys: this.entrySecondaryKeysInput.value.split(',').map(k => k.trim()).filter(k => k),
+      content,
+      insertionOrder: parseInt(this.entryInsertionOrderInput.value) || 100,
+      enabled: this.entryEnabledToggle.checked,
+      constant: this.entryConstantToggle.checked,
+      caseSensitive: this.entryCaseSensitiveToggle.checked,
+      matchWholeWords: this.entryMatchWholeWordsToggle.checked,
+      useRegex: this.entryUseRegexToggle.checked,
+      preventRecursion: this.entryPreventRecursionToggle.checked,
+      selective: this.entrySecondaryKeysInput.value.trim().length > 0,
+      selectiveLogic: parseInt(this.entrySelectiveLogicSelect.value) || 0,
+      probability: parseInt(this.entryProbabilityInput.value) || 100,
+      useProbability: this.entryUseProbabilityToggle.checked,
+      group: this.entryGroupInput.value.trim()
+    };
+
+    try {
+      if (this.currentEntryId === null) {
+        // Create new entry
+        await apiClient.addLorebookEntry(this.currentLorebookId, entryData);
+        this.showToast('Entry created!', 'success');
+      } else {
+        // Update existing entry
+        await apiClient.updateLorebookEntry(this.currentLorebookId, this.currentEntryId, entryData);
+        this.showToast('Entry updated!', 'success');
+      }
+
+      this.closeModal(this.entryEditorModal);
+
+      // Reload lorebook to show updated entries
+      const { lorebook } = await apiClient.getLorebook(this.currentLorebookId);
+      this.currentLorebook = lorebook;
+      this.renderLorebookEntries(lorebook.entries || []);
+    } catch (error) {
+      console.error('Failed to save entry:', error);
+      this.showToast('Failed to save entry: ' + error.message, 'error');
+    }
+  }
+
+  async deleteEntry() {
+    if (!this.currentLorebookId || this.currentEntryId === null) return;
+
+    if (!confirm('Delete this entry? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteLorebookEntry(this.currentLorebookId, this.currentEntryId);
+      this.showToast('Entry deleted', 'success');
+
+      this.closeModal(this.entryEditorModal);
+
+      // Reload lorebook
+      const { lorebook } = await apiClient.getLorebook(this.currentLorebookId);
+      this.currentLorebook = lorebook;
+      this.renderLorebookEntries(lorebook.entries || []);
+    } catch (error) {
+      console.error('Failed to delete entry:', error);
+      this.showToast('Failed to delete entry: ' + error.message, 'error');
+    }
   }
 
   // ==================== Settings Management ====================

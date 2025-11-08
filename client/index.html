@@ -493,6 +493,167 @@
     </div>
   </div>
 
+  <!-- Lorebook Editor Modal -->
+  <div id="lorebookEditorModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 900px; max-height: 90vh;">
+      <div class="modal-header">
+        <h2 id="lorebookEditorTitle">Edit Lorebook</h2>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <!-- Lorebook Metadata -->
+        <div class="form-group">
+          <label for="lorebookNameInput">Lorebook Name</label>
+          <input type="text" id="lorebookNameInput" class="input-field" placeholder="My Lorebook">
+        </div>
+
+        <div class="form-group">
+          <label for="lorebookDescriptionInput">Description</label>
+          <textarea id="lorebookDescriptionInput" class="input-field textarea-field" rows="2"
+            placeholder="Description of this lorebook..."></textarea>
+        </div>
+
+        <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+
+        <!-- Lorebook Entries -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="margin: 0;">Entries</h3>
+          <button id="addEntryBtn" class="btn btn-small btn-primary">Add Entry</button>
+        </div>
+
+        <div id="lorebookEntriesContainer">
+          <p class="text-secondary">Loading entries...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="saveLorebookBtn" class="btn btn-primary">Save Lorebook</button>
+        <button class="btn btn-secondary close-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lorebook Entry Editor Modal -->
+  <div id="entryEditorModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 700px; max-height: 90vh;">
+      <div class="modal-header">
+        <h2 id="entryEditorTitle">Edit Entry</h2>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        <div class="form-group">
+          <label for="entryCommentInput">Entry Name/Comment</label>
+          <input type="text" id="entryCommentInput" class="input-field" placeholder="For your reference...">
+        </div>
+
+        <div class="form-group">
+          <label for="entryKeysInput">Primary Keywords (comma-separated)</label>
+          <input type="text" id="entryKeysInput" class="input-field" placeholder="keyword1, keyword2, keyword3">
+          <small>Entry activates when any of these keywords appear in recent story content.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="entryContentInput">Content</label>
+          <textarea id="entryContentInput" class="input-field textarea-field" rows="8"
+            placeholder="The information to inject when this entry activates..."></textarea>
+          <small>Supports macros: {{random:a,b,c}}, {{pick:x,y,z}}, {{roll:d20}}, {{user}}, {{char}}</small>
+        </div>
+
+        <div class="form-group">
+          <label for="entryInsertionOrderInput">Insertion Order (Priority)</label>
+          <input type="number" id="entryInsertionOrderInput" class="input-field" value="100" min="0" max="1000">
+          <small>Higher values = more influence. Lower priority entries discarded first if token budget exceeded.</small>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="entryEnabledToggle" checked>
+              <span>Enabled</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="entryConstantToggle">
+              <span>Always Active</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="entryCaseSensitiveToggle">
+              <span>Case Sensitive</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="entryMatchWholeWordsToggle">
+              <span>Match Whole Words</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="entryUseRegexToggle">
+              <span>Use Regex</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="entryPreventRecursionToggle">
+              <span>Prevent Recursion</span>
+            </label>
+          </div>
+        </div>
+
+        <details style="margin-top: 1rem;">
+          <summary style="cursor: pointer; font-weight: 500; margin-bottom: 0.5rem;">Advanced Options</summary>
+
+          <div class="form-group">
+            <label for="entrySecondaryKeysInput">Secondary Keywords (comma-separated)</label>
+            <input type="text" id="entrySecondaryKeysInput" class="input-field" placeholder="secondary1, secondary2">
+          </div>
+
+          <div class="form-group">
+            <label for="entrySelectiveLogicSelect">Secondary Key Logic</label>
+            <select id="entrySelectiveLogicSelect" class="input-field">
+              <option value="0">AND ANY (primary + at least one secondary)</option>
+              <option value="1">NOT ANY (primary but NO secondary)</option>
+              <option value="2">NOT ALL (primary but NOT all secondary)</option>
+              <option value="3">AND ALL (primary + all secondary)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="entryProbabilityInput">Activation Probability (%)</label>
+            <input type="number" id="entryProbabilityInput" class="input-field" value="100" min="0" max="100">
+            <small>Chance to activate when keywords match (0-100%). Use &lt;100 for random events.</small>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="entryUseProbabilityToggle">
+              <span>Enable Probability Check</span>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="entryGroupInput">Inclusion Group</label>
+            <input type="text" id="entryGroupInput" class="input-field" placeholder="Optional group name">
+            <small>Entries with same group name: only ONE will activate randomly.</small>
+          </div>
+        </details>
+      </div>
+      <div class="modal-footer">
+        <button id="saveEntryBtn" class="btn btn-primary">Save Entry</button>
+        <button id="deleteEntryBtn" class="btn btn-secondary">Delete Entry</button>
+        <button class="btn btn-secondary close-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notifications -->
   <div id="toastContainer" class="toast-container"></div>
 
