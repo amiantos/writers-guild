@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ursceal</title>
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 
 <body>
@@ -17,16 +18,20 @@
         <select id="storySelector" class="story-selector">
           <option>Loading...</option>
         </select>
-        <button id="newStoryBtn" class="btn btn-small btn-primary" title="Create New Story">+</button>
-        <button id="renameStoryBtn" class="btn btn-small btn-secondary" title="Rename Story">✎</button>
-        <button id="deleteStoryBtn" class="btn btn-small btn-secondary" title="Delete Story">🗑</button>
+        <button id="newStoryBtn" class="btn btn-small btn-primary" title="Create New Story">
+          <i class="fa-solid fa-plus"></i>
+        </button>
+        <button id="renameStoryBtn" class="btn btn-small btn-secondary" title="Rename Story">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button id="deleteStoryBtn" class="btn btn-small btn-secondary" title="Delete Story">
+          <i class="fa-solid fa-trash"></i>
+        </button>
       </div>
     </div>
     <div class="header-right">
       <button id="settingsBtn" class="icon-btn" title="Settings">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M10 6a2 2 0 100-4 2 2 0 000 4zM10 12a2 2 0 100-4 2 2 0 000 4zM10 18a2 2 0 100-4 2 2 0 000 4z" />
-        </svg>
+        <i class="fa-solid fa-gear"></i>
       </button>
     </div>
   </header>
@@ -126,7 +131,9 @@
       <div id="reasoningPanel" class="reasoning-panel hidden">
         <div class="reasoning-header">
           <h3>Model Reasoning</h3>
-          <button id="closeReasoningBtn" class="icon-btn">×</button>
+          <button id="closeReasoningBtn" class="icon-btn">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
         </div>
         <div id="reasoningContent" class="reasoning-content">
           <p class="reasoning-empty">No reasoning to display yet. Generate content to see how the model thinks.</p>
@@ -140,7 +147,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Settings</h2>
-        <button class="close-btn">&times;</button>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -209,7 +216,7 @@
     <div class="modal-content" style="max-width: 700px;">
       <div class="modal-header">
         <h2 id="characterModalTitle">Edit Character</h2>
-        <button class="close-btn">&times;</button>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
         <div class="form-group">
@@ -282,7 +289,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Custom Prompt</h2>
-        <button class="close-btn">&times;</button>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
@@ -303,7 +310,7 @@
     <div class="modal-content" style="max-width: 600px;">
       <div class="modal-header">
         <h2>Which Character Should Respond?</h2>
-        <button class="close-btn">&times;</button>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
         <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
@@ -324,7 +331,7 @@
     <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
       <div class="modal-header">
         <h2>Select Persona for This Story</h2>
-        <button class="close-btn">&times;</button>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
         <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
@@ -346,7 +353,7 @@
     <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
       <div class="modal-header">
         <h2>Character Library</h2>
-        <button class="close-btn">&times;</button>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
         <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
@@ -371,7 +378,7 @@
     <div class="modal-content" style="max-width: 800px;">
       <div class="modal-header">
         <h2>Last Prompt Sent to API</h2>
-        <button class="close-btn">&times;</button>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div class="modal-body">
         <div class="form-group">
