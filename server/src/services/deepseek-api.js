@@ -98,16 +98,7 @@ export class DeepSeekAPI {
       const char = characterCard.data;
       const filterAst = settings.filterAsterisks;
 
-      // Use custom system prompt if provided (with replacements and filtering)
-      if (char.system_prompt) {
-        let processed = this.replacePlaceholders(
-          char.system_prompt,
-          characterCard,
-          persona
-        );
-        processed = macroProcessor.process(processed);
-        prompt += this.filterAsterisks(processed, filterAst) + "\n\n";
-      }
+      // Note: system_prompt is intentionally ignored (too directive for novel writing)
 
       prompt += "=== CHARACTER PROFILE ===\n";
       prompt += `Name: ${char.name}\n`;
