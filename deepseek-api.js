@@ -119,18 +119,7 @@ class DeepSeekAPI {
         )}\n`;
       }
 
-      // Add post-history instructions (with replacements and filtering)
-      if (char.post_history_instructions) {
-        const processed = this.replacePlaceholders(
-          char.post_history_instructions,
-          characterCard,
-          persona
-        );
-        prompt += `\n=== WRITING GUIDELINES ===\n${this.filterAsterisks(
-          processed,
-          filterAst
-        )}\n`;
-      }
+      // Note: post_history_instructions are intentionally ignored
     }
 
     // Add user persona
