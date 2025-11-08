@@ -54,6 +54,12 @@ export class DeepSeekAPI {
     let prompt =
       "You are a creative writing assistant helping to write a novel-style story.\n\n";
 
+    // Initialize macro processor with context
+    const macroProcessor = new MacroProcessor({
+      userName: persona?.name || 'User',
+      charName: characterCard?.data?.name || (allCharacterCards && allCharacterCards.length > 0 ? allCharacterCards[0].data?.name : 'Character')
+    });
+
     // If we have multiple characters (for continue/custom), add all of them
     if (allCharacterCards && allCharacterCards.length > 0) {
       const filterAst = settings.filterAsterisks;
@@ -68,17 +74,20 @@ export class DeepSeekAPI {
         prompt += `Character ${index + 1}: ${char.name}\n`;
 
         if (char.description) {
-          const processed = this.replacePlaceholders(char.description, card, persona);
+          let processed = this.replacePlaceholders(char.description, card, persona);
+          processed = macroProcessor.process(processed);
           prompt += `Description: ${this.filterAsterisks(processed, filterAst)}\n`;
         }
 
         if (char.personality) {
-          const processed = this.replacePlaceholders(char.personality, card, persona);
+          let processed = this.replacePlaceholders(char.personality, card, persona);
+          processed = macroProcessor.process(processed);
           prompt += `Personality: ${this.filterAsterisks(processed, filterAst)}\n`;
         }
 
         if (char.scenario) {
-          const processed = this.replacePlaceholders(char.scenario, card, persona);
+          let processed = this.replacePlaceholders(char.scenario, card, persona);
+          processed = macroProcessor.process(processed);
           prompt += `Scenario: ${this.filterAsterisks(processed, filterAst)}\n`;
         }
       });
@@ -91,11 +100,12 @@ export class DeepSeekAPI {
 
       // Use custom system prompt if provided (with replacements and filtering)
       if (char.system_prompt) {
-        const processed = this.replacePlaceholders(
+        let processed = this.replacePlaceholders(
           char.system_prompt,
           characterCard,
           persona
         );
+        processed = macroProcessor.process(processed);
         prompt += this.filterAsterisks(processed, filterAst) + "\n\n";
       }
 
@@ -103,11 +113,12 @@ export class DeepSeekAPI {
       prompt += `Name: ${char.name}\n`;
 
       if (char.description) {
-        const processed = this.replacePlaceholders(
+        let processed = this.replacePlaceholders(
           char.description,
           characterCard,
           persona
         );
+        processed = macroProcessor.process(processed);
         prompt += `Description: ${this.filterAsterisks(
           processed,
           filterAst
@@ -115,11 +126,12 @@ export class DeepSeekAPI {
       }
 
       if (char.personality) {
-        const processed = this.replacePlaceholders(
+        let processed = this.replacePlaceholders(
           char.personality,
           characterCard,
           persona
         );
+        processed = macroProcessor.process(processed);
         prompt += `Personality: ${this.filterAsterisks(
           processed,
           filterAst
@@ -127,11 +139,12 @@ export class DeepSeekAPI {
       }
 
       if (char.scenario) {
-        const processed = this.replacePlaceholders(
+        let processed = this.replacePlaceholders(
           char.scenario,
           characterCard,
           persona
         );
+        processed = macroProcessor.process(processed);
         prompt += `\nCurrent Scenario: ${this.filterAsterisks(
           processed,
           filterAst
@@ -140,11 +153,12 @@ export class DeepSeekAPI {
 
       // Add writing style examples (with replacements and filtering)
       if (char.mes_example) {
-        const processed = this.replacePlaceholders(
+        let processed = this.replacePlaceholders(
           char.mes_example,
           characterCard,
           persona
         );
+        processed = macroProcessor.process(processed);
         prompt += `\n=== DIALOGUE STYLE EXAMPLES ===\n${this.filterAsterisks(
           processed,
           filterAst
@@ -157,12 +171,6 @@ export class DeepSeekAPI {
     // Add lorebook entries (after character profiles)
     if (lorebookEntries && lorebookEntries.length > 0) {
       const filterAst = settings.filterAsterisks;
-
-      // Initialize macro processor with context
-      const macroProcessor = new MacroProcessor({
-        userName: persona?.name || 'User',
-        charName: characterCard?.data?.name || (allCharacterCards && allCharacterCards.length > 0 ? allCharacterCards[0].data?.name : 'Character')
-      });
 
       prompt += `\n=== WORLD INFORMATION ===\n\n`;
 
@@ -195,11 +203,12 @@ export class DeepSeekAPI {
       prompt += `Name: ${persona.name}\n`;
 
       if (persona.description) {
-        const processed = this.replacePlaceholders(
+        let processed = this.replacePlaceholders(
           persona.description,
           characterCard,
           persona
         );
+        processed = macroProcessor.process(processed);
         prompt += `Description: ${this.filterAsterisks(
           processed,
           filterAst
@@ -207,11 +216,12 @@ export class DeepSeekAPI {
       }
 
       if (persona.writingStyle) {
-        const processed = this.replacePlaceholders(
+        let processed = this.replacePlaceholders(
           persona.writingStyle,
           characterCard,
           persona
         );
+        processed = macroProcessor.process(processed);
         prompt += `Writing Style: ${this.filterAsterisks(
           processed,
           filterAst
