@@ -6,7 +6,6 @@
 import express from 'express';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { StorageService } from '../services/storage.js';
-import { CharacterParser } from '../services/character-parser.js';
 import { DeepSeekAPI } from '../services/deepseek-api.js';
 import { LorebookActivator } from '../services/lorebook-activator.js';
 

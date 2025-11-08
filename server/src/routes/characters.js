@@ -330,7 +330,21 @@ router.put('/:characterId/update-with-image', upload.single('image'), asyncHandl
 router.delete('/:characterId', asyncHandler(async (req, res) => {
   const { characterId } = req.params;
 
-  // TODO: Check if character is used in any stories and warn user
+  // Check if character is used in any stories
+  const allStories = await storage.listStories();
+  const storiesUsingChar = allStories.filter(story =>
+    story.characterIds?.includes(characterId) ||
+    story.personaCharacterId === characterId
+  );
+
+  if (storiesUsingChar.length > 0) {
+    const storyTitles = storiesUsingChar.map(s => s.title).join(', ');
+    throw new AppError(
+      `Cannot delete character: Used in ${storiesUsingChar.length} story(ies): ${storyTitles}. Remove from stories first.`,
+      409
+    );
+  }
+
   await storage.deleteCharacter(characterId);
   res.json({ success: true });
 }));
