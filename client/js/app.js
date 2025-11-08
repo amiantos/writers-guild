@@ -134,6 +134,10 @@ class NovelWriterApp {
     this.showPromptToggle = document.getElementById('showPromptToggle');
     this.thirdPersonToggle = document.getElementById('thirdPersonToggle');
     this.filterAsterisksToggle = document.getElementById('filterAsterisksToggle');
+    this.lorebookScanDepthInput = document.getElementById('lorebookScanDepthInput');
+    this.lorebookTokenBudgetInput = document.getElementById('lorebookTokenBudgetInput');
+    this.lorebookRecursionDepthInput = document.getElementById('lorebookRecursionDepthInput');
+    this.lorebookEnableRecursionToggle = document.getElementById('lorebookEnableRecursionToggle');
     this.saveSettingsBtn = document.getElementById('saveSettingsBtn');
 
     // Custom prompt modal
@@ -1164,6 +1168,10 @@ class NovelWriterApp {
       this.showPromptToggle.checked = this.settings.showPrompt || false;
       this.thirdPersonToggle.checked = this.settings.thirdPerson !== false;
       this.filterAsterisksToggle.checked = this.settings.filterAsterisks !== false;
+      this.lorebookScanDepthInput.value = this.settings.lorebookScanDepth || 2000;
+      this.lorebookTokenBudgetInput.value = this.settings.lorebookTokenBudget || 1800;
+      this.lorebookRecursionDepthInput.value = this.settings.lorebookRecursionDepth || 3;
+      this.lorebookEnableRecursionToggle.checked = this.settings.lorebookEnableRecursion !== false;
     }
     this.openModal(this.settingsModal);
   }
@@ -1180,6 +1188,10 @@ class NovelWriterApp {
       showPrompt: this.showPromptToggle.checked,
       thirdPerson: this.thirdPersonToggle.checked,
       filterAsterisks: this.filterAsterisksToggle.checked,
+      lorebookScanDepth: parseInt(this.lorebookScanDepthInput.value) || 2000,
+      lorebookTokenBudget: parseInt(this.lorebookTokenBudgetInput.value) || 1800,
+      lorebookRecursionDepth: parseInt(this.lorebookRecursionDepthInput.value) || 3,
+      lorebookEnableRecursion: this.lorebookEnableRecursionToggle.checked,
     };
 
     try {

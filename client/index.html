@@ -223,6 +223,36 @@
           <small>Remove asterisks from character cards and generated content (common in RP chats but not novel-style
             writing).</small>
         </div>
+
+        <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
+
+        <h3 style="margin-bottom: 1rem;">Lorebook Settings</h3>
+
+        <div class="form-group">
+          <label for="lorebookScanDepthInput">Scan Depth (Tokens)</label>
+          <input type="number" id="lorebookScanDepthInput" class="input-field" value="2000" min="100" max="8000">
+          <small>How many tokens to scan for lorebook keywords. Higher values check more content but may be slower. Default: 2000 (~8000 chars).</small>
+        </div>
+
+        <div class="form-group">
+          <label for="lorebookTokenBudgetInput">Token Budget</label>
+          <input type="number" id="lorebookTokenBudgetInput" class="input-field" value="1800" min="0" max="4000">
+          <small>Maximum tokens for lorebook content in each generation. Higher values allow more context but reduce space for generation. Default: 1800.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="lorebookRecursionDepthInput">Recursion Depth</label>
+          <input type="number" id="lorebookRecursionDepthInput" class="input-field" value="3" min="0" max="10">
+          <small>Maximum cascading activation depth (how many levels of entries can trigger other entries). Default: 3.</small>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="lorebookEnableRecursionToggle" checked>
+            <span>Enable recursive activation</span>
+          </label>
+          <small>Allow lorebook entries to trigger other entries (cascading activation). Disable for simpler, more predictable behavior.</small>
+        </div>
       </div>
       <div class="modal-footer">
         <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
