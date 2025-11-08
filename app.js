@@ -574,6 +574,18 @@ Rewritten version:`;
         }
       }
 
+      // Add two line breaks and position cursor for user to write
+      if (generatedContent) {
+        generatedContent += "\n\n";
+        this.editor.value = textBefore + generatedContent + textAfter;
+
+        // Position cursor after the generated content and line breaks
+        const newCursorPos = textBefore.length + generatedContent.length;
+        this.editor.selectionStart = newCursorPos;
+        this.editor.selectionEnd = newCursorPos;
+        this.editor.focus();
+      }
+
       // Save document
       this.saveDocument();
 
