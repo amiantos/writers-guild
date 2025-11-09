@@ -151,6 +151,7 @@ class NovelWriterApp {
     this.showPromptToggle = document.getElementById('showPromptToggle');
     this.thirdPersonToggle = document.getElementById('thirdPersonToggle');
     this.filterAsterisksToggle = document.getElementById('filterAsterisksToggle');
+    this.includeDialogueExamplesToggle = document.getElementById('includeDialogueExamplesToggle');
     this.lorebookScanDepthInput = document.getElementById('lorebookScanDepthInput');
     this.lorebookTokenBudgetInput = document.getElementById('lorebookTokenBudgetInput');
     this.lorebookRecursionDepthInput = document.getElementById('lorebookRecursionDepthInput');
@@ -1541,6 +1542,7 @@ class NovelWriterApp {
       this.showPromptToggle.checked = this.settings.showPrompt || false;
       this.thirdPersonToggle.checked = this.settings.thirdPerson !== false;
       this.filterAsterisksToggle.checked = this.settings.filterAsterisks !== false;
+      this.includeDialogueExamplesToggle.checked = this.settings.includeDialogueExamples !== false;
       this.lorebookScanDepthInput.value = this.settings.lorebookScanDepth || 2000;
       this.lorebookTokenBudgetInput.value = this.settings.lorebookTokenBudget || 1800;
       this.lorebookRecursionDepthInput.value = this.settings.lorebookRecursionDepth || 3;
@@ -1561,6 +1563,7 @@ class NovelWriterApp {
       showPrompt: this.showPromptToggle.checked,
       thirdPerson: this.thirdPersonToggle.checked,
       filterAsterisks: this.filterAsterisksToggle.checked,
+      includeDialogueExamples: this.includeDialogueExamplesToggle.checked,
       lorebookScanDepth: parseInt(this.lorebookScanDepthInput.value) || 2000,
       lorebookTokenBudget: parseInt(this.lorebookTokenBudgetInput.value) || 1800,
       lorebookRecursionDepth: parseInt(this.lorebookRecursionDepthInput.value) || 3,

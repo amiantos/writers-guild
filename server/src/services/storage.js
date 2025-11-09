@@ -39,6 +39,7 @@ export class StorageService {
           showPrompt: false,
           thirdPerson: true,
           filterAsterisks: true,
+          includeDialogueExamples: true,
           // Lorebook settings
           lorebookScanDepth: 2000,     // Tokens to scan (approx 8000 chars)
           lorebookTokenBudget: 1800,   // Max tokens for lorebook content

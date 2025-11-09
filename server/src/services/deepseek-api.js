@@ -143,7 +143,7 @@ export class DeepSeekAPI {
       }
 
       // Add writing style examples (with replacements and filtering)
-      if (char.mes_example) {
+      if (char.mes_example && settings.includeDialogueExamples !== false) {
         let processed = this.replacePlaceholders(
           char.mes_example,
           characterCard,
@@ -156,7 +156,7 @@ export class DeepSeekAPI {
         )}\n`;
       }
 
-      // Note: post_history_instructions are intentionally ignored
+      // Note: post_history_instructions and system_prompt are intentionally ignored
     }
 
     // Add lorebook entries (after character profiles)
