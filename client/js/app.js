@@ -2093,8 +2093,11 @@ Do NOT use first-person (I, me, my) or present tense.`;
     }
 
     try {
+      // Replace placeholders in greeting content
+      let processedContent = this.replacePlaceholders(greeting.content, greeting.characterName);
+
       // Replace editor content and save
-      this.editor.value = greeting.content + '\n\n';
+      this.editor.value = processedContent + '\n\n';
       await this.saveDocument();
 
       // Remove keyboard handler
@@ -2114,6 +2117,28 @@ Do NOT use first-person (I, me, my) or present tense.`;
       console.error('Failed to select greeting:', error);
       this.showToast('Failed to load greeting: ' + error.message, 'error');
     }
+  }
+
+  // ==================== Utility Functions ====================
+
+  /**
+   * Replace template placeholders in text
+   */
+  replacePlaceholders(text, characterName) {
+    if (!text) return text;
+
+    let result = text;
+
+    // Replace {{user}} with persona name
+    const userName = this.persona?.data?.name || 'User';
+    result = result.replace(/\{\{user\}\}/gi, userName);
+
+    // Replace {{char}} and {{character}} with character name
+    const charName = characterName || 'Character';
+    result = result.replace(/\{\{char\}\}/gi, charName);
+    result = result.replace(/\{\{character\}\}/gi, charName);
+
+    return result;
   }
 
   // ==================== UI Management ====================
@@ -2197,18 +2222,21 @@ Do NOT use first-person (I, me, my) or present tense.`;
       // Using a character as persona
       try {
         const { character } = await apiClient.getCharacterData(this.currentStory.personaCharacterId);
+        this.persona = character; // Store persona data
         this.personaName.textContent = character.data?.name || 'Unknown';
         if (this.personaType) {
           this.personaType.textContent = 'Selected for this story';
         }
       } catch (error) {
         console.error('Failed to load persona character:', error);
+        this.persona = null;
         this.personaName.textContent = 'Error loading';
         if (this.personaType) {
           this.personaType.textContent = '';
         }
       }
     } else {
+      this.persona = null;
       this.personaName.textContent = 'Not set';
       if (this.personaType) {
         this.personaType.textContent = 'Click "Select Character" to set';
