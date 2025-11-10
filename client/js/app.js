@@ -120,6 +120,10 @@ class NovelWriterApp {
     this.generationStatus = document.getElementById('generationStatus');
     this.statusText = document.getElementById('statusText');
 
+    // Toolbar overflow
+    this.toolbarOverflowBtn = document.getElementById('toolbarOverflowBtn');
+    this.toolbarOverflowMenu = document.getElementById('toolbarOverflowMenu');
+
     // Document controls
     this.saveBtn = document.getElementById('saveBtn');
     this.loadBtn = document.getElementById('loadBtn');
@@ -311,6 +315,23 @@ class NovelWriterApp {
     if (this.rewriteThirdPersonBtn) {
       this.rewriteThirdPersonBtn.addEventListener('click', () => this.rewriteToThirdPerson());
     }
+
+    // Toolbar overflow menu
+    if (this.toolbarOverflowBtn) {
+      this.toolbarOverflowBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleOverflowMenu();
+      });
+    }
+
+    // Close overflow menu when clicking outside
+    document.addEventListener('click', (e) => {
+      if (this.toolbarOverflowMenu && !this.toolbarOverflowMenu.classList.contains('hidden')) {
+        if (!this.toolbarOverflowMenu.contains(e.target) && e.target !== this.toolbarOverflowBtn) {
+          this.toolbarOverflowMenu.classList.add('hidden');
+        }
+      }
+    });
 
     // Document controls
     if (this.saveBtn) {
@@ -1717,7 +1738,7 @@ class NovelWriterApp {
       // Disable generation buttons
       this.setGenerationEnabled(false);
       this.generationStatus.classList.remove('hidden');
-      this.statusText.textContent = 'Generating...';
+      this.statusText.textContent = 'Thinking...';
 
       // Clear previous reasoning
       if (this.settings.showReasoning) {
@@ -1815,7 +1836,7 @@ class NovelWriterApp {
       // Disable generation buttons
       this.setGenerationEnabled(false);
       this.generationStatus.classList.remove('hidden');
-      this.statusText.textContent = 'Generating...';
+      this.statusText.textContent = 'Thinking...';
 
       // Clear previous reasoning
       if (this.settings.showReasoning) {
@@ -2307,6 +2328,7 @@ Do NOT use first-person (I, me, my) or present tense.`;
     this.characterResponseBtn.disabled = !enabled;
     this.customPromptBtn.disabled = !enabled;
     this.rewriteThirdPersonBtn.disabled = !enabled;
+    this.selectGreetingBtn.disabled = !enabled;
   }
 
   // ==================== Auto-save ====================
@@ -2349,6 +2371,12 @@ Do NOT use first-person (I, me, my) or present tense.`;
     this.userPromptDisplay.value = this.lastUserPrompt || 'No user prompt';
 
     this.openModal(this.promptViewerModal);
+  }
+
+  // ==================== Toolbar Overflow Menu ====================
+
+  toggleOverflowMenu() {
+    this.toolbarOverflowMenu.classList.toggle('hidden');
   }
 
   // ==================== Modal Management ====================

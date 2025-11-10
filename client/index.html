@@ -94,32 +94,6 @@
         </div>
       </section>
 
-      <!-- Generation Controls -->
-      <section class="sidebar-section">
-        <h2>Generate Content</h2>
-        <div class="generation-buttons">
-          <button id="continueStoryBtn" class="btn btn-primary" disabled>
-            Continue Story
-          </button>
-          <button id="characterResponseBtn" class="btn btn-primary" disabled>
-            Character Response
-          </button>
-          <button id="customPromptBtn" class="btn btn-secondary" disabled>
-            Custom Prompt
-          </button>
-          <button id="rewriteThirdPersonBtn" class="btn btn-secondary" disabled>
-            Rewrite to Third Person
-          </button>
-        </div>
-        <div id="generationStatus" class="generation-status hidden">
-          <div class="spinner"></div>
-          <span id="statusText">Generating...</span>
-        </div>
-        <button id="viewPromptBtn" class="btn btn-secondary btn-small hidden" style="margin-top: 0.5rem;">
-          View Last Prompt
-        </button>
-      </section>
-
       <!-- Document Controls -->
       <section class="sidebar-section">
         <h2>Document</h2>
@@ -128,7 +102,6 @@
           <button id="loadBtn" class="btn btn-secondary">Load</button>
           <button id="clearBtn" class="btn btn-secondary">Clear</button>
           <button id="exportBtn" class="btn btn-secondary">Export TXT</button>
-          <button id="selectGreetingBtn" class="btn btn-secondary">Select Greeting</button>
         </div>
       </section>
     </aside>
@@ -140,6 +113,44 @@
         <textarea id="storyEditor" class="story-editor"
           placeholder="Import a character card to begin, or start writing your story here..."
           spellcheck="true"></textarea>
+      </div>
+
+      <!-- Bottom Toolbar -->
+      <div class="bottom-toolbar">
+        <div class="toolbar-main-buttons">
+          <button id="characterResponseBtn" class="btn btn-primary" disabled>
+            Continue for Character
+          </button>
+          <button id="continueStoryBtn" class="btn btn-secondary" disabled>
+            Continue
+          </button>
+          <button id="customPromptBtn" class="btn btn-secondary" disabled>
+            Continue with Instruction
+          </button>
+        </div>
+        <div class="toolbar-overflow">
+          <button id="toolbarOverflowBtn" class="btn btn-secondary icon-btn">
+            <i class="fa-solid fa-ellipsis-vertical"></i>
+          </button>
+          <div id="toolbarOverflowMenu" class="overflow-menu hidden">
+            <button id="rewriteThirdPersonBtn" class="overflow-menu-item" disabled>
+              <i class="fa-solid fa-rotate"></i>
+              <span>Rewrite to Third Person</span>
+            </button>
+            <button id="selectGreetingBtn" class="overflow-menu-item">
+              <i class="fa-solid fa-message"></i>
+              <span>Select Greeting</span>
+            </button>
+            <button id="viewPromptBtn" class="overflow-menu-item hidden">
+              <i class="fa-solid fa-eye"></i>
+              <span>View Last Prompt</span>
+            </button>
+          </div>
+        </div>
+        <div id="generationStatus" class="generating-status hidden">
+          <div class="spinner"></div>
+          <span id="statusText">Thinking...</span>
+        </div>
       </div>
 
       <!-- Reasoning Panel (Toggleable) -->
