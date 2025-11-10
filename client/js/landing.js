@@ -9,6 +9,7 @@ class LandingPage {
         this.stories = [];
         this.characters = [];
         this.settings = null;
+        this.staticListenersAttached = false;
     }
 
     /**
@@ -155,13 +156,16 @@ class LandingPage {
      * Attach event listeners
      */
     attachEventListeners() {
-        // New story button (global)
-        const newStoryBtn = document.getElementById('new-story-btn');
-        if (newStoryBtn) {
-            newStoryBtn.addEventListener('click', () => this.createNewStory());
+        // New story button (global) - only attach once
+        if (!this.staticListenersAttached) {
+            const newStoryBtn = document.getElementById('new-story-btn');
+            if (newStoryBtn) {
+                newStoryBtn.addEventListener('click', () => this.createNewStory());
+            }
+            this.staticListenersAttached = true;
         }
 
-        // Open story buttons
+        // Open story buttons (dynamically rendered, re-attach each time)
         document.querySelectorAll('.open-story-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const storyId = e.currentTarget.dataset.storyId;
