@@ -95,6 +95,13 @@ class ApiClient {
     return response.json();
   }
 
+  async importCharacterFromUrl(url) {
+    return this.request('/api/characters/import-url', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+  }
+
   async createCharacter(characterData) {
     return this.request('/api/characters', {
       method: 'POST',

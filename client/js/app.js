@@ -67,6 +67,8 @@ class NovelWriterApp {
     this.characterLibraryModal = document.getElementById('characterLibraryModal');
     this.characterLibraryGrid = document.getElementById('characterLibraryGrid');
     this.characterUploadLibrary = document.getElementById('characterUploadLibrary');
+    this.characterUrlInput = document.getElementById('characterUrlInput');
+    this.importFromUrlBtn = document.getElementById('importFromUrlBtn');
     this.createCharacterBtn = document.getElementById('createCharacterBtn');
 
     // Character editor state
@@ -249,6 +251,9 @@ class NovelWriterApp {
     }
     if (this.characterUploadLibrary) {
       this.characterUploadLibrary.addEventListener('change', (e) => this.handleLibraryCharacterUpload(e));
+    }
+    if (this.importFromUrlBtn) {
+      this.importFromUrlBtn.addEventListener('click', () => this.importCharacterFromUrl());
     }
 
     // Character
@@ -889,6 +894,43 @@ class NovelWriterApp {
 
     // Reset file input
     event.target.value = '';
+  }
+
+  async importCharacterFromUrl() {
+    const url = this.characterUrlInput.value.trim();
+
+    if (!url) {
+      this.showToast('Please enter a URL', 'error');
+      return;
+    }
+
+    if (!url.includes('chub.ai')) {
+      this.showToast('Only CHUB URLs are currently supported', 'error');
+      return;
+    }
+
+    try {
+      // Disable button and show loading state
+      this.importFromUrlBtn.disabled = true;
+      this.importFromUrlBtn.textContent = 'Importing...';
+
+      const result = await apiClient.importCharacterFromUrl(url);
+      this.showToast(`Character "${result.name}" imported from CHUB!`, 'success');
+
+      // Clear input
+      this.characterUrlInput.value = '';
+
+      // Refresh library view
+      const { characters } = await apiClient.listAllCharacters();
+      this.renderCharacterLibrary(characters || []);
+    } catch (error) {
+      console.error('Failed to import character from URL:', error);
+      this.showToast('Failed to import: ' + error.message, 'error');
+    } finally {
+      // Re-enable button
+      this.importFromUrlBtn.disabled = false;
+      this.importFromUrlBtn.textContent = 'Import from URL';
+    }
   }
 
   async addExistingCharacterToStory(characterId) {

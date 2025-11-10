@@ -430,6 +430,17 @@
           </label>
           <input type="file" id="characterUploadLibrary" accept="image/png" style="display: none;">
         </div>
+        <div style="margin-bottom: 1rem;">
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="characterUrlInput" class="input-field"
+              placeholder="Paste CHUB URL (e.g., https://chub.ai/characters/...)"
+              style="flex: 1;">
+            <button id="importFromUrlBtn" class="btn btn-secondary">Import from URL</button>
+          </div>
+          <small style="color: var(--text-secondary); font-size: 0.75rem;">
+            Supported: CHUB (chub.ai)
+          </small>
+        </div>
         <div id="characterLibraryGrid" class="character-library-grid">
           <p class="text-secondary">Loading characters...</p>
         </div>

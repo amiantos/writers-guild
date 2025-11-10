@@ -9,6 +9,7 @@ import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { StorageService } from '../services/storage.js';
 import { CharacterParser } from '../services/character-parser.js';
 import { LorebookParser } from '../services/lorebook-parser.js';
+import { ChubImporter } from '../services/chub-importer.js';
 
 const router = express.Router();
 
@@ -231,6 +232,42 @@ router.post('/create', upload.single('image'), asyncHandler(async (req, res) => 
     imageUrl: hasImage ? `/api/characters/${characterId}/image` : null,
     firstMessage: characterData.data.first_mes,
   });
+}));
+
+// Import character from URL (CHUB, etc.)
+router.post('/import-url', asyncHandler(async (req, res) => {
+  const { url } = req.body;
+
+  if (!url || typeof url !== 'string') {
+    throw new AppError('URL is required', 400);
+  }
+
+  // Check if it's a CHUB URL
+  if (!url.includes('chub.ai')) {
+    throw new AppError('Only CHUB URLs are currently supported', 400);
+  }
+
+  try {
+    // Import character from CHUB
+    const { characterData, imageBuffer } = await ChubImporter.importFromUrl(url);
+
+    const characterId = uuidv4();
+
+    // Save character with image
+    await storage.saveCharacter(characterId, characterData, imageBuffer);
+
+    const hasImage = await storage.hasCharacterImage(characterId);
+
+    res.status(201).json({
+      id: characterId,
+      name: characterData.data.name,
+      description: characterData.data.description,
+      imageUrl: hasImage ? `/api/characters/${characterId}/image` : null,
+      firstMessage: characterData.data.first_mes,
+    });
+  } catch (error) {
+    throw new AppError(`Failed to import character: ${error.message}`, 400);
+  }
 }));
 
 // Get character image
