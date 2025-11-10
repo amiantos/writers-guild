@@ -299,7 +299,130 @@ class ApiClient {
   // ==================== Generation ====================
 
   /**
-   * Generate content with SSE streaming
+   * Continue story with SSE streaming
+   * Returns an async iterator for streaming chunks
+   */
+  async* continueStory(storyId, characterId = null) {
+    const url = characterId
+      ? `${this.baseURL}/api/stories/${storyId}/continue?characterId=${characterId}`
+      : `${this.baseURL}/api/stories/${storyId}/continue`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || `Generation failed: ${response.statusText}`);
+    }
+
+    yield* this._processSSEStream(response);
+  }
+
+  /**
+   * Continue story with custom instruction with SSE streaming
+   * Returns an async iterator for streaming chunks
+   */
+  async* continueWithInstruction(storyId, instruction) {
+    const url = `${this.baseURL}/api/stories/${storyId}/continue-with-instruction`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ instruction }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || `Generation failed: ${response.statusText}`);
+    }
+
+    yield* this._processSSEStream(response);
+  }
+
+  /**
+   * Rewrite story to third person with SSE streaming
+   * Returns an async iterator for streaming chunks
+   */
+  async* rewriteThirdPerson(storyId) {
+    const url = `${this.baseURL}/api/stories/${storyId}/rewrite-third-person`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || `Generation failed: ${response.statusText}`);
+    }
+
+    yield* this._processSSEStream(response);
+  }
+
+  /**
+   * Helper method to process SSE stream
+   * Returns an async iterator for streaming chunks
+   */
+  async* _processSSEStream(response) {
+    if (!response.body) {
+      throw new Error('Response body is null - streaming not supported');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+
+        // Keep the last incomplete line in buffer
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+
+          if (trimmed === '' || trimmed === 'data: [DONE]') {
+            continue;
+          }
+
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const jsonStr = trimmed.slice(6); // Remove 'data: ' prefix
+              const data = JSON.parse(jsonStr);
+
+              if (data.error) {
+                throw new Error(data.error);
+              }
+
+              yield data;
+            } catch (e) {
+              console.error('Failed to parse SSE line:', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Stream error:', error);
+      throw error;
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  /**
+   * Generate content with SSE streaming (DEPRECATED - use specific endpoints)
    * Returns an async iterator for streaming chunks
    */
   async* generateStream(storyId, type, customPrompt = null, characterId = null) {

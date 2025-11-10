@@ -1968,7 +1968,7 @@ class NovelWriterApp {
       const textAfter = this.editor.value.substring(cursorPos);
 
       // Stream generation from server
-      for await (const chunk of apiClient.generateStream(this.currentStoryId, type, null, characterId)) {
+      for await (const chunk of apiClient.continueStory(this.currentStoryId, characterId)) {
         // Capture prompts if sent
         if (chunk.prompts) {
           this.lastSystemPrompt = chunk.prompts.system;
@@ -2071,7 +2071,7 @@ class NovelWriterApp {
       const textAfter = this.editor.value.substring(cursorPos);
 
       // Stream generation
-      for await (const chunk of apiClient.generateStream(this.currentStoryId, 'custom', customPrompt)) {
+      for await (const chunk of apiClient.continueWithInstruction(this.currentStoryId, customPrompt)) {
         // Capture prompts if sent
         if (chunk.prompts) {
           this.lastSystemPrompt = chunk.prompts.system;
@@ -2149,16 +2149,8 @@ class NovelWriterApp {
       return;
     }
 
-    // For rewrite, we'll use custom prompt with special instructions
-    const rewritePrompt = `Rewrite the following story in third-person past tense perspective.
-
-Use he/she/they pronouns and past tense verbs throughout (said, walked, thought, etc.).
-
-Maintain the plot, events, and character interactions, but ensure all narrative and dialogue tags use third-person past tense.
-
-Remove any asterisks (*) used for actions - write everything as prose.
-
-Do NOT use first-person (I, me, my) or present tense.`;
+    // Save before rewriting
+    await this.saveDocument();
 
     try {
       this.setGenerationEnabled(false);
@@ -2179,7 +2171,7 @@ Do NOT use first-person (I, me, my) or present tense.`;
       let hasContent = false;
 
       // Stream rewrite
-      for await (const chunk of apiClient.generateStream(this.currentStoryId, 'custom', rewritePrompt)) {
+      for await (const chunk of apiClient.rewriteThirdPerson(this.currentStoryId)) {
         // Capture prompts if sent
         if (chunk.prompts) {
           this.lastSystemPrompt = chunk.prompts.system;
@@ -2209,8 +2201,20 @@ Do NOT use first-person (I, me, my) or present tense.`;
         }
       }
 
-      // Focus editor after rewrite
-      this.editor.focus();
+      // Add two line breaks at the end and position cursor
+      if (rewrittenContent) {
+        rewrittenContent += '\n\n';
+        this.editor.value = rewrittenContent;
+
+        // Position cursor at the end
+        const cursorPos = rewrittenContent.length;
+        this.editor.selectionStart = cursorPos;
+        this.editor.selectionEnd = cursorPos;
+
+        // Scroll to bottom and focus
+        this.editor.scrollTop = this.editor.scrollHeight;
+        this.editor.focus();
+      }
 
       await this.saveDocument();
       this.showToast('Rewrite complete', 'success');

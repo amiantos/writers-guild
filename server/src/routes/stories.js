@@ -7,6 +7,7 @@ import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { StorageService } from '../services/storage.js';
 import { DeepSeekAPI } from '../services/deepseek-api.js';
 import { MacroProcessor } from '../services/macro-processor.js';
+import { LorebookActivator } from '../services/lorebook-activator.js';
 
 const router = express.Router();
 
@@ -281,6 +282,281 @@ router.delete('/:id/lorebooks/:lorebookId', asyncHandler(async (req, res) => {
   const { id: storyId, lorebookId } = req.params;
   await storage.removeLorebookFromStory(storyId, lorebookId);
   res.json({ success: true });
+}));
+
+// ==================== Generation Endpoints ====================
+
+/**
+ * Helper function to load all context needed for generation
+ */
+async function loadGenerationContext(storyId) {
+  // Load settings
+  const settings = await storage.getSettings();
+  if (!settings || !settings.apiKey) {
+    throw new AppError('DeepSeek API key not configured', 400);
+  }
+
+  // Load story
+  const story = await storage.getStory(storyId);
+
+  // Load persona
+  let persona = null;
+  if (story.personaCharacterId) {
+    try {
+      const cardData = await storage.getCharacter(story.personaCharacterId);
+      persona = {
+        name: cardData.data?.name || 'User',
+        description: cardData.data?.description || '',
+        writingStyle: cardData.data?.personality || ''
+      };
+    } catch (error) {
+      console.error('Failed to load persona character:', error);
+    }
+  }
+
+  // Load all characters for this story
+  const characterCards = [];
+  for (const charId of story.characterIds || []) {
+    try {
+      const cardData = await storage.getCharacter(charId);
+      characterCards.push({ id: charId, data: cardData });
+    } catch (error) {
+      console.error(`Failed to load character ${charId}:`, error);
+    }
+  }
+
+  // Load and activate lorebooks
+  let activatedLorebooks = [];
+  if (story.lorebookIds && story.lorebookIds.length > 0) {
+    try {
+      const lorebooks = [];
+      for (const lorebookId of story.lorebookIds) {
+        try {
+          const lorebookData = await storage.getLorebook(lorebookId);
+          lorebooks.push(lorebookData);
+        } catch (error) {
+          console.error(`Failed to load lorebook ${lorebookId}:`, error);
+        }
+      }
+
+      if (lorebooks.length > 0) {
+        const activator = new LorebookActivator(settings);
+        activatedLorebooks = activator.activate(lorebooks, story.content || '');
+        console.log(`Activated ${activatedLorebooks.length} lorebook entries from ${lorebooks.length} lorebook(s)`);
+      }
+    } catch (error) {
+      console.error('Failed to activate lorebooks:', error);
+    }
+  }
+
+  return {
+    settings,
+    story,
+    persona,
+    characterCards,
+    activatedLorebooks
+  };
+}
+
+/**
+ * Helper function to setup SSE streaming
+ */
+function setupSSE(res) {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.set('Content-Encoding', 'none');
+  res.flushHeaders();
+}
+
+/**
+ * Helper function to stream generation
+ */
+async function streamGeneration(res, deepseek, prompt, options, settings) {
+  // Send prompts for debugging
+  const systemPrompt = deepseek.buildSystemPrompt(
+    options.characterCard,
+    options.persona,
+    settings,
+    options.allCharacterCards,
+    options.lorebookEntries
+  );
+
+  res.write(`data: ${JSON.stringify({
+    prompts: {
+      system: systemPrompt,
+      user: prompt
+    }
+  })}\n\n`);
+
+  if (res.flush) res.flush();
+
+  // Start generation
+  const { stream } = await deepseek.generateStreaming(prompt, options);
+
+  // Stream chunks
+  for await (const chunk of stream) {
+    // Apply asterisk filtering server-side
+    let processedContent = chunk.content || null;
+    if (processedContent && settings.filterAsterisks) {
+      processedContent = processedContent.replace(/\*/g, '');
+    }
+
+    const data = {
+      reasoning: chunk.reasoning || null,
+      content: processedContent,
+      finished: chunk.finished || false,
+    };
+
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    if (res.flush) res.flush();
+  }
+
+  // Send done
+  res.write('data: [DONE]\n\n');
+  if (res.flush) res.flush();
+  res.end();
+}
+
+// Continue story
+router.post('/:id/continue', asyncHandler(async (req, res) => {
+  const { id: storyId } = req.params;
+  const { characterId } = req.query; // Optional: generate for specific character
+
+  const context = await loadGenerationContext(storyId);
+  const { settings, story, persona, characterCards, activatedLorebooks } = context;
+
+  const deepseek = new DeepSeekAPI(settings.apiKey);
+
+  // Determine character usage
+  let characterCard = null;
+  let allCharacterCards = null;
+
+  if (characterId) {
+    // Character-specific generation
+    const selectedChar = characterCards.find(c => c.id === characterId);
+    characterCard = selectedChar ? selectedChar.data : (characterCards.length > 0 ? characterCards[0].data : null);
+  } else {
+    // Story continuation - include all characters
+    allCharacterCards = characterCards.map(c => c.data);
+    characterCard = characterCards.length > 0 ? characterCards[0].data : null;
+  }
+
+  // Build prompt for continuation
+  const { fullPrompt } = deepseek.buildGenerationPrompt(characterId ? 'character' : 'continue', {
+    characterCard,
+    allCharacterCards,
+    currentContent: story.content,
+    persona,
+  });
+
+  setupSSE(res);
+
+  try {
+    await streamGeneration(res, deepseek, fullPrompt, {
+      characterCard,
+      allCharacterCards,
+      persona,
+      lorebookEntries: activatedLorebooks,
+      maxTokens: settings.maxTokens || 4000,
+      temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
+      settings,
+    }, settings);
+  } catch (error) {
+    console.error('Generation error:', error);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
+  }
+}));
+
+// Continue with instruction
+router.post('/:id/continue-with-instruction', asyncHandler(async (req, res) => {
+  const { id: storyId } = req.params;
+  const { instruction } = req.body;
+
+  if (!instruction || !instruction.trim()) {
+    throw new AppError('Instruction is required', 400);
+  }
+
+  const context = await loadGenerationContext(storyId);
+  const { settings, story, persona, characterCards, activatedLorebooks } = context;
+
+  const deepseek = new DeepSeekAPI(settings.apiKey);
+
+  // Include all characters
+  const allCharacterCards = characterCards.map(c => c.data);
+  const characterCard = characterCards.length > 0 ? characterCards[0].data : null;
+
+  // Build prompt with custom instruction
+  const { fullPrompt } = deepseek.buildGenerationPrompt('custom', {
+    characterCard,
+    allCharacterCards,
+    currentContent: story.content,
+    customPrompt: instruction.trim(),
+    persona,
+  });
+
+  setupSSE(res);
+
+  try {
+    await streamGeneration(res, deepseek, fullPrompt, {
+      characterCard,
+      allCharacterCards,
+      persona,
+      lorebookEntries: activatedLorebooks,
+      maxTokens: settings.maxTokens || 4000,
+      temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
+      settings,
+    }, settings);
+  } catch (error) {
+    console.error('Generation error:', error);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
+  }
+}));
+
+// Rewrite to third person
+router.post('/:id/rewrite-third-person', asyncHandler(async (req, res) => {
+  const { id: storyId } = req.params;
+
+  const context = await loadGenerationContext(storyId);
+  const { settings, story, persona, characterCards, activatedLorebooks } = context;
+
+  const deepseek = new DeepSeekAPI(settings.apiKey);
+
+  // Include all characters
+  const allCharacterCards = characterCards.map(c => c.data);
+  const characterCard = characterCards.length > 0 ? characterCards[0].data : null;
+
+  // Build rewrite prompt (server owns this logic)
+  const rewriteInstruction = `Rewrite the following text to be in third person narrative perspective. Maintain all the story beats, dialogue, and events, but convert first person ("I", "me") and second person ("you") references to third person ("he", "she", "they"). Keep the writing style and tone consistent.`;
+
+  const { fullPrompt } = deepseek.buildGenerationPrompt('custom', {
+    characterCard,
+    allCharacterCards,
+    currentContent: story.content,
+    customPrompt: rewriteInstruction,
+    persona,
+  });
+
+  setupSSE(res);
+
+  try {
+    await streamGeneration(res, deepseek, fullPrompt, {
+      characterCard,
+      allCharacterCards,
+      persona,
+      lorebookEntries: activatedLorebooks,
+      maxTokens: settings.maxTokens || 4000,
+      temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
+      settings,
+    }, settings);
+  } catch (error) {
+    console.error('Generation error:', error);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
+  }
 }));
 
 export default router;
