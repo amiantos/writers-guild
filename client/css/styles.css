@@ -163,7 +163,7 @@ body {
 
 .character-avatar {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 2/3;
   background-color: var(--bg-tertiary);
   border-radius: 8px;
   background-size: cover;
@@ -717,11 +717,11 @@ body {
 
 .character-card-avatar {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 2/3;
   background-color: var(--bg-tertiary);
   border-radius: 6px;
   background-size: cover;
-  background-position: center;
+  background-position: center top;
   margin-bottom: 0.75rem;
   display: flex;
   align-items: center;
