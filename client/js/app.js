@@ -150,6 +150,10 @@ class NovelWriterApp {
     // Settings
     this.settingsBtn = document.getElementById('settingsBtn');
     this.settingsModal = document.getElementById('settingsModal');
+
+    // Story Settings Panel (mobile)
+    this.storySettingsBtn = document.getElementById('storySettingsBtn');
+    this.storySettingsPanel = document.getElementById('storySettingsPanel');
     this.apiKeyInput = document.getElementById('apiKeyInput');
     this.maxTokensInput = document.getElementById('maxTokensInput');
     this.temperatureInput = document.getElementById('temperatureInput');
@@ -379,6 +383,11 @@ class NovelWriterApp {
       this.saveSettingsBtn.addEventListener('click', () => this.saveSettings());
     }
 
+    // Story Settings Panel toggle (mobile)
+    if (this.storySettingsBtn) {
+      this.storySettingsBtn.addEventListener('click', () => this.toggleStorySettings());
+    }
+
     // Prompt viewer
     if (this.viewPromptBtn) {
       this.viewPromptBtn.addEventListener('click', () => this.openPromptViewer());
@@ -405,6 +414,16 @@ class NovelWriterApp {
     //     }
     //   });
     // });
+
+    // Close story settings panel on outside click (mobile)
+    document.addEventListener('click', (e) => {
+      if (this.storySettingsPanel && this.storySettingsPanel.classList.contains('open')) {
+        // Check if click is outside panel and not on the toggle button
+        if (!this.storySettingsPanel.contains(e.target) && !this.storySettingsBtn.contains(e.target)) {
+          this.storySettingsPanel.classList.remove('open');
+        }
+      }
+    });
 
     // Editor auto-save trigger (debounced)
     if (this.editor) {
@@ -1782,6 +1801,12 @@ class NovelWriterApp {
   }
 
   // ==================== Settings Management ====================
+
+  toggleStorySettings() {
+    if (this.storySettingsPanel) {
+      this.storySettingsPanel.classList.toggle('open');
+    }
+  }
 
   openSettingsModal() {
     if (this.settings) {

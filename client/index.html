@@ -30,6 +30,9 @@
       </div>
     </div>
     <div class="header-right">
+      <button id="storySettingsBtn" class="icon-btn mobile-only" title="Story Settings">
+        <i class="fa-solid fa-sliders"></i>
+      </button>
       <button id="settingsBtn" class="icon-btn" title="Settings">
         <i class="fa-solid fa-gear"></i>
       </button>
@@ -38,11 +41,12 @@
 
   <!-- Main Container -->
   <div class="main-container">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <!-- Character Card Section -->
-      <section class="sidebar-section">
-        <h2>Story Characters</h2>
+    <!-- Sidebar / Story Settings Panel -->
+    <aside class="sidebar" id="storySettingsPanel">
+      <div class="story-settings-content">
+        <!-- Character Card Section -->
+        <section class="sidebar-section settings-card">
+          <h2>Story Characters</h2>
         <button id="characterLibraryBtn" class="btn btn-secondary" style="margin-bottom: 0.5rem;">
           Character Library
         </button>
@@ -55,24 +59,16 @@
             <h3 id="characterName">No Character</h3>
             <p id="characterDesc" class="character-desc"></p>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
-            <label for="characterUpload" class="btn btn-small btn-primary" style="text-align: center; margin: 0;">
-              Import New
-            </label>
-            <button id="clearCharacterBtn" class="btn btn-small btn-secondary">Remove All</button>
-          </div>
+          <button id="clearCharacterBtn" class="btn btn-secondary">Remove All</button>
         </div>
         <div id="noCharacter" class="no-character">
           <p>No characters in this story</p>
-          <label for="characterUpload" class="btn btn-primary">
-            Import Character Card
-          </label>
         </div>
       </section>
 
-      <!-- Persona Section -->
-      <section class="sidebar-section">
-        <h2>Persona</h2>
+        <!-- Persona Section -->
+        <section class="sidebar-section settings-card">
+          <h2>Persona</h2>
         <button id="selectPersonaBtn" class="btn btn-secondary">Select Character</button>
         <div id="personaSummary" class="persona-summary">
           <p id="personaName">Not set</p>
@@ -80,9 +76,9 @@
         </div>
       </section>
 
-      <!-- Lorebook Section -->
-      <section class="sidebar-section">
-        <h2>Story Lorebooks</h2>
+        <!-- Lorebook Section -->
+        <section class="sidebar-section settings-card">
+          <h2>Story Lorebooks</h2>
         <button id="lorebookLibraryBtn" class="btn btn-secondary" style="margin-bottom: 0.5rem;">
           Lorebook Library
         </button>
@@ -92,7 +88,8 @@
         <div id="lorebookSummary" class="persona-summary">
           <p id="lorebookCount" style="font-size: 0.875rem; color: var(--text-secondary);">0 lorebooks active</p>
         </div>
-      </section>
+        </section>
+      </div>
     </aside>
 
     <!-- Main Content Area -->
