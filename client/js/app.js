@@ -1994,9 +1994,8 @@ class NovelWriterApp {
             this.statusText.textContent = 'Writing...';
           }
 
-          // Filter asterisks from generated content
-          const filteredContent = this.filterAsterisks(chunk.content);
-          generatedContent += filteredContent;
+          // Content is already processed server-side
+          generatedContent += chunk.content;
 
           // Insert accumulated content at cursor position
           this.editor.value = textBefore + generatedContent + textAfter;
@@ -2097,8 +2096,7 @@ class NovelWriterApp {
             this.statusText.textContent = 'Writing...';
           }
 
-          const filteredContent = this.filterAsterisks(chunk.content);
-          generatedContent += filteredContent;
+          generatedContent += chunk.content;
           this.editor.value = textBefore + generatedContent + textAfter;
           this.editor.scrollTop = this.editor.scrollHeight;
         }
@@ -2207,8 +2205,7 @@ Do NOT use first-person (I, me, my) or present tense.`;
             this.statusText.textContent = 'Rewriting...';
           }
 
-          const filteredContent = this.filterAsterisks(chunk.content);
-          rewrittenContent += filteredContent;
+          rewrittenContent += chunk.content;
           this.editor.value = rewrittenContent;
           this.editor.scrollTop = this.editor.scrollHeight;
         }

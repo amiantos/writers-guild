@@ -182,9 +182,15 @@ router.post('/', asyncHandler(async (req, res) => {
 
     // Stream chunks to client
     for await (const chunk of stream) {
+      // Apply asterisk filtering server-side if enabled
+      let processedContent = chunk.content || null;
+      if (processedContent && settings.filterAsterisks) {
+        processedContent = processedContent.replace(/\*/g, '');
+      }
+
       const data = {
         reasoning: chunk.reasoning || null,
-        content: chunk.content || null,
+        content: processedContent,
         finished: chunk.finished || false,
       };
 
