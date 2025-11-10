@@ -167,7 +167,7 @@ body {
   background-color: var(--bg-tertiary);
   border-radius: 8px;
   background-size: cover;
-  background-position: center;
+  background-position: center top;
   display: flex;
   align-items: center;
   justify-content: center;

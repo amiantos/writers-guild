@@ -2497,7 +2497,7 @@ Do NOT use first-person (I, me, my) or present tense.`;
       if (char.imageUrl) {
         this.characterAvatar.style.backgroundImage = `url(${char.imageUrl})`;
         this.characterAvatar.style.backgroundSize = 'cover';
-        this.characterAvatar.style.backgroundPosition = 'center';
+        this.characterAvatar.style.backgroundPosition = 'center top';
         this.characterInitial.textContent = '';
       } else {
         this.characterAvatar.style.backgroundImage = '';
