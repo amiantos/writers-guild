@@ -182,7 +182,6 @@ body {
 .character-name-overlay {
   position: absolute;
   bottom: 0;
-  right: 0;
   left: 0;
   padding: 0.5rem;
   font-size: 0.875rem;
@@ -191,11 +190,12 @@ body {
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
+  border-top-right-radius: 4px;
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .character-details h3 {
