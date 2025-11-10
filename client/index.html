@@ -5,13 +5,59 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ursceal</title>
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="/css/styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 
 <body>
-  <!-- Header -->
-  <header class="app-header">
+  <!-- Landing Page View -->
+  <div id="landing-view" class="view landing-view" style="display: none;">
+    <!-- Landing Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <h1>Úrscéal</h1>
+      </div>
+      <div class="header-right">
+        <button id="settingsBtnLanding" class="icon-btn" title="Settings">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Landing Content -->
+    <div class="landing-content">
+      <!-- Recent Stories Section -->
+      <section class="landing-section">
+        <div class="section-header">
+          <h2><i class="fas fa-clock"></i> Recent Stories</h2>
+          <button id="new-story-btn" class="btn btn-primary">
+            <i class="fas fa-plus"></i> New Story
+          </button>
+        </div>
+        <div id="recent-stories-container" class="recent-stories-grid">
+          <p class="text-secondary">Loading stories...</p>
+        </div>
+      </section>
+
+      <!-- Character Library Section -->
+      <section class="landing-section">
+        <div class="section-header">
+          <h2><i class="fas fa-users"></i> Character Library</h2>
+          <button id="characterLibraryBtnLanding" class="btn btn-secondary">
+            <i class="fas fa-book"></i> Manage Characters
+          </button>
+        </div>
+        <div id="character-library-container" class="character-library-grid-landing">
+          <p class="text-secondary">Loading characters...</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Story Editor View -->
+  <div id="editor-view" class="view editor-view" style="display: none;">
+    <!-- Header -->
+    <header class="app-header">
     <div class="header-left">
       <h1>Úrscéal</h1>
       <div class="story-controls">
@@ -44,6 +90,19 @@
     <!-- Sidebar / Story Settings Panel -->
     <aside class="sidebar" id="storySettingsPanel">
       <div class="story-settings-content">
+        <!-- Story Actions Section -->
+        <section class="sidebar-section settings-card">
+          <h2>Story Actions</h2>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <button id="renameStoryBtnSidebar" class="btn btn-secondary">
+              <i class="fa-solid fa-pen"></i> Rename
+            </button>
+            <button id="deleteStoryBtnSidebar" class="btn btn-secondary">
+              <i class="fa-solid fa-trash"></i> Delete
+            </button>
+          </div>
+        </section>
+
         <!-- Character Card Section -->
         <section class="sidebar-section settings-card">
           <h2>Story Characters</h2>
@@ -163,6 +222,10 @@
       </div>
     </main>
   </div>
+  </div>
+  <!-- End of Editor View -->
+
+  <!-- Shared Modals (accessible from both views) -->
 
   <!-- Settings Modal -->
   <div id="settingsModal" class="modal hidden">
@@ -733,8 +796,10 @@
 
   <!-- Scripts -->
   <script src="/shared/tavern-parser.js"></script>
-  <script src="js/api-client.js"></script>
-  <script src="js/app.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/router.js"></script>
+  <script src="/js/landing.js"></script>
+  <script src="/js/app.js"></script>
 </body>
 
 </html>

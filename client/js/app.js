@@ -33,14 +33,24 @@ class NovelWriterApp {
       // Load settings first
       await this.loadSettings();
 
-      // Load stories list
-      await this.loadStories();
-
-      // Setup event listeners
+      // Setup event listeners (but don't load stories yet - router will handle that)
       this.setupEventListeners();
 
-      // Update UI
-      this.updateUI();
+      // Create back button in editor header
+      this.createBackButton();
+
+      // Setup auto-save before navigation
+      this.setupBeforeUnload();
+
+      // Register with router
+      if (window.landingPage && window.router) {
+        window.router.register(window.landingPage, this);
+      }
+
+      // Initialize router (will handle showing landing or editor based on URL)
+      if (window.router) {
+        window.router.init();
+      }
 
       // Start auto-save if enabled
       if (this.settings?.autoSave) {
@@ -53,11 +63,14 @@ class NovelWriterApp {
   }
 
   initializeElements() {
-    // Story selector
+    // Story controls (now in editor view only)
     this.storySelector = document.getElementById('storySelector');
     this.newStoryBtn = document.getElementById('newStoryBtn');
     this.renameStoryBtn = document.getElementById('renameStoryBtn');
     this.deleteStoryBtn = document.getElementById('deleteStoryBtn');
+
+    // Back button (will be created dynamically)
+    this.backButton = null;
 
     // Editor
     this.editor = document.getElementById('storyEditor');
@@ -233,10 +246,7 @@ class NovelWriterApp {
   }
 
   setupEventListeners() {
-    // Story selector
-    if (this.storySelector) {
-      this.storySelector.addEventListener('change', () => this.switchStory());
-    }
+    // Story management buttons (editor view - header, now hidden)
     if (this.newStoryBtn) {
       this.newStoryBtn.addEventListener('click', () => this.createNewStory());
     }
@@ -247,9 +257,31 @@ class NovelWriterApp {
       this.deleteStoryBtn.addEventListener('click', () => this.deleteCurrentStory());
     }
 
-    // Character library
+    // Story management buttons (editor view - sidebar)
+    const renameStoryBtnSidebar = document.getElementById('renameStoryBtnSidebar');
+    if (renameStoryBtnSidebar) {
+      renameStoryBtnSidebar.addEventListener('click', () => this.renameCurrentStory());
+    }
+    const deleteStoryBtnSidebar = document.getElementById('deleteStoryBtnSidebar');
+    if (deleteStoryBtnSidebar) {
+      deleteStoryBtnSidebar.addEventListener('click', () => this.deleteCurrentStory());
+    }
+
+    // Character library (editor view)
     if (this.characterLibraryBtn) {
       this.characterLibraryBtn.addEventListener('click', () => this.openCharacterLibrary());
+    }
+
+    // Character library button on landing page
+    const characterLibraryBtnLanding = document.getElementById('characterLibraryBtnLanding');
+    if (characterLibraryBtnLanding) {
+      characterLibraryBtnLanding.addEventListener('click', () => this.openCharacterLibrary());
+    }
+
+    // Settings button on landing page
+    const settingsBtnLanding = document.getElementById('settingsBtnLanding');
+    if (settingsBtnLanding) {
+      settingsBtnLanding.addEventListener('click', () => this.openSettingsModal());
     }
     if (this.createCharacterBtn) {
       this.createCharacterBtn.addEventListener('click', () => this.openCharacterCreator());
@@ -470,18 +502,33 @@ class NovelWriterApp {
     try {
       const { stories } = await apiClient.listStories();
       this.stories = stories || [];
-
-      // If no stories exist, create a default one
-      if (this.stories.length === 0) {
-        await this.createFirstStory();
-      } else {
-        // Load the most recent story
-        this.currentStoryId = this.stories[0].id;
-        await this.loadCurrentStory();
-      }
+      // Don't auto-load any story - router will handle that
     } catch (error) {
       console.error('Failed to load stories:', error);
       this.showToast('Failed to load stories', 'error');
+    }
+  }
+
+  /**
+   * Load a specific story by ID (called by router)
+   * @param {string} storyId - The story ID to load
+   */
+  async loadStory(storyId) {
+    try {
+      // Save current story before switching (if we have one)
+      if (this.currentStoryId && this.currentStoryId !== storyId) {
+        await this.saveDocument();
+      }
+
+      this.currentStoryId = storyId;
+      await this.loadCurrentStory();
+    } catch (error) {
+      console.error('Failed to load story:', error);
+      this.showToast('Failed to load story', 'error');
+      // Redirect to landing if story doesn't exist
+      if (window.router) {
+        window.router.navigate('/');
+      }
     }
   }
 
@@ -552,10 +599,6 @@ class NovelWriterApp {
 
     try {
       const { story } = await apiClient.createStory(title.trim(), '');
-      this.stories.unshift(story); // Add to beginning
-      this.currentStoryId = story.id;
-      this.editor.value = '';
-      this.characters = [];
 
       // Auto-assign default persona if set
       if (this.settings && this.settings.defaultPersonaId) {
@@ -567,25 +610,16 @@ class NovelWriterApp {
         }
       }
 
-      await this.loadCurrentStory();
-      this.updateUI();
       this.showToast('Story created!', 'success');
+
+      // Navigate to the new story
+      if (window.router) {
+        window.router.navigate(`/story/${story.id}`);
+      }
     } catch (error) {
       console.error('Failed to create story:', error);
       this.showToast('Failed to create story', 'error');
     }
-  }
-
-  async switchStory() {
-    const newStoryId = this.storySelector.value;
-    if (!newStoryId || newStoryId === this.currentStoryId) return;
-
-    // Save current story first
-    await this.saveDocument();
-
-    // Switch to new story
-    this.currentStoryId = newStoryId;
-    await this.loadCurrentStory();
   }
 
   async renameCurrentStory() {
@@ -623,20 +657,16 @@ class NovelWriterApp {
 
     try {
       await apiClient.deleteStory(this.currentStoryId);
-
-      // Remove from local stories list
-      this.stories = this.stories.filter(s => s.id !== this.currentStoryId);
-
-      // Switch to first remaining story or create new one
-      if (this.stories.length > 0) {
-        this.currentStoryId = this.stories[0].id;
-        await this.loadCurrentStory();
-      } else {
-        await this.createFirstStory();
-      }
-
-      this.updateUI();
       this.showToast('Story deleted', 'success');
+
+      // Clear current story
+      this.currentStoryId = null;
+      this.currentStory = null;
+
+      // Navigate back to landing page
+      if (window.router) {
+        window.router.navigate('/');
+      }
     } catch (error) {
       console.error('Failed to delete story:', error);
       this.showToast('Failed to delete story', 'error');
@@ -2391,6 +2421,65 @@ class NovelWriterApp {
 
   // ==================== Utility Functions ====================
 
+  /**
+   * Create back button in editor header
+   */
+  createBackButton() {
+    const editorHeader = document.querySelector('#editor-view .app-header .header-left');
+    if (!editorHeader) return;
+
+    // Remove story selector and controls (they're still in HTML but we'll hide them)
+    const storyControls = editorHeader.querySelector('.story-controls');
+    if (storyControls) {
+      storyControls.style.display = 'none';
+    }
+
+    // Create back button
+    const backBtn = document.createElement('button');
+    backBtn.className = 'icon-btn';
+    backBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i>';
+    backBtn.title = 'Back to Stories';
+    backBtn.style.marginRight = '0.75rem';
+    backBtn.addEventListener('click', async () => {
+      // Save before navigating
+      await this.saveDocument();
+      if (window.router) {
+        window.router.navigate('/');
+      }
+    });
+
+    // Create story title display
+    const titleDisplay = document.createElement('span');
+    titleDisplay.id = 'current-story-title';
+    titleDisplay.style.fontSize = '1.125rem';
+    titleDisplay.style.fontWeight = '500';
+    titleDisplay.style.color = 'var(--text-primary)';
+    titleDisplay.style.whiteSpace = 'nowrap';
+
+    // Insert before the h1
+    const h1 = editorHeader.querySelector('h1');
+    if (h1) {
+      editorHeader.insertBefore(backBtn, h1);
+      editorHeader.insertBefore(titleDisplay, h1);
+      h1.style.display = 'none'; // Hide the app title in editor view
+    }
+
+    this.backButton = backBtn;
+    this.titleDisplay = titleDisplay;
+  }
+
+  /**
+   * Setup beforeunload handler to save work
+   */
+  setupBeforeUnload() {
+    window.addEventListener('beforeunload', (e) => {
+      // Only save if we're on editor view and have a current story
+      if (window.router && window.router.isOnEditor() && this.currentStoryId) {
+        // Try to save synchronously (not ideal but best we can do)
+        this.saveDocument();
+      }
+    });
+  }
 
   // ==================== UI Management ====================
 
@@ -2414,6 +2503,13 @@ class NovelWriterApp {
   }
 
   updateStorySelector() {
+    // Update story title display
+    if (this.titleDisplay && this.currentStory) {
+      this.titleDisplay.textContent = this.currentStory.title || 'Untitled Story';
+    }
+
+    // Note: Story selector dropdown is hidden, but we'll leave this code
+    // in case it's needed for other parts of the app
     if (!this.storySelector) return;
 
     // Clear existing options
@@ -2599,5 +2695,8 @@ class NovelWriterApp {
 
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+  // Create global instances (apiClient and router are already created by their respective modules)
+  window.landingPage = new LandingPage(window.apiClient, window.router);
   window.app = new NovelWriterApp();
+  // Router initialization happens in app.init()
 });
