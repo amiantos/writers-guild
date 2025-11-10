@@ -96,9 +96,20 @@ export class StorageService {
     for (const dir of dirs) {
       const storyPath = path.join(this.storiesDir, dir);
       const metadataPath = path.join(storyPath, 'metadata.json');
+      const contentPath = path.join(storyPath, 'content.txt');
 
       if (await this.exists(metadataPath)) {
         const metadata = await this.readJSON(metadataPath);
+
+        // Calculate word count from content
+        let wordCount = 0;
+        if (await this.exists(contentPath)) {
+          const content = await fs.readFile(contentPath, 'utf-8');
+          // Count words (split by whitespace and filter empty strings)
+          wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
+        }
+
+        metadata.wordCount = wordCount;
         stories.push(metadata);
       }
     }

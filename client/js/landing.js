@@ -10,6 +10,7 @@ class LandingPage {
         this.characters = [];
         this.settings = null;
         this.staticListenersAttached = false;
+        this.storySortBy = 'modified'; // 'name', 'created', 'modified'
     }
 
     /**
@@ -51,7 +52,7 @@ class LandingPage {
      * Render the landing page
      */
     render() {
-        this.renderRecentStories();
+        this.renderAllStoriesTable();
         this.renderCharacterLibrary();
     }
 
@@ -62,7 +63,7 @@ class LandingPage {
         const container = document.getElementById('recent-stories-container');
         if (!container) return;
 
-        const recentStories = this.stories.slice(0, 10);
+        const recentStories = this.stories.slice(0, 3);
 
         if (recentStories.length === 0) {
             container.innerHTML = `
@@ -98,6 +99,111 @@ class LandingPage {
                 </div>
             `;
         }).join('');
+    }
+
+    /**
+     * Render all stories table
+     */
+    renderAllStoriesTable() {
+        const container = document.getElementById('all-stories-container');
+        if (!container) return;
+
+        if (this.stories.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-book"></i>
+                    <p>No stories yet.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Sort stories based on current sort setting
+        const sortedStories = this.getSortedStories();
+
+        container.innerHTML = `
+            <table class="stories-table">
+                <thead>
+                    <tr>
+                        <th class="story-avatar-header"></th>
+                        <th>
+                            <button class="sort-btn ${this.storySortBy === 'name' ? 'active' : ''}" data-sort="name">
+                                Title ${this.storySortBy === 'name' ? (this.sortAscending ? '▲' : '▼') : ''}
+                            </button>
+                        </th>
+                        <th>
+                            <button class="sort-btn ${this.storySortBy === 'created' ? 'active' : ''}" data-sort="created">
+                                Created ${this.storySortBy === 'created' ? (this.sortAscending ? '▲' : '▼') : ''}
+                            </button>
+                        </th>
+                        <th>
+                            <button class="sort-btn ${this.storySortBy === 'modified' ? 'active' : ''}" data-sort="modified">
+                                Modified ${this.storySortBy === 'modified' ? (this.sortAscending ? '▲' : '▼') : ''}
+                            </button>
+                        </th>
+                        <th>Words</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${sortedStories.map(story => {
+                        const firstCharacter = this.getFirstCharacter(story.characterIds);
+                        const avatarHtml = firstCharacter?.imageUrl
+                            ? `<div class="story-avatar" style="background-image: url('${firstCharacter.imageUrl}'); background-position: center top;"></div>`
+                            : `<div class="story-avatar story-avatar-empty"><i class="fas fa-user"></i></div>`;
+
+                        return `
+                        <tr>
+                            <td class="story-avatar-cell">${avatarHtml}</td>
+                            <td class="story-title-cell">${this.escapeHtml(story.title || 'Untitled Story')}</td>
+                            <td class="story-date-cell">${new Date(story.created).toLocaleDateString()}</td>
+                            <td class="story-date-cell">${new Date(story.modified || story.created).toLocaleDateString()}</td>
+                            <td class="story-wordcount-cell">${(story.wordCount || 0).toLocaleString()}</td>
+                            <td class="story-actions-cell">
+                                <button class="btn btn-small btn-primary table-open-btn" data-story-id="${story.id}">
+                                    <i class="fas fa-folder-open"></i> Open
+                                </button>
+                                <button class="btn btn-small btn-secondary table-delete-btn" data-story-id="${story.id}" data-story-title="${this.escapeHtml(story.title || 'Untitled Story')}">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+    }
+
+    /**
+     * Get sorted stories based on current sort setting
+     */
+    getSortedStories() {
+        const sorted = [...this.stories];
+
+        sorted.sort((a, b) => {
+            let aVal, bVal;
+
+            switch (this.storySortBy) {
+                case 'name':
+                    aVal = (a.title || 'Untitled Story').toLowerCase();
+                    bVal = (b.title || 'Untitled Story').toLowerCase();
+                    return aVal.localeCompare(bVal);
+
+                case 'created':
+                    aVal = new Date(a.created);
+                    bVal = new Date(b.created);
+                    return bVal - aVal; // Most recent first
+
+                case 'modified':
+                default:
+                    aVal = new Date(a.modified || a.created);
+                    bVal = new Date(b.modified || b.created);
+                    return bVal - aVal; // Most recent first
+            }
+        });
+
+        return sorted;
     }
 
     /**
@@ -200,6 +306,33 @@ class LandingPage {
                 this.createNewStoryWithCharacter(characterId);
             });
         });
+
+        // Table sort buttons
+        document.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const sortBy = e.currentTarget.dataset.sort;
+                this.storySortBy = sortBy;
+                this.renderAllStoriesTable();
+                this.attachEventListeners(); // Re-attach listeners after re-render
+            });
+        });
+
+        // Table open buttons
+        document.querySelectorAll('.table-open-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const storyId = e.currentTarget.dataset.storyId;
+                this.openStory(storyId);
+            });
+        });
+
+        // Table delete buttons
+        document.querySelectorAll('.table-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const storyId = e.currentTarget.dataset.storyId;
+                const storyTitle = e.currentTarget.dataset.storyTitle;
+                await this.deleteStory(storyId, storyTitle);
+            });
+        });
     }
 
     /**
@@ -227,6 +360,25 @@ class LandingPage {
                 return char?.name;
             })
             .filter(name => name);
+    }
+
+    /**
+     * Get first character object for story
+     * @param {Array} characterIds
+     * @returns {Object|null}
+     */
+    getFirstCharacter(characterIds) {
+        if (!characterIds || characterIds.length === 0) return null;
+
+        // Find the first character ID that actually exists in the character library
+        for (const charId of characterIds) {
+            const character = this.characters.find(c => c.id === charId);
+            if (character) {
+                return character;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -269,6 +421,32 @@ class LandingPage {
      */
     openStory(storyId) {
         this.router.navigate(`/story/${storyId}`);
+    }
+
+    /**
+     * Delete a story
+     * @param {string} storyId
+     * @param {string} storyTitle
+     */
+    async deleteStory(storyId, storyTitle) {
+        const confirmMsg = `Delete story "${storyTitle}"? This cannot be undone.`;
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            await this.apiClient.deleteStory(storyId);
+
+            // Remove from local stories list
+            this.stories = this.stories.filter(s => s.id !== storyId);
+
+            // Re-render the stories table and reattach listeners
+            this.renderAllStoriesTable();
+            this.attachEventListeners();
+
+            alert('Story deleted successfully');
+        } catch (error) {
+            console.error('Error deleting story:', error);
+            alert('Failed to delete story. Please try again.');
+        }
     }
 
     /**

@@ -894,6 +894,136 @@ body {
   gap: 1.5rem;
 }
 
+/* All Stories Container */
+.all-stories-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+/* Stories Table */
+.stories-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--bg-primary);
+}
+
+.stories-table thead {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-secondary);
+  z-index: 10;
+}
+
+.stories-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.story-avatar-header {
+  width: 50px;
+  padding: 0.75rem 0.5rem;
+}
+
+.stories-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.15s;
+}
+
+.stories-table tbody tr:hover {
+  background-color: var(--bg-secondary);
+}
+
+.stories-table td {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.story-avatar-cell {
+  padding: 0.5rem;
+  width: 50px;
+}
+
+.story-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--bg-tertiary);
+  background-size: cover;
+  background-position: center top;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 2px solid var(--border-color);
+}
+
+.story-avatar-empty {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.story-avatar i {
+  font-size: inherit;
+}
+
+.story-title-cell {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.story-date-cell {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.story-wordcount-cell {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.story-actions-cell {
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.story-actions-cell .btn {
+  width: auto;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+/* Sort buttons in table headers */
+.sort-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  transition: color 0.2s;
+}
+
+.sort-btn:hover {
+  color: var(--primary-color);
+}
+
+.sort-btn.active {
+  color: var(--primary-color);
+}
+
 /* Story Cards */
 .story-card {
   background-color: var(--bg-secondary);
