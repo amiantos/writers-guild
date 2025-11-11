@@ -1,5 +1,11 @@
 <template>
-  <div class="landing-page">
+  <div class="landing-wrapper">
+    <header class="app-header">
+      <h1>Úrscéal</h1>
+    </header>
+
+    <main class="app-main">
+      <div class="landing-page">
     <Tabs v-model="activeTab" :tabs="tabs">
       <!-- Stories Tab -->
       <template #tab-stories>
@@ -68,16 +74,21 @@
         />
       </template>
     </Tabs>
+      </div>
+    </main>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { storiesAPI, charactersAPI, lorebooksAPI } from '../services/api'
 import Tabs from '../components/Tabs.vue'
 import StoriesTable from '../components/StoriesTable.vue'
 import CharactersTable from '../components/CharactersTable.vue'
 import LorebooksTable from '../components/LorebooksTable.vue'
+
+const router = useRouter()
 
 const stories = ref([])
 const characters = ref([])
@@ -175,8 +186,7 @@ async function createStoryWithCharacter(characterId) {
 }
 
 function openStory(storyId) {
-  // In a real app, navigate to the story editor
-  alert(`Opening story: ${storyId}`)
+  router.push({ name: 'story', params: { storyId } })
 }
 
 async function deleteStory(story) {
@@ -235,8 +245,32 @@ async function deleteLorebook(lorebook) {
 </script>
 
 <style scoped>
+.landing-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-header {
+  background-color: #2c3e50;
+  color: white;
+  padding: 1rem 2rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.app-main {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 .landing-page {
-  /* No padding needed - App.vue already has padding on .app-main */
+  /* No additional styles needed */
 }
 
 .section-header {
