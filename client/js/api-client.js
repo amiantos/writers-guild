@@ -160,6 +160,10 @@ class ApiClient {
     return this.request(`/api/characters/${characterId}/data`);
   }
 
+  async getCharacterStories(characterId) {
+    return this.request(`/api/characters/${characterId}/stories`);
+  }
+
   async deleteCharacter(characterId) {
     return this.request(`/api/characters/${characterId}`, {
       method: 'DELETE',

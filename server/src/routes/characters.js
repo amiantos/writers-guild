@@ -417,6 +417,20 @@ router.put('/:characterId/update-with-image', upload.single('image'), asyncHandl
   });
 }));
 
+// Get stories that include this character
+router.get('/:characterId/stories', asyncHandler(async (req, res) => {
+  const { characterId } = req.params;
+
+  // Get all stories and filter for ones that include this character
+  const allStories = await storage.listStories();
+  const characterStories = allStories.filter(story =>
+    story.characterIds?.includes(characterId) ||
+    story.personaCharacterId === characterId
+  );
+
+  res.json({ stories: characterStories });
+}));
+
 // Delete character from global library
 router.delete('/:characterId', asyncHandler(async (req, res) => {
   const { characterId } = req.params;

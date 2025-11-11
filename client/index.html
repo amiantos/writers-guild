@@ -47,7 +47,7 @@
             <i class="fas fa-book"></i> Manage Characters
           </button>
         </div>
-        <div id="character-library-container" class="character-library-grid-landing">
+        <div id="character-library-container" class="all-stories-container">
           <p class="text-secondary">Loading characters...</p>
         </div>
       </section>
@@ -787,6 +787,24 @@
           <button id="selectCurrentGreetingBtn" class="btn btn-primary">Use This Greeting</button>
           <button class="btn btn-secondary close-btn">Cancel</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Stories Modal -->
+  <div id="character-stories-modal" class="modal hidden">
+    <div class="modal-content" style="max-width: 900px; max-height: 85vh;">
+      <div class="modal-header">
+        <h2 id="character-stories-modal-title">Character Stories</h2>
+        <button class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+        <div id="character-stories-list">
+          <p class="text-secondary">Loading stories...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary close-btn">Close</button>
       </div>
     </div>
   </div>

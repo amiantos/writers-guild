@@ -1001,6 +1001,76 @@ body {
   font-size: 0.8125rem;
 }
 
+/* Characters Table */
+.characters-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--bg-primary);
+}
+
+.characters-table thead {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-secondary);
+  z-index: 10;
+}
+
+.characters-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.character-avatar-header {
+  width: 50px;
+  padding: 0.75rem 0.5rem;
+}
+
+.characters-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color 0.15s;
+}
+
+.characters-table tbody tr:hover {
+  background-color: var(--bg-secondary);
+}
+
+.characters-table td {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+
+.character-name-cell {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.character-date-cell {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.character-story-count-cell {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-align: center;
+}
+
+.character-actions-cell {
+  display: flex;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.character-actions-cell .btn {
+  width: auto;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
 /* Sort buttons in table headers */
 .sort-btn {
   background: none;

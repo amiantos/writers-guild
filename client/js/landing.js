@@ -223,39 +223,56 @@ class LandingPage {
             return;
         }
 
-        container.innerHTML = this.characters.map(character => {
-            const characterName = character.name || 'Unknown';
-            const avatarUrl = character.imageUrl || '';
-            const lastStory = this.findLastStoryWithCharacter(character.id);
+        container.innerHTML = `
+            <table class="characters-table">
+                <thead>
+                    <tr>
+                        <th class="character-avatar-header"></th>
+                        <th>Name</th>
+                        <th>Created</th>
+                        <th>Stories</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${this.characters.map(character => {
+                        const characterName = character.name || 'Unknown';
+                        const avatarUrl = character.imageUrl || '';
+                        const storyCount = this.getCharacterStoryCount(character.id);
+                        const createdDate = character.created ? new Date(character.created).toLocaleDateString() : 'Unknown';
 
-            return `
-                <div class="character-card" data-character-id="${character.id}">
-                    <div class="character-avatar">
-                        ${avatarUrl ?
-                            `<img src="${avatarUrl}" alt="${this.escapeHtml(characterName)}" onerror="this.style.display='none'">` :
-                            `<i class="fas fa-user"></i>`
-                        }
-                    </div>
-                    <div class="character-info">
-                        <h4 class="character-name">${this.escapeHtml(characterName)}</h4>
-                        ${lastStory ?
-                            `<p class="character-last-story">Last in: ${this.escapeHtml(lastStory.title || 'Untitled')}</p>` :
-                            `<p class="character-last-story">No stories yet</p>`
-                        }
-                    </div>
-                    <div class="character-actions">
-                        ${lastStory ? `
-                            <button class="btn btn-secondary continue-story-btn" data-character-id="${character.id}" data-story-id="${lastStory.id}">
-                                <i class="fas fa-play"></i> Continue
-                            </button>
-                        ` : ''}
-                        <button class="btn btn-primary new-story-btn" data-character-id="${character.id}">
-                            <i class="fas fa-plus"></i> New Story
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+                        const avatarHtml = avatarUrl
+                            ? `<div class="story-avatar" style="background-image: url('${avatarUrl}'); background-position: center top;"></div>`
+                            : `<div class="story-avatar story-avatar-empty"><i class="fas fa-user"></i></div>`;
+
+                        return `
+                            <tr>
+                                <td class="story-avatar-cell">${avatarHtml}</td>
+                                <td class="character-name-cell">${this.escapeHtml(characterName)}</td>
+                                <td class="character-date-cell">${createdDate}</td>
+                                <td class="character-story-count-cell">${storyCount}</td>
+                                <td class="character-actions-cell">
+                                    ${storyCount > 0 ? `
+                                        <button class="btn btn-small btn-secondary character-continue-btn" data-character-id="${character.id}">
+                                            <i class="fas fa-play"></i> Continue
+                                        </button>
+                                    ` : ''}
+                                    <button class="btn btn-small btn-primary character-new-story-btn" data-character-id="${character.id}">
+                                        <i class="fas fa-plus"></i> New Story
+                                    </button>
+                                    <button class="btn btn-small btn-secondary character-edit-btn" data-character-id="${character.id}">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                    <button class="btn btn-small btn-secondary character-delete-btn" data-character-id="${character.id}" data-character-name="${this.escapeHtml(characterName)}">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
     }
 
     /**
@@ -268,6 +285,15 @@ class LandingPage {
             if (newStoryBtn) {
                 newStoryBtn.addEventListener('click', () => this.createNewStory());
             }
+
+            // Character stories modal close buttons
+            const characterStoriesModal = document.getElementById('character-stories-modal');
+            if (characterStoriesModal) {
+                characterStoriesModal.querySelectorAll('.close-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.closeCharacterStoriesModal());
+                });
+            }
+
             this.staticListenersAttached = true;
         }
 
@@ -289,21 +315,38 @@ class LandingPage {
             });
         });
 
-        // Continue story buttons
-        document.querySelectorAll('.continue-story-btn').forEach(btn => {
+        // Character Continue buttons (opens modal with story list)
+        document.querySelectorAll('.character-continue-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const storyId = e.currentTarget.dataset.storyId;
-                this.openStory(storyId);
+                const characterId = e.currentTarget.dataset.characterId;
+                this.openCharacterStoriesModal(characterId);
             });
         });
 
-        // New story with character buttons
-        document.querySelectorAll('.new-story-btn').forEach(btn => {
+        // Character New Story buttons
+        document.querySelectorAll('.character-new-story-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                e.stopPropagation();
                 const characterId = e.currentTarget.dataset.characterId;
                 this.createNewStoryWithCharacter(characterId);
+            });
+        });
+
+        // Character Edit buttons
+        document.querySelectorAll('.character-edit-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const characterId = e.currentTarget.dataset.characterId;
+                // This will be handled by the main app, just navigate to trigger character editor
+                // For now, show an alert - we'll implement this properly
+                alert('Character edit functionality will be implemented');
+            });
+        });
+
+        // Character Delete buttons
+        document.querySelectorAll('.character-delete-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const characterId = e.currentTarget.dataset.characterId;
+                const characterName = e.currentTarget.dataset.characterName;
+                await this.deleteCharacter(characterId, characterName);
             });
         });
 
@@ -382,6 +425,18 @@ class LandingPage {
     }
 
     /**
+     * Get count of stories that include a character
+     * @param {string} characterId
+     * @returns {number}
+     */
+    getCharacterStoryCount(characterId) {
+        return this.stories.filter(story =>
+            (story.characterIds && story.characterIds.includes(characterId)) ||
+            story.personaCharacterId === characterId
+        ).length;
+    }
+
+    /**
      * Create a new blank story
      */
     async createNewStory() {
@@ -446,6 +501,144 @@ class LandingPage {
         } catch (error) {
             console.error('Error deleting story:', error);
             alert('Failed to delete story. Please try again.');
+        }
+    }
+
+    /**
+     * Open modal showing stories for a character
+     * @param {string} characterId
+     */
+    async openCharacterStoriesModal(characterId) {
+        // Get the modal element (we'll need to add this to HTML)
+        const modal = document.getElementById('character-stories-modal');
+        if (!modal) {
+            console.error('Character stories modal not found');
+            return;
+        }
+
+        try {
+            // Fetch stories for this character
+            const { stories } = await this.apiClient.getCharacterStories(characterId);
+
+            // Get character name for modal title
+            const character = this.characters.find(c => c.id === characterId);
+            const characterName = character?.name || 'Character';
+
+            // Update modal title
+            const modalTitle = modal.querySelector('#character-stories-modal-title');
+            if (modalTitle) {
+                modalTitle.textContent = `Stories with ${characterName}`;
+            }
+
+            // Render stories table in modal
+            const container = modal.querySelector('#character-stories-list');
+            if (container) {
+                if (stories.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-book"></i>
+                            <p>No stories yet with this character.</p>
+                        </div>
+                    `;
+                } else {
+                    // Reuse the stories table format
+                    container.innerHTML = `
+                        <div class="all-stories-container">
+                            <table class="stories-table">
+                                <thead>
+                                    <tr>
+                                        <th class="story-avatar-header"></th>
+                                        <th>Title</th>
+                                        <th>Modified</th>
+                                        <th>Words</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${stories.map(story => {
+                                        const firstCharacter = this.getFirstCharacter(story.characterIds);
+                                        const avatarHtml = firstCharacter?.imageUrl
+                                            ? `<div class="story-avatar" style="background-image: url('${firstCharacter.imageUrl}'); background-position: center top;"></div>`
+                                            : `<div class="story-avatar story-avatar-empty"><i class="fas fa-user"></i></div>`;
+
+                                        return `
+                                        <tr>
+                                            <td class="story-avatar-cell">${avatarHtml}</td>
+                                            <td class="story-title-cell">${this.escapeHtml(story.title || 'Untitled Story')}</td>
+                                            <td class="story-date-cell">${new Date(story.modified || story.created).toLocaleDateString()}</td>
+                                            <td class="story-wordcount-cell">${(story.wordCount || 0).toLocaleString()}</td>
+                                            <td class="story-actions-cell">
+                                                <button class="btn btn-small btn-primary modal-story-open-btn" data-story-id="${story.id}">
+                                                    <i class="fas fa-folder-open"></i> Open
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+
+                    // Attach event listeners for the modal story open buttons
+                    container.querySelectorAll('.modal-story-open-btn').forEach(btn => {
+                        btn.addEventListener('click', (e) => {
+                            const storyId = e.currentTarget.dataset.storyId;
+                            this.closeCharacterStoriesModal();
+                            this.openStory(storyId);
+                        });
+                    });
+                }
+            }
+
+            // Show modal
+            modal.classList.remove('hidden');
+        } catch (error) {
+            console.error('Error loading character stories:', error);
+            alert('Failed to load character stories. Please try again.');
+        }
+    }
+
+    /**
+     * Close character stories modal
+     */
+    closeCharacterStoriesModal() {
+        const modal = document.getElementById('character-stories-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Delete a character
+     * @param {string} characterId
+     * @param {string} characterName
+     */
+    async deleteCharacter(characterId, characterName) {
+        const storyCount = this.getCharacterStoryCount(characterId);
+
+        let confirmMsg = `Delete character "${characterName}"?`;
+        if (storyCount > 0) {
+            confirmMsg += `\n\nWarning: This character appears in ${storyCount} story(ies). The character will be removed from your library but stories will keep their content.`;
+        }
+        confirmMsg += '\n\nThis cannot be undone.';
+
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            await this.apiClient.deleteCharacter(characterId);
+
+            // Remove from local characters list
+            this.characters = this.characters.filter(c => c.id !== characterId);
+
+            // Re-render the character table and reattach listeners
+            this.renderCharacterLibrary();
+            this.attachEventListeners();
+
+            alert('Character deleted successfully');
+        } catch (error) {
+            console.error('Error deleting character:', error);
+            alert('Failed to delete character: ' + (error.message || 'Please try again.'));
         }
     }
 
