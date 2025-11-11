@@ -248,21 +248,29 @@ async function deleteLorebook(lorebook) {
 .landing-wrapper {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  flex: 1;
+  overflow: hidden;
 }
 
 .app-header {
-  background-color: #2c3e50;
-  color: white;
-  padding: 1rem 2rem;
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 1.5rem;
+  box-shadow: var(--shadow);
+  position: relative;
+  z-index: 200;
 }
 
 .app-header h1 {
   margin: 0;
   font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--primary-color);
 }
 
 .app-main {
+  flex: 1;
+  overflow-y: auto;
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;

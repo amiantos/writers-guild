@@ -18,20 +18,13 @@
         </div>
 
         <div v-else class="character-grid">
-          <div
+          <CharacterCard
             v-for="char in characters"
             :key="char.id"
-            class="character-card"
+            :character="char"
+            :clickable="true"
             @click="$emit('select', char.id)"
-          >
-            <div class="character-avatar">
-              <img v-if="char.imageUrl" :src="char.imageUrl" :alt="char.name">
-              <div v-else class="character-initial">
-                {{ char.name.charAt(0).toUpperCase() }}
-              </div>
-            </div>
-            <div class="character-name">{{ char.name }}</div>
-          </div>
+          />
         </div>
       </div>
     </div>
@@ -39,6 +32,8 @@
 </template>
 
 <script setup>
+import CharacterCard from './CharacterCard.vue'
+
 defineProps({
   characters: {
     type: Array,
@@ -131,57 +126,7 @@ defineEmits(['close', 'select'])
 
 .character-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 1rem;
-}
-
-.character-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.character-card:hover {
-  background-color: var(--bg-secondary);
-  border-color: var(--accent-primary);
-  transform: translateY(-2px);
-}
-
-.character-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  overflow: hidden;
-  background-color: var(--bg-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.character-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.character-initial {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--accent-primary);
-}
-
-.character-name {
-  text-align: center;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  word-break: break-word;
 }
 </style>

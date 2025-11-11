@@ -9,8 +9,13 @@
         <h1 class="story-title">{{ story?.title || 'Loading...' }}</h1>
       </div>
       <div class="header-right">
-        <button class="icon-btn" @click="saveStory" title="Save (auto-saves enabled)">
-          <i class="fas fa-save"></i>
+        <button
+          class="icon-btn"
+          @click="saveStory"
+          :title="hasUnsavedChanges ? 'Save changes' : 'All changes saved'"
+        >
+          <i v-if="hasUnsavedChanges" class="fas fa-floppy-disk"></i>
+          <i v-else class="fas fa-check"></i>
         </button>
       </div>
     </header>
@@ -38,31 +43,37 @@
 
       <!-- Bottom Toolbar -->
       <div class="bottom-toolbar">
-        <div class="toolbar-main-buttons">
+        <!-- Generation Status Overlay -->
+        <div v-if="generating" class="generating-status">
+          <div class="spinner"></div>
+          <span>{{ generationStatus }}</span>
+        </div>
+
+        <!-- Toolbar Buttons -->
+        <div v-else class="toolbar-main-buttons">
           <button
             class="btn btn-primary"
-            :disabled="generating || !story || storyCharacters.length === 0"
+            :disabled="!story || storyCharacters.length === 0"
             @click="handleCharacterResponse"
           >
             <i class="fas fa-comments"></i> Continue for Character
           </button>
           <button
             class="btn btn-secondary"
-            :disabled="generating || !story"
+            :disabled="!story"
             @click="handleContinue"
           >
             <i class="fas fa-play"></i> Continue
           </button>
           <button
             class="btn btn-secondary"
-            :disabled="generating || !story"
+            :disabled="!story"
             @click="showCustomPromptModal = true"
           >
             <i class="fas fa-wand-magic-sparkles"></i> Continue with Instruction
           </button>
           <button
             class="btn btn-secondary icon-btn"
-            :disabled="generating"
             @click="showOverflowMenu = !showOverflowMenu"
           >
             <i class="fas fa-ellipsis-vertical"></i>
@@ -91,12 +102,6 @@
               <span>View Last Prompt</span>
             </button>
           </div>
-        </div>
-
-        <!-- Generation Status -->
-        <div v-if="generating" class="generating-status">
-          <div class="spinner"></div>
-          <span>{{ generationStatus }}</span>
         </div>
       </div>
     </div>
@@ -132,7 +137,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { storiesAPI, charactersAPI } from '../services/api'
 import ReasoningPanel from '../components/ReasoningPanel.vue'
@@ -167,6 +172,11 @@ const showViewPromptModal = ref(false)
 const showCustomPromptModal = ref(false)
 const storyCharacters = ref([])
 
+// Computed
+const hasUnsavedChanges = computed(() => {
+  return content.value !== originalContent.value
+})
+
 // Auto-save
 let autoSaveTimeout = null
 
@@ -188,6 +198,17 @@ watch(content, () => {
   autoSaveTimeout = setTimeout(() => {
     saveStory(true) // silent save
   }, 2000) // Save 2 seconds after last edit
+})
+
+// Watch reasoning panel opening to scroll textarea to bottom
+watch(showReasoningPanel, async (isOpen) => {
+  if (isOpen) {
+    await nextTick()
+    if (editorRef.value) {
+      editorRef.value.scrollTop = editorRef.value.scrollHeight
+      editorRef.value.focus()
+    }
+  }
 })
 
 async function loadStory() {
@@ -406,33 +427,48 @@ function goBack() {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: var(--bg-primary);
+  background-color: var(--bg-secondary);
 }
 
 .editor-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
-  background-color: var(--bg-secondary);
+  padding: 1rem 1.5rem;
+  background-color: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  position: relative;
+  z-index: 200;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.header-left .btn {
+  flex-shrink: 0;
 }
 
 .story-title {
   margin: 0;
-  font-size: 1.25rem;
-  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .header-right {
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .editor-content {
@@ -444,44 +480,49 @@ function goBack() {
 
 .editor-container {
   flex: 1;
-  padding: 2rem;
   overflow: hidden;
+  display: flex;
 }
 
 .story-editor {
   width: 100%;
   height: 100%;
-  padding: 1rem;
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-family: 'Georgia', serif;
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 1rem;
-  line-height: 1.6;
+  line-height: 1.8;
+  border: 0;
   resize: none;
-  outline: none;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow);
 }
 
 .story-editor:focus {
-  border-color: var(--accent-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
 }
 
 .bottom-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   padding: 1rem 2rem;
   background-color: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
-  gap: 1rem;
+  position: relative;
 }
 
 .toolbar-main-buttons {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  flex: 1;
   align-items: center;
   position: relative;
+}
+
+.toolbar-main-buttons .btn:not(.icon-btn) {
+  flex: 1;
 }
 
 .overflow-menu {
@@ -523,8 +564,10 @@ function goBack() {
 .generating-status {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
   color: var(--text-secondary);
+  width: 100%;
 }
 
 .spinner {

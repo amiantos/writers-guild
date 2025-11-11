@@ -62,15 +62,16 @@ watch(() => props.reasoning, async () => {
   display: flex;
   flex-direction: column;
   background-color: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-color);
-  max-height: 300px;
+  border-bottom: 2px solid var(--accent-primary);
+  height: 300px;
+  flex-shrink: 0;
 }
 
 .reasoning-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 2rem;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -83,11 +84,13 @@ watch(() => props.reasoning, async () => {
 
 .reasoning-content {
   flex: 1;
-  padding: 1rem;
+  padding: 1rem 2rem;
   overflow-y: auto;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Fira Mono', 'Roboto Mono', 'Courier New', monospace;
   font-size: 0.875rem;
   line-height: 1.6;
   color: var(--text-secondary);
+  background-color: var(--bg-primary);
 }
 
 .reasoning-empty {

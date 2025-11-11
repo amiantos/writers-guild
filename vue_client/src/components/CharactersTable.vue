@@ -19,8 +19,8 @@
     <template #cell-actions="{ row }">
       <div class="actions-cell">
         <button
-          v-if="getStoryCount(row.id) > 0"
           class="btn btn-small btn-secondary"
+          :disabled="getStoryCount(row.id) === 0"
           @click="$emit('continue', row.id)"
         >
           <i class="fas fa-play"></i> Continue
