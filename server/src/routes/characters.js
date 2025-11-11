@@ -45,6 +45,9 @@ router.use((req, res, next) => {
 router.get('/', asyncHandler(async (req, res) => {
   const characters = await storage.listAllCharacters();
 
+  // Load all stories once for calculating total words per character
+  const allStories = await storage.listStories();
+
   // Load character data from JSON files
   const charactersWithData = await Promise.all(
     characters.map(async (char) => {
@@ -52,11 +55,20 @@ router.get('/', asyncHandler(async (req, res) => {
         const cardData = await storage.getCharacter(char.id);
         const hasImage = await storage.hasCharacterImage(char.id);
 
+        // Calculate total words from all stories this character appears in
+        const characterStories = allStories.filter(story =>
+          story.characterIds?.includes(char.id) ||
+          story.personaCharacterId === char.id
+        );
+        const totalWords = characterStories.reduce((sum, story) => sum + (story.wordCount || 0), 0);
+
         return {
           id: char.id,
           name: cardData.data?.name || 'Unknown',
           description: cardData.data?.description || '',
           imageUrl: hasImage ? `/api/characters/${char.id}/image` : null,
+          created: cardData.metadata?.created || null,
+          totalWords,
         };
       } catch (error) {
         console.error(`Failed to load character ${char.id}:`, error);
@@ -65,6 +77,8 @@ router.get('/', asyncHandler(async (req, res) => {
           name: 'Unknown',
           description: 'Failed to load character data',
           imageUrl: null,
+          created: null,
+          totalWords: 0,
         };
       }
     })

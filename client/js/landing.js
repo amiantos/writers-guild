@@ -231,6 +231,7 @@ class LandingPage {
                         <th>Name</th>
                         <th>Created</th>
                         <th>Stories</th>
+                        <th>Words</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -240,6 +241,7 @@ class LandingPage {
                         const avatarUrl = character.imageUrl || '';
                         const storyCount = this.getCharacterStoryCount(character.id);
                         const createdDate = character.created ? new Date(character.created).toLocaleDateString() : 'Unknown';
+                        const totalWords = character.totalWords || 0;
 
                         const avatarHtml = avatarUrl
                             ? `<div class="story-avatar" style="background-image: url('${avatarUrl}'); background-position: center top;"></div>`
@@ -251,6 +253,7 @@ class LandingPage {
                                 <td class="character-name-cell">${this.escapeHtml(characterName)}</td>
                                 <td class="character-date-cell">${createdDate}</td>
                                 <td class="character-story-count-cell">${storyCount}</td>
+                                <td class="character-wordcount-cell">${totalWords.toLocaleString()}</td>
                                 <td class="character-actions-cell">
                                     ${storyCount > 0 ? `
                                         <button class="btn btn-small btn-secondary character-continue-btn" data-character-id="${character.id}">
@@ -460,8 +463,13 @@ class LandingPage {
 
             const { story } = await this.apiClient.createStory(`Story with ${characterName}`);
 
-            // Add character to the story
-            await this.apiClient.addCharacterToStory(story.id, characterId);
+            // Add character to the story - server returns processed first message
+            const addCharResponse = await this.apiClient.addCharacterToStory(story.id, characterId);
+
+            // If server returned a processed first message, save it to the story
+            if (addCharResponse.processedFirstMessage) {
+                await this.apiClient.updateStoryContent(story.id, addCharResponse.processedFirstMessage + '\n\n');
+            }
 
             this.router.navigate(`/story/${story.id}`);
         } catch (error) {

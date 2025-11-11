@@ -1059,6 +1059,12 @@ body {
   text-align: center;
 }
 
+.character-wordcount-cell {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-align: right;
+}
+
 .character-actions-cell {
   display: flex;
   gap: 0.5rem;

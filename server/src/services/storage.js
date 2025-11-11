@@ -315,6 +315,20 @@ export class StorageService {
    */
   async saveCharacter(characterId, characterData, imageBuffer = null) {
     const dataPath = this.getCharacterDataPath(characterId);
+
+    // Check if character already exists
+    const isNew = !await this.exists(dataPath);
+
+    // Add metadata timestamps
+    if (!characterData.metadata) {
+      characterData.metadata = {};
+    }
+
+    if (isNew) {
+      characterData.metadata.created = new Date().toISOString();
+    }
+    characterData.metadata.modified = new Date().toISOString();
+
     await this.writeJSON(dataPath, characterData);
 
     // Save image if provided
