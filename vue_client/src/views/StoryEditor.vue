@@ -85,6 +85,10 @@
               <i class="fas fa-message"></i>
               <span>Select Greeting</span>
             </button>
+            <button class="overflow-menu-item" @click="rewriteToThirdPerson">
+              <i class="fas fa-repeat"></i>
+              <span>Rewrite to Third Person</span>
+            </button>
             <button class="overflow-menu-item" @click="clearStory">
               <i class="fas fa-eraser"></i>
               <span>Clear Story</span>
@@ -390,6 +394,92 @@ async function selectGreeting(greeting) {
   await saveStory()
   showGreetingSelector.value = false
   showToast('Greeting selected')
+}
+
+async function rewriteToThirdPerson() {
+  if (!confirm('This will replace the entire document with a rewritten version in third-person past tense. Continue?')) {
+    return
+  }
+
+  // Save before rewriting
+  await saveStory(true)
+
+  try {
+    generating.value = true
+    generationStatus.value = 'Thinking...'
+    reasoning.value = ''
+    showReasoningPanel.value = true
+
+    // Clear editor for rewrite
+    content.value = ''
+
+    let rewrittenContent = ''
+    let reasoningText = ''
+
+    // Stream rewrite
+    const stream = storiesAPI.rewriteThirdPerson(props.storyId)
+
+    for await (const chunk of stream) {
+      // Capture prompts
+      if (chunk.prompts) {
+        lastPrompts.value = {
+          system: chunk.prompts.system || '',
+          user: chunk.prompts.user || ''
+        }
+      }
+
+      // Handle reasoning
+      if (chunk.reasoning) {
+        reasoningText += chunk.reasoning
+        reasoning.value = reasoningText
+      }
+
+      // Handle content
+      if (chunk.content) {
+        if (generationStatus.value === 'Thinking...') {
+          generationStatus.value = 'Rewriting...'
+        }
+
+        rewrittenContent += chunk.content
+        content.value = rewrittenContent
+
+        // Auto-scroll editor
+        await nextTick()
+        if (editorRef.value) {
+          editorRef.value.scrollTop = editorRef.value.scrollHeight
+        }
+      }
+
+      if (chunk.finished) {
+        break
+      }
+    }
+
+    // Add two line breaks and position cursor at end
+    if (rewrittenContent) {
+      rewrittenContent += '\n\n'
+      content.value = rewrittenContent
+
+      // Position cursor at end
+      const cursorPos = rewrittenContent.length
+      await nextTick()
+      if (editorRef.value) {
+        editorRef.value.selectionStart = cursorPos
+        editorRef.value.selectionEnd = cursorPos
+        editorRef.value.scrollTop = editorRef.value.scrollHeight
+        editorRef.value.focus()
+      }
+    }
+
+    // Save
+    await saveStory(true)
+    showToast('Rewrite complete')
+  } catch (error) {
+    console.error('Rewrite error:', error)
+    alert('Rewrite failed: ' + error.message)
+  } finally {
+    generating.value = false
+  }
 }
 
 async function clearStory() {
