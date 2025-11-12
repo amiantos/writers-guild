@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="detail-header">
       <div class="header-left">
-        <button class="btn btn-secondary btn-small" @click="goBack">
+        <button class="btn btn-secondary btn-small" @click="goBack()">
           <i class="fas fa-arrow-left"></i> Back
         </button>
         <h1 class="character-title">{{ character?.name || 'Loading...' }}</h1>
@@ -425,6 +425,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { charactersAPI, lorebooksAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
+import { useNavigation } from '../composables/useNavigation'
 import CharacterCard from '../components/CharacterCard.vue'
 
 const props = defineProps({
@@ -436,6 +437,7 @@ const props = defineProps({
 
 const router = useRouter()
 const toast = useToast()
+const { goBack } = useNavigation()
 
 // State
 const loading = ref(true)
@@ -529,10 +531,6 @@ async function checkImageExists() {
   } catch (error) {
     character.value.hasImage = false
   }
-}
-
-function goBack() {
-  router.push('/')
 }
 
 function startEdit(section) {

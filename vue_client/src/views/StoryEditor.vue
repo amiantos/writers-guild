@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="editor-header">
       <div class="header-left">
-        <button class="btn btn-secondary btn-small" @click="goBack">
+        <button class="btn btn-secondary btn-small" @click="goBack()">
           <i class="fas fa-arrow-left"></i> Back
         </button>
         <h1 class="story-title">{{ story?.title || 'Loading...' }}</h1>
@@ -152,6 +152,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { storiesAPI, charactersAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
+import { useNavigation } from '../composables/useNavigation'
 import ReasoningPanel from '../components/ReasoningPanel.vue'
 import CharacterResponseModal from '../components/CharacterResponseModal.vue'
 import GreetingSelectorModal from '../components/GreetingSelectorModal.vue'
@@ -167,6 +168,7 @@ const props = defineProps({
 
 const router = useRouter()
 const toast = useToast()
+const { goBack } = useNavigation()
 
 // State
 const story = ref(null)
@@ -522,10 +524,6 @@ function exportStory() {
   a.click()
   URL.revokeObjectURL(url)
   toast.success('Story exported')
-}
-
-function goBack() {
-  router.push({ name: 'home' })
 }
 
 function goToSettings() {

@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="detail-header">
       <div class="header-left">
-        <button class="btn btn-secondary btn-small" @click="goBack">
+        <button class="btn btn-secondary btn-small" @click="goBack()">
           <i class="fas fa-arrow-left"></i> Back
         </button>
         <h1 class="lorebook-title">{{ lorebook?.name || 'Loading...' }}</h1>
@@ -179,6 +179,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { lorebooksAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
+import { useNavigation } from '../composables/useNavigation'
 import EntryEditorModal from '../components/EntryEditorModal.vue'
 
 const props = defineProps({
@@ -190,6 +191,7 @@ const props = defineProps({
 
 const router = useRouter()
 const toast = useToast()
+const { goBack } = useNavigation()
 
 // State
 const loading = ref(true)
@@ -235,10 +237,6 @@ const sortedEntries = computed(() => {
   // Sort by insertion order (descending) for display
   return [...lorebook.value.entries].sort((a, b) => b.insertionOrder - a.insertionOrder)
 })
-
-function goBack() {
-  router.push('/')
-}
 
 function startEdit(section) {
   if (section === 'name') {

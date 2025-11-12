@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="detail-header">
       <div class="header-left">
-        <button class="btn btn-secondary btn-small" @click="goBack">
+        <button class="btn btn-secondary btn-small" @click="goBack()">
           <i class="fas fa-arrow-left"></i> Back
         </button>
         <h1 class="settings-title">Settings</h1>
@@ -226,12 +226,12 @@
 
 <script setup>
 import { ref, watch, onMounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
 import { settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
+import { useNavigation } from '../composables/useNavigation'
 
-const router = useRouter()
 const toast = useToast()
+const { goBack } = useNavigation()
 
 // State
 const loading = ref(true)
@@ -335,10 +335,6 @@ async function saveSettings() {
   } finally {
     saving.value = false
   }
-}
-
-function goBack() {
-  router.push('/')
 }
 </script>
 
