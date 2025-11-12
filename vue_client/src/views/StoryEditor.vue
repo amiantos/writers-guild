@@ -17,6 +17,13 @@
           <i v-if="hasUnsavedChanges" class="fas fa-floppy-disk"></i>
           <i v-else class="fas fa-check"></i>
         </button>
+        <button
+          class="icon-btn"
+          @click="goToSettings"
+          title="Settings"
+        >
+          <i class="fas fa-cog"></i>
+        </button>
       </div>
     </header>
 
@@ -519,6 +526,10 @@ function exportStory() {
 
 function goBack() {
   router.push({ name: 'home' })
+}
+
+function goToSettings() {
+  router.push('/settings')
 }
 </script>
 
