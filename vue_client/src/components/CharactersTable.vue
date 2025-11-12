@@ -35,7 +35,7 @@
           class="btn btn-small btn-secondary"
           @click="$emit('edit', row.id)"
         >
-          <i class="fas fa-edit"></i> Edit
+          <i class="fas fa-circle-info"></i> Details
         </button>
         <button
           class="btn btn-small btn-secondary"

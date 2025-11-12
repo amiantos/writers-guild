@@ -51,6 +51,7 @@
           :stories="stories"
           @continue="showCharacterStories"
           @new-story="createStoryWithCharacter"
+          @edit="editCharacter"
           @delete="deleteCharacter"
         />
       </template>
@@ -217,6 +218,10 @@ function showCharacterStories(characterId) {
 
 function openStory(storyId) {
   router.push({ name: 'story', params: { storyId } })
+}
+
+function editCharacter(characterId) {
+  router.push({ name: 'character-detail', params: { characterId } })
 }
 
 async function deleteStory(story) {

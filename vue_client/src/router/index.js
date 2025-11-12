@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LandingPage from '../views/LandingPage.vue'
 import StoryEditor from '../views/StoryEditor.vue'
+import CharacterDetail from '../views/CharacterDetail.vue'
 
 const routes = [
   {
@@ -12,6 +13,12 @@ const routes = [
     path: '/story/:storyId',
     name: 'story',
     component: StoryEditor,
+    props: true
+  },
+  {
+    path: '/characters/:characterId',
+    name: 'character-detail',
+    component: CharacterDetail,
     props: true
   }
 ]

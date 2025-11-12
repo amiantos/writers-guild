@@ -347,7 +347,7 @@ router.get('/:characterId/data', asyncHandler(async (req, res) => {
 // Update character data
 router.put('/:characterId', asyncHandler(async (req, res) => {
   const { characterId } = req.params;
-  const { name, description, personality, scenario, first_mes, mes_example, system_prompt, ursceal_lorebook_id } = req.body;
+  const { name, description, personality, scenario, first_mes, mes_example, system_prompt, alternate_greetings, ursceal_lorebook_id } = req.body;
 
   // Get existing character data
   const existingData = await storage.getCharacter(characterId);
@@ -360,6 +360,7 @@ router.put('/:characterId', asyncHandler(async (req, res) => {
   if (first_mes !== undefined) existingData.data.first_mes = first_mes.trim();
   if (mes_example !== undefined) existingData.data.mes_example = mes_example.trim();
   if (system_prompt !== undefined) existingData.data.system_prompt = system_prompt.trim();
+  if (alternate_greetings !== undefined) existingData.data.alternate_greetings = alternate_greetings;
 
   // Update lorebook association
   if (ursceal_lorebook_id !== undefined) {
@@ -399,7 +400,7 @@ router.put('/:characterId/update-with-image', upload.single('image'), asyncHandl
   const existingData = await storage.getCharacter(characterId);
 
   // Update fields
-  const { name, description, personality, scenario, first_mes, mes_example, system_prompt, ursceal_lorebook_id } = parsedData;
+  const { name, description, personality, scenario, first_mes, mes_example, system_prompt, alternate_greetings, ursceal_lorebook_id } = parsedData;
 
   if (name !== undefined) existingData.data.name = name.trim();
   if (description !== undefined) existingData.data.description = description.trim();
@@ -408,6 +409,7 @@ router.put('/:characterId/update-with-image', upload.single('image'), asyncHandl
   if (first_mes !== undefined) existingData.data.first_mes = first_mes.trim();
   if (mes_example !== undefined) existingData.data.mes_example = mes_example.trim();
   if (system_prompt !== undefined) existingData.data.system_prompt = system_prompt.trim();
+  if (alternate_greetings !== undefined) existingData.data.alternate_greetings = alternate_greetings;
 
   // Update lorebook association
   if (ursceal_lorebook_id !== undefined) {

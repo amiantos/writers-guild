@@ -85,7 +85,8 @@ export class DeepSeekAPI {
           prompt += `Personality: ${this.filterAsterisks(processed, filterAst)}\n`;
         }
 
-        if (char.scenario) {
+        // Only include scenario if there's exactly one character (non-persona)
+        if (char.scenario && allCharacterCards.length === 1) {
           let processed = this.replacePlaceholders(char.scenario, card, persona);
           processed = macroProcessor.process(processed);
           prompt += `Scenario: ${this.filterAsterisks(processed, filterAst)}\n`;

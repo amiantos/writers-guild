@@ -198,6 +198,28 @@ export const charactersAPI = {
       body: JSON.stringify({ characterId }),
     })
   },
+
+  update(characterId, data) {
+    return request(`/characters/${characterId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateWithImage(characterId, formData) {
+    const url = `${baseURL}/characters/${characterId}/update-with-image`
+    const response = await fetch(url, {
+      method: 'PUT',
+      body: formData, // multipart/form-data
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(error.error || `Request failed: ${response.statusText}`)
+    }
+
+    return response.json()
+  },
 }
 
 // Lorebooks API
