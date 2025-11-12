@@ -153,9 +153,7 @@ async function loadLorebooks() {
 async function createNewStory() {
   try {
     const { story } = await storiesAPI.create('Untitled Story')
-    // In a real app, navigate to the story editor
-    alert(`Created story: ${story.id}`)
-    await loadStories()
+    openStory(story.id)
   } catch (error) {
     console.error('Error creating story:', error)
     alert('Failed to create story')
@@ -177,8 +175,7 @@ async function createStoryWithCharacter(characterId) {
       await storiesAPI.updateContent(story.id, response.processedFirstMessage + '\n\n')
     }
 
-    alert(`Created story: ${story.id}`)
-    await loadStories()
+    openStory(story.id)
   } catch (error) {
     console.error('Error creating story with character:', error)
     alert('Failed to create story')
