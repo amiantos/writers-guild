@@ -202,6 +202,7 @@ import { useRouter } from 'vue-router'
 import { storiesAPI, charactersAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useNavigation } from '../composables/useNavigation'
+import { setPageTitle } from '../router'
 import ReasoningPanel from '../components/ReasoningPanel.vue'
 import CharacterResponseModal from '../components/CharacterResponseModal.vue'
 import GreetingSelectorModal from '../components/GreetingSelectorModal.vue'
@@ -288,6 +289,8 @@ async function loadStory() {
     story.value = loadedStory
     content.value = loadedStory.content || ''
     originalContent.value = content.value
+    // Update page title with story name
+    setPageTitle(loadedStory.title || 'Untitled Story')
   } catch (error) {
     console.error('Failed to load story:', error)
     toast.error('Failed to load story: ' + error.message)
@@ -589,6 +592,7 @@ async function handleStoryUpdated() {
   // Reload story data after changes from modals
   await loadStory()
   await loadCharacters()
+  // Title will be updated by loadStory()
 }
 
 async function deleteStory() {

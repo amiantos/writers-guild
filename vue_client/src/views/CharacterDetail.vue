@@ -27,6 +27,17 @@
         <!-- Left Column: Character Card -->
         <div class="card-column">
           <CharacterCard :character="character" />
+
+          <!-- Action Buttons -->
+          <div class="card-actions">
+            <button class="btn btn-primary btn-block" @click="createNewStory">
+              <i class="fas fa-plus"></i> New Story
+            </button>
+            <button class="btn btn-secondary btn-block" @click="setAsDefaultPersona">
+              <i class="fas fa-user-check"></i> Set as Default Persona
+            </button>
+          </div>
+
           <div class="info-note">
             <i class="fas fa-info-circle"></i>
             <p>Úrscéal uses Name, Description, and Personality by default for character response generation. Scenario is used if the story has only one character in it. Example messages can be included optionally from the settings menu.</p>
@@ -423,9 +434,10 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { charactersAPI, lorebooksAPI } from '../services/api'
+import { charactersAPI, lorebooksAPI, storiesAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useNavigation } from '../composables/useNavigation'
+import { setPageTitle } from '../router'
 import CharacterCard from '../components/CharacterCard.vue'
 
 const props = defineProps({
@@ -514,6 +526,9 @@ async function loadCharacter() {
 
     // Check if image actually exists by trying to load it
     await checkImageExists()
+
+    // Update page title with character name
+    setPageTitle(character.value.name || 'Character')
   } catch (error) {
     console.error('Failed to load character:', error)
     toast.error('Failed to load character: ' + error.message)
@@ -591,6 +606,8 @@ async function saveName() {
     character.value.name = editedName.value.trim()
     editingName.value = false
     editedName.value = ''
+    // Update page title with new name
+    setPageTitle(character.value.name)
   } catch (error) {
     console.error('Failed to update name:', error)
     toast.error('Failed to update name: ' + error.message)
@@ -844,6 +861,39 @@ async function deleteAlternateGreeting(index) {
     toast.error('Failed to delete alternate greeting: ' + error.message)
   }
 }
+
+async function createNewStory() {
+  try {
+    // Create new story
+    const { story } = await storiesAPI.create(`Story with ${character.value.name}`)
+
+    // Add character to story
+    const response = await charactersAPI.addToStory(story.id, props.characterId)
+
+    // Add first message if available
+    if (response.processedFirstMessage) {
+      await storiesAPI.updateContent(story.id, response.processedFirstMessage + '\n\n')
+    }
+
+    toast.success('Story created!')
+
+    // Navigate to the new story
+    router.push(`/story/${story.id}`)
+  } catch (error) {
+    console.error('Failed to create story:', error)
+    toast.error('Failed to create story: ' + error.message)
+  }
+}
+
+async function setAsDefaultPersona() {
+  try {
+    await settingsAPI.update({ defaultPersonaId: props.characterId })
+    toast.success(`${character.value.name} set as default persona`)
+  } catch (error) {
+    console.error('Failed to set default persona:', error)
+    toast.error('Failed to set default persona: ' + error.message)
+  }
+}
 </script>
 
 <style scoped>
@@ -930,6 +980,16 @@ async function deleteAlternateGreeting(index) {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-block {
+  width: 100%;
 }
 
 .info-note {

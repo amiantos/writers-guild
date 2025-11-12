@@ -85,26 +85,27 @@ app.use('/api/characters', charactersRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/lorebooks', lorebooksRouter);
 
-// Serve static client files
-// In Docker, client is copied to ./public/, outside Docker it's ../client
-const clientPath = fsSync.existsSync(path.join(__dirname, 'public'))
-  ? path.join(__dirname, 'public')
-  : path.join(__dirname, '../client');
+// Check if we're in production (built client exists)
+const publicPath = path.join(__dirname, 'public');
+const isProduction = fsSync.existsSync(publicPath);
 
-app.use(express.static(clientPath));
+if (isProduction) {
+  // Production: Serve built Vue client
+  app.use(express.static(publicPath));
 
-// Serve shared files
-// In Docker, shared is copied to ./shared/, outside Docker it's ../shared
-const sharedPath = fsSync.existsSync(path.join(__dirname, 'shared'))
-  ? path.join(__dirname, 'shared')
-  : path.join(__dirname, '../shared');
+  // Fallback to index.html for client-side routing
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+} else {
+  // Development: Redirect to Vite dev server
+  console.log('Development mode: Redirecting to Vite dev server at http://localhost:5173');
 
-app.use('/shared', express.static(sharedPath));
-
-// Fallback to index.html for client-side routing
-app.get('*', (req, res) => {
-  res.sendFile(path.join(clientPath, 'index.html'));
-});
+  app.get('*', (req, res) => {
+    // Redirect any HTML page requests to Vite dev server
+    res.redirect(301, 'http://localhost:5173' + req.url);
+  });
+}
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -180,6 +180,7 @@ import { useRouter } from 'vue-router'
 import { lorebooksAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useNavigation } from '../composables/useNavigation'
+import { setPageTitle } from '../router'
 import EntryEditorModal from '../components/EntryEditorModal.vue'
 
 const props = defineProps({
@@ -224,6 +225,8 @@ async function loadLorebook() {
       description: response.lorebook.description || '',
       entries: response.lorebook.entries || []
     }
+    // Update page title with lorebook name
+    setPageTitle(lorebook.value.name || 'Lorebook')
   } catch (error) {
     console.error('Failed to load lorebook:', error)
     toast.error('Failed to load lorebook: ' + error.message)
@@ -266,6 +269,8 @@ async function saveName() {
     lorebook.value.name = editedName.value.trim()
     editingName.value = false
     editedName.value = ''
+    // Update page title with new name
+    setPageTitle(lorebook.value.name)
   } catch (error) {
     console.error('Failed to update name:', error)
     toast.error('Failed to update name: ' + error.message)

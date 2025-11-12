@@ -19,6 +19,35 @@
     <!-- Main Content -->
     <div v-else class="detail-content">
       <div class="sections-container">
+        <!-- Default Persona Section -->
+        <section class="edit-section">
+          <div class="section-header">
+            <h2>Default Persona</h2>
+          </div>
+          <div class="section-content">
+            <div class="form-group">
+              <label for="defaultPersona">Default Persona Character</label>
+              <select
+                id="defaultPersona"
+                v-model="settings.defaultPersonaId"
+                class="select-input"
+              >
+                <option :value="null">None</option>
+                <option
+                  v-for="char in characters"
+                  :key="char.id"
+                  :value="char.id"
+                >
+                  {{ char.name }}
+                </option>
+              </select>
+              <p class="help-text">
+                Automatically assign this character as the persona when creating new stories.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <!-- API Configuration Section -->
         <section class="edit-section">
           <div class="section-header">
@@ -226,7 +255,7 @@
 
 <script setup>
 import { ref, watch, onMounted, nextTick } from 'vue'
-import { settingsAPI } from '../services/api'
+import { settingsAPI, charactersAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useNavigation } from '../composables/useNavigation'
 
@@ -240,7 +269,9 @@ const saveTimeout = ref(null)
 const isInitialLoad = ref(true)
 const originalApiKey = ref('')
 const apiKeyChanged = ref(false)
+const characters = ref([])
 const settings = ref({
+  defaultPersonaId: null,
   apiKey: '',
   maxTokens: 4000,
   temperature: 1.5,
@@ -257,7 +288,7 @@ const settings = ref({
 })
 
 onMounted(async () => {
-  await loadSettings()
+  await Promise.all([loadSettings(), loadCharacters()])
 })
 
 // Watch for API key changes specifically
@@ -296,6 +327,7 @@ async function loadSettings() {
 
     // Merge server settings with defaults
     settings.value = {
+      defaultPersonaId: serverSettings.defaultPersonaId || null,
       apiKey: serverSettings.apiKey || '',
       maxTokens: serverSettings.maxTokens ?? 4000,
       temperature: serverSettings.temperature ?? 1.5,
@@ -319,6 +351,15 @@ async function loadSettings() {
     await nextTick()
     // Enable auto-save after initial load
     isInitialLoad.value = false
+  }
+}
+
+async function loadCharacters() {
+  try {
+    const { characters: allChars } = await charactersAPI.list()
+    characters.value = allChars || []
+  } catch (error) {
+    console.error('Failed to load characters:', error)
   }
 }
 
@@ -448,7 +489,8 @@ async function saveSettings() {
   color: var(--text-primary);
 }
 
-.text-input {
+.text-input,
+.select-input {
   width: 100%;
   padding: 0.75rem;
   background-color: var(--bg-tertiary);
@@ -461,8 +503,13 @@ async function saveSettings() {
   outline: none;
 }
 
-.text-input:focus {
+.text-input:focus,
+.select-input:focus {
   border-color: var(--accent-primary);
+}
+
+.select-input {
+  cursor: pointer;
 }
 
 .checkbox-group {
