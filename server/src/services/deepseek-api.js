@@ -441,7 +441,7 @@ export class DeepSeekAPI {
         break;
 
       case "custom":
-        instruction = customPrompt || "Continue the story.";
+        instruction = `Continue the story naturally from where it left off. Write the next 2-3 paragraphs maximum, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters. The user provided the following guidance of what they wish to see happen next: ${customPrompt}` || "Continue the story.";
         break;
 
       default:
