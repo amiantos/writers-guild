@@ -143,7 +143,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { storiesAPI, charactersAPI } from '../services/api'
+import { storiesAPI, charactersAPI, settingsAPI } from '../services/api'
 import ReasoningPanel from '../components/ReasoningPanel.vue'
 import CharacterResponseModal from '../components/CharacterResponseModal.vue'
 import GreetingSelectorModal from '../components/GreetingSelectorModal.vue'
@@ -175,6 +175,7 @@ const showGreetingSelector = ref(false)
 const showViewPromptModal = ref(false)
 const showCustomPromptModal = ref(false)
 const storyCharacters = ref([])
+const shouldShowReasoning = ref(false) // Setting from server
 
 // Computed
 const hasUnsavedChanges = computed(() => {
@@ -185,8 +186,7 @@ const hasUnsavedChanges = computed(() => {
 let autoSaveTimeout = null
 
 onMounted(async () => {
-  await loadStory()
-  await loadCharacters()
+  await Promise.all([loadStory(), loadCharacters(), loadSettings()])
   startAutoSave()
 })
 
@@ -239,6 +239,18 @@ async function loadCharacters() {
     storyCharacters.value = allChars.filter(c => story.value.characterIds.includes(c.id))
   } catch (error) {
     console.error('Failed to load characters:', error)
+  }
+}
+
+async function loadSettings() {
+  try {
+    const response = await settingsAPI.get()
+    const serverSettings = response.settings || response
+    shouldShowReasoning.value = serverSettings.showReasoning ?? false
+  } catch (error) {
+    console.error('Failed to load settings:', error)
+    // Default to false if settings can't be loaded
+    shouldShowReasoning.value = false
   }
 }
 
@@ -311,7 +323,7 @@ async function generate(isCustom, instruction, characterId) {
     generating.value = true
     generationStatus.value = 'Thinking...'
     reasoning.value = ''
-    showReasoningPanel.value = true
+    showReasoningPanel.value = shouldShowReasoning.value
 
     // Track cursor position
     const cursorPos = editorRef.value.selectionStart
@@ -408,7 +420,7 @@ async function rewriteToThirdPerson() {
     generating.value = true
     generationStatus.value = 'Thinking...'
     reasoning.value = ''
-    showReasoningPanel.value = true
+    showReasoningPanel.value = shouldShowReasoning.value
 
     // Clear editor for rewrite
     content.value = ''

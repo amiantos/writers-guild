@@ -276,10 +276,52 @@ export const lorebooksAPI = {
       method: 'DELETE',
     })
   },
+
+  update(lorebookId, data) {
+    return request(`/lorebooks/${lorebookId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  addEntry(lorebookId, entryData) {
+    return request(`/lorebooks/${lorebookId}/entries`, {
+      method: 'POST',
+      body: JSON.stringify(entryData),
+    })
+  },
+
+  updateEntry(lorebookId, entryId, entryData) {
+    return request(`/lorebooks/${lorebookId}/entries/${entryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(entryData),
+    })
+  },
+
+  deleteEntry(lorebookId, entryId) {
+    return request(`/lorebooks/${lorebookId}/entries/${entryId}`, {
+      method: 'DELETE',
+    })
+  },
+}
+
+// Settings API
+export const settingsAPI = {
+  get() {
+    return request('/settings')
+  },
+
+  update(settings) {
+    return request('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+  },
 }
 
 export default {
   stories: storiesAPI,
   characters: charactersAPI,
   lorebooks: lorebooksAPI,
+  settings: settingsAPI,
 }

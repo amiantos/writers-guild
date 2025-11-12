@@ -1,5 +1,5 @@
 <template>
-  <div class="modal-overlay" @click.self="handleClose">
+  <div class="modal-overlay" @click.self="handleOverlayClick">
     <div class="modal-content" :style="contentStyle">
       <div v-if="!hideHeader" class="modal-header">
         <slot name="header">
@@ -44,6 +44,10 @@ const props = defineProps({
   hideCloseButton: {
     type: Boolean,
     default: false
+  },
+  closeOnOverlayClick: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -64,6 +68,12 @@ const contentStyle = computed(() => {
 
 function handleClose() {
   emit('close')
+}
+
+function handleOverlayClick() {
+  if (props.closeOnOverlayClick) {
+    handleClose()
+  }
 }
 </script>
 

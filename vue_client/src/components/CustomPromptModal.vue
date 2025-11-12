@@ -1,5 +1,5 @@
 <template>
-  <Modal title="Continue with Instruction" @close="$emit('close')">
+  <Modal title="Continue with Instruction" :close-on-overlay-click="false" @close="$emit('close')">
     <div class="content-wrapper">
       <p class="instruction-text">
         Enter an instruction to guide the AI's generation. For example:

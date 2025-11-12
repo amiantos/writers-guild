@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LandingPage from '../views/LandingPage.vue'
 import StoryEditor from '../views/StoryEditor.vue'
 import CharacterDetail from '../views/CharacterDetail.vue'
+import LorebookDetail from '../views/LorebookDetail.vue'
+import SettingsPage from '../views/SettingsPage.vue'
 
 const routes = [
   {
@@ -20,6 +22,17 @@ const routes = [
     name: 'character-detail',
     component: CharacterDetail,
     props: true
+  },
+  {
+    path: '/lorebooks/:lorebookId',
+    name: 'lorebook-detail',
+    component: LorebookDetail,
+    props: true
+  },
+  {
+    path: '/settings',
+    name: 'settings',
+    component: SettingsPage
   }
 ]
 

@@ -2,6 +2,9 @@
   <div class="landing-wrapper">
     <header class="app-header">
       <h1>Úrscéal</h1>
+      <button class="settings-btn" @click="goToSettings" title="Settings">
+        <i class="fas fa-cog"></i>
+      </button>
     </header>
 
     <main class="app-main">
@@ -68,18 +71,22 @@
       <template #tab-lorebooks>
         <div class="section-header">
           <h2><i class="fas fa-book-open"></i> Lorebook Library</h2>
+          <button class="btn btn-primary" @click="showCreateLorebookModal = true">
+            <i class="fas fa-plus"></i> Create
+          </button>
         </div>
 
         <div v-if="loadingLorebooks" class="loading">Loading lorebooks...</div>
 
         <div v-else-if="lorebooks.length === 0" class="empty-state">
           <i class="fas fa-book-open"></i>
-          <p>No lorebooks yet. Import a lorebook to get started!</p>
+          <p>No lorebooks yet. Create a lorebook to get started!</p>
         </div>
 
         <LorebooksTable
           v-else
           :lorebooks="lorebooks"
+          @edit="editLorebook"
           @delete="deleteLorebook"
         />
       </template>
@@ -111,6 +118,13 @@
       @close="showImportCharacterModal = false"
       @imported="handleCharacterImported"
     />
+
+    <!-- Create Lorebook Modal -->
+    <CreateLorebookModal
+      v-if="showCreateLorebookModal"
+      @close="showCreateLorebookModal = false"
+      @created="handleLorebookCreated"
+    />
   </div>
 </template>
 
@@ -125,6 +139,7 @@ import LorebooksTable from '../components/LorebooksTable.vue'
 import CharacterStoriesModal from '../components/CharacterStoriesModal.vue'
 import CreateCharacterModal from '../components/CreateCharacterModal.vue'
 import ImportCharacterModal from '../components/ImportCharacterModal.vue'
+import CreateLorebookModal from '../components/CreateLorebookModal.vue'
 
 const router = useRouter()
 
@@ -142,6 +157,9 @@ const selectedCharacter = ref(null)
 // Create/Import Character Modals
 const showCreateCharacterModal = ref(false)
 const showImportCharacterModal = ref(false)
+
+// Create Lorebook Modal
+const showCreateLorebookModal = ref(false)
 
 const characterStoriesForModal = computed(() => {
   if (!selectedCharacter.value) return []
@@ -252,6 +270,10 @@ function editCharacter(characterId) {
   router.push({ name: 'character-detail', params: { characterId } })
 }
 
+function editLorebook(lorebookId) {
+  router.push({ name: 'lorebook-detail', params: { lorebookId } })
+}
+
 async function deleteStory(story) {
   if (!confirm(`Delete story "${story.title}"? This cannot be undone.`)) {
     return
@@ -321,6 +343,16 @@ async function handleCharacterImported(character) {
   // Switch to characters tab if not already there
   activeTab.value = 'characters'
 }
+
+async function handleLorebookCreated(lorebook) {
+  // Reload lorebooks to include the new one
+  await loadLorebooks()
+  // The modal already handles navigation to the editor
+}
+
+function goToSettings() {
+  router.push('/settings')
+}
 </script>
 
 <style scoped>
@@ -338,6 +370,9 @@ async function handleCharacterImported(character) {
   box-shadow: var(--shadow);
   position: relative;
   z-index: 200;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .app-header h1 {
@@ -345,6 +380,27 @@ async function handleCharacterImported(character) {
   font-size: 1.5rem;
   font-weight: 600;
   color: var(--primary-color);
+}
+
+.settings-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.settings-btn:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
 }
 
 .app-main {

@@ -1,5 +1,5 @@
 <template>
-  <Modal title="Create New Character" @close="$emit('close')">
+  <Modal title="Create New Character" :close-on-overlay-click="false" @close="$emit('close')">
     <div class="create-content">
       <div class="form-group">
         <label for="characterName">Character Name *</label>
