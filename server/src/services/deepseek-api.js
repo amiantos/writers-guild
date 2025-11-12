@@ -437,7 +437,7 @@ export class DeepSeekAPI {
 
       case "character":
         const charName = characterCard?.data?.name || "the character";
-        instruction = `Write the next part of the story from ${charName}'s perspective. Focus on their thoughts, actions, and dialogue. Write 2-3 paragraphs maximum, less if it makes sense stylistically or sets up a good response opportunity for other characters.`;
+        instruction = `Write the next part of the story from ${charName}'s perspective. Focus on their thoughts, actions, and dialogue. Write 2-3 paragraphs maximum, less if it makes sense stylistically or sets up a good response opportunity for other characters. (There is a chance that "${charName}'s" is multiple characters, at which point you may respond as any of them as is relevant to the story.)`;
         break;
 
       case "custom":
