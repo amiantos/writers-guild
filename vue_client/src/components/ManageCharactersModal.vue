@@ -122,12 +122,12 @@ const filteredCharacters = computed(() => {
     })
   }
 
-  // Sort: selected characters first, then alphabetically
+  // Sort: selected characters and persona first, then alphabetically
   return [...characters].sort((a, b) => {
-    const aSelected = isCharacterInStory(a.id)
-    const bSelected = isCharacterInStory(b.id)
+    const aSelected = isCharacterInStory(a.id) || isPersona(a.id)
+    const bSelected = isCharacterInStory(b.id) || isPersona(b.id)
 
-    // If one is selected and the other isn't, selected comes first
+    // If one is selected/persona and the other isn't, selected comes first
     if (aSelected && !bSelected) return -1
     if (!aSelected && bSelected) return 1
 
