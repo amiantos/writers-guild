@@ -49,6 +49,7 @@
           v-else
           :characters="characters"
           :stories="stories"
+          @continue="showCharacterStories"
           @new-story="createStoryWithCharacter"
           @delete="deleteCharacter"
         />
@@ -76,17 +77,29 @@
     </Tabs>
       </div>
     </main>
+
+    <!-- Character Stories Modal -->
+    <CharacterStoriesModal
+      v-if="showCharacterStoriesModal"
+      :character="selectedCharacter"
+      :stories="characterStoriesForModal"
+      :all-characters="characters"
+      @close="showCharacterStoriesModal = false"
+      @open-story="openStory"
+      @delete="deleteStory"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storiesAPI, charactersAPI, lorebooksAPI } from '../services/api'
 import Tabs from '../components/Tabs.vue'
 import StoriesTable from '../components/StoriesTable.vue'
 import CharactersTable from '../components/CharactersTable.vue'
 import LorebooksTable from '../components/LorebooksTable.vue'
+import CharacterStoriesModal from '../components/CharacterStoriesModal.vue'
 
 const router = useRouter()
 
@@ -96,6 +109,18 @@ const lorebooks = ref([])
 const loadingStories = ref(true)
 const loadingCharacters = ref(true)
 const loadingLorebooks = ref(true)
+
+// Character Stories Modal
+const showCharacterStoriesModal = ref(false)
+const selectedCharacter = ref(null)
+
+const characterStoriesForModal = computed(() => {
+  if (!selectedCharacter.value) return []
+  return stories.value.filter(story =>
+    story.characterIds?.includes(selectedCharacter.value.id) ||
+    story.personaCharacterId === selectedCharacter.value.id
+  )
+})
 
 // Tabs configuration
 const tabs = [
@@ -179,6 +204,14 @@ async function createStoryWithCharacter(characterId) {
   } catch (error) {
     console.error('Error creating story with character:', error)
     alert('Failed to create story')
+  }
+}
+
+function showCharacterStories(characterId) {
+  const character = characters.value.find(c => c.id === characterId)
+  if (character) {
+    selectedCharacter.value = character
+    showCharacterStoriesModal.value = true
   }
 }
 
