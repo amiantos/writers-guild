@@ -17,6 +17,8 @@
   --accent-hover: #357abd;
   --danger: #dc3545;
   --danger-hover: #c82333;
+  --warning: #ff9800;
+  --warning-hover: #e68900;
   --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
@@ -35,6 +37,8 @@
     --accent-hover: #4a90e2;
     --danger: #e74c3c;
     --danger-hover: #c0392b;
+    --warning: #ffa726;
+    --warning-hover: #fb8c00;
     --shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5);
   }
@@ -99,6 +103,15 @@ button {
 
 .btn-danger:hover {
   background-color: var(--danger-hover);
+}
+
+.btn-warning {
+  background-color: var(--warning);
+  color: white;
+}
+
+.btn-warning:hover {
+  background-color: var(--warning-hover);
 }
 
 .btn:disabled {

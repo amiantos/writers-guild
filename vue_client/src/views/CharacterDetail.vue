@@ -437,6 +437,7 @@ import { useRouter } from 'vue-router'
 import { charactersAPI, lorebooksAPI, storiesAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useNavigation } from '../composables/useNavigation'
+import { useConfirm } from '../composables/useConfirm'
 import { setPageTitle } from '../router'
 import CharacterCard from '../components/CharacterCard.vue'
 
@@ -450,6 +451,7 @@ const props = defineProps({
 const router = useRouter()
 const toast = useToast()
 const { goBack } = useNavigation()
+const { confirm } = useConfirm()
 
 // State
 const loading = ref(true)
@@ -758,9 +760,13 @@ function cancelImageEdit() {
 }
 
 async function deleteCharacter() {
-  if (!confirm(`Are you sure you want to delete "${character.value.name}"? This cannot be undone.`)) {
-    return
-  }
+  const confirmed = await confirm({
+    message: `Are you sure you want to delete "${character.value.name}"? This cannot be undone.`,
+    confirmText: 'Delete Character',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
 
   try {
     await charactersAPI.delete(props.characterId)
@@ -844,9 +850,13 @@ async function saveAlternateGreeting() {
 }
 
 async function deleteAlternateGreeting(index) {
-  if (!confirm('Delete this alternate greeting?')) {
-    return
-  }
+  const confirmed = await confirm({
+    message: 'Delete this alternate greeting?',
+    confirmText: 'Delete',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
 
   try {
     // Remove from array

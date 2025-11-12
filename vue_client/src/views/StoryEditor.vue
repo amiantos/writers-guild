@@ -202,6 +202,7 @@ import { useRouter } from 'vue-router'
 import { storiesAPI, charactersAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useNavigation } from '../composables/useNavigation'
+import { useConfirm } from '../composables/useConfirm'
 import { setPageTitle } from '../router'
 import ReasoningPanel from '../components/ReasoningPanel.vue'
 import CharacterResponseModal from '../components/CharacterResponseModal.vue'
@@ -222,6 +223,7 @@ const props = defineProps({
 const router = useRouter()
 const toast = useToast()
 const { goBack } = useNavigation()
+const { confirm } = useConfirm()
 
 // State
 const story = ref(null)
@@ -479,9 +481,13 @@ async function selectGreeting(greeting) {
 }
 
 async function rewriteToThirdPerson() {
-  if (!confirm('This will replace the entire document with a rewritten version in third-person past tense. Continue?')) {
-    return
-  }
+  const confirmed = await confirm({
+    message: 'This will replace the entire document with a rewritten version in third-person past tense. Continue?',
+    confirmText: 'Rewrite',
+    variant: 'warning'
+  })
+
+  if (!confirmed) return
 
   // Save before rewriting
   await saveStory(true)
@@ -565,9 +571,14 @@ async function rewriteToThirdPerson() {
 }
 
 async function clearStory() {
-  if (!confirm('Clear all story content? This cannot be undone.')) {
-    return
-  }
+  const confirmed = await confirm({
+    message: 'Clear all story content? This cannot be undone.',
+    confirmText: 'Clear Content',
+    variant: 'warning'
+  })
+
+  if (!confirmed) return
+
   content.value = ''
   await saveStory()
   toast.success('Story cleared')
@@ -596,9 +607,13 @@ async function handleStoryUpdated() {
 }
 
 async function deleteStory() {
-  if (!confirm(`Are you sure you want to delete "${story.value?.title}"? This cannot be undone.`)) {
-    return
-  }
+  const confirmed = await confirm({
+    message: `Are you sure you want to delete "${story.value?.title}"? This cannot be undone.`,
+    confirmText: 'Delete Story',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
 
   try {
     await storiesAPI.delete(props.storyId)

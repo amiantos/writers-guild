@@ -199,6 +199,7 @@ import { ref, computed, onMounted } from 'vue'
 import Modal from './Modal.vue'
 import { lorebooksAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
 
 const props = defineProps({
   lorebookId: {
@@ -213,6 +214,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'saved'])
 const toast = useToast()
+const { confirm } = useConfirm()
 
 const commentInput = ref(null)
 const saving = ref(false)
@@ -323,9 +325,13 @@ async function saveEntry() {
 }
 
 async function deleteEntry() {
-  if (!confirm('Delete this entry? This cannot be undone.')) {
-    return
-  }
+  const confirmed = await confirm({
+    message: 'Delete this entry? This cannot be undone.',
+    confirmText: 'Delete Entry',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
 
   try {
     await lorebooksAPI.deleteEntry(props.lorebookId, props.entry.id)

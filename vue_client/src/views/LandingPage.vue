@@ -145,6 +145,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storiesAPI, charactersAPI, lorebooksAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
+import { useConfirm } from '../composables/useConfirm'
 import Tabs from '../components/Tabs.vue'
 import StoriesTable from '../components/StoriesTable.vue'
 import CharactersTable from '../components/CharactersTable.vue'
@@ -157,6 +158,7 @@ import ImportLorebookModal from '../components/ImportLorebookModal.vue'
 
 const router = useRouter()
 const toast = useToast()
+const { confirm } = useConfirm()
 
 const stories = ref([])
 const characters = ref([])
@@ -291,9 +293,13 @@ function editLorebook(lorebookId) {
 }
 
 async function deleteStory(story) {
-  if (!confirm(`Delete story "${story.title}"? This cannot be undone.`)) {
-    return
-  }
+  const confirmed = await confirm({
+    message: `Delete story "${story.title}"? This cannot be undone.`,
+    confirmText: 'Delete Story',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
 
   try {
     await storiesAPI.delete(story.id)
@@ -317,7 +323,13 @@ async function deleteCharacter(character) {
   }
   msg += '\n\nThis cannot be undone.'
 
-  if (!confirm(msg)) return
+  const confirmed = await confirm({
+    message: msg,
+    confirmText: 'Delete Character',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
 
   try {
     await charactersAPI.delete(character.id)
@@ -330,9 +342,13 @@ async function deleteCharacter(character) {
 }
 
 async function deleteLorebook(lorebook) {
-  if (!confirm(`Delete lorebook "${lorebook.name}"?\n\nThis cannot be undone.`)) {
-    return
-  }
+  const confirmed = await confirm({
+    message: `Delete lorebook "${lorebook.name}"?\n\nThis cannot be undone.`,
+    confirmText: 'Delete Lorebook',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
 
   try {
     await lorebooksAPI.delete(lorebook.id)

@@ -180,6 +180,7 @@ import { useRouter } from 'vue-router'
 import { lorebooksAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useNavigation } from '../composables/useNavigation'
+import { useConfirm } from '../composables/useConfirm'
 import { setPageTitle } from '../router'
 import EntryEditorModal from '../components/EntryEditorModal.vue'
 
@@ -193,6 +194,7 @@ const props = defineProps({
 const router = useRouter()
 const toast = useToast()
 const { goBack } = useNavigation()
+const { confirm } = useConfirm()
 
 // State
 const loading = ref(true)
@@ -292,9 +294,13 @@ async function saveDescription() {
 }
 
 async function deleteLorebook() {
-  if (!confirm(`Are you sure you want to delete "${lorebook.value.name}"? This cannot be undone.`)) {
-    return
-  }
+  const confirmed = await confirm({
+    message: `Are you sure you want to delete "${lorebook.value.name}"? This cannot be undone.`,
+    confirmText: 'Delete Lorebook',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
 
   try {
     await lorebooksAPI.delete(props.lorebookId)
