@@ -352,6 +352,13 @@ export const lorebooksAPI = {
       return response.json()
     })
   },
+
+  importFromURL(url) {
+    return request('/lorebooks/import-url', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    })
+  },
 }
 
 // Settings API

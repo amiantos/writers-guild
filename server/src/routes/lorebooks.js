@@ -72,6 +72,53 @@ router.post('/import', upload.single('lorebook'), asyncHandler(async (req, res) 
 }));
 
 /**
+ * Import lorebook from URL
+ */
+router.post('/import-url', asyncHandler(async (req, res) => {
+  const { url } = req.body;
+
+  if (!url || typeof url !== 'string') {
+    throw new AppError('URL is required', 400);
+  }
+
+  try {
+    // Fetch JSON from URL
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('URL does not point to a JSON file');
+    }
+
+    const jsonData = await response.json();
+    const buffer = Buffer.from(JSON.stringify(jsonData), 'utf8');
+
+    // Parse lorebook
+    const parsed = LorebookParser.parseStandaloneLorebook(buffer);
+
+    // Generate unique ID
+    const lorebookId = uuidv4();
+
+    // Save to storage
+    await storage.saveLorebook(lorebookId, parsed);
+
+    res.json({
+      id: lorebookId,
+      name: parsed.name,
+      description: parsed.description,
+      entryCount: parsed.entries.length
+    });
+  } catch (error) {
+    console.error('Failed to import lorebook from URL:', error);
+    throw new AppError(`Failed to import lorebook from URL: ${error.message}`, 400);
+  }
+}));
+
+/**
  * Create new lorebook from scratch
  */
 router.post('/create', asyncHandler(async (req, res) => {
