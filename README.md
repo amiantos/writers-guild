@@ -1,30 +1,20 @@
 # Úrscéal
 
-AI-powered novel writing application with SillyTavern character cards and lorebooks.
+AI-powered short story writing application that supports Tavern character cards and SillyTavern lorebooks.
 
 ## Features
 
-- **Multiple Stories** - Create and manage unlimited stories
-- **Character Library** - Import SillyTavern V2 character cards (PNG or create from scratch)
-- **Lorebook Support** - Import SillyTavern lorebooks with full activation engine
-- **Macro System** - `{{random}}`, `{{pick}}`, `{{roll}}`, `{{user}}`, `{{char}}`
-- **AI Generation** - Continue story, character response, custom prompts (powered by DeepSeek)
-- **Reasoning Display** - See the model's thinking process
-- **Dark Mode** - Automatic based on system preference
-- **Docker Support** - Easy deployment
+- **Interactive Story Writing** - Pick one or multiple characters, optionally assign a character as your persona, and go on an adventure with them
+- **Character Card Support** - Import Tavern V2 character cards from PNG or CHUB (or create one from scratch)
+- **Full Lorebook Support** - Import SillyTavern lorebooks with fullly featured activation engine
+- **ST Macro Support** - Supports ST macros like `{{random:a,b,c}}` and `{{pick:x,y,z}}`
+- **Generation Control** - Continue the story from a specific character's perspective; open-ended generation based on story context; or request specific events to occur.
 
-## Project Structure
+## Motivations
 
-```
-server/                     # Node.js/Express backend
-client/                     # Frontend (HTML/CSS/JS)
-shared/                     # Shared utilities
-data/                       # Your data (not in repo)
-  stories/                  # Story files
-  characters/               # Character library (JSON + images)
-  lorebooks/                # Lorebook library
-  settings.json             # App settings
-```
+After years of using SillyTavern, I realized the character cards I enjoyed interacting with the most were very prose-like, and I started to suspect that the "chat" oriented nature of SillyTavern was actually preventing LLMs from fulfilling their potential as interactive story writers, and likely causing a lot of common issues (like repetitive messages, low creativity, etc).
+
+So I decided to make Ursceal, which uses the same character cards and lorebooks as SillyTavern, but uses them to write in a format more akin to a story story or novel. Ursceal also attempts to enforce a consistent perspective (third) and tense (past), which is something a lot of character card authors struggle with, so it has a button to automatically rewrite the original greeting from the character into a consistent style (the most useful feature, imho).
 
 ## Quick Start
 
@@ -47,39 +37,3 @@ docker-compose up -d
 2. Click Settings (⚙️) and add your DeepSeek API key
 3. Import character cards and lorebooks
 4. Start writing!
-
-## How It Works
-
-**Characters:**
-- Import SillyTavern V2 character cards (PNG with embedded JSON)
-- Create characters from scratch
-- Characters stored in global library, reusable across stories
-- Use characters as personas (narrator perspective)
-
-**Lorebooks:**
-- Import SillyTavern lorebook JSON files
-- Entries auto-activate based on keywords in story content
-- Advanced features: recursion, probability, inclusion groups, regex
-- Full entry editor with all SillyTavern options
-
-**Macros:**
-- `{{random:a,b,c}}` - Random selection
-- `{{pick:x,y,z}}` - Stable selection
-- `{{roll:d6}}` or `{{roll:2d20+5}}` - Dice notation
-- `{{user}}`, `{{char}}` - Context placeholders
-
-**Generation:**
-- Continue story from cursor position
-- Character-specific responses (choose which character)
-- Custom prompts with full context
-- Real-time streaming with reasoning display
-
-## Data Storage
-
-All data stored as plain JSON/text files in `/data`:
-- **Stories**: `stories/<id>/metadata.json` + `content.txt`
-- **Characters**: `characters/<id>.json` + optional `<id>-image.png`
-- **Lorebooks**: `lorebooks/<id>.json`
-- **Settings**: `settings.json`
-
-Backup = copy the `/data` folder.
