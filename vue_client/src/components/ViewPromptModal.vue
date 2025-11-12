@@ -1,32 +1,24 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Last Prompt</h2>
-        <button class="close-btn" @click="$emit('close')">
-          <i class="fas fa-xmark"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="prompt-section">
-          <h3>System Prompt</h3>
-          <div class="prompt-display">
-            {{ systemPrompt || 'No system prompt available' }}
-          </div>
-        </div>
-
-        <div class="prompt-section">
-          <h3>User Prompt</h3>
-          <div class="prompt-display">
-            {{ userPrompt || 'No user prompt available' }}
-          </div>
-        </div>
+  <Modal title="Last Prompt" max-width="800px" @close="$emit('close')">
+    <div class="prompt-section">
+      <h3>System Prompt</h3>
+      <div class="prompt-display">
+        {{ systemPrompt || 'No system prompt available' }}
       </div>
     </div>
-  </div>
+
+    <div class="prompt-section">
+      <h3>User Prompt</h3>
+      <div class="prompt-display">
+        {{ userPrompt || 'No user prompt available' }}
+      </div>
+    </div>
+  </Modal>
 </template>
 
 <script setup>
+import Modal from './Modal.vue'
+
 defineProps({
   systemPrompt: {
     type: String,
@@ -42,67 +34,12 @@ defineEmits(['close'])
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+.prompt-section {
+  margin-bottom: 1.5rem;
 }
 
-.modal-content {
-  background-color: var(--bg-secondary);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 800px;
-  max-height: 80vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+.prompt-section:last-child {
+  margin-bottom: 0;
 }
 
 .prompt-section h3 {

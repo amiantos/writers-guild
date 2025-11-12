@@ -1,64 +1,55 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Select Greeting</h2>
-        <button class="close-btn" @click="$emit('close')">
-          <i class="fas fa-xmark"></i>
+  <Modal title="Select Greeting" @close="$emit('close')">
+    <div v-if="loading" class="loading">Loading greetings...</div>
+
+    <div v-else-if="greetings.length === 0" class="empty-state">
+      <i class="fas fa-message"></i>
+      <p>No greetings available. Add characters with greetings to this story.</p>
+    </div>
+
+    <div v-else class="greeting-carousel">
+      <div class="character-name">
+        <i class="fas fa-user"></i>
+        {{ currentCharacter?.name || 'Unknown' }}
+        <span v-if="currentLabel" class="greeting-label"> - {{ currentLabel }}</span>
+      </div>
+
+      <div class="greeting-display">
+        {{ currentGreeting }}
+      </div>
+
+      <div class="carousel-controls">
+        <button
+          class="btn btn-secondary"
+          :disabled="currentIndex === 0"
+          @click="prevGreeting"
+        >
+          <i class="fas fa-chevron-left"></i> Previous
+        </button>
+
+        <div class="greeting-counter">
+          {{ currentIndex + 1 }} / {{ greetings.length }}
+        </div>
+
+        <button
+          class="btn btn-secondary"
+          :disabled="currentIndex === greetings.length - 1"
+          @click="nextGreeting"
+        >
+          Next <i class="fas fa-chevron-right"></i>
         </button>
       </div>
-      <div class="modal-body">
-        <div v-if="loading" class="loading">Loading greetings...</div>
 
-        <div v-else-if="greetings.length === 0" class="empty-state">
-          <i class="fas fa-message"></i>
-          <p>No greetings available. Add characters with greetings to this story.</p>
-        </div>
-
-        <div v-else class="greeting-carousel">
-          <div class="character-name">
-            <i class="fas fa-user"></i>
-            {{ currentCharacter?.name || 'Unknown' }}
-            <span v-if="currentLabel" class="greeting-label"> - {{ currentLabel }}</span>
-          </div>
-
-          <div class="greeting-display">
-            {{ currentGreeting }}
-          </div>
-
-          <div class="carousel-controls">
-            <button
-              class="btn btn-secondary"
-              :disabled="currentIndex === 0"
-              @click="prevGreeting"
-            >
-              <i class="fas fa-chevron-left"></i> Previous
-            </button>
-
-            <div class="greeting-counter">
-              {{ currentIndex + 1 }} / {{ greetings.length }}
-            </div>
-
-            <button
-              class="btn btn-secondary"
-              :disabled="currentIndex === greetings.length - 1"
-              @click="nextGreeting"
-            >
-              Next <i class="fas fa-chevron-right"></i>
-            </button>
-          </div>
-
-          <button class="btn btn-primary full-width" @click="selectCurrent">
-            <i class="fas fa-check"></i> Use This Greeting
-          </button>
-        </div>
-      </div>
+      <button class="btn btn-primary full-width" @click="selectCurrent">
+        <i class="fas fa-check"></i> Use This Greeting
+      </button>
     </div>
-  </div>
+  </Modal>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import Modal from './Modal.vue'
 import { charactersAPI } from '../services/api'
 
 const props = defineProps({
@@ -152,66 +143,6 @@ function selectCurrent() {
 </script>
 
 <style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background-color: var(--bg-secondary);
-  border-radius: 8px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 1.5rem;
-  cursor: pointer;
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.close-btn:hover {
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-}
-
 .loading {
   text-align: center;
   padding: 2rem;
