@@ -188,7 +188,8 @@ const hasUnsavedChanges = computed(() => {
 let autoSaveTimeout = null
 
 onMounted(async () => {
-  await Promise.all([loadStory(), loadCharacters(), loadSettings()])
+  await loadStory()
+  await Promise.all([loadCharacters(), loadSettings()])
   startAutoSave()
 })
 
