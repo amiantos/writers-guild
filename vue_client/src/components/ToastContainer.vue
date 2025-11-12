@@ -46,11 +46,11 @@ function removeToast(id) {
 <style scoped>
 .toast-container {
   position: fixed;
-  bottom: 2rem;
+  top: 2rem;
   right: 2rem;
   z-index: 10000;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   gap: 0.75rem;
   pointer-events: none;
 }
@@ -68,6 +68,11 @@ function removeToast(id) {
   font-size: 0.9rem;
   font-weight: 500;
   backdrop-filter: blur(10px);
+  margin-bottom: 0.75rem;
+}
+
+.toast:last-child {
+  margin-bottom: 0;
 }
 
 .toast-icon {
@@ -178,7 +183,7 @@ function removeToast(id) {
   .toast-container {
     left: 1rem;
     right: 1rem;
-    bottom: 1rem;
+    top: 1rem;
   }
 
   .toast {
