@@ -188,6 +188,11 @@ export class DeepSeekProvider extends LLMProvider {
           }
         }
       }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('[DeepSeek] Stream aborted by client');
+      }
+      throw error;
     } finally {
       reader.releaseLock();
     }

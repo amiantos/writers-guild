@@ -239,6 +239,11 @@ export class OpenRouterProvider extends LLMProvider {
           }
         }
       }
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('[OpenRouter] Stream aborted by client');
+      }
+      throw error;
     } finally {
       reader.releaseLock();
     }

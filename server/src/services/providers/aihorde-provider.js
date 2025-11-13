@@ -214,6 +214,37 @@ export class AIHordeProvider extends LLMProvider {
   }
 
   /**
+   * Cancel an ongoing generation request
+   * @param {string} requestId - The request ID to cancel
+   * @returns {Promise<Object>} Any partial results that were generated
+   */
+  async cancelRequest(requestId) {
+    console.log(`[AI Horde] Cancelling request ${requestId}...`);
+    const response = await fetch(`${this.baseURL}/generate/text/status/${requestId}`, {
+      method: "DELETE",
+      headers: {
+        "apikey": this.apiKey,
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`[AI Horde] Cancel request failed: ${response.statusText}`);
+      throw new Error(
+        errorData.message || `AI Horde cancel request failed: ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
+    console.log(`[AI Horde] Request ${requestId} cancelled successfully`);
+    return {
+      finished: data.done || false,
+      faulted: data.faulted || false,
+      generations: data.generations || []
+    };
+  }
+
+  /**
    * Generate text (non-streaming, with polling)
    */
   async generate(systemPrompt, userPrompt, options = {}) {
@@ -269,52 +300,96 @@ export class AIHordeProvider extends LLMProvider {
   async *generateStreamingWithStatus(systemPrompt, userPrompt, options = {}) {
     // Submit request
     const requestId = await this.submitRequest(systemPrompt, userPrompt, options);
+    console.log(`[AI Horde] Started polling for request ${requestId}, signal present: ${!!options.signal}`);
 
     // Poll for completion and yield status updates
     const timeout = options.timeout || 300000;
     const startTime = Date.now();
 
-    while (true) {
-      // Check timeout
-      if (Date.now() - startTime > timeout) {
-        throw new Error('AI Horde generation timed out');
-      }
+    try {
+      while (true) {
+        // Check if aborted
+        if (options.signal?.aborted) {
+          console.log(`[AI Horde] Abort signal detected for request ${requestId}`);
+          await this.cancelRequest(requestId);
+          throw new Error('Generation cancelled');
+        }
 
-      // Check status
-      const status = await this.checkStatus(requestId);
+        // Check timeout
+        if (Date.now() - startTime > timeout) {
+          throw new Error('AI Horde generation timed out');
+        }
 
-      // Yield status update
-      yield {
-        type: 'status',
-        queuePosition: status.queuePosition,
-        waitTime: status.waitTime,
-        finished: status.finished,
-        faulted: status.faulted
-      };
+        // Check status
+        const status = await this.checkStatus(requestId);
 
-      if (status.faulted) {
-        throw new Error('AI Horde generation failed');
-      }
-
-      if (status.finished && status.generations.length > 0) {
-        // Yield final result
-        const generation = status.generations[0];
-        // Strip leading newlines from response
-        const cleanedText = (generation.text || "").replace(/^\n+/, "");
+        // Yield status update
         yield {
-          type: 'complete',
-          content: cleanedText,
-          metadata: {
-            requestId,
-            model: generation.model,
-            worker: generation.worker_name
-          }
+          type: 'status',
+          queuePosition: status.queuePosition,
+          waitTime: status.waitTime,
+          finished: status.finished,
+          faulted: status.faulted
         };
-        return;
-      }
 
-      // Wait before next poll
-      await new Promise(resolve => setTimeout(resolve, this.pollingInterval));
+        if (status.faulted) {
+          throw new Error('AI Horde generation failed');
+        }
+
+        if (status.finished && status.generations.length > 0) {
+          // Yield final result
+          const generation = status.generations[0];
+          // Strip leading newlines from response
+          const cleanedText = (generation.text || "").replace(/^\n+/, "");
+          yield {
+            type: 'complete',
+            content: cleanedText,
+            metadata: {
+              requestId,
+              model: generation.model,
+              worker: generation.worker_name
+            }
+          };
+          return;
+        }
+
+        // Wait before next poll, but check abort signal during wait
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, this.pollingInterval);
+
+          // If abort signal exists, listen for abort during wait
+          if (options.signal) {
+            const onAbort = () => {
+              clearTimeout(timer);
+              console.log(`[AI Horde] Abort signal received during wait for request ${requestId}`);
+              reject(new Error('Generation cancelled'));
+            };
+
+            if (options.signal.aborted) {
+              clearTimeout(timer);
+              reject(new Error('Generation cancelled'));
+            } else {
+              options.signal.addEventListener('abort', onAbort, { once: true });
+              // Clean up listener when timer completes
+              timer.unref?.(); // Allow process to exit if needed
+              setTimeout(() => {
+                options.signal.removeEventListener('abort', onAbort);
+              }, this.pollingInterval);
+            }
+          }
+        });
+      }
+    } catch (error) {
+      // Clean up request on error
+      if (error.message !== 'Generation cancelled') {
+        console.log(`[AI Horde] Error during generation, cleaning up request ${requestId}`);
+        try {
+          await this.cancelRequest(requestId);
+        } catch (cancelError) {
+          console.error(`[AI Horde] Failed to cleanup request: ${cancelError.message}`);
+        }
+      }
+      throw error;
     }
   }
 

@@ -81,6 +81,13 @@
         <div v-if="generating" class="generating-status">
           <div class="spinner"></div>
           <span>{{ generationStatus }}</span>
+          <button
+            class="btn btn-danger btn-sm stop-button"
+            @click="cancelGeneration"
+            title="Stop generation"
+          >
+            <i class="fas fa-stop"></i> Stop
+          </button>
         </div>
 
         <!-- Toolbar Buttons -->
@@ -276,6 +283,7 @@ const showManageCharacters = ref(false)
 const showManageLorebooks = ref(false)
 const showRenameStory = ref(false)
 const showPresetSelector = ref(false)
+let abortController = null
 
 // Load floating avatar state from localStorage
 const FLOATING_AVATAR_KEY = 'ursceal-floating-avatar-open'
@@ -443,6 +451,9 @@ async function generate(isCustom, instruction, characterId) {
   // Save before generating
   await saveStory(true)
 
+  // Create abort controller for cancellation
+  abortController = new AbortController()
+
   try {
     generating.value = true
     generationStatus.value = 'Thinking...'
@@ -457,10 +468,10 @@ async function generate(isCustom, instruction, characterId) {
     let generatedContent = ''
     let reasoningText = ''
 
-    // Stream generation
+    // Stream generation with abort signal
     const stream = isCustom
-      ? storiesAPI.continueWithInstruction(props.storyId, instruction)
-      : storiesAPI.continueStory(props.storyId, characterId)
+      ? storiesAPI.continueWithInstruction(props.storyId, instruction, abortController.signal)
+      : storiesAPI.continueStory(props.storyId, characterId, abortController.signal)
 
     for await (const chunk of stream) {
       // Capture prompts
@@ -536,10 +547,24 @@ async function generate(isCustom, instruction, characterId) {
     await saveStory(true)
     toast.success('Generation complete')
   } catch (error) {
-    console.error('Generation error:', error)
-    toast.error('Generation failed: ' + error.message)
+    // Check if it was a cancellation
+    if (error.name === 'AbortError' || error.message === 'Generation cancelled') {
+      console.log('Generation was cancelled by user')
+      toast.info('Generation cancelled')
+    } else {
+      console.error('Generation error:', error)
+      toast.error('Generation failed: ' + error.message)
+    }
   } finally {
     generating.value = false
+    abortController = null
+  }
+}
+
+function cancelGeneration() {
+  if (abortController) {
+    console.log('Cancelling generation...')
+    abortController.abort()
   }
 }
 
@@ -562,6 +587,9 @@ async function rewriteToThirdPerson() {
   // Save before rewriting
   await saveStory(true)
 
+  // Create abort controller for cancellation
+  abortController = new AbortController()
+
   try {
     generating.value = true
     generationStatus.value = 'Thinking...'
@@ -574,8 +602,8 @@ async function rewriteToThirdPerson() {
     let rewrittenContent = ''
     let reasoningText = ''
 
-    // Stream rewrite
-    const stream = storiesAPI.rewriteThirdPerson(props.storyId)
+    // Stream rewrite with abort signal
+    const stream = storiesAPI.rewriteThirdPerson(props.storyId, abortController.signal)
 
     for await (const chunk of stream) {
       // Capture prompts
@@ -651,10 +679,17 @@ async function rewriteToThirdPerson() {
     await saveStory(true)
     toast.success('Rewrite complete')
   } catch (error) {
-    console.error('Rewrite error:', error)
-    toast.error('Rewrite failed: ' + error.message)
+    // Check if it was a cancellation
+    if (error.name === 'AbortError' || error.message === 'Generation cancelled') {
+      console.log('Rewrite was cancelled by user')
+      toast.info('Rewrite cancelled')
+    } else {
+      console.error('Rewrite error:', error)
+      toast.error('Rewrite failed: ' + error.message)
+    }
   } finally {
     generating.value = false
+    abortController = null
   }
 }
 
@@ -876,5 +911,10 @@ async function deleteStory() {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.stop-button {
+  margin-left: auto;
+  white-space: nowrap;
 }
 </style>

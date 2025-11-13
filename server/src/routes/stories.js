@@ -453,7 +453,9 @@ function setupSSE(res) {
 /**
  * Helper function to stream generation
  */
-async function streamGeneration(res, provider, preset, context, generationType, params) {
+async function streamGeneration(res, provider, preset, context, generationType, params, abortSignal = null) {
+  console.log(`[streamGeneration] Starting ${generationType}, signal present: ${!!abortSignal}, aborted: ${abortSignal?.aborted}`);
+
   // Build both system and user prompts with proper context management
   const prompts = await provider.buildPrompts(
     {
@@ -488,35 +490,45 @@ async function streamGeneration(res, provider, preset, context, generationType, 
   const capabilities = provider.getCapabilities();
 
   if (capabilities.streaming) {
+    console.log(`[streamGeneration] Using streaming provider, signal: ${!!abortSignal}`);
     // Start streaming generation
     const { stream, metadata } = await provider.generateStreaming(systemPrompt, userPrompt, {
       maxTokens: preset.generationSettings.maxTokens,
-      temperature: preset.generationSettings.temperature
+      temperature: preset.generationSettings.temperature,
+      signal: abortSignal
     });
 
     // Stream chunks
-    for await (const chunk of stream) {
-      // Apply asterisk filtering server-side (core feature - always enabled)
-      let processedContent = chunk.content || null;
-      if (processedContent) {
-        processedContent = processedContent.replace(/\*/g, '');
+    try {
+      for await (const chunk of stream) {
+        // Apply asterisk filtering server-side (core feature - always enabled)
+        let processedContent = chunk.content || null;
+        if (processedContent) {
+          processedContent = processedContent.replace(/\*/g, '');
+        }
+
+        const data = {
+          reasoning: chunk.reasoning || null,
+          content: processedContent,
+          finished: chunk.finished || false,
+        };
+
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+        if (res.flush) res.flush();
       }
-
-      const data = {
-        reasoning: chunk.reasoning || null,
-        content: processedContent,
-        finished: chunk.finished || false,
-      };
-
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-      if (res.flush) res.flush();
+    } catch (error) {
+      if (error.name === 'AbortError' || abortSignal?.aborted) {
+        console.log(`[streamGeneration] Stream aborted`);
+      }
+      throw error;
     }
   } else if (capabilities.requiresPolling) {
     // Handle queue-based providers (AI Horde)
     const streamWithStatus = provider.generateStreamingWithStatus(systemPrompt, userPrompt, {
       maxTokens: preset.generationSettings.maxTokens,
       temperature: preset.generationSettings.temperature,
-      timeout: preset.generationSettings.timeout || 300000
+      timeout: preset.generationSettings.timeout || 300000,
+      signal: abortSignal
     });
 
     for await (const update of streamWithStatus) {
@@ -592,14 +604,31 @@ router.post('/:id/continue', asyncHandler(async (req, res) => {
 
   setupSSE(res);
 
+  // Create abort controller for cancellation support
+  const abortController = new AbortController();
+  console.log(`[Continue] Starting generation for story ${storyId}${characterId ? ` (character: ${characterId})` : ''}`);
+
+  // Handle client disconnection (for SSE, listen to response close event)
+  res.on('close', () => {
+    if (!res.writableEnded && !abortController.signal.aborted) {
+      console.log('[Continue] Client disconnected, aborting generation');
+      abortController.abort();
+    }
+  });
+
   try {
     await streamGeneration(res, provider, preset, context, generationType, {
       characterCards: useCharacterCards,
       characterName
-    });
+    }, abortController.signal);
   } catch (error) {
-    console.error('Generation error:', error);
-    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    if (error.message === 'Generation cancelled' || abortController.signal.aborted) {
+      console.log('[Continue] Generation was cancelled by user');
+      res.write(`data: ${JSON.stringify({ cancelled: true })}\n\n`);
+    } else {
+      console.error('[Continue] Generation error:', error);
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    }
     res.end();
   }
 }));
@@ -618,14 +647,31 @@ router.post('/:id/continue-with-instruction', asyncHandler(async (req, res) => {
 
   setupSSE(res);
 
+  // Create abort controller for cancellation support
+  const abortController = new AbortController();
+  console.log(`[Continue-with-Instruction] Starting generation for story ${storyId}`);
+
+  // Handle client disconnection (for SSE, listen to response close event)
+  res.on('close', () => {
+    if (!res.writableEnded && !abortController.signal.aborted) {
+      console.log('[Continue-with-Instruction] Client disconnected, aborting generation');
+      abortController.abort();
+    }
+  });
+
   try {
     await streamGeneration(res, provider, preset, context, 'instruction', {
       characterCards,
       customInstruction: instruction.trim()
-    });
+    }, abortController.signal);
   } catch (error) {
-    console.error('Generation error:', error);
-    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    if (error.message === 'Generation cancelled' || abortController.signal.aborted) {
+      console.log('[Continue-with-Instruction] Generation was cancelled by user');
+      res.write(`data: ${JSON.stringify({ cancelled: true })}\n\n`);
+    } else {
+      console.error('[Continue-with-Instruction] Generation error:', error);
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    }
     res.end();
   }
 }));
@@ -639,13 +685,30 @@ router.post('/:id/rewrite-third-person', asyncHandler(async (req, res) => {
 
   setupSSE(res);
 
+  // Create abort controller for cancellation support
+  const abortController = new AbortController();
+  console.log(`[Rewrite] Starting third-person rewrite for story ${storyId}`);
+
+  // Handle client disconnection (for SSE, listen to response close event)
+  res.on('close', () => {
+    if (!res.writableEnded && !abortController.signal.aborted) {
+      console.log('[Rewrite] Client disconnected, aborting generation');
+      abortController.abort();
+    }
+  });
+
   try {
     await streamGeneration(res, provider, preset, context, 'rewriteThirdPerson', {
       characterCards
-    });
+    }, abortController.signal);
   } catch (error) {
-    console.error('Generation error:', error);
-    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    if (error.message === 'Generation cancelled' || abortController.signal.aborted) {
+      console.log('[Rewrite] Generation was cancelled by user');
+      res.write(`data: ${JSON.stringify({ cancelled: true })}\n\n`);
+    } else {
+      console.error('[Rewrite] Generation error:', error);
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    }
     res.end();
   }
 }));
