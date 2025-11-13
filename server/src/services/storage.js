@@ -14,6 +14,7 @@ export class StorageService {
     this.storiesDir = path.join(dataRoot, 'stories');
     this.charactersDir = path.join(dataRoot, 'characters');
     this.lorebooksDir = path.join(dataRoot, 'lorebooks');
+    this.presetsDir = path.join(dataRoot, 'presets');
     this.settingsFile = path.join(dataRoot, 'settings.json');
 
     this.initializeStorage();
@@ -27,6 +28,7 @@ export class StorageService {
       await fs.mkdir(this.storiesDir, { recursive: true });
       await fs.mkdir(this.charactersDir, { recursive: true });
       await fs.mkdir(this.lorebooksDir, { recursive: true });
+      await fs.mkdir(this.presetsDir, { recursive: true });
 
       // Create default settings if not exists
       if (!fsSync.existsSync(this.settingsFile)) {
@@ -169,7 +171,8 @@ export class StorageService {
       modified: now,
       characterIds: [],        // Array of character IDs (references to global library)
       personaCharacterId: null, // Optional: use a character as persona for this story
-      lorebookIds: []          // Array of lorebook IDs (references to global library)
+      lorebookIds: [],         // Array of lorebook IDs (references to global library)
+      configPresetId: null     // Optional: configuration preset for this story (null = use default)
     };
 
     await this.writeJSON(path.join(storyPath, 'metadata.json'), metadata);
@@ -657,5 +660,99 @@ export class StorageService {
   async saveSettings(settings) {
     await this.writeJSON(this.settingsFile, settings);
     return settings;
+  }
+
+  // ==================== Preset Operations ====================
+
+  /**
+   * Get preset file path
+   */
+  getPresetPath(presetId) {
+    return path.join(this.presetsDir, `${presetId}.json`);
+  }
+
+  /**
+   * List all configuration presets
+   */
+  async listPresets() {
+    if (!await this.exists(this.presetsDir)) {
+      return [];
+    }
+
+    const files = await fs.readdir(this.presetsDir);
+    const jsonFiles = files.filter(f => f.endsWith('.json'));
+
+    const presets = [];
+    for (const filename of jsonFiles) {
+      const presetId = path.parse(filename).name;
+      const presetPath = this.getPresetPath(presetId);
+
+      try {
+        const data = await this.readJSON(presetPath);
+        presets.push({
+          id: presetId,
+          name: data.name || 'Untitled',
+          provider: data.provider || 'deepseek',
+          isDefault: data.isDefault || false
+        });
+      } catch (error) {
+        console.error(`Failed to read preset ${presetId}:`, error);
+      }
+    }
+
+    return presets;
+  }
+
+  /**
+   * Get preset data
+   */
+  async getPreset(presetId) {
+    const presetPath = this.getPresetPath(presetId);
+
+    if (!await this.exists(presetPath)) {
+      throw new Error(`Preset not found: ${presetId}`);
+    }
+
+    return await this.readJSON(presetPath);
+  }
+
+  /**
+   * Save preset data
+   */
+  async savePreset(presetId, presetData) {
+    const presetPath = this.getPresetPath(presetId);
+    await this.writeJSON(presetPath, presetData);
+    return { id: presetId };
+  }
+
+  /**
+   * Delete preset
+   */
+  async deletePreset(presetId) {
+    const presetPath = this.getPresetPath(presetId);
+
+    if (await this.exists(presetPath)) {
+      await fs.unlink(presetPath);
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Get default preset ID from settings
+   */
+  async getDefaultPresetId() {
+    const settings = await this.getSettings();
+    return settings?.defaultPresetId || null;
+  }
+
+  /**
+   * Set default preset ID in settings
+   */
+  async setDefaultPresetId(presetId) {
+    const settings = await this.getSettings() || {};
+    settings.defaultPresetId = presetId;
+    await this.saveSettings(settings);
+    return { success: true };
   }
 }

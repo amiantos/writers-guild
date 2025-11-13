@@ -375,9 +375,58 @@ export const settingsAPI = {
   },
 }
 
+// Presets API
+export const presetsAPI = {
+  list() {
+    return request('/presets')
+  },
+
+  get(presetId) {
+    return request(`/presets/${presetId}`)
+  },
+
+  create(presetData) {
+    return request('/presets', {
+      method: 'POST',
+      body: JSON.stringify(presetData),
+    })
+  },
+
+  update(presetId, presetData) {
+    return request(`/presets/${presetId}`, {
+      method: 'PUT',
+      body: JSON.stringify(presetData),
+    })
+  },
+
+  delete(presetId) {
+    return request(`/presets/${presetId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  getDefaultId() {
+    return request('/presets/default/id')
+  },
+
+  setDefaultId(presetId) {
+    return request('/presets/default/id', {
+      method: 'PUT',
+      body: JSON.stringify({ presetId }),
+    })
+  },
+
+  initializeDefaults() {
+    return request('/presets/initialize-defaults', {
+      method: 'POST',
+    })
+  },
+}
+
 export default {
   stories: storiesAPI,
   characters: charactersAPI,
   lorebooks: lorebooksAPI,
   settings: settingsAPI,
+  presets: presetsAPI,
 }
