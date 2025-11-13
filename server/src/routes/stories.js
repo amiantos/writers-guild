@@ -454,6 +454,8 @@ function setupSSE(res) {
  * Helper function to stream generation
  */
 async function streamGeneration(res, provider, preset, context, generationType, params, abortSignal = null) {
+  console.log(`[streamGeneration] Starting ${generationType}, signal present: ${!!abortSignal}, aborted: ${abortSignal?.aborted}`);
+
   // Build both system and user prompts with proper context management
   const prompts = await provider.buildPrompts(
     {
@@ -488,6 +490,7 @@ async function streamGeneration(res, provider, preset, context, generationType, 
   const capabilities = provider.getCapabilities();
 
   if (capabilities.streaming) {
+    console.log(`[streamGeneration] Using streaming provider, signal: ${!!abortSignal}`);
     // Start streaming generation
     const { stream, metadata } = await provider.generateStreaming(systemPrompt, userPrompt, {
       maxTokens: preset.generationSettings.maxTokens,
@@ -496,21 +499,28 @@ async function streamGeneration(res, provider, preset, context, generationType, 
     });
 
     // Stream chunks
-    for await (const chunk of stream) {
-      // Apply asterisk filtering server-side (core feature - always enabled)
-      let processedContent = chunk.content || null;
-      if (processedContent) {
-        processedContent = processedContent.replace(/\*/g, '');
+    try {
+      for await (const chunk of stream) {
+        // Apply asterisk filtering server-side (core feature - always enabled)
+        let processedContent = chunk.content || null;
+        if (processedContent) {
+          processedContent = processedContent.replace(/\*/g, '');
+        }
+
+        const data = {
+          reasoning: chunk.reasoning || null,
+          content: processedContent,
+          finished: chunk.finished || false,
+        };
+
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+        if (res.flush) res.flush();
       }
-
-      const data = {
-        reasoning: chunk.reasoning || null,
-        content: processedContent,
-        finished: chunk.finished || false,
-      };
-
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-      if (res.flush) res.flush();
+    } catch (error) {
+      if (error.name === 'AbortError' || abortSignal?.aborted) {
+        console.log(`[streamGeneration] Stream aborted`);
+      }
+      throw error;
     }
   } else if (capabilities.requiresPolling) {
     // Handle queue-based providers (AI Horde)
@@ -598,9 +608,9 @@ router.post('/:id/continue', asyncHandler(async (req, res) => {
   const abortController = new AbortController();
   console.log(`[Continue] Starting generation for story ${storyId}${characterId ? ` (character: ${characterId})` : ''}`);
 
-  // Handle client disconnection
-  req.on('close', () => {
-    if (!res.writableEnded) {
+  // Handle client disconnection (for SSE, listen to response close event)
+  res.on('close', () => {
+    if (!res.writableEnded && !abortController.signal.aborted) {
       console.log('[Continue] Client disconnected, aborting generation');
       abortController.abort();
     }
@@ -641,9 +651,9 @@ router.post('/:id/continue-with-instruction', asyncHandler(async (req, res) => {
   const abortController = new AbortController();
   console.log(`[Continue-with-Instruction] Starting generation for story ${storyId}`);
 
-  // Handle client disconnection
-  req.on('close', () => {
-    if (!res.writableEnded) {
+  // Handle client disconnection (for SSE, listen to response close event)
+  res.on('close', () => {
+    if (!res.writableEnded && !abortController.signal.aborted) {
       console.log('[Continue-with-Instruction] Client disconnected, aborting generation');
       abortController.abort();
     }
@@ -679,9 +689,9 @@ router.post('/:id/rewrite-third-person', asyncHandler(async (req, res) => {
   const abortController = new AbortController();
   console.log(`[Rewrite] Starting third-person rewrite for story ${storyId}`);
 
-  // Handle client disconnection
-  req.on('close', () => {
-    if (!res.writableEnded) {
+  // Handle client disconnection (for SSE, listen to response close event)
+  res.on('close', () => {
+    if (!res.writableEnded && !abortController.signal.aborted) {
       console.log('[Rewrite] Client disconnected, aborting generation');
       abortController.abort();
     }

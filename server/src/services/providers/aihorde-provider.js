@@ -300,6 +300,7 @@ export class AIHordeProvider extends LLMProvider {
   async *generateStreamingWithStatus(systemPrompt, userPrompt, options = {}) {
     // Submit request
     const requestId = await this.submitRequest(systemPrompt, userPrompt, options);
+    console.log(`[AI Horde] Started polling for request ${requestId}, signal present: ${!!options.signal}`);
 
     // Poll for completion and yield status updates
     const timeout = options.timeout || 300000;
@@ -352,8 +353,31 @@ export class AIHordeProvider extends LLMProvider {
           return;
         }
 
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, this.pollingInterval));
+        // Wait before next poll, but check abort signal during wait
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(resolve, this.pollingInterval);
+
+          // If abort signal exists, listen for abort during wait
+          if (options.signal) {
+            const onAbort = () => {
+              clearTimeout(timer);
+              console.log(`[AI Horde] Abort signal received during wait for request ${requestId}`);
+              reject(new Error('Generation cancelled'));
+            };
+
+            if (options.signal.aborted) {
+              clearTimeout(timer);
+              reject(new Error('Generation cancelled'));
+            } else {
+              options.signal.addEventListener('abort', onAbort, { once: true });
+              // Clean up listener when timer completes
+              timer.unref?.(); // Allow process to exit if needed
+              setTimeout(() => {
+                options.signal.removeEventListener('abort', onAbort);
+              }, this.pollingInterval);
+            }
+          }
+        });
       }
     } catch (error) {
       // Clean up request on error
