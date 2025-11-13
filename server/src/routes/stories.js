@@ -5,9 +5,11 @@
 import express from 'express';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { StorageService } from '../services/storage.js';
-import { DeepSeekAPI } from '../services/deepseek-api.js';
+import { PromptBuilder } from '../services/prompt-builder.js';
 import { MacroProcessor } from '../services/macro-processor.js';
 import { LorebookActivator } from '../services/lorebook-activator.js';
+import { getProvider } from '../services/provider-factory.js';
+import { createPresetFromSettings } from '../services/default-presets.js';
 
 const router = express.Router();
 
@@ -60,11 +62,12 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 // Update story metadata
 router.put('/:id', asyncHandler(async (req, res) => {
-  const { title, description } = req.body;
+  const { title, description, configPresetId } = req.body;
   const updates = {};
 
   if (title !== undefined) updates.title = title.trim();
   if (description !== undefined) updates.description = description.trim();
+  if (configPresetId !== undefined) updates.configPresetId = configPresetId;
 
   if (Object.keys(updates).length === 0) {
     throw new AppError('No updates provided', 400);
@@ -188,14 +191,14 @@ router.post('/:id/characters', asyncHandler(async (req, res) => {
 
     if (characterCard.data?.first_mes) {
       const settings = await storage.getSettings();
-      const deepseek = new DeepSeekAPI(settings.apiKey || 'dummy');
+      const promptBuilder = new PromptBuilder();
       const macroProcessor = new MacroProcessor({
         userName: persona?.name || 'User',
         charName: characterCard.data?.name || 'Character'
       });
 
       let processed = characterCard.data.first_mes;
-      processed = deepseek.replacePlaceholders(processed, characterCard, persona);
+      processed = promptBuilder.replacePlaceholders(processed, characterCard, persona);
       processed = macroProcessor.process(processed);
 
       processedFirstMessage = processed;
@@ -246,8 +249,8 @@ router.get('/:id/characters/:characterId/greetings', asyncHandler(async (req, re
   // Load settings for filtering
   const settings = await storage.getSettings();
 
-  // Initialize processors (API key not needed for text processing)
-  const deepseek = new DeepSeekAPI(settings.apiKey || 'dummy');
+  // Initialize processors for text processing
+  const promptBuilder = new PromptBuilder();
   const macroProcessor = new MacroProcessor({
     userName: persona?.name || 'User',
     charName: characterCard.data?.name || 'Character'
@@ -259,7 +262,7 @@ router.get('/:id/characters/:characterId/greetings', asyncHandler(async (req, re
   // Add first_mes as first greeting
   if (characterCard.data?.first_mes) {
     let processed = characterCard.data.first_mes;
-    processed = deepseek.replacePlaceholders(processed, characterCard, persona);
+    processed = promptBuilder.replacePlaceholders(processed, characterCard, persona);
     processed = macroProcessor.process(processed);
 
     greetings.push({
@@ -274,7 +277,7 @@ router.get('/:id/characters/:characterId/greetings', asyncHandler(async (req, re
   if (characterCard.data?.alternate_greetings && Array.isArray(characterCard.data.alternate_greetings)) {
     characterCard.data.alternate_greetings.forEach((greeting, idx) => {
       let processed = greeting;
-      processed = deepseek.replacePlaceholders(processed, characterCard, persona);
+      processed = promptBuilder.replacePlaceholders(processed, characterCard, persona);
       processed = macroProcessor.process(processed);
 
       greetings.push({
@@ -330,14 +333,43 @@ router.delete('/:id/lorebooks/:lorebookId', asyncHandler(async (req, res) => {
  * Helper function to load all context needed for generation
  */
 async function loadGenerationContext(storyId) {
-  // Load settings
-  const settings = await storage.getSettings();
-  if (!settings || !settings.apiKey) {
-    throw new AppError('DeepSeek API key not configured', 400);
-  }
-
   // Load story
   const story = await storage.getStory(storyId);
+
+  // Load preset configuration (story-specific or default)
+  let preset = null;
+  let presetId = story.configPresetId;
+
+  // If story doesn't have a preset, use default
+  if (!presetId) {
+    presetId = await storage.getDefaultPresetId();
+  }
+
+  // If still no preset, try to create one from legacy settings (migration path)
+  if (!presetId) {
+    const settings = await storage.getSettings();
+    if (settings && settings.apiKey) {
+      console.log('No preset found, using legacy settings (migration needed)');
+      preset = createPresetFromSettings(settings);
+    } else {
+      throw new AppError('No configuration preset found and no API key configured. Please configure a preset in settings.', 400);
+    }
+  } else {
+    // Load preset
+    try {
+      preset = await storage.getPreset(presetId);
+    } catch (error) {
+      throw new AppError(`Failed to load configuration preset: ${error.message}`, 400);
+    }
+  }
+
+  // Create provider instance
+  let provider;
+  try {
+    provider = getProvider(preset);
+  } catch (error) {
+    throw new AppError(`Failed to initialize provider: ${error.message}`, 400);
+  }
 
   // Load persona
   let persona = null;
@@ -359,7 +391,7 @@ async function loadGenerationContext(storyId) {
   for (const charId of story.characterIds || []) {
     try {
       const cardData = await storage.getCharacter(charId);
-      characterCards.push({ id: charId, data: cardData });
+      characterCards.push(cardData);
     } catch (error) {
       console.error(`Failed to load character ${charId}:`, error);
     }
@@ -380,7 +412,14 @@ async function loadGenerationContext(storyId) {
       }
 
       if (lorebooks.length > 0) {
-        const activator = new LorebookActivator(settings);
+        // Use lorebook settings from preset
+        const lorebookSettings = preset.lorebookSettings || {
+          lorebookScanDepth: 2000,
+          lorebookTokenBudget: 1800,
+          lorebookRecursionDepth: 3,
+          lorebookEnableRecursion: true
+        };
+        const activator = new LorebookActivator(lorebookSettings);
         activatedLorebooks = activator.activate(lorebooks, story.content || '');
         console.log(`Activated ${activatedLorebooks.length} lorebook entries from ${lorebooks.length} lorebook(s)`);
       }
@@ -390,7 +429,8 @@ async function loadGenerationContext(storyId) {
   }
 
   return {
-    settings,
+    preset,
+    provider,
     story,
     persona,
     characterCards,
@@ -413,43 +453,111 @@ function setupSSE(res) {
 /**
  * Helper function to stream generation
  */
-async function streamGeneration(res, deepseek, prompt, options, settings) {
-  // Send prompts for debugging
-  const systemPrompt = deepseek.buildSystemPrompt(
-    options.characterCard,
-    options.persona,
-    settings,
-    options.allCharacterCards,
-    options.lorebookEntries
+async function streamGeneration(res, provider, preset, context, generationType, params) {
+  // Build both system and user prompts with proper context management
+  const prompts = await provider.buildPrompts(
+    {
+      persona: context.persona,
+      characterCards: params.characterCards || [],
+      activatedLorebooks: context.activatedLorebooks || [],
+      story: context.story,
+      settings: preset.generationSettings
+    },
+    generationType,
+    {
+      characterName: params.characterName,
+      customInstruction: params.customInstruction,
+      templateText: preset.promptTemplates?.[generationType]
+    },
+    preset
   );
 
+  const { system: systemPrompt, user: userPrompt } = prompts;
+
+  // Send prompts for debugging
   res.write(`data: ${JSON.stringify({
     prompts: {
       system: systemPrompt,
-      user: prompt
+      user: userPrompt
     }
   })}\n\n`);
 
   if (res.flush) res.flush();
 
-  // Start generation
-  const { stream } = await deepseek.generateStreaming(prompt, options);
+  // Check if provider supports streaming
+  const capabilities = provider.getCapabilities();
 
-  // Stream chunks
-  for await (const chunk of stream) {
-    // Apply asterisk filtering server-side (core feature - always enabled)
-    let processedContent = chunk.content || null;
-    if (processedContent) {
-      processedContent = processedContent.replace(/\*/g, '');
+  if (capabilities.streaming) {
+    // Start streaming generation
+    const { stream, metadata } = await provider.generateStreaming(systemPrompt, userPrompt, {
+      maxTokens: preset.generationSettings.maxTokens,
+      temperature: preset.generationSettings.temperature
+    });
+
+    // Stream chunks
+    for await (const chunk of stream) {
+      // Apply asterisk filtering server-side (core feature - always enabled)
+      let processedContent = chunk.content || null;
+      if (processedContent) {
+        processedContent = processedContent.replace(/\*/g, '');
+      }
+
+      const data = {
+        reasoning: chunk.reasoning || null,
+        content: processedContent,
+        finished: chunk.finished || false,
+      };
+
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+      if (res.flush) res.flush();
     }
+  } else if (capabilities.requiresPolling) {
+    // Handle queue-based providers (AI Horde)
+    const streamWithStatus = provider.generateStreamingWithStatus(systemPrompt, userPrompt, {
+      maxTokens: preset.generationSettings.maxTokens,
+      temperature: preset.generationSettings.temperature,
+      timeout: preset.generationSettings.timeout || 300000
+    });
 
-    const data = {
-      reasoning: chunk.reasoning || null,
+    for await (const update of streamWithStatus) {
+      if (update.type === 'status') {
+        // Send queue status updates
+        res.write(`data: ${JSON.stringify({
+          queueStatus: {
+            position: update.queuePosition,
+            waitTime: update.waitTime,
+            finished: update.finished,
+            faulted: update.faulted
+          }
+        })}\n\n`);
+      } else if (update.type === 'complete') {
+        // Send final content
+        let processedContent = update.content || '';
+        processedContent = processedContent.replace(/\*/g, '');
+
+        res.write(`data: ${JSON.stringify({
+          content: processedContent,
+          finished: true
+        })}\n\n`);
+      }
+
+      if (res.flush) res.flush();
+    }
+  } else {
+    // Fallback: non-streaming generation
+    const result = await provider.generate(systemPrompt, userPrompt, {
+      maxTokens: preset.generationSettings.maxTokens,
+      temperature: preset.generationSettings.temperature
+    });
+
+    let processedContent = result.content || '';
+    processedContent = processedContent.replace(/\*/g, '');
+
+    res.write(`data: ${JSON.stringify({
+      reasoning: result.reasoning || null,
       content: processedContent,
-      finished: chunk.finished || false,
-    };
-
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+      finished: true
+    })}\n\n`);
     if (res.flush) res.flush();
   }
 
@@ -465,44 +573,30 @@ router.post('/:id/continue', asyncHandler(async (req, res) => {
   const { characterId } = req.query; // Optional: generate for specific character
 
   const context = await loadGenerationContext(storyId);
-  const { settings, story, persona, characterCards, activatedLorebooks } = context;
+  const { preset, provider, characterCards } = context;
 
-  const deepseek = new DeepSeekAPI(settings.apiKey);
-
-  // Determine character usage
-  let characterCard = null;
-  let allCharacterCards = null;
+  // Determine which characters to use and generation type
+  let generationType = 'continue';
+  let characterName = null;
+  let useCharacterCards = characterCards;
 
   if (characterId) {
     // Character-specific generation
-    const selectedChar = characterCards.find(c => c.id === characterId);
-    characterCard = selectedChar ? selectedChar.data : (characterCards.length > 0 ? characterCards[0].data : null);
-  } else {
-    // Story continuation - include all characters
-    allCharacterCards = characterCards.map(c => c.data);
-    characterCard = characterCards.length > 0 ? characterCards[0].data : null;
+    generationType = 'character';
+    const selectedChar = characterCards.find(c => c.data.name === characterId || c.id === characterId);
+    if (selectedChar) {
+      characterName = selectedChar.data?.name;
+      useCharacterCards = [selectedChar];
+    }
   }
-
-  // Build prompt for continuation
-  const { fullPrompt } = deepseek.buildGenerationPrompt(characterId ? 'character' : 'continue', {
-    characterCard,
-    allCharacterCards,
-    currentContent: story.content,
-    persona,
-  });
 
   setupSSE(res);
 
   try {
-    await streamGeneration(res, deepseek, fullPrompt, {
-      characterCard,
-      allCharacterCards,
-      persona,
-      lorebookEntries: activatedLorebooks,
-      maxTokens: settings.maxTokens || 4000,
-      temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
-      settings,
-    }, settings);
+    await streamGeneration(res, provider, preset, context, generationType, {
+      characterCards: useCharacterCards,
+      characterName
+    });
   } catch (error) {
     console.error('Generation error:', error);
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
@@ -520,35 +614,15 @@ router.post('/:id/continue-with-instruction', asyncHandler(async (req, res) => {
   }
 
   const context = await loadGenerationContext(storyId);
-  const { settings, story, persona, characterCards, activatedLorebooks } = context;
-
-  const deepseek = new DeepSeekAPI(settings.apiKey);
-
-  // Include all characters
-  const allCharacterCards = characterCards.map(c => c.data);
-  const characterCard = characterCards.length > 0 ? characterCards[0].data : null;
-
-  // Build prompt with custom instruction
-  const { fullPrompt } = deepseek.buildGenerationPrompt('custom', {
-    characterCard,
-    allCharacterCards,
-    currentContent: story.content,
-    customPrompt: `Continue the story naturally from where it left off. Write the next 2-3 paragraphs maximum, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters. The user provided the following guidance of what they wish to see happen next: ${instruction.trim()}`,
-    persona,
-  });
+  const { preset, provider, characterCards } = context;
 
   setupSSE(res);
 
   try {
-    await streamGeneration(res, deepseek, fullPrompt, {
-      characterCard,
-      allCharacterCards,
-      persona,
-      lorebookEntries: activatedLorebooks,
-      maxTokens: settings.maxTokens || 4000,
-      temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
-      settings,
-    }, settings);
+    await streamGeneration(res, provider, preset, context, 'instruction', {
+      characterCards,
+      customInstruction: instruction.trim()
+    });
   } catch (error) {
     console.error('Generation error:', error);
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
@@ -561,37 +635,14 @@ router.post('/:id/rewrite-third-person', asyncHandler(async (req, res) => {
   const { id: storyId } = req.params;
 
   const context = await loadGenerationContext(storyId);
-  const { settings, story, persona, characterCards, activatedLorebooks } = context;
-
-  const deepseek = new DeepSeekAPI(settings.apiKey);
-
-  // Include all characters
-  const allCharacterCards = characterCards.map(c => c.data);
-  const characterCard = characterCards.length > 0 ? characterCards[0].data : null;
-
-  // Build rewrite prompt (server owns this logic)
-  const rewriteInstruction = `Rewrite the following text to be in third person narrative perspective. Maintain all the story beats, dialogue, and events, but convert first person ("I", "me") and second person ("you") references to third person ("he", "she", "they"). Keep the writing style and tone consistent, but feel free to correct egregious issues with grammar, punctuation, and spelling.`;
-
-  const { fullPrompt } = deepseek.buildGenerationPrompt('custom', {
-    characterCard,
-    allCharacterCards,
-    currentContent: story.content,
-    customPrompt: rewriteInstruction,
-    persona,
-  });
+  const { preset, provider, characterCards } = context;
 
   setupSSE(res);
 
   try {
-    await streamGeneration(res, deepseek, fullPrompt, {
-      characterCard,
-      allCharacterCards,
-      persona,
-      lorebookEntries: activatedLorebooks,
-      maxTokens: settings.maxTokens || 4000,
-      temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
-      settings,
-    }, settings);
+    await streamGeneration(res, provider, preset, context, 'rewriteThirdPerson', {
+      characterCards
+    });
   } catch (error) {
     console.error('Generation error:', error);
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);

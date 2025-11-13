@@ -21,6 +21,10 @@ import storiesRouter from './src/routes/stories.js';
 import charactersRouter from './src/routes/characters.js';
 import settingsRouter from './src/routes/settings.js';
 import lorebooksRouter from './src/routes/lorebooks.js';
+import presetsRouter from './src/routes/presets.js';
+
+// Import migration service
+import { runMigration } from './src/services/migration.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -47,6 +51,19 @@ if (!fs.existsSync(DATA_ROOT)) {
   fs.mkdirSync(DATA_ROOT, { recursive: true });
   console.log(`Created data directory: ${DATA_ROOT}`);
 }
+
+// Run migration on startup
+(async () => {
+  try {
+    const migrationResult = await runMigration(DATA_ROOT);
+    if (migrationResult.migrated) {
+      console.log(`✓ ${migrationResult.message}`);
+    }
+  } catch (error) {
+    console.error('Migration error:', error);
+    // Don't fail server start on migration error
+  }
+})();
 
 // Security middleware
 app.use(helmet({
@@ -84,6 +101,7 @@ app.use('/api/stories', storiesRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/lorebooks', lorebooksRouter);
+app.use('/api/presets', presetsRouter);
 
 // Check if we're in production (built client exists)
 const publicPath = path.join(__dirname, 'public');

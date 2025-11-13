@@ -95,6 +95,33 @@
           @delete="deleteLorebook"
         />
       </template>
+
+      <!-- Presets Tab -->
+      <template #tab-presets>
+        <div class="section-header">
+          <h2><i class="fas fa-sliders"></i> Configuration Presets</h2>
+          <button class="btn btn-primary" @click="createNewPreset">
+            <i class="fas fa-plus"></i> New Preset
+          </button>
+        </div>
+
+        <div v-if="loadingPresets" class="loading">Loading presets...</div>
+
+        <div v-else-if="presets.length === 0" class="empty-state">
+          <i class="fas fa-sliders"></i>
+          <p>No presets yet. Create a preset to get started!</p>
+        </div>
+
+        <PresetsTable
+          v-else
+          :presets="presets"
+          :default-preset-id="defaultPresetId"
+          @edit="editPreset"
+          @duplicate="duplicatePreset"
+          @delete="deletePreset"
+          @set-default="setDefaultPreset"
+        />
+      </template>
     </Tabs>
       </div>
     </main>
@@ -137,24 +164,34 @@
       @close="showImportLorebookModal = false"
       @imported="handleLorebookImported"
     />
+
+    <!-- Preset Editor Modal -->
+    <PresetEditorModal
+      v-if="showPresetEditorModal"
+      :preset="editingPreset"
+      @close="showPresetEditorModal = false; editingPreset = null"
+      @saved="handlePresetSaved"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { storiesAPI, charactersAPI, lorebooksAPI } from '../services/api'
+import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useConfirm } from '../composables/useConfirm'
 import Tabs from '../components/Tabs.vue'
 import StoriesTable from '../components/StoriesTable.vue'
 import CharactersTable from '../components/CharactersTable.vue'
 import LorebooksTable from '../components/LorebooksTable.vue'
+import PresetsTable from '../components/PresetsTable.vue'
 import CharacterStoriesModal from '../components/CharacterStoriesModal.vue'
 import CreateCharacterModal from '../components/CreateCharacterModal.vue'
 import ImportCharacterModal from '../components/ImportCharacterModal.vue'
 import CreateLorebookModal from '../components/CreateLorebookModal.vue'
 import ImportLorebookModal from '../components/ImportLorebookModal.vue'
+import PresetEditorModal from '../components/PresetEditorModal.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -163,9 +200,12 @@ const { confirm } = useConfirm()
 const stories = ref([])
 const characters = ref([])
 const lorebooks = ref([])
+const presets = ref([])
+const defaultPresetId = ref(null)
 const loadingStories = ref(true)
 const loadingCharacters = ref(true)
 const loadingLorebooks = ref(true)
+const loadingPresets = ref(true)
 
 // Character Stories Modal
 const showCharacterStoriesModal = ref(false)
@@ -179,6 +219,10 @@ const showImportCharacterModal = ref(false)
 const showCreateLorebookModal = ref(false)
 const showImportLorebookModal = ref(false)
 
+// Preset Editor Modal
+const showPresetEditorModal = ref(false)
+const editingPreset = ref(null)
+
 const characterStoriesForModal = computed(() => {
   if (!selectedCharacter.value) return []
   return stories.value.filter(story =>
@@ -191,7 +235,8 @@ const characterStoriesForModal = computed(() => {
 const tabs = [
   { key: 'stories', label: 'Stories', icon: 'fas fa-book' },
   { key: 'characters', label: 'Characters', icon: 'fas fa-users' },
-  { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' }
+  { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' },
+  { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' }
 ]
 
 // Active tab with localStorage persistence
@@ -204,7 +249,7 @@ watch(activeTab, (newTab) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadStories(), loadCharacters(), loadLorebooks()])
+  await Promise.all([loadStories(), loadCharacters(), loadLorebooks(), loadPresets()])
 })
 
 async function loadStories() {
@@ -387,6 +432,95 @@ async function handleLorebookImported(lorebook) {
   await loadLorebooks()
   // Switch to lorebooks tab if not already there
   activeTab.value = 'lorebooks'
+}
+
+async function loadPresets() {
+  try {
+    const [presetsData, defaultData] = await Promise.all([
+      presetsAPI.list(),
+      presetsAPI.getDefaultId()
+    ])
+    presets.value = presetsData.presets || []
+    defaultPresetId.value = defaultData.defaultPresetId
+  } catch (error) {
+    console.error('Error loading presets:', error)
+  } finally {
+    loadingPresets.value = false
+  }
+}
+
+function createNewPreset() {
+  editingPreset.value = null
+  showPresetEditorModal.value = true
+}
+
+function editPreset(presetId) {
+  editingPreset.value = presets.value.find(p => p.id === presetId)
+  showPresetEditorModal.value = true
+}
+
+async function duplicatePreset(presetId) {
+  try {
+    const originalPreset = presets.value.find(p => p.id === presetId)
+    if (!originalPreset) {
+      throw new Error('Preset not found')
+    }
+
+    const duplicateData = {
+      ...originalPreset,
+      name: `${originalPreset.name} (Copy)`
+    }
+    delete duplicateData.id
+
+    await presetsAPI.create(duplicateData)
+    await loadPresets()
+    toast.success('Preset duplicated successfully')
+  } catch (error) {
+    console.error('Error duplicating preset:', error)
+    toast.error('Failed to duplicate preset: ' + error.message)
+  }
+}
+
+async function deletePreset(preset) {
+  if (preset.id === defaultPresetId.value) {
+    toast.error('Cannot delete the default preset. Set another preset as default first.')
+    return
+  }
+
+  const confirmed = await confirm({
+    message: `Delete preset "${preset.name}"?\n\nThis cannot be undone.`,
+    confirmText: 'Delete Preset',
+    variant: 'danger'
+  })
+
+  if (!confirmed) return
+
+  try {
+    await presetsAPI.delete(preset.id)
+    presets.value = presets.value.filter(p => p.id !== preset.id)
+    toast.success('Preset deleted successfully')
+  } catch (error) {
+    console.error('Error deleting preset:', error)
+    toast.error('Failed to delete preset: ' + error.message)
+  }
+}
+
+async function setDefaultPreset(presetId) {
+  try {
+    await presetsAPI.setDefaultId(presetId)
+    defaultPresetId.value = presetId
+    toast.success('Default preset updated')
+  } catch (error) {
+    console.error('Error setting default preset:', error)
+    toast.error('Failed to set default preset: ' + error.message)
+  }
+}
+
+async function handlePresetSaved() {
+  showPresetEditorModal.value = false
+  editingPreset.value = null
+  await loadPresets()
+  toast.success('Preset saved successfully')
 }
 
 function goToSettings() {

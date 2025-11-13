@@ -76,79 +76,8 @@
           </div>
         </section>
 
-        <!-- API Configuration Section -->
-        <section class="edit-section">
-          <div class="section-header">
-            <h2>API Configuration</h2>
-          </div>
-          <div class="section-content">
-            <div class="form-group">
-              <label for="apiKey">DeepSeek API Key</label>
-              <input
-                id="apiKey"
-                v-model="settings.apiKey"
-                type="password"
-                class="text-input"
-                placeholder="sk-..."
-              />
-              <p class="help-text">
-                Your API key is stored locally and never sent anywhere except DeepSeek's API.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <!-- Generation Settings Section -->
-        <section class="edit-section">
-          <div class="section-header">
-            <h2>Generation Settings</h2>
-          </div>
-          <div class="section-content">
-            <div class="form-group">
-              <label for="maxTokens">Max Tokens per Generation</label>
-              <input
-                id="maxTokens"
-                v-model.number="settings.maxTokens"
-                type="number"
-                class="text-input"
-                min="100"
-                max="8000"
-              />
-              <p class="help-text">
-                Higher values allow longer generations but cost more.
-              </p>
-            </div>
-
-            <div class="form-group">
-              <label for="temperature">Temperature</label>
-              <input
-                id="temperature"
-                v-model.number="settings.temperature"
-                type="number"
-                class="text-input"
-                min="0"
-                max="2"
-                step="0.1"
-              />
-              <p class="help-text">
-                Controls randomness: 0.0 (deterministic) to 1.5 (creative). Recommended for creative writing: 1.5
-              </p>
-            </div>
-
-            <div class="checkbox-group">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="settings.includeDialogueExamples" />
-                <span>Include dialogue examples</span>
-              </label>
-              <p class="help-text">
-                Include the character card's dialogue examples (mes_example) in prompts. Disable if examples are too directive.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <!-- Lorebook Settings Section -->
-        <section class="edit-section">
+        <!-- Legacy Lorebook Settings Section (if needed for backwards compat) -->
+        <section v-if="false" class="edit-section">
           <div class="section-header">
             <h2>Lorebook Settings</h2>
           </div>
@@ -431,6 +360,13 @@ async function saveSettings() {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+}
+
+.section-description {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 .form-group {

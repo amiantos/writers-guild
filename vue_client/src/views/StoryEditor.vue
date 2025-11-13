@@ -32,18 +32,17 @@
         </button>
         <button
           class="icon-btn"
+          @click="showPresetSelector = true"
+          title="Configuration Preset"
+        >
+          <i class="fas fa-sliders"></i>
+        </button>
+        <button
+          class="icon-btn"
           @click="deleteStory"
           title="Delete Story"
         >
           <i class="fas fa-trash"></i>
-        </button>
-        <button
-          class="icon-btn"
-          @click="saveStory"
-          :title="hasUnsavedChanges ? 'Save changes' : 'All changes saved'"
-        >
-          <i v-if="hasUnsavedChanges" class="fas fa-floppy-disk"></i>
-          <i v-else class="fas fa-check"></i>
         </button>
         <button
           class="icon-btn"
@@ -87,6 +86,14 @@
         <!-- Toolbar Buttons -->
         <div v-else class="toolbar-main-buttons">
           <button
+            class="btn btn-secondary icon-btn"
+            @click="saveStory"
+            :title="hasUnsavedChanges ? 'Save changes' : 'All changes saved'"
+          >
+            <i v-if="hasUnsavedChanges" class="fas fa-floppy-disk"></i>
+            <i v-else class="fas fa-check"></i>
+          </button>
+          <button
             class="btn btn-primary"
             :disabled="!story || storyCharacters.length === 0"
             @click="handleCharacterResponse"
@@ -119,6 +126,14 @@
             <button class="overflow-menu-item" @click="showGreetingSelector = true">
               <i class="fas fa-message"></i>
               <span>Select Greeting</span>
+            </button>
+            <button
+              class="overflow-menu-item"
+              :disabled="storyCharacters.length === 0"
+              @click="showFloatingAvatar = true"
+            >
+              <i class="fas fa-image"></i>
+              <span>Show Character Avatar</span>
             </button>
             <button class="overflow-menu-item" @click="rewriteToThirdPerson">
               <i class="fas fa-repeat"></i>
@@ -193,6 +208,21 @@
       @close="showRenameStory = false"
       @updated="handleStoryUpdated"
     />
+
+    <StoryPresetModal
+      v-if="showPresetSelector"
+      :story-id="props.storyId"
+      :current-preset-id="story?.configPresetId"
+      @close="showPresetSelector = false"
+      @updated="handleStoryUpdated"
+    />
+
+    <!-- Floating Avatar Window -->
+    <FloatingAvatarWindow
+      v-if="showFloatingAvatar && firstCharacter"
+      :character="firstCharacter"
+      @close="showFloatingAvatar = false"
+    />
   </div>
 </template>
 
@@ -212,6 +242,8 @@ import CustomPromptModal from '../components/CustomPromptModal.vue'
 import ManageCharactersModal from '../components/ManageCharactersModal.vue'
 import ManageLorebooksModal from '../components/ManageLorebooksModal.vue'
 import RenameStoryModal from '../components/RenameStoryModal.vue'
+import StoryPresetModal from '../components/StoryPresetModal.vue'
+import FloatingAvatarWindow from '../components/FloatingAvatarWindow.vue'
 
 const props = defineProps({
   storyId: {
@@ -243,12 +275,27 @@ const showCustomPromptModal = ref(false)
 const showManageCharacters = ref(false)
 const showManageLorebooks = ref(false)
 const showRenameStory = ref(false)
+const showPresetSelector = ref(false)
+
+// Load floating avatar state from localStorage
+const FLOATING_AVATAR_KEY = 'ursceal-floating-avatar-open'
+const showFloatingAvatar = ref(localStorage.getItem(FLOATING_AVATAR_KEY) === 'true')
+
 const storyCharacters = ref([])
 const shouldShowReasoning = ref(false) // Setting from server
 
 // Computed
 const hasUnsavedChanges = computed(() => {
   return content.value !== originalContent.value
+})
+
+const firstCharacter = computed(() => {
+  return storyCharacters.value.length > 0 ? storyCharacters.value[0] : null
+})
+
+// Save floating avatar state to localStorage when it changes
+watch(showFloatingAvatar, (isOpen) => {
+  localStorage.setItem(FLOATING_AVATAR_KEY, isOpen.toString())
 })
 
 // Auto-save
@@ -258,6 +305,11 @@ onMounted(async () => {
   await loadStory()
   await Promise.all([loadCharacters(), loadSettings()])
   startAutoSave()
+
+  // Ensure floating avatar is hidden if there are no characters
+  if (showFloatingAvatar.value && !firstCharacter.value) {
+    showFloatingAvatar.value = false
+  }
 })
 
 onUnmounted(() => {
@@ -395,7 +447,7 @@ async function generate(isCustom, instruction, characterId) {
     generating.value = true
     generationStatus.value = 'Thinking...'
     reasoning.value = ''
-    showReasoningPanel.value = shouldShowReasoning.value
+    showReasoningPanel.value = false  // Only open when reasoning is actually received
 
     // Track cursor position
     const cursorPos = editorRef.value.selectionStart
@@ -419,15 +471,33 @@ async function generate(isCustom, instruction, characterId) {
         }
       }
 
+      // Handle queue status (AI Horde)
+      if (chunk.queueStatus) {
+        const { position, waitTime, finished, faulted } = chunk.queueStatus
+        if (faulted) {
+          generationStatus.value = 'Queue error'
+        } else if (finished) {
+          generationStatus.value = 'Processing...'
+        } else if (position === 0) {
+          generationStatus.value = `Generating... (ETA: ${waitTime}s)`
+        } else {
+          generationStatus.value = `In queue: position ${position} (ETA: ${waitTime}s)`
+        }
+      }
+
       // Handle reasoning
       if (chunk.reasoning) {
+        // Only open panel on first reasoning data if setting is enabled
+        if (!showReasoningPanel.value && shouldShowReasoning.value) {
+          showReasoningPanel.value = true
+        }
         reasoningText += chunk.reasoning
         reasoning.value = reasoningText
       }
 
       // Handle content
       if (chunk.content) {
-        if (generationStatus.value === 'Thinking...') {
+        if (generationStatus.value === 'Thinking...' || generationStatus.value.includes('queue') || generationStatus.value.includes('Processing')) {
           generationStatus.value = 'Writing...'
         }
 
@@ -496,7 +566,7 @@ async function rewriteToThirdPerson() {
     generating.value = true
     generationStatus.value = 'Thinking...'
     reasoning.value = ''
-    showReasoningPanel.value = shouldShowReasoning.value
+    showReasoningPanel.value = false  // Only open when reasoning is actually received
 
     // Clear editor for rewrite
     content.value = ''
@@ -516,15 +586,33 @@ async function rewriteToThirdPerson() {
         }
       }
 
+      // Handle queue status (AI Horde)
+      if (chunk.queueStatus) {
+        const { position, waitTime, finished, faulted } = chunk.queueStatus
+        if (faulted) {
+          generationStatus.value = 'Queue error'
+        } else if (finished) {
+          generationStatus.value = 'Processing...'
+        } else if (position === 0) {
+          generationStatus.value = `Generating... (ETA: ${waitTime}s)`
+        } else {
+          generationStatus.value = `In queue: position ${position} (ETA: ${waitTime}s)`
+        }
+      }
+
       // Handle reasoning
       if (chunk.reasoning) {
+        // Only open panel on first reasoning data if setting is enabled
+        if (!showReasoningPanel.value && shouldShowReasoning.value) {
+          showReasoningPanel.value = true
+        }
         reasoningText += chunk.reasoning
         reasoning.value = reasoningText
       }
 
       // Handle content
       if (chunk.content) {
-        if (generationStatus.value === 'Thinking...') {
+        if (generationStatus.value === 'Thinking...' || generationStatus.value.includes('queue') || generationStatus.value.includes('Processing')) {
           generationStatus.value = 'Rewriting...'
         }
 
