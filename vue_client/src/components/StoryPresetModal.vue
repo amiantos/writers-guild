@@ -55,18 +55,11 @@
       <!-- Action Buttons -->
       <div class="action-buttons">
         <button
-          class="btn btn-secondary"
+          class="btn btn-primary"
           @click="editSelectedPreset"
         >
           <i class="fas fa-edit"></i>
           Edit This Preset
-        </button>
-        <button
-          class="btn btn-secondary"
-          @click="manageAllPresets"
-        >
-          <i class="fas fa-cog"></i>
-          Manage All Presets
         </button>
       </div>
     </div>
@@ -78,13 +71,6 @@
       @close="closePresetEditor"
       @saved="handlePresetSaved"
     />
-
-    <!-- Manage Presets Modal -->
-    <ManagePresetsModal
-      v-if="showManagePresets"
-      @close="showManagePresets = false"
-      @updated="loadPresets"
-    />
   </Modal>
 </template>
 
@@ -92,7 +78,6 @@
 import { ref, computed, onMounted } from 'vue'
 import Modal from './Modal.vue'
 import PresetEditorModal from './PresetEditorModal.vue'
-import ManagePresetsModal from './ManagePresetsModal.vue'
 import { presetsAPI, storiesAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 
@@ -115,7 +100,6 @@ const defaultPresetId = ref(null)
 const selectedPresetId = ref(null)
 const currentStoryPresetId = ref(null)
 const showPresetEditor = ref(false)
-const showManagePresets = ref(false)
 const editingPreset = ref(null)
 
 const selectedPreset = computed(() => {
@@ -185,10 +169,6 @@ async function editSelectedPreset() {
   }
 
   showPresetEditor.value = true
-}
-
-function manageAllPresets() {
-  showManagePresets.value = true
 }
 
 function closePresetEditor() {
@@ -320,10 +300,12 @@ function getProviderDisplayName(provider) {
 }
 
 .action-buttons {
-  display: flex;
-  gap: 0.75rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--border-color);
+}
+
+.action-buttons .btn {
+  width: 100%;
 }
 
 .btn {

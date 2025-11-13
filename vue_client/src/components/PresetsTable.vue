@@ -5,9 +5,9 @@
     default-sort="name"
     row-key="id"
   >
-    <!-- Provider column with badge -->
+    <!-- Provider column -->
     <template #cell-provider="{ row }">
-      <span class="provider-badge" :class="`provider-${row.provider}`">
+      <span class="provider-badge">
         {{ getProviderDisplayName(row.provider) }}
       </span>
     </template>
@@ -97,36 +97,8 @@ const columns = [
 
 <style scoped>
 .provider-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.provider-deepseek {
-  background-color: #e3f2fd;
-  color: #1976d2;
-}
-
-.provider-aihorde {
-  background-color: #f3e5f5;
-  color: #7b1fa2;
-}
-
-.provider-openai {
-  background-color: #e8f5e9;
-  color: #388e3c;
-}
-
-.provider-anthropic {
-  background-color: #fff3e0;
-  color: #f57c00;
-}
-
-.provider-openrouter {
-  background-color: #fce4ec;
-  color: #c2185b;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
 }
 
 .actions-col-wide {
