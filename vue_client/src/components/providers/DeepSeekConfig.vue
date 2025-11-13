@@ -85,6 +85,24 @@
         <small class="help-text">Creativity/randomness (0 = focused, 2 = creative)</small>
       </div>
 
+      <div class="form-group">
+        <label for="maxContextTokens">
+          Max Context Tokens: {{ (localGenerationSettings.maxContextTokens / 1000).toFixed(0) }}k
+        </label>
+        <input
+          id="maxContextTokens"
+          v-model.number="localGenerationSettings.maxContextTokens"
+          type="range"
+          min="32000"
+          max="128000"
+          step="1000"
+          class="range-input"
+        />
+        <small class="help-text">
+          Context window size (32k-128k tokens ≈ {{ (localGenerationSettings.maxContextTokens * 3 / 1000).toFixed(0) }}k-{{ (128000 * 3 / 1000).toFixed(0) }}k characters). Larger = more story content but higher costs.
+        </small>
+      </div>
+
       <div class="form-group checkbox-group">
         <label>
           <input

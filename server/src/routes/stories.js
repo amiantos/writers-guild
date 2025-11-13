@@ -454,22 +454,25 @@ function setupSSE(res) {
  * Helper function to stream generation
  */
 async function streamGeneration(res, provider, preset, context, generationType, params) {
-  // Build system prompt using provider
-  const systemPrompt = provider.buildSystemPrompt({
-    persona: context.persona,
-    characterCards: params.characterCards || [],
-    activatedLorebooks: context.activatedLorebooks || [],
-    story: context.story,
-    settings: preset.generationSettings
-  });
+  // Build both system and user prompts with proper context management
+  const prompts = await provider.buildPrompts(
+    {
+      persona: context.persona,
+      characterCards: params.characterCards || [],
+      activatedLorebooks: context.activatedLorebooks || [],
+      story: context.story,
+      settings: preset.generationSettings
+    },
+    generationType,
+    {
+      characterName: params.characterName,
+      customInstruction: params.customInstruction,
+      templateText: preset.promptTemplates?.[generationType]
+    },
+    preset
+  );
 
-  // Build generation prompt using provider
-  const userPrompt = provider.buildGenerationPrompt(generationType, {
-    storyContent: context.story.content,
-    characterName: params.characterName,
-    customInstruction: params.customInstruction,
-    templateText: preset.promptTemplates?.[generationType]
-  });
+  const { system: systemPrompt, user: userPrompt } = prompts;
 
   // Send prompts for debugging
   res.write(`data: ${JSON.stringify({

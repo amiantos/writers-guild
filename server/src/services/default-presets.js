@@ -25,6 +25,7 @@ export function getDefaultPresets() {
       },
       generationSettings: {
         maxTokens: 4000,
+        maxContextTokens: 128000,  // DeepSeek Reasoner context window
         temperature: 1.5,
         includeDialogueExamples: false
       },
@@ -50,6 +51,7 @@ export function getDefaultPresets() {
       },
       generationSettings: {
         maxTokens: 512,  // AI Horde typically allows less
+        maxContextTokens: 8192,  // Fallback; calculated dynamically based on workers
         temperature: 1.5,
         includeDialogueExamples: false,
         timeout: 300000  // 5 minute timeout for queue
@@ -73,6 +75,7 @@ export function getDefaultPresets() {
       },
       generationSettings: {
         maxTokens: 4000,
+        maxContextTokens: 128000,  // GPT-4 Turbo context window
         temperature: 1.0,  // OpenAI uses 0-2 range, but 1.0 is recommended
         includeDialogueExamples: false
       },
@@ -95,6 +98,7 @@ export function getDefaultPresets() {
       },
       generationSettings: {
         maxTokens: 4000,
+        maxContextTokens: 200000,  // Claude 3.5 Sonnet context window
         temperature: 1.0,
         includeDialogueExamples: false
       },
@@ -117,6 +121,7 @@ export function getDefaultPresets() {
       },
       generationSettings: {
         maxTokens: 4000,
+        maxContextTokens: 128000,  // Varies by model; reasonable default
         temperature: 1.0,
         includeDialogueExamples: false
       },
@@ -145,6 +150,7 @@ export function createPresetFromSettings(settings) {
     },
     generationSettings: {
       maxTokens: settings.maxTokens || 4000,
+      maxContextTokens: settings.maxContextTokens || 128000,
       temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
       includeDialogueExamples: settings.includeDialogueExamples || false
     },

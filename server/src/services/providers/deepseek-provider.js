@@ -17,11 +17,8 @@ export class DeepSeekProvider extends LLMProvider {
 
     super(deepseekConfig);
 
-    // Initialize prompt builder with DeepSeek-specific configuration
-    this.promptBuilder = new PromptBuilder({
-      maxContextChars: 64000, // DeepSeek has large context window
-      includeDetailedPerspective: true // Use detailed perspective instructions
-    });
+    // Initialize prompt builder (no provider-specific config needed)
+    this.promptBuilder = new PromptBuilder();
   }
 
   /**
@@ -32,7 +29,7 @@ export class DeepSeekProvider extends LLMProvider {
       streaming: true,
       reasoning: true,
       visionAPI: false,
-      maxContextWindow: 64000 // DeepSeek context window
+      maxContextWindow: 128000 // DeepSeek Reasoner context window
     };
   }
 
@@ -51,6 +48,27 @@ export class DeepSeekProvider extends LLMProvider {
   }
 
   /**
+   * Build both system and user prompts with context management
+   * @param {Object} context - Generation context
+   * @param {string} generationType - Type of generation (continue, character, custom)
+   * @param {Object} customParams - Custom parameters (characterName, customInstruction, etc.)
+   * @param {Object} preset - Preset configuration
+   * @returns {Object} { system: string, user: string }
+   */
+  buildPrompts(context, generationType, customParams, preset) {
+    const maxContextTokens = preset.generationSettings?.maxContextTokens || 128000;
+    const maxGenerationTokens = preset.generationSettings?.maxTokens || 4000;
+
+    return this.promptBuilder.buildPrompts(context, {
+      maxContextTokens,
+      maxGenerationTokens,
+      generationType,
+      ...customParams
+    });
+  }
+
+  /**
+   * @deprecated Use buildPrompts() instead
    * Build system prompt from context
    */
   buildSystemPrompt(context) {
@@ -58,6 +76,7 @@ export class DeepSeekProvider extends LLMProvider {
   }
 
   /**
+   * @deprecated Use buildPrompts() instead
    * Build generation prompt based on type
    */
   buildGenerationPrompt(type, params) {

@@ -35,11 +35,8 @@ export class AIHordeProvider extends LLMProvider {
       "tinyllama", "debug", "-1b", "-270m", "test"
     ];
 
-    // Initialize prompt builder with AI Horde-specific configuration
-    this.promptBuilder = new PromptBuilder({
-      maxContextChars: 6000, // Smaller default, will be overridden dynamically
-      includeDetailedPerspective: false // Use condensed perspective instructions
-    });
+    // Initialize prompt builder (no provider-specific config needed)
+    this.promptBuilder = new PromptBuilder();
   }
 
   /**
@@ -71,6 +68,41 @@ export class AIHordeProvider extends LLMProvider {
   }
 
   /**
+   * Build both system and user prompts with context management
+   * For AI Horde, dynamically calculates context limit based on worker availability
+   * @param {Object} context - Generation context
+   * @param {string} generationType - Type of generation (continue, character, custom)
+   * @param {Object} customParams - Custom parameters (characterName, customInstruction, etc.)
+   * @param {Object} preset - Preset configuration
+   * @returns {Promise<Object>} { system: string, user: string }
+   */
+  async buildPrompts(context, generationType, customParams, preset) {
+    const maxGenerationTokens = preset.generationSettings?.maxTokens || 512;
+    let maxContextTokens = preset.generationSettings?.maxContextTokens || 8192;
+
+    // If models are configured, calculate dynamic context limit based on workers
+    if (preset.apiConfig?.models && preset.apiConfig.models.length > 0) {
+      try {
+        const { maxContextLength } = await this.calculateDynamicContextLimit(
+          preset.apiConfig.models,
+          maxGenerationTokens
+        );
+        maxContextTokens = maxContextLength;
+      } catch (error) {
+        console.warn('Failed to calculate dynamic context, using preset value:', error);
+      }
+    }
+
+    return this.promptBuilder.buildPrompts(context, {
+      maxContextTokens,
+      maxGenerationTokens,
+      generationType,
+      ...customParams
+    });
+  }
+
+  /**
+   * @deprecated Use buildPrompts() instead
    * Build system prompt from context
    */
   buildSystemPrompt(context) {
@@ -78,6 +110,7 @@ export class AIHordeProvider extends LLMProvider {
   }
 
   /**
+   * @deprecated Use buildPrompts() instead
    * Build generation prompt based on type
    */
   buildGenerationPrompt(type, params) {

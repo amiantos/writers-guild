@@ -8,12 +8,6 @@ import { MacroProcessor } from './macro-processor.js';
 export class PromptBuilder {
   constructor(config = {}) {
     this.config = {
-      // Maximum characters for story context truncation
-      maxContextChars: config.maxContextChars || 64000,
-
-      // Whether to include detailed perspective instructions
-      includeDetailedPerspective: config.includeDetailedPerspective ?? true,
-
       // Default instruction templates
       instructionTemplates: config.instructionTemplates || {
         continue: "Continue the story naturally from where it left off. Write the next 2-3 paragraphs maximum, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters.",
@@ -222,14 +216,10 @@ export class PromptBuilder {
     const headers = this.config.sectionHeaders;
     let prompt = `\n${headers.perspective}\n`;
 
-    if (this.config.includeDetailedPerspective) {
-      prompt += `Write in third-person past tense perspective.\n`;
-      prompt += `Use he/she/they pronouns and past tense verbs (said, walked, thought, etc.).\n`;
-      prompt += `Do NOT use first-person (I, me, my, we) or present tense.\n`;
-      prompt += `All narrative and dialogue tags should be in past tense.\n`;
-    } else {
-      prompt += `Write in third-person past tense perspective.\n`;
-    }
+    prompt += `Write in third-person past tense perspective.\n`;
+    prompt += `Use he/she/they pronouns and past tense verbs (said, walked, thought, etc.).\n`;
+    prompt += `Do NOT use first-person (I, me, my, we) or present tense.\n`;
+    prompt += `All narrative and dialogue tags should be in past tense.\n`;
 
     // Add asterisk filtering instruction
     prompt += `\nDo not use asterisks (*) for actions. Write everything as prose.\n`;
@@ -276,13 +266,16 @@ export class PromptBuilder {
   /**
    * Truncate story content to fit within context limits
    */
-  truncateStoryContent(storyContent, maxChars = null) {
+  truncateStoryContent(storyContent, maxChars) {
     if (!storyContent || !storyContent.trim()) return '';
 
-    const limit = maxChars || this.config.maxContextChars;
+    // maxChars must be provided by caller
+    if (!maxChars || maxChars <= 0) {
+      throw new Error('maxChars must be provided and greater than 0');
+    }
 
-    const contentToInclude = storyContent.length > limit
-      ? "..." + storyContent.slice(-limit)
+    const contentToInclude = storyContent.length > maxChars
+      ? "..." + storyContent.slice(-maxChars)
       : storyContent;
 
     return `Here is the current story so far:\n\n${contentToInclude}\n\n---\n\n`;
@@ -345,5 +338,70 @@ export class PromptBuilder {
     }
 
     return storyContext + instruction;
+  }
+
+  /**
+   * Helper: Estimate token count from characters (rough approximation)
+   * @param {string} text - Text to estimate tokens for
+   * @returns {number} Estimated token count
+   */
+  estimateTokens(text) {
+    if (!text) return 0;
+    // Rough approximation: ~3 characters per token for English text
+    return Math.ceil(text.length / 3);
+  }
+
+  /**
+   * Build both system and user prompts with proper context management
+   * This method replaces the separate buildSystemPrompt/buildGenerationPrompt calls
+   * and ensures the combined prompts stay within context limits.
+   *
+   * @param {Object} context - Full generation context
+   * @param {Object} options - Options for prompt building
+   * @param {number} options.maxContextTokens - Maximum context window in tokens
+   * @param {number} options.maxGenerationTokens - Tokens reserved for generation
+   * @param {string} options.generationType - Type of generation (continue, character, custom)
+   * @param {string} [options.characterName] - Character name for character generation
+   * @param {string} [options.customInstruction] - Custom instruction for custom generation
+   * @param {string} [options.templateText] - Template text override
+   * @returns {Object} { system: string, user: string }
+   */
+  buildPrompts(context, options = {}) {
+    const {
+      maxContextTokens = 128000,
+      maxGenerationTokens = 4000,
+      generationType = 'continue',
+      characterName,
+      customInstruction,
+      templateText
+    } = options;
+
+    // Build system prompt first
+    const systemPrompt = this.buildSystemPrompt(context);
+
+    // Estimate system prompt token usage
+    const systemTokens = this.estimateTokens(systemPrompt);
+
+    // Calculate available tokens for user prompt
+    // Reserve some overhead for formatting and safety margin
+    const overhead = 100;
+    const availableForUser = maxContextTokens - systemTokens - maxGenerationTokens - overhead;
+
+    // Convert available tokens to characters (~3 chars per token)
+    const availableChars = Math.max(1000, availableForUser * 3);
+
+    // Build user prompt with story content truncated to fit budget
+    const userPrompt = this.buildGenerationPrompt(generationType, {
+      storyContent: context.story?.content || '',
+      characterName,
+      customInstruction,
+      templateText,
+      maxChars: availableChars
+    });
+
+    return {
+      system: systemPrompt,
+      user: userPrompt
+    };
   }
 }

@@ -138,6 +138,24 @@
         <small class="help-text">Creativity/randomness (0 = focused, 2 = creative)</small>
       </div>
 
+      <div class="form-group">
+        <label for="maxContextTokens">
+          Max Context Tokens: {{ (localGenerationSettings.maxContextTokens / 1000).toFixed(0) }}k
+        </label>
+        <input
+          id="maxContextTokens"
+          v-model.number="localGenerationSettings.maxContextTokens"
+          type="range"
+          min="2000"
+          max="16000"
+          step="1000"
+          class="range-input"
+        />
+        <small class="help-text">
+          Context window fallback (2k-16k tokens). Automatically calculated based on selected models and their worker availability.
+        </small>
+      </div>
+
       <div class="form-group checkbox-group">
         <label>
           <input
