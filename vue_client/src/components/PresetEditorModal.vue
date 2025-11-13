@@ -565,9 +565,7 @@ const selectedModelsCount = computed(() => {
 
 <style scoped>
 .editor-content {
-  max-height: 70vh;
-  overflow-y: auto;
-  padding-right: 0.5rem;
+  /* Let the Modal component handle scrolling */
 }
 
 .form-section {
