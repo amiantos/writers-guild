@@ -121,7 +121,7 @@ export class OpenRouterProvider extends LLMProvider {
 
     return {
       content: choice.message.content || "",
-      reasoning: choice.message.reasoning_content || "",
+      reasoning: choice.message.reasoning || "",
       usage: data.usage,
       metadata: {
         model: data.model, // Actual model used (may differ from requested)
@@ -220,8 +220,14 @@ export class OpenRouterProvider extends LLMProvider {
               if (data.choices && data.choices[0]) {
                 const delta = data.choices[0].delta;
 
+                // Extract reasoning from either simple field or structured details
+                let reasoning = delta.reasoning || null;
+                if (!reasoning && delta.reasoning_details && delta.reasoning_details.length > 0) {
+                  reasoning = delta.reasoning_details[0].text || null;
+                }
+
                 yield {
-                  reasoning: delta.reasoning_content || null,
+                  reasoning: reasoning,
                   content: delta.content || null,
                   finished: data.choices[0].finish_reason !== null,
                   usage: data.usage || null
