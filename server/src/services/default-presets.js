@@ -16,7 +16,7 @@ export const DEFAULT_PROMPT_TEMPLATES = {
 export function getDefaultPresets() {
   return {
     deepseek: {
-      name: "Default (DeepSeek)",
+      name: "DeepSeek",
       provider: "deepseek",
       apiConfig: {
         apiKey: "",
@@ -39,7 +39,7 @@ export function getDefaultPresets() {
     },
 
     aihorde: {
-      name: "AI Horde (Free)",
+      name: "AI Horde",
       provider: "aihorde",
       apiConfig: {
         apiKey: "0000000000", // Default anonymous key
@@ -66,7 +66,7 @@ export function getDefaultPresets() {
     },
 
     openai: {
-      name: "OpenAI GPT-4",
+      name: "OpenAI",
       provider: "openai",
       apiConfig: {
         apiKey: "",
@@ -89,7 +89,7 @@ export function getDefaultPresets() {
     },
 
     anthropic: {
-      name: "Claude Sonnet",
+      name: "Anthropic",
       provider: "anthropic",
       apiConfig: {
         apiKey: "",
@@ -112,7 +112,7 @@ export function getDefaultPresets() {
     },
 
     openrouter: {
-      name: "OpenRouter (Multi-Model)",
+      name: "OpenRouter",
       provider: "openrouter",
       apiConfig: {
         apiKey: "",
@@ -141,7 +141,7 @@ export function getDefaultPresets() {
  */
 export function createPresetFromSettings(settings) {
   return {
-    name: "Default (DeepSeek)",
+    name: "DeepSeek",
     provider: "deepseek",
     apiConfig: {
       apiKey: settings.apiKey || "",
