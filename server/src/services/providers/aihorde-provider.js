@@ -77,11 +77,31 @@ export class AIHordeProvider extends LLMProvider {
     const maxGenerationTokens = preset.generationSettings?.maxTokens || 512;
     let maxContextTokens = preset.generationSettings?.maxContextTokens || 8192;
 
+    // Failsafe: If no models configured, auto-select suitable models
+    let modelsToUse = preset.apiConfig?.models || [];
+    if (modelsToUse.length === 0) {
+      console.log('No models configured, auto-selecting models for context calculation...');
+      try {
+        const availableModels = await this.getAvailableModels();
+        modelsToUse = this.autoSelectModels(availableModels);
+
+        if (modelsToUse.length > 0) {
+          console.log(`Auto-selected ${modelsToUse.length} models for generation`);
+          // Store in config for this request so generate() can use them
+          this.config.models = modelsToUse;
+        } else {
+          console.warn('No suitable AI Horde models available for auto-selection');
+        }
+      } catch (error) {
+        console.error('Failed to auto-select models:', error.message);
+      }
+    }
+
     // AI Horde-specific: Calculate dynamic context limit based on worker availability
-    if (preset.apiConfig?.models && preset.apiConfig.models.length > 0) {
+    if (modelsToUse.length > 0) {
       try {
         const { maxContextLength } = await this.calculateDynamicContextLimit(
-          preset.apiConfig.models,
+          modelsToUse,
           maxGenerationTokens
         );
         maxContextTokens = maxContextLength;
@@ -197,36 +217,7 @@ export class AIHordeProvider extends LLMProvider {
    * Generate text (non-streaming, with polling)
    */
   async generate(systemPrompt, userPrompt, options = {}) {
-    // Failsafe: If no models configured, auto-select suitable models
-    if (!this.config.models || this.config.models.length === 0) {
-      console.log('No models configured, auto-selecting models...');
-      try {
-        const availableModels = await this.getAvailableModels();
-        const selectedModels = this.autoSelectModels(availableModels);
-
-        if (selectedModels.length > 0) {
-          // Temporarily use auto-selected models for this request
-          // Don't modify the config - just use them for this generation
-          this.config.models = selectedModels;
-          console.log(`Auto-selected ${selectedModels.length} models for generation`);
-        } else {
-          throw new Error('No suitable AI Horde models available. Please configure models manually.');
-        }
-      } catch (error) {
-        throw new Error(`Failed to auto-select models: ${error.message}`);
-      }
-    }
-
-    // Calculate dynamic context limit if models are configured
-    if (!options.maxContextLength && this.config.models && this.config.models.length > 0) {
-      const limits = await this.calculateDynamicContextLimit(
-        this.config.models,
-        options.maxTokens || 150
-      );
-      options.maxContextLength = limits.maxContextLength;
-    }
-
-    // Submit request
+    // Submit request (models should already be configured by buildPrompts)
     const requestId = await this.submitRequest(systemPrompt, userPrompt, options);
 
     // Poll for completion
