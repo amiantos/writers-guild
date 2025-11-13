@@ -62,11 +62,12 @@ router.get('/:id', asyncHandler(async (req, res) => {
 
 // Update story metadata
 router.put('/:id', asyncHandler(async (req, res) => {
-  const { title, description } = req.body;
+  const { title, description, configPresetId } = req.body;
   const updates = {};
 
   if (title !== undefined) updates.title = title.trim();
   if (description !== undefined) updates.description = description.trim();
+  if (configPresetId !== undefined) updates.configPresetId = configPresetId;
 
   if (Object.keys(updates).length === 0) {
     throw new AppError('No updates provided', 400);

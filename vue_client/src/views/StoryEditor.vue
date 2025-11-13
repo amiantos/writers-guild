@@ -32,6 +32,13 @@
         </button>
         <button
           class="icon-btn"
+          @click="showPresetSelector = true"
+          title="Configuration Preset"
+        >
+          <i class="fas fa-sliders"></i>
+        </button>
+        <button
+          class="icon-btn"
           @click="deleteStory"
           title="Delete Story"
         >
@@ -193,6 +200,14 @@
       @close="showRenameStory = false"
       @updated="handleStoryUpdated"
     />
+
+    <StoryPresetModal
+      v-if="showPresetSelector"
+      :story-id="props.storyId"
+      :current-preset-id="story?.configPresetId"
+      @close="showPresetSelector = false"
+      @updated="handleStoryUpdated"
+    />
   </div>
 </template>
 
@@ -212,6 +227,7 @@ import CustomPromptModal from '../components/CustomPromptModal.vue'
 import ManageCharactersModal from '../components/ManageCharactersModal.vue'
 import ManageLorebooksModal from '../components/ManageLorebooksModal.vue'
 import RenameStoryModal from '../components/RenameStoryModal.vue'
+import StoryPresetModal from '../components/StoryPresetModal.vue'
 
 const props = defineProps({
   storyId: {
@@ -243,6 +259,7 @@ const showCustomPromptModal = ref(false)
 const showManageCharacters = ref(false)
 const showManageLorebooks = ref(false)
 const showRenameStory = ref(false)
+const showPresetSelector = ref(false)
 const storyCharacters = ref([])
 const shouldShowReasoning = ref(false) // Setting from server
 
