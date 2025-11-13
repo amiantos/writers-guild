@@ -7,13 +7,14 @@ import DeepSeekConfig from './DeepSeekConfig.vue'
 import AIHordeConfig from './AIHordeConfig.vue'
 import OpenAIConfig from './OpenAIConfig.vue'
 import AnthropicConfig from './AnthropicConfig.vue'
+import OpenRouterConfig from './OpenRouterConfig.vue'
 
 export const PROVIDER_COMPONENTS = {
   deepseek: DeepSeekConfig,
   aihorde: AIHordeConfig,
   openai: OpenAIConfig,
   anthropic: AnthropicConfig,
-  openrouter: OpenAIConfig // OpenRouter uses same simple config as OpenAI for now
+  openrouter: OpenRouterConfig
 }
 
 /**

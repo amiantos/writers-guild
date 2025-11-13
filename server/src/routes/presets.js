@@ -8,6 +8,7 @@ import { asyncHandler } from '../middleware/error-handler.js';
 import { StorageService } from '../services/storage.js';
 import { getDefaultPresets } from '../services/default-presets.js';
 import { AIHordeProvider } from '../services/providers/aihorde-provider.js';
+import { OpenRouterProvider } from '../services/providers/openrouter-provider.js';
 
 const router = express.Router();
 
@@ -207,6 +208,54 @@ router.get('/aihorde/workers', asyncHandler(async (req, res) => {
     console.error('Failed to fetch AI Horde workers:', error);
     res.status(500).json({
       error: 'Failed to fetch workers from AI Horde',
+      message: error.message
+    });
+  }
+}));
+
+// Get available OpenRouter models (with caching)
+let openrouterModelsCache = null;
+let openrouterCacheTime = 0;
+const OPENROUTER_CACHE_DURATION = 60 * 60 * 1000; // 1 hour (models change less frequently)
+
+router.get('/openrouter/models', asyncHandler(async (req, res) => {
+  const now = Date.now();
+
+  // Return cached data if still valid
+  if (openrouterModelsCache && (now - openrouterCacheTime) < OPENROUTER_CACHE_DURATION) {
+    return res.json({
+      models: openrouterModelsCache,
+      cached: true,
+      cacheAge: Math.floor((now - openrouterCacheTime) / 1000)
+    });
+  }
+
+  // Get API key from request (optional, but needed for some models)
+  const apiKey = req.query.apiKey || req.headers['x-api-key'];
+
+  if (!apiKey) {
+    return res.status(400).json({
+      error: 'API key required to fetch OpenRouter models'
+    });
+  }
+
+  // Fetch fresh data
+  try {
+    const provider = new OpenRouterProvider({ apiKey });
+    const models = await provider.getAvailableModels();
+
+    // Update cache
+    openrouterModelsCache = models;
+    openrouterCacheTime = now;
+
+    res.json({
+      models,
+      cached: false
+    });
+  } catch (error) {
+    console.error('Failed to fetch OpenRouter models:', error);
+    res.status(500).json({
+      error: 'Failed to fetch models from OpenRouter',
       message: error.message
     });
   }

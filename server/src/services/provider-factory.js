@@ -5,15 +5,16 @@
 
 import { DeepSeekProvider } from './providers/deepseek-provider.js';
 import { AIHordeProvider } from './providers/aihorde-provider.js';
+import { OpenRouterProvider } from './providers/openrouter-provider.js';
 
 // Provider registry
 const PROVIDERS = {
   deepseek: DeepSeekProvider,
   aihorde: AIHordeProvider,
+  openrouter: OpenRouterProvider,
   // Future providers will be added here:
   // openai: OpenAIProvider,
   // anthropic: AnthropicProvider,
-  // openrouter: OpenRouterProvider,
 };
 
 /**

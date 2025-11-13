@@ -430,6 +430,11 @@ export const presetsAPI = {
   getAIHordeWorkers() {
     return request('/presets/aihorde/workers')
   },
+
+  // OpenRouter specific methods
+  getOpenRouterModels(apiKey) {
+    return request(`/presets/openrouter/models?apiKey=${encodeURIComponent(apiKey)}`)
+  },
 }
 
 export default {
