@@ -363,5 +363,15 @@ export async function migrate(storage) {
  */
 export async function runMigration(dataRoot) {
   const storage = new StorageService(dataRoot);
-  return await migrate(storage);
+  const migrationResult = await migrate(storage);
+
+  // Always check for missing thumbnails, independent of preset migration
+  // This ensures thumbnails are generated even on existing installations
+  if (!migrationResult.thumbnailsGenerated) {
+    console.log('Running independent thumbnail check...');
+    const thumbnailsGenerated = await generateMissingThumbnails(storage);
+    migrationResult.thumbnailsGenerated = thumbnailsGenerated;
+  }
+
+  return migrationResult;
 }
