@@ -553,7 +553,13 @@ async function generate(isCustom, instruction, characterId) {
       toast.info('Generation cancelled')
     } else {
       console.error('Generation error:', error)
-      toast.error('Generation failed: ' + error.message)
+
+      // Show prominent error alert
+      const errorMessage = error.message || 'Unknown error occurred'
+      alert(`Generation Failed\n\n${errorMessage}`)
+
+      // Also show toast for consistency
+      toast.error('Generation failed: ' + errorMessage)
     }
   } finally {
     generating.value = false
@@ -685,7 +691,13 @@ async function rewriteToThirdPerson() {
       toast.info('Rewrite cancelled')
     } else {
       console.error('Rewrite error:', error)
-      toast.error('Rewrite failed: ' + error.message)
+
+      // Show prominent error alert
+      const errorMessage = error.message || 'Unknown error occurred'
+      alert(`Rewrite Failed\n\n${errorMessage}`)
+
+      // Also show toast for consistency
+      toast.error('Rewrite failed: ' + errorMessage)
     }
   } finally {
     generating.value = false

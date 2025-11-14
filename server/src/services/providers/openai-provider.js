@@ -45,6 +45,38 @@ export class OpenAIProvider extends LLMProvider {
   }
 
   /**
+   * Check if model uses max_completion_tokens instead of max_tokens
+   * GPT-5, o1, o3, and newer models use max_completion_tokens
+   */
+  usesMaxCompletionTokens() {
+    const model = this.model.toLowerCase();
+    return model.includes('gpt-5') ||
+           model.includes('o1') ||
+           model.includes('o3') ||
+           model.startsWith('chatgpt-');
+  }
+
+  /**
+   * Build request body with correct token parameter
+   */
+  buildRequestBody(messages, options = {}) {
+    const body = {
+      model: this.model,
+      messages: messages,
+      temperature: options.temperature !== undefined ? options.temperature : 1.0,
+    };
+
+    // Use correct token parameter based on model
+    if (this.usesMaxCompletionTokens()) {
+      body.max_completion_tokens = options.maxTokens || 4000;
+    } else {
+      body.max_tokens = options.maxTokens || 4000;
+    }
+
+    return body;
+  }
+
+  /**
    * Generate content without streaming
    */
   async generate(systemPrompt, userPrompt, options = {}) {
@@ -57,19 +89,16 @@ export class OpenAIProvider extends LLMProvider {
       { role: "user", content: userPrompt },
     ];
 
+    const body = this.buildRequestBody(messages, options);
+    body.stream = false;
+
     const response = await fetch(`${this.baseURL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: messages,
-        stream: false,
-        max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature !== undefined ? options.temperature : 1.0,
-      }),
+      body: JSON.stringify(body),
       signal: options.signal,
     });
 
@@ -105,19 +134,16 @@ export class OpenAIProvider extends LLMProvider {
 
     const controller = new AbortController();
 
+    const body = this.buildRequestBody(messages, options);
+    body.stream = true;
+
     const response = await fetch(`${this.baseURL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: messages,
-        stream: true,
-        max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature !== undefined ? options.temperature : 1.0,
-      }),
+      body: JSON.stringify(body),
       signal: options.signal || controller.signal,
     });
 
@@ -227,6 +253,41 @@ export class OpenAIProvider extends LLMProvider {
   }
 
   /**
+   * Check if a model is a chat completion model
+   */
+  isChatModel(modelId) {
+    const id = modelId.toLowerCase();
+
+    // Include GPT-4, GPT-5, GPT-3.5-turbo, o1, o3, and ChatGPT models
+    const isChatModel =
+      id.startsWith('gpt-4') ||
+      id.startsWith('gpt-5') ||
+      id.startsWith('gpt-3.5-turbo') ||
+      id.startsWith('chatgpt-') ||
+      (id.startsWith('o1') && !id.includes('omni')) ||
+      (id.startsWith('o3') && !id.includes('omni'));
+
+    // Exclude non-chat models
+    const isExcluded =
+      id.includes('instruct') ||
+      id.includes('search') ||
+      id.includes('edit') ||
+      id.includes('embedding') ||
+      id.includes('davinci') ||
+      id.includes('curie') ||
+      id.includes('babbage') ||
+      id.includes('ada') ||
+      id.includes('whisper') ||
+      id.includes('tts') ||
+      id.includes('dall-e') ||
+      id.includes('realtime') ||
+      id.includes('audio') ||
+      id.endsWith('-vision'); // Exclude vision-only models
+
+    return isChatModel && !isExcluded;
+  }
+
+  /**
    * Fetch available models from OpenAI
    * @returns {Promise<Array>} Array of model objects with metadata
    */
@@ -245,20 +306,9 @@ export class OpenAIProvider extends LLMProvider {
 
       const data = await response.json();
 
-      // Filter and transform OpenAI model data to include only relevant chat models
+      // Filter and transform OpenAI model data to include only chat completion models
       return data.data
-        .filter(model => {
-          // Only include GPT models that support chat completions
-          return model.id.includes('gpt') &&
-                 !model.id.includes('instruct') &&
-                 !model.id.includes('search') &&
-                 !model.id.includes('edit') &&
-                 !model.id.includes('embedding') &&
-                 !model.id.includes('davinci') &&
-                 !model.id.includes('curie') &&
-                 !model.id.includes('babbage') &&
-                 !model.id.includes('ada');
-        })
+        .filter(model => this.isChatModel(model.id))
         .map(model => ({
           id: model.id,
           name: this.formatModelName(model.id),
@@ -320,24 +370,45 @@ export class OpenAIProvider extends LLMProvider {
    * Get context length for model
    */
   getContextLength(modelId) {
-    if (modelId.includes('gpt-5') || modelId.includes('gpt-4-turbo') || modelId.includes('gpt-4-1')) {
+    const id = modelId.toLowerCase();
+
+    // GPT-5 series
+    if (id.includes('gpt-5')) {
       return 128000;
     }
-    if (modelId.includes('gpt-4-32k')) {
+
+    // o-series (o1, o3) reasoning models
+    if (id.startsWith('o1') || id.startsWith('o3')) {
+      return 128000;
+    }
+
+    // GPT-4 series
+    if (id.includes('gpt-4o')) {
+      return 128000; // GPT-4o and GPT-4o-mini
+    }
+    if (id.includes('gpt-4-turbo') || id.includes('gpt-4-1')) {
+      return 128000;
+    }
+    if (id.includes('gpt-4-32k')) {
       return 32768;
     }
-    if (modelId.includes('gpt-4')) {
+    if (id.includes('gpt-4')) {
       return 8192;
     }
-    if (modelId.includes('gpt-3.5-turbo-16k')) {
+
+    // GPT-3.5 series
+    if (id.includes('gpt-3.5-turbo-16k')) {
       return 16385;
     }
-    if (modelId.includes('gpt-3.5-turbo')) {
+    if (id.includes('gpt-3.5-turbo')) {
       return 16385; // Updated context length for newer versions
     }
-    if (modelId.includes('o3') || modelId.includes('o1')) {
+
+    // ChatGPT models
+    if (id.startsWith('chatgpt-')) {
       return 128000;
     }
+
     return 8192; // Default fallback
   }
 }
