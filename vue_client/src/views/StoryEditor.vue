@@ -554,12 +554,14 @@ async function generate(isCustom, instruction, characterId) {
     } else {
       console.error('Generation error:', error)
 
-      // Show prominent error alert
+      // Show error dialog
       const errorMessage = error.message || 'Unknown error occurred'
-      alert(`Generation Failed\n\n${errorMessage}`)
-
-      // Also show toast for consistency
-      toast.error('Generation failed: ' + errorMessage)
+      await confirm({
+        message: `Generation Failed\n\n${errorMessage}`,
+        confirmText: 'OK',
+        cancelText: 'Dismiss',
+        variant: 'danger'
+      })
     }
   } finally {
     generating.value = false
@@ -692,12 +694,14 @@ async function rewriteToThirdPerson() {
     } else {
       console.error('Rewrite error:', error)
 
-      // Show prominent error alert
+      // Show error dialog
       const errorMessage = error.message || 'Unknown error occurred'
-      alert(`Rewrite Failed\n\n${errorMessage}`)
-
-      // Also show toast for consistency
-      toast.error('Rewrite failed: ' + errorMessage)
+      await confirm({
+        message: `Rewrite Failed\n\n${errorMessage}`,
+        confirmText: 'OK',
+        cancelText: 'Dismiss',
+        variant: 'danger'
+      })
     }
   } finally {
     generating.value = false
