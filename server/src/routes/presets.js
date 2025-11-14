@@ -9,6 +9,9 @@ import { StorageService } from '../services/storage.js';
 import { getDefaultPresets } from '../services/default-presets.js';
 import { AIHordeProvider } from '../services/providers/aihorde-provider.js';
 import { OpenRouterProvider } from '../services/providers/openrouter-provider.js';
+import { OpenAIProvider } from '../services/providers/openai-provider.js';
+import { AnthropicProvider } from '../services/providers/anthropic-provider.js';
+import { DeepSeekProvider } from '../services/providers/deepseek-provider.js';
 
 const router = express.Router();
 
@@ -256,6 +259,150 @@ router.get('/openrouter/models', asyncHandler(async (req, res) => {
     console.error('Failed to fetch OpenRouter models:', error);
     res.status(500).json({
       error: 'Failed to fetch models from OpenRouter',
+      message: error.message
+    });
+  }
+}));
+
+// Get available OpenAI models (with caching)
+let openaiModelsCache = null;
+let openaiCacheTime = 0;
+const OPENAI_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
+router.get('/openai/models', asyncHandler(async (req, res) => {
+  const now = Date.now();
+
+  // Return cached data if still valid
+  if (openaiModelsCache && (now - openaiCacheTime) < OPENAI_CACHE_DURATION) {
+    return res.json({
+      models: openaiModelsCache,
+      cached: true,
+      cacheAge: Math.floor((now - openaiCacheTime) / 1000)
+    });
+  }
+
+  // Get API key from request
+  const apiKey = req.query.apiKey || req.headers['x-api-key'];
+
+  if (!apiKey) {
+    return res.status(400).json({
+      error: 'API key required to fetch OpenAI models'
+    });
+  }
+
+  // Fetch fresh data
+  try {
+    const provider = new OpenAIProvider({ apiKey });
+    const models = await provider.getAvailableModels();
+
+    // Update cache
+    openaiModelsCache = models;
+    openaiCacheTime = now;
+
+    res.json({
+      models,
+      cached: false
+    });
+  } catch (error) {
+    console.error('Failed to fetch OpenAI models:', error);
+    res.status(500).json({
+      error: 'Failed to fetch models from OpenAI',
+      message: error.message
+    });
+  }
+}));
+
+// Get available Anthropic models (with caching)
+let anthropicModelsCache = null;
+let anthropicCacheTime = 0;
+const ANTHROPIC_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
+router.get('/anthropic/models', asyncHandler(async (req, res) => {
+  const now = Date.now();
+
+  // Return cached data if still valid
+  if (anthropicModelsCache && (now - anthropicCacheTime) < ANTHROPIC_CACHE_DURATION) {
+    return res.json({
+      models: anthropicModelsCache,
+      cached: true,
+      cacheAge: Math.floor((now - anthropicCacheTime) / 1000)
+    });
+  }
+
+  // Get API key from request
+  const apiKey = req.query.apiKey || req.headers['x-api-key'];
+
+  if (!apiKey) {
+    return res.status(400).json({
+      error: 'API key required to fetch Anthropic models'
+    });
+  }
+
+  // Fetch fresh data
+  try {
+    const provider = new AnthropicProvider({ apiKey });
+    const models = await provider.getAvailableModels();
+
+    // Update cache
+    anthropicModelsCache = models;
+    anthropicCacheTime = now;
+
+    res.json({
+      models,
+      cached: false
+    });
+  } catch (error) {
+    console.error('Failed to fetch Anthropic models:', error);
+    res.status(500).json({
+      error: 'Failed to fetch models from Anthropic',
+      message: error.message
+    });
+  }
+}));
+
+// Get available DeepSeek models (with caching)
+let deepseekModelsCache = null;
+let deepseekCacheTime = 0;
+const DEEPSEEK_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
+router.get('/deepseek/models', asyncHandler(async (req, res) => {
+  const now = Date.now();
+
+  // Return cached data if still valid
+  if (deepseekModelsCache && (now - deepseekCacheTime) < DEEPSEEK_CACHE_DURATION) {
+    return res.json({
+      models: deepseekModelsCache,
+      cached: true,
+      cacheAge: Math.floor((now - deepseekCacheTime) / 1000)
+    });
+  }
+
+  // Get API key from request
+  const apiKey = req.query.apiKey || req.headers['x-api-key'];
+
+  if (!apiKey) {
+    return res.status(400).json({
+      error: 'API key required to fetch DeepSeek models'
+    });
+  }
+
+  // Fetch fresh data
+  try {
+    const provider = new DeepSeekProvider({ apiKey });
+    const models = await provider.getAvailableModels();
+
+    // Update cache
+    deepseekModelsCache = models;
+    deepseekCacheTime = now;
+
+    res.json({
+      models,
+      cached: false
+    });
+  } catch (error) {
+    console.error('Failed to fetch DeepSeek models:', error);
+    res.status(500).json({
+      error: 'Failed to fetch models from DeepSeek',
       message: error.message
     });
   }

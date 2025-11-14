@@ -1,37 +1,37 @@
 /**
- * DeepSeek Provider Implementation
- * Extends base LLMProvider with DeepSeek-specific functionality
+ * OpenAI Provider Implementation
+ * Extends base LLMProvider with OpenAI-specific functionality
+ * API Docs: https://platform.openai.com/docs
  */
 
 import { LLMProvider } from './base-provider.js';
 
-export class DeepSeekProvider extends LLMProvider {
+export class OpenAIProvider extends LLMProvider {
   constructor(config) {
-    // DeepSeek-specific defaults
-    const deepseekConfig = {
+    // OpenAI-specific defaults
+    const openaiConfig = {
       ...config,
-      baseURL: config.baseURL || "https://api.deepseek.com/v1",
-      model: config.model || "deepseek-reasoner"
+      baseURL: config.baseURL || "https://api.openai.com/v1",
+      model: config.model || "gpt-4-turbo-preview"
     };
 
-    super(deepseekConfig);
-    // promptBuilder is now initialized in base class
+    super(openaiConfig);
   }
 
   /**
-   * Get DeepSeek provider capabilities
+   * Get OpenAI provider capabilities
    */
   getCapabilities() {
     return {
       streaming: true,
-      reasoning: true,
-      visionAPI: false,
-      maxContextWindow: 128000 // DeepSeek Reasoner context window
+      reasoning: false, // OpenAI doesn't expose reasoning tokens like DeepSeek
+      visionAPI: true,  // GPT-4 Vision support
+      maxContextWindow: 128000 // GPT-4 Turbo context window
     };
   }
 
   /**
-   * Validate DeepSeek configuration
+   * Validate OpenAI configuration
    */
   validateConfig() {
     if (!this.apiKey || this.apiKey.trim() === '') {
@@ -43,9 +43,6 @@ export class DeepSeekProvider extends LLMProvider {
 
     return { valid: true };
   }
-
-  // buildPrompts() is now inherited from base class
-  // No need to override unless custom logic is required
 
   /**
    * Generate content without streaming
@@ -71,7 +68,7 @@ export class DeepSeekProvider extends LLMProvider {
         messages: messages,
         stream: false,
         max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature !== undefined ? options.temperature : 1.5,
+        temperature: options.temperature !== undefined ? options.temperature : 1.0,
       }),
       signal: options.signal,
     });
@@ -88,7 +85,7 @@ export class DeepSeekProvider extends LLMProvider {
 
     return {
       content: choice.message.content || "",
-      reasoning: choice.message.reasoning_content || "",
+      reasoning: "", // OpenAI doesn't provide reasoning tokens
       usage: data.usage,
     };
   }
@@ -119,7 +116,7 @@ export class DeepSeekProvider extends LLMProvider {
         messages: messages,
         stream: true,
         max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature !== undefined ? options.temperature : 1.5,
+        temperature: options.temperature !== undefined ? options.temperature : 1.0,
       }),
       signal: options.signal || controller.signal,
     });
@@ -177,7 +174,7 @@ export class DeepSeekProvider extends LLMProvider {
                 const delta = data.choices[0].delta;
 
                 yield {
-                  reasoning: delta.reasoning_content || null,
+                  reasoning: null, // OpenAI doesn't provide reasoning tokens
                   content: delta.content || null,
                   finished: data.choices[0].finish_reason !== null,
                 };
@@ -190,7 +187,7 @@ export class DeepSeekProvider extends LLMProvider {
       }
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('[DeepSeek] Stream aborted by client');
+        console.log('[OpenAI] Stream aborted by client');
       }
       throw error;
     } finally {
@@ -199,7 +196,7 @@ export class DeepSeekProvider extends LLMProvider {
   }
 
   /**
-   * Parse DeepSeek-specific errors
+   * Parse OpenAI-specific errors
    */
   parseError(error) {
     if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
@@ -218,11 +215,19 @@ export class DeepSeekProvider extends LLMProvider {
       };
     }
 
+    if (error.message?.includes('insufficient_quota')) {
+      return {
+        code: 'INSUFFICIENT_QUOTA',
+        message: 'Insufficient quota. Please check your OpenAI account.',
+        original: error
+      };
+    }
+
     return super.parseError(error);
   }
 
   /**
-   * Fetch available models from DeepSeek
+   * Fetch available models from OpenAI
    * @returns {Promise<Array>} Array of model objects with metadata
    */
   async getAvailableModels() {
@@ -240,33 +245,99 @@ export class DeepSeekProvider extends LLMProvider {
 
       const data = await response.json();
 
-      // Transform DeepSeek model data
-      return data.data.map(model => ({
-        id: model.id,
-        name: model.id, // DeepSeek doesn't provide separate display names
-        description: this.getModelDescription(model.id),
-        contextLength: 64000, // DeepSeek models support 64k context
-        pricing: {
-          prompt: 0, // Pricing not provided by API
-          completion: 0
-        },
-        created: model.created,
-        ownedBy: model.owned_by
-      }));
+      // Filter and transform OpenAI model data to include only relevant chat models
+      return data.data
+        .filter(model => {
+          // Only include GPT models that support chat completions
+          return model.id.includes('gpt') &&
+                 !model.id.includes('instruct') &&
+                 !model.id.includes('search') &&
+                 !model.id.includes('edit') &&
+                 !model.id.includes('embedding') &&
+                 !model.id.includes('davinci') &&
+                 !model.id.includes('curie') &&
+                 !model.id.includes('babbage') &&
+                 !model.id.includes('ada');
+        })
+        .map(model => ({
+          id: model.id,
+          name: this.formatModelName(model.id),
+          description: this.getModelDescription(model.id),
+          contextLength: this.getContextLength(model.id),
+          pricing: {
+            prompt: 0, // Pricing not provided by API
+            completion: 0
+          },
+          created: model.created,
+          ownedBy: model.owned_by
+        }))
+        .sort((a, b) => b.created - a.created); // Most recent first
     } catch (error) {
-      console.error('Failed to fetch DeepSeek models:', error);
+      console.error('Failed to fetch OpenAI models:', error);
       return [];
     }
+  }
+
+  /**
+   * Format model ID into a readable name
+   */
+  formatModelName(modelId) {
+    // Convert model IDs like "gpt-4-turbo-preview" to "GPT-4 Turbo Preview"
+    return modelId
+      .split('-')
+      .map((part, index) => {
+        if (part === 'gpt') return 'GPT';
+        if (index === 1 && !isNaN(part)) return `-${part}`;
+        return part.charAt(0).toUpperCase() + part.slice(1);
+      })
+      .join(' ')
+      .replace('  ', ' ');
   }
 
   /**
    * Get model description based on model ID
    */
   getModelDescription(modelId) {
-    const descriptions = {
-      'deepseek-chat': 'DeepSeek-V3 in non-thinking mode, optimized for general conversation and tasks',
-      'deepseek-reasoner': 'DeepSeek-V3 in thinking mode, optimized for advanced reasoning, math, and coding'
-    };
-    return descriptions[modelId] || '';
+    if (modelId.includes('gpt-5')) {
+      return 'Latest flagship model with advanced reasoning capabilities';
+    }
+    if (modelId.includes('gpt-4-turbo') || modelId.includes('gpt-4-1')) {
+      return 'Fast, multimodal model with high intelligence';
+    }
+    if (modelId.includes('gpt-4')) {
+      return 'Advanced model for complex tasks';
+    }
+    if (modelId.includes('gpt-3.5-turbo')) {
+      return 'Fast and cost-effective model for simpler tasks';
+    }
+    if (modelId.includes('o3') || modelId.includes('o1')) {
+      return 'Reasoning model optimized for complex problem-solving';
+    }
+    return '';
+  }
+
+  /**
+   * Get context length for model
+   */
+  getContextLength(modelId) {
+    if (modelId.includes('gpt-5') || modelId.includes('gpt-4-turbo') || modelId.includes('gpt-4-1')) {
+      return 128000;
+    }
+    if (modelId.includes('gpt-4-32k')) {
+      return 32768;
+    }
+    if (modelId.includes('gpt-4')) {
+      return 8192;
+    }
+    if (modelId.includes('gpt-3.5-turbo-16k')) {
+      return 16385;
+    }
+    if (modelId.includes('gpt-3.5-turbo')) {
+      return 16385; // Updated context length for newer versions
+    }
+    if (modelId.includes('o3') || modelId.includes('o1')) {
+      return 128000;
+    }
+    return 8192; // Default fallback
   }
 }

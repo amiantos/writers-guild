@@ -103,7 +103,7 @@
               :key="model.id"
               class="model-item"
               :class="{ 'model-selected': isModelSelected(model.id) }"
-              @click="selectModel(model.id)"
+              @click="selectModel(model)"
             >
               <div class="model-header">
                 <span class="model-name">{{ model.name }}</span>
@@ -136,7 +136,7 @@
                   :key="model.id"
                   class="model-item"
                   :class="{ 'model-selected': isModelSelected(model.id) }"
-                  @click="selectModel(model.id)"
+                  @click="selectModel(model)"
                 >
                   <div class="model-header">
                     <span class="model-name">{{ model.name }}</span>
@@ -414,12 +414,28 @@ const groupedModels = computed(() => {
 })
 
 // Model selection methods
-function selectModel(modelId) {
+function selectModel(model) {
   localApiConfig.value = {
     ...localApiConfig.value,
-    model: modelId
+    model: model.id
   }
-  toast.success(`Selected model: ${modelId}`)
+
+  // Auto-update context length if the setting exists
+  if (props.config.generationSettings && model.contextLength) {
+    emit('update:config', {
+      ...props.config,
+      apiConfig: {
+        ...localApiConfig.value,
+        model: model.id
+      },
+      generationSettings: {
+        ...props.config.generationSettings,
+        maxContextTokens: model.contextLength
+      }
+    })
+  }
+
+  toast.success(`Selected model: ${model.name}`)
 }
 
 function isModelSelected(modelId) {

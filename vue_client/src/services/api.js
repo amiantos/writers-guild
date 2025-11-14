@@ -465,6 +465,21 @@ export const presetsAPI = {
   getOpenRouterModels(apiKey) {
     return request(`/presets/openrouter/models?apiKey=${encodeURIComponent(apiKey)}`)
   },
+
+  // OpenAI specific methods
+  getOpenAIModels(apiKey) {
+    return request(`/presets/openai/models?apiKey=${encodeURIComponent(apiKey)}`)
+  },
+
+  // Anthropic specific methods
+  getAnthropicModels(apiKey) {
+    return request(`/presets/anthropic/models?apiKey=${encodeURIComponent(apiKey)}`)
+  },
+
+  // DeepSeek specific methods
+  getDeepSeekModels(apiKey) {
+    return request(`/presets/deepseek/models?apiKey=${encodeURIComponent(apiKey)}`)
+  },
 }
 
 export default {
