@@ -92,7 +92,7 @@ function getImageUrl(character) {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--border-color);
+  border: 2px solid var(--bg-primary);
   overflow: hidden;
   flex-shrink: 0;
 }
