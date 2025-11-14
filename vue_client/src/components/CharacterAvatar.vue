@@ -119,10 +119,10 @@ function getImageUrl(character) {
 }
 
 .character-avatar.stacked {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border: 2px solid var(--bg-primary);
-  margin-left: -16px;
+  margin-left: -18px;
   position: relative;
   transition: transform 0.2s ease;
 }
