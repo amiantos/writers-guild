@@ -23,6 +23,38 @@ export class TemplateEngine {
   }
 
   /**
+   * Find matching closing tag for a block, accounting for nesting
+   */
+  findMatchingClose(template, openTag, closeTag, startPos) {
+    let depth = 1;
+    let pos = startPos;
+
+    while (pos < template.length && depth > 0) {
+      // Look for next opening or closing tag
+      const nextOpen = template.indexOf(openTag, pos);
+      const nextClose = template.indexOf(closeTag, pos);
+
+      // If no closing tag found, return -1
+      if (nextClose === -1) return -1;
+
+      // If we find a closing tag before another opening tag (or no opening tag)
+      if (nextOpen === -1 || nextClose < nextOpen) {
+        depth--;
+        if (depth === 0) {
+          return nextClose;
+        }
+        pos = nextClose + closeTag.length;
+      } else {
+        // Found another opening tag before the closing tag
+        depth++;
+        pos = nextOpen + openTag.length;
+      }
+    }
+
+    return -1;
+  }
+
+  /**
    * Process block directives (if, each)
    */
   processBlocks(template, data, context = data) {
@@ -36,64 +68,91 @@ export class TemplateEngine {
       let processed = false;
 
       // Process {{#if}} blocks
-      const ifRegex = /\{\{#if\s+([^}]+)\}\}([\s\S]*?)\{\{\/if\}\}/;
-      const ifMatch = result.match(ifRegex);
+      const ifStart = result.indexOf('{{#if ');
+      if (ifStart !== -1) {
+        const conditionStart = ifStart + 6; // length of '{{#if '
+        const conditionEnd = result.indexOf('}}', conditionStart);
 
-      if (ifMatch) {
-        const condition = ifMatch[1].trim();
-        const content = ifMatch[2];
-        const conditionValue = this.evaluateCondition(condition, context);
+        if (conditionEnd !== -1) {
+          const condition = result.substring(conditionStart, conditionEnd).trim();
+          const contentStart = conditionEnd + 2; // after '}}'
+          const closePos = this.findMatchingClose(result, '{{#if ', '{{/if}}', contentStart);
 
-        result = result.replace(ifMatch[0], conditionValue ? content : '');
-        processed = true;
-        continue;
+          if (closePos !== -1) {
+            const content = result.substring(contentStart, closePos);
+            const conditionValue = this.evaluateCondition(condition, context);
+            const fullBlock = result.substring(ifStart, closePos + 7); // 7 = length of '{{/if}}'
+
+            result = result.replace(fullBlock, conditionValue ? content : '');
+            processed = true;
+            continue;
+          }
+        }
       }
 
       // Process {{#unless}} blocks (inverse if)
-      const unlessRegex = /\{\{#unless\s+([^}]+)\}\}([\s\S]*?)\{\{\/unless\}\}/;
-      const unlessMatch = result.match(unlessRegex);
+      const unlessStart = result.indexOf('{{#unless ');
+      if (unlessStart !== -1) {
+        const conditionStart = unlessStart + 10; // length of '{{#unless '
+        const conditionEnd = result.indexOf('}}', conditionStart);
 
-      if (unlessMatch) {
-        const condition = unlessMatch[1].trim();
-        const content = unlessMatch[2];
-        const conditionValue = this.evaluateCondition(condition, context);
+        if (conditionEnd !== -1) {
+          const condition = result.substring(conditionStart, conditionEnd).trim();
+          const contentStart = conditionEnd + 2;
+          const closePos = this.findMatchingClose(result, '{{#unless ', '{{/unless}}', contentStart);
 
-        result = result.replace(unlessMatch[0], !conditionValue ? content : '');
-        processed = true;
-        continue;
+          if (closePos !== -1) {
+            const content = result.substring(contentStart, closePos);
+            const conditionValue = this.evaluateCondition(condition, context);
+            const fullBlock = result.substring(unlessStart, closePos + 11); // 11 = length of '{{/unless}}'
+
+            result = result.replace(fullBlock, !conditionValue ? content : '');
+            processed = true;
+            continue;
+          }
+        }
       }
 
       // Process {{#each}} blocks
-      const eachRegex = /\{\{#each\s+([^}]+)\}\}([\s\S]*?)\{\{\/each\}\}/;
-      const eachMatch = result.match(eachRegex);
+      const eachStart = result.indexOf('{{#each ');
+      if (eachStart !== -1) {
+        const arrayPathStart = eachStart + 8; // length of '{{#each '
+        const arrayPathEnd = result.indexOf('}}', arrayPathStart);
 
-      if (eachMatch) {
-        const arrayPath = eachMatch[1].trim();
-        const content = eachMatch[2];
-        const array = this.getNestedValue(arrayPath, context);
+        if (arrayPathEnd !== -1) {
+          const arrayPath = result.substring(arrayPathStart, arrayPathEnd).trim();
+          const contentStart = arrayPathEnd + 2;
+          const closePos = this.findMatchingClose(result, '{{#each ', '{{/each}}', contentStart);
 
-        let replacement = '';
-        if (Array.isArray(array)) {
-          array.forEach((item, index) => {
-            const itemContext = {
-              ...item,
-              '@index': index,
-              '@index_1': index + 1,
-              '@first': index === 0,
-              '@last': index === array.length - 1,
-              '@length': array.length
-            };
+          if (closePos !== -1) {
+            const content = result.substring(contentStart, closePos);
+            const array = this.getNestedValue(arrayPath, context);
+            const fullBlock = result.substring(eachStart, closePos + 9); // 9 = length of '{{/each}}'
 
-            // Recursively process the content with item context
-            let itemResult = this.processBlocks(content, data, itemContext);
-            itemResult = this.processVariables(itemResult, itemContext);
-            replacement += itemResult;
-          });
+            let replacement = '';
+            if (Array.isArray(array)) {
+              array.forEach((item, index) => {
+                const itemContext = {
+                  ...item,
+                  '@index': index,
+                  '@index_1': index + 1,
+                  '@first': index === 0,
+                  '@last': index === array.length - 1,
+                  '@length': array.length
+                };
+
+                // Recursively process the content with item context
+                let itemResult = this.processBlocks(content, data, itemContext);
+                itemResult = this.processVariables(itemResult, itemContext);
+                replacement += itemResult;
+              });
+            }
+
+            result = result.replace(fullBlock, replacement);
+            processed = true;
+            continue;
+          }
         }
-
-        result = result.replace(eachMatch[0], replacement);
-        processed = true;
-        continue;
       }
 
       // If no blocks were processed, we're done
