@@ -216,10 +216,11 @@ export class PromptBuilder {
     const headers = this.config.sectionHeaders;
     let prompt = `\n${headers.perspective}\n`;
 
-    prompt += `Write in third-person past tense perspective.\n`;
+    prompt += `Write only in third-person past tense perspective.\n`;
     prompt += `Use he/she/they pronouns and past tense verbs (said, walked, thought, etc.).\n`;
     prompt += `Do NOT use first-person (I, me, my, we) or present tense.\n`;
     prompt += `All narrative and dialogue tags should be in past tense.\n`;
+    prompt += `Aspects of character information, such as their profile or dialog style examples, may be in the incorrect tense. Ignore the tense, focus on the context.\n`;
 
     // Add asterisk filtering instruction
     prompt += `\nDo not use asterisks (*) for actions. Write everything as prose.\n`;

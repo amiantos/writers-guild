@@ -62,12 +62,18 @@ router.get('/', asyncHandler(async (req, res) => {
         );
         const totalWords = characterStories.reduce((sum, story) => sum + (story.wordCount || 0), 0);
 
+        // Provide both full image and thumbnail URLs
+        const hasThumbnail = await storage.hasCharacterThumbnail(char.id);
+        const imageUrl = hasImage ? `/api/characters/${char.id}/image` : null;
+        const thumbnailUrl = hasThumbnail ? `/api/characters/${char.id}/thumbnail` : imageUrl;
+
         return {
           id: char.id,
           name: cardData.data?.name || 'Unknown',
           description: cardData.data?.description || '',
           tags: cardData.data?.tags || cardData.tags || [],
-          imageUrl: hasImage ? `/api/characters/${char.id}/image` : null,
+          imageUrl, // Full resolution for CharacterCard
+          thumbnailUrl, // Optimized thumbnail for CharacterAvatar
           created: cardData.metadata?.created || null,
           totalWords,
         };
@@ -343,6 +349,20 @@ router.get('/:characterId/image', asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'image/png');
   res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
   res.send(imageBuffer);
+}));
+
+// Get character thumbnail (96x96 optimized avatar)
+router.get('/:characterId/thumbnail', asyncHandler(async (req, res) => {
+  const { characterId } = req.params;
+  const thumbnailBuffer = await storage.getCharacterThumbnail(characterId);
+
+  if (!thumbnailBuffer) {
+    throw new AppError('Character has no thumbnail', 404);
+  }
+
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+  res.send(thumbnailBuffer);
 }));
 
 // Get character data (JSON)

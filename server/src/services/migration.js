@@ -177,6 +177,53 @@ async function needsMigration(storage) {
 }
 
 /**
+ * Generate thumbnails for all existing character images that don't have them
+ * @param {StorageService} storage - Storage service instance
+ * @returns {Promise<number>} Number of thumbnails generated
+ */
+async function generateMissingThumbnails(storage) {
+  try {
+    console.log('Checking for missing character thumbnails...');
+    const characters = await storage.listAllCharacters();
+    let generated = 0;
+
+    for (const char of characters) {
+      const hasImage = await storage.hasCharacterImage(char.id);
+      const hasThumbnail = await storage.hasCharacterThumbnail(char.id);
+
+      // If character has an image but no thumbnail, generate it
+      if (hasImage && !hasThumbnail) {
+        try {
+          const imageBuffer = await storage.getCharacterImage(char.id);
+          const thumbnailBuffer = await storage.generateThumbnail(imageBuffer);
+
+          if (thumbnailBuffer) {
+            const thumbnailPath = storage.getCharacterThumbnailPath(char.id);
+            const fs = await import('fs/promises');
+            await fs.writeFile(thumbnailPath, thumbnailBuffer);
+            generated++;
+            console.log(`✓ Generated thumbnail for character: ${char.id}`);
+          }
+        } catch (error) {
+          console.error(`Failed to generate thumbnail for ${char.id}:`, error.message);
+        }
+      }
+    }
+
+    if (generated > 0) {
+      console.log(`✓ Generated ${generated} missing thumbnails`);
+    } else {
+      console.log('All character thumbnails are up to date');
+    }
+
+    return generated;
+  } catch (error) {
+    console.error('Failed to generate missing thumbnails:', error);
+    return 0;
+  }
+}
+
+/**
  * Perform migration from old settings to preset system
  * @param {StorageService} storage - Storage service instance
  * @returns {Promise<Object>} Migration result
@@ -278,6 +325,9 @@ export async function migrate(storage) {
       }
     }
 
+    // Generate thumbnails for any existing characters that don't have them
+    const thumbnailsGenerated = await generateMissingThumbnails(storage);
+
     console.log('=== Migration Complete ===');
     console.log(`Created ${createdPresets.length} presets`);
     console.log(`Default preset ID: ${defaultPresetId}`);
@@ -290,6 +340,7 @@ export async function migrate(storage) {
       presets: createdPresets,
       importedCharacter,
       defaultStory,
+      thumbnailsGenerated,
       message: hasExistingConfig
         ? 'Migrated existing configuration to preset system'
         : 'Created default presets for fresh installation'
@@ -312,5 +363,15 @@ export async function migrate(storage) {
  */
 export async function runMigration(dataRoot) {
   const storage = new StorageService(dataRoot);
-  return await migrate(storage);
+  const migrationResult = await migrate(storage);
+
+  // Always check for missing thumbnails, independent of preset migration
+  // This ensures thumbnails are generated even on existing installations
+  if (!migrationResult.thumbnailsGenerated) {
+    console.log('Running independent thumbnail check...');
+    const thumbnailsGenerated = await generateMissingThumbnails(storage);
+    migrationResult.thumbnailsGenerated = thumbnailsGenerated;
+  }
+
+  return migrationResult;
 }

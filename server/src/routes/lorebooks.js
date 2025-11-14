@@ -29,7 +29,48 @@ router.use((req, res, next) => {
  */
 router.get('/', asyncHandler(async (req, res) => {
   const lorebooks = await storage.listAllLorebooks();
-  res.json({ lorebooks });
+
+  // Get all characters to find which ones are associated with each lorebook
+  const allCharacters = await storage.listAllCharacters();
+
+  // Enrich lorebooks with associated character data
+  const enrichedLorebooks = await Promise.all(
+    lorebooks.map(async (lorebook) => {
+      // Find characters that reference this lorebook
+      const associatedCharacters = [];
+
+      for (const char of allCharacters) {
+        try {
+          const characterData = await storage.getCharacter(char.id);
+          const lorebookId = characterData.data?.extensions?.ursceal_lorebook_id;
+
+          if (lorebookId === lorebook.id) {
+            // Get character info
+            const hasImage = await storage.hasCharacterImage(char.id);
+            const hasThumbnail = await storage.hasCharacterThumbnail(char.id);
+            const imageUrl = hasImage ? `/api/characters/${char.id}/image` : null;
+            const thumbnailUrl = hasThumbnail ? `/api/characters/${char.id}/thumbnail` : imageUrl;
+
+            associatedCharacters.push({
+              id: char.id,
+              name: characterData.data?.name || 'Unknown',
+              imageUrl,
+              thumbnailUrl
+            });
+          }
+        } catch (error) {
+          console.error(`Failed to check character ${char.id} for lorebook association:`, error);
+        }
+      }
+
+      return {
+        ...lorebook,
+        characters: associatedCharacters
+      };
+    })
+  );
+
+  res.json({ lorebooks: enrichedLorebooks });
 }));
 
 /**

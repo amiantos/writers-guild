@@ -7,6 +7,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import sharp from 'sharp';
 
 export class StorageService {
   constructor(dataRoot) {
@@ -273,6 +274,13 @@ export class StorageService {
   }
 
   /**
+   * Get character thumbnail file path
+   */
+  getCharacterThumbnailPath(characterId) {
+    return path.join(this.charactersDir, `${characterId}-thumbnail.png`);
+  }
+
+  /**
    * List all characters in global library
    */
   async listAllCharacters() {
@@ -314,6 +322,26 @@ export class StorageService {
   }
 
   /**
+   * Generate thumbnail from image buffer
+   * Creates a 96x96 high-quality thumbnail
+   */
+  async generateThumbnail(imageBuffer) {
+    try {
+      return await sharp(imageBuffer)
+        .resize(96, 96, {
+          fit: 'cover',
+          position: 'top',
+          withoutEnlargement: false
+        })
+        .png({ quality: 90 })
+        .toBuffer();
+    } catch (error) {
+      console.error('Failed to generate thumbnail:', error);
+      return null;
+    }
+  }
+
+  /**
    * Save character data to global library
    */
   async saveCharacter(characterId, characterData, imageBuffer = null) {
@@ -334,10 +362,17 @@ export class StorageService {
 
     await this.writeJSON(dataPath, characterData);
 
-    // Save image if provided
+    // Save image and generate thumbnail if provided
     if (imageBuffer) {
       const imagePath = this.getCharacterImagePath(characterId);
       await fs.writeFile(imagePath, imageBuffer);
+
+      // Generate and save thumbnail
+      const thumbnailBuffer = await this.generateThumbnail(imageBuffer);
+      if (thumbnailBuffer) {
+        const thumbnailPath = this.getCharacterThumbnailPath(characterId);
+        await fs.writeFile(thumbnailPath, thumbnailBuffer);
+      }
     }
 
     return { id: characterId };
@@ -378,11 +413,33 @@ export class StorageService {
   }
 
   /**
+   * Get character thumbnail buffer (if exists)
+   */
+  async getCharacterThumbnail(characterId) {
+    const thumbnailPath = this.getCharacterThumbnailPath(characterId);
+
+    if (!await this.exists(thumbnailPath)) {
+      return null;
+    }
+
+    return await fs.readFile(thumbnailPath);
+  }
+
+  /**
+   * Check if character has thumbnail
+   */
+  async hasCharacterThumbnail(characterId) {
+    const thumbnailPath = this.getCharacterThumbnailPath(characterId);
+    return await this.exists(thumbnailPath);
+  }
+
+  /**
    * Delete character from global library
    */
   async deleteCharacter(characterId) {
     const dataPath = this.getCharacterDataPath(characterId);
     const imagePath = this.getCharacterImagePath(characterId);
+    const thumbnailPath = this.getCharacterThumbnailPath(characterId);
 
     // Delete data file
     if (await this.exists(dataPath)) {
@@ -392,6 +449,11 @@ export class StorageService {
     // Delete image if exists
     if (await this.exists(imagePath)) {
       await fs.unlink(imagePath);
+    }
+
+    // Delete thumbnail if exists
+    if (await this.exists(thumbnailPath)) {
+      await fs.unlink(thumbnailPath);
     }
 
     // Note: This doesn't remove from stories - caller should check if in use

@@ -5,6 +5,11 @@
     default-sort="name"
     row-key="id"
   >
+    <!-- Character avatars column -->
+    <template #cell-characters="{ row }">
+      <CharacterAvatar :characters="row.characters && row.characters.length > 0 ? row.characters : []" />
+    </template>
+
     <!-- Actions column -->
     <template #cell-actions="{ row }">
       <div class="actions-cell">
@@ -21,6 +26,7 @@
 
 <script setup>
 import DataTable from './DataTable.vue'
+import CharacterAvatar from './CharacterAvatar.vue'
 
 defineProps({
   lorebooks: {
@@ -32,6 +38,13 @@ defineProps({
 defineEmits(['edit', 'delete'])
 
 const columns = [
+  {
+    key: 'characters',
+    label: '',
+    sortable: false,
+    headerClass: 'avatar-col',
+    cellClass: 'avatar-cell'
+  },
   {
     key: 'name',
     label: 'Name',
