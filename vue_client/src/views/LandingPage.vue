@@ -20,18 +20,7 @@
           :key="character.id"
           class="quick-access-character"
         >
-          <div class="character-card-portrait">
-            <img
-              v-if="character.imageUrl"
-              :src="character.imageUrl"
-              :alt="character.name"
-              class="character-avatar"
-            />
-            <div v-else class="character-avatar-placeholder">
-              <i class="fas fa-user"></i>
-            </div>
-          </div>
-          <div class="character-name">{{ character.name }}</div>
+          <CharacterCard :character="character" />
           <button
             class="btn btn-small btn-primary quick-continue-btn"
             @click="showCharacterStories(character.id)"
@@ -217,6 +206,7 @@ import { useConfirm } from '../composables/useConfirm'
 import Tabs from '../components/Tabs.vue'
 import StoriesTable from '../components/StoriesTable.vue'
 import CharactersTable from '../components/CharactersTable.vue'
+import CharacterCard from '../components/CharacterCard.vue'
 import LorebooksTable from '../components/LorebooksTable.vue'
 import PresetsTable from '../components/PresetsTable.vue'
 import CharacterStoriesModal from '../components/CharacterStoriesModal.vue'
@@ -726,55 +716,8 @@ function goToSettings() {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 0.5rem;
   width: 140px;
-}
-
-.character-card-portrait {
-  width: 120px;
-  height: 180px;
-  border-radius: 8px;
-  overflow: hidden;
-  background-color: var(--bg-primary);
-  border: 2px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
-  transition: all 0.2s;
-}
-
-.character-card-portrait:hover {
-  border-color: var(--primary-color);
-  box-shadow: var(--shadow);
-}
-
-.character-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.character-avatar-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  font-size: 3rem;
-  background-color: var(--bg-tertiary);
-}
-
-.character-name {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  text-align: center;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0 0.25rem;
 }
 
 .quick-continue-btn {
