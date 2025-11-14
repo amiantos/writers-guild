@@ -7,7 +7,7 @@
   >
     <!-- Avatar column -->
     <template #cell-avatar="{ row }">
-      <CharacterAvatar :character="getFirstCharacter(row)" />
+      <CharacterAvatar :characters="getStoryCharacters(row)" />
     </template>
 
     <!-- Actions column -->
@@ -86,14 +86,27 @@ const columns = [
   }
 ]
 
-function getFirstCharacter(story) {
-  if (!story.characterIds || story.characterIds.length === 0) return null
+function getStoryCharacters(story) {
+  const characters = []
 
-  for (const charId of story.characterIds) {
-    const character = props.characters.find(c => c.id === charId)
-    if (character) return character
+  // Add all characters from characterIds
+  if (story.characterIds && story.characterIds.length > 0) {
+    for (const charId of story.characterIds) {
+      const character = props.characters.find(c => c.id === charId)
+      if (character && !characters.find(c => c.id === character.id)) {
+        characters.push(character)
+      }
+    }
   }
 
-  return null
+  // Add persona character if it exists and isn't already included
+  if (story.personaCharacterId) {
+    const personaChar = props.characters.find(c => c.id === story.personaCharacterId)
+    if (personaChar && !characters.find(c => c.id === personaChar.id)) {
+      characters.push(personaChar)
+    }
+  }
+
+  return characters
 }
 </script>
