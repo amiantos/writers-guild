@@ -5,6 +5,7 @@
  */
 
 import { LLMProvider } from './base-provider.js';
+import { parseSSEStream, transformers } from './shared/stream-parser.js';
 
 export class OpenAIProvider extends LLMProvider {
   constructor(config) {
@@ -165,60 +166,10 @@ export class OpenAIProvider extends LLMProvider {
   }
 
   /**
-   * Parse SSE stream response
+   * Parse SSE stream response using shared parser
    */
   async *parseStreamResponse(body) {
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-
-        // Keep the last incomplete line in buffer
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-
-          if (trimmed === "" || trimmed === "data: [DONE]") {
-            continue;
-          }
-
-          if (trimmed.startsWith("data: ")) {
-            try {
-              const jsonStr = trimmed.slice(6); // Remove 'data: ' prefix
-              const data = JSON.parse(jsonStr);
-
-              if (data.choices && data.choices[0]) {
-                const delta = data.choices[0].delta;
-
-                yield {
-                  reasoning: null, // OpenAI doesn't provide reasoning tokens
-                  content: delta.content || null,
-                  finished: data.choices[0].finish_reason !== null,
-                };
-              }
-            } catch (e) {
-              console.warn("Failed to parse SSE line:", e);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('[OpenAI] Stream aborted by client');
-      }
-      throw error;
-    } finally {
-      reader.releaseLock();
-    }
+    yield* parseSSEStream(body, transformers.openai, 'OpenAI');
   }
 
   /**
