@@ -71,8 +71,8 @@ const remainingCount = computed(() => {
 
 <style scoped>
 .character-avatar {
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background-color: var(--bg-tertiary);
   display: flex;
@@ -93,7 +93,7 @@ const remainingCount = computed(() => {
 .character-avatar.empty {
   background-color: var(--bg-tertiary);
   color: var(--text-secondary);
-  font-size: 0.875rem;
+  font-size: 1rem;
 }
 
 /* Multi-character mode styles */
@@ -101,14 +101,14 @@ const remainingCount = computed(() => {
   display: flex;
   align-items: center;
   position: relative;
-  height: 36px;
+  height: 48px;
 }
 
 .character-avatar.stacked {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: 2px solid var(--bg-primary);
-  margin-left: -12px;
+  margin-left: -16px;
   position: relative;
   transition: transform 0.2s ease;
 }
@@ -125,7 +125,7 @@ const remainingCount = computed(() => {
 .character-avatar.stacked.overflow-indicator {
   background-color: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: default;
 }
