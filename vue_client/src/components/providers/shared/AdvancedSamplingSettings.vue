@@ -37,18 +37,18 @@
         <input
           id="top_k"
           v-model.number="localSettings.top_k"
-          type="number"
+          type="range"
           min="1"
           max="100"
           step="1"
-          class="number-input"
+          class="range-input"
         />
         <button v-if="localSettings.top_k != null" @click="localSettings.top_k = null" class="clear-btn">
           Clear
         </button>
       </div>
       <small class="help-text">
-        Sample from top K most likely tokens. Lower = more focused.
+        Sample from top K most likely tokens (1-100). Lower = more focused.
       </small>
     </div>
 
