@@ -19,6 +19,9 @@ export class TemplateEngine {
     // Then process simple variable substitutions
     result = this.processVariables(result, data);
 
+    // Clean up excessive consecutive newlines (3+ becomes 2)
+    result = result.replace(/\n{3,}/g, '\n\n');
+
     return result;
   }
 
