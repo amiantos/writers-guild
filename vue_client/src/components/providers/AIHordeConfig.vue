@@ -108,7 +108,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import BaseProviderConfig from './shared/BaseProviderConfig.vue'
 import { presetsAPI } from '../../services/api'
 import { useToast } from '../../composables/useToast'
@@ -194,6 +194,11 @@ function clearSelectedModels() {
 function isModelSelected(modelName) {
   return localModels.value.includes(modelName)
 }
+
+// Auto-fetch models when component mounts
+onMounted(() => {
+  fetchHordeModels()
+})
 </script>
 
 <style scoped>
