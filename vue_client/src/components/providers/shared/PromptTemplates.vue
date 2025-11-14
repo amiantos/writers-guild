@@ -1,7 +1,7 @@
 <template>
   <div>
-    <section v-if="showTemplates" class="form-section">
-      <h3 class="section-title">Prompt Templates (Advanced)</h3>
+    <section class="form-section">
+      <h3 class="section-title">Prompt Templates</h3>
       <p class="section-description">
         Customize the prompts sent to the AI. Use placeholders like <code v-text="'{{char}}'"></code>,
         <code v-text="'{{instruction}}'"></code>, <code v-text="'{{storyContent}}'"></code>, etc.
@@ -145,19 +145,11 @@
         </div>
       </div>
     </section>
-
-    <button
-      type="button"
-      class="btn-link"
-      @click="showTemplates = !showTemplates"
-    >
-      {{ showTemplates ? 'Hide' : 'Show' }} Prompt Templates (Advanced)
-    </button>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 
 // Default templates (matching backend defaults)
 const DEFAULT_TEMPLATES = {
@@ -229,8 +221,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
-
-const showTemplates = ref(false)
 
 const localTemplates = computed({
   get() {
@@ -394,19 +384,5 @@ const toggleCustomization = (key) => {
   line-height: 1.4;
   max-height: 300px;
   overflow-y: auto;
-}
-
-.btn-link {
-  background: none;
-  border: none;
-  color: var(--accent-primary);
-  cursor: pointer;
-  font-size: 0.9rem;
-  padding: 0.5rem 0;
-  text-decoration: underline;
-}
-
-.btn-link:hover {
-  opacity: 0.8;
 }
 </style>
