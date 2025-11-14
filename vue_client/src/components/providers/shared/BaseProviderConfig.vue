@@ -88,7 +88,15 @@ const localLorebookSettings = computed({
 
 const localPromptTemplates = computed({
   get() {
-    return props.config.promptTemplates || {}
+    const templates = props.config.promptTemplates || {}
+    // Ensure all required fields exist (default to null for system defaults)
+    return {
+      systemPrompt: templates.systemPrompt ?? null,
+      continue: templates.continue ?? null,
+      character: templates.character ?? null,
+      instruction: templates.instruction ?? null,
+      rewriteThirdPerson: templates.rewriteThirdPerson ?? null
+    }
   },
   set(value) {
     emit('update:config', { ...props.config, promptTemplates: value })

@@ -94,10 +94,14 @@ export class LLMProvider {
     const maxContextTokens = preset.generationSettings?.maxContextTokens || 128000;
     const maxGenerationTokens = preset.generationSettings?.maxTokens || 4000;
 
+    // Get custom system prompt template from preset (null = use default)
+    const systemPromptTemplate = preset.promptTemplates?.systemPrompt ?? null;
+
     return this.promptBuilder.buildPrompts(context, {
       maxContextTokens,
       maxGenerationTokens,
       generationType,
+      systemPromptTemplate,
       ...customParams
     });
   }

@@ -4,6 +4,8 @@
  */
 
 import { MacroProcessor } from './macro-processor.js';
+import { TemplateEngine } from './template-engine.js';
+import { DEFAULT_SYSTEM_PROMPT_TEMPLATE, DEFAULT_PROMPT_TEMPLATES } from './default-presets.js';
 
 export class PromptBuilder {
   constructor(config = {}) {
@@ -230,13 +232,14 @@ export class PromptBuilder {
 
   /**
    * Build complete system prompt from context
+   * @param {Object} context - Generation context (persona, characterCards, activatedLorebooks, etc.)
+   * @param {string} [customTemplate] - Optional custom system prompt template with placeholders
+   * @returns {string} Built system prompt
    */
-  buildSystemPrompt(context) {
+  buildSystemPrompt(context, customTemplate = null) {
     const { persona, characterCards, activatedLorebooks, story, settings = {} } = context;
     const characterCard = characterCards && characterCards.length === 1 ? characterCards[0] : null;
     const allCharacterCards = characterCards && characterCards.length > 1 ? characterCards : null;
-
-    let prompt = "You are a creative writing assistant helping to write a novel-style story.\n\n";
 
     // Initialize macro processor with context
     const macroProcessor = new MacroProcessor({
@@ -244,22 +247,50 @@ export class PromptBuilder {
       charName: characterCard?.data?.name || (allCharacterCards && allCharacterCards.length > 0 ? allCharacterCards[0].data?.name : 'Character')
     });
 
-    // Add character sections
-    if (allCharacterCards && allCharacterCards.length > 0) {
-      prompt += this.buildMultipleCharactersSection(allCharacterCards, persona, macroProcessor, settings);
-    } else if (characterCard) {
-      prompt += this.buildSingleCharacterSection(characterCard, persona, macroProcessor, settings);
-    }
+    // Prepare granular template data
+    const templateData = {
+      // Character data
+      has_single_character: !!characterCard,
+      has_multiple_characters: !!allCharacterCards,
+      character: characterCard ? {
+        name: characterCard.data.name || '',
+        description: this.processContent(characterCard.data.description, characterCard, persona, macroProcessor),
+        personality: this.processContent(characterCard.data.personality, characterCard, persona, macroProcessor),
+        scenario: this.processContent(characterCard.data.scenario, characterCard, persona, macroProcessor),
+        mes_example: this.processContent(characterCard.data.mes_example, characterCard, persona, macroProcessor)
+      } : null,
+      characters: allCharacterCards ? allCharacterCards.map(card => ({
+        name: card.data.name || '',
+        description: this.processContent(card.data.description, card, persona, macroProcessor),
+        personality: this.processContent(card.data.personality, card, persona, macroProcessor),
+        scenario: this.processContent(card.data.scenario, card, persona, macroProcessor)
+      })) : [],
 
-    // Add lorebook entries
-    prompt += this.buildLorebookSection(activatedLorebooks, macroProcessor, settings);
+      // Lorebook data
+      has_lorebook: !!(activatedLorebooks && activatedLorebooks.length > 0),
+      lorebook_entries: activatedLorebooks ? activatedLorebooks.map(entry => ({
+        content: this.filterAsterisks(macroProcessor.process(entry.content), this.config.filterAsterisks),
+        comment: entry.comment || ''
+      })) : [],
 
-    // Add user persona
-    prompt += this.buildPersonaSection(persona, characterCard, macroProcessor, settings);
+      // Persona data
+      has_persona: !!(persona && persona.name),
+      persona: persona && persona.name ? {
+        name: persona.name,
+        description: this.processContent(persona.description, characterCard, persona, macroProcessor),
+        writing_style: this.processContent(persona.writingStyle, characterCard, persona, macroProcessor)
+      } : null,
 
-    // Add instructions and perspective
-    prompt += this.buildInstructionsSection();
-    prompt += this.buildPerspectiveSection();
+      // Settings
+      include_dialogue_examples: settings.includeDialogueExamples !== false
+    };
+
+    // Use custom template if provided, otherwise use default template
+    const template = customTemplate || DEFAULT_SYSTEM_PROMPT_TEMPLATE;
+
+    // Render template with granular data
+    const templateEngine = new TemplateEngine();
+    const prompt = templateEngine.render(template, templateData);
 
     return prompt;
   }
@@ -291,8 +322,12 @@ export class PromptBuilder {
     let storyContext = "";
     let instruction = "";
 
-    // Use template text if provided
-    if (templateText) {
+    // Determine the actual template to use:
+    // 1. Use templateText if explicitly provided (and not null)
+    // 2. Otherwise use default templates
+    const useCustomTemplate = templateText !== null && templateText !== undefined;
+
+    if (useCustomTemplate) {
       instruction = templateText;
 
       // Replace placeholders in template
@@ -312,29 +347,44 @@ export class PromptBuilder {
         storyContext = this.truncateStoryContent(storyContent, maxChars);
       }
     } else {
-      // Default templates - always add story context
+      // Use default templates
       if (storyContent && storyContent.trim()) {
         storyContext = this.truncateStoryContent(storyContent, maxChars);
       }
 
       const templates = this.config.instructionTemplates;
 
+      // Get the default template based on type
+      let defaultTemplate;
       switch (type) {
         case "continue":
-          instruction = templates.continue;
+          defaultTemplate = DEFAULT_PROMPT_TEMPLATES.continue;
           break;
-
         case "character":
-          const charName = characterName || "the character";
-          instruction = templates.character.replace(/\{\{charName\}\}/g, charName);
+          defaultTemplate = DEFAULT_PROMPT_TEMPLATES.character;
           break;
-
+        case "instruction":
+          defaultTemplate = DEFAULT_PROMPT_TEMPLATES.instruction;
+          break;
+        case "rewriteThirdPerson":
+          defaultTemplate = DEFAULT_PROMPT_TEMPLATES.rewriteThirdPerson;
+          break;
         case "custom":
-          instruction = customInstruction || templates.custom;
+          defaultTemplate = templates.custom;
           break;
-
         default:
-          instruction = templates.custom;
+          defaultTemplate = templates.custom;
+      }
+
+      instruction = defaultTemplate;
+
+      // Replace placeholders
+      if (characterName) {
+        instruction = instruction.replace(/\{\{charName\}\}/g, characterName);
+        instruction = instruction.replace(/\{\{char\}\}/g, characterName);
+      }
+      if (customInstruction) {
+        instruction = instruction.replace(/\{\{instruction\}\}/g, customInstruction);
       }
     }
 
@@ -365,6 +415,7 @@ export class PromptBuilder {
    * @param {string} [options.characterName] - Character name for character generation
    * @param {string} [options.customInstruction] - Custom instruction for custom generation
    * @param {string} [options.templateText] - Template text override
+   * @param {string} [options.systemPromptTemplate] - Custom system prompt template (null = use default)
    * @returns {Object} { system: string, user: string }
    */
   buildPrompts(context, options = {}) {
@@ -374,11 +425,15 @@ export class PromptBuilder {
       generationType = 'continue',
       characterName,
       customInstruction,
-      templateText
+      templateText,
+      systemPromptTemplate = null
     } = options;
 
-    // Build system prompt first
-    const systemPrompt = this.buildSystemPrompt(context);
+    // Build system prompt first (with custom template if provided and not null)
+    const systemPrompt = this.buildSystemPrompt(
+      context,
+      systemPromptTemplate !== null ? systemPromptTemplate : undefined
+    );
 
     // Estimate system prompt token usage
     const systemTokens = this.estimateTokens(systemPrompt);

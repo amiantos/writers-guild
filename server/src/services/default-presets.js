@@ -3,6 +3,83 @@
  * These are created on first run or during migration
  */
 
+/**
+ * Default system prompt template with granular placeholders for full customization
+ *
+ * Available variables:
+ * - has_single_character, has_multiple_characters, has_lorebook, has_persona
+ * - character.name, character.description, character.personality, character.scenario, character.mes_example
+ * - characters (array) - each has: name, description, personality, scenario
+ * - lorebook_entries (array) - each has: content, comment
+ * - persona.name, persona.description, persona.writing_style
+ * - include_dialogue_examples (boolean from settings)
+ *
+ * Template syntax:
+ * - {{variable}} or {{object.property}} - substitute value
+ * - {{#if variable}}...{{/if}} - conditional block
+ * - {{#unless variable}}...{{/unless}} - inverse conditional
+ * - {{#each array}}...{{/each}} - loop block
+ *   Inside loops: {{property}}, {{@index}}, {{@index_1}}, {{@first}}, {{@last}}
+ */
+export const DEFAULT_SYSTEM_PROMPT_TEMPLATE = `You are a creative writing assistant helping to write a novel-style story.
+
+{{#if has_single_character}}
+=== CHARACTER PROFILE ===
+Name: {{character.name}}
+{{#if character.description}}Description: {{character.description}}
+{{/if}}{{#if character.personality}}Personality: {{character.personality}}
+{{/if}}{{#if character.scenario}}
+Current Scenario: {{character.scenario}}
+{{/if}}{{#if include_dialogue_examples}}{{#if character.mes_example}}
+=== DIALOGUE STYLE EXAMPLES ===
+{{character.mes_example}}
+{{/if}}{{/if}}
+{{/if}}{{#if has_multiple_characters}}
+=== CHARACTER PROFILES ===
+{{#each characters}}
+Character {{@index_1}}: {{name}}
+{{#if description}}Description: {{description}}
+{{/if}}{{#if personality}}Personality: {{personality}}
+{{/if}}{{#unless @last}}
+---
+{{/unless}}{{/each}}
+
+{{/if}}{{#if has_lorebook}}
+=== WORLD INFORMATION ===
+{{#each lorebook_entries}}{{content}}{{#unless @last}}
+
+{{/unless}}{{/each}}
+
+{{/if}}{{#if has_persona}}
+=== USER CHARACTER (PERSONA) ===
+Name: {{persona.name}}
+{{#if persona.description}}Description: {{persona.description}}
+{{/if}}{{#if persona.writing_style}}Writing Style: {{persona.writing_style}}
+{{/if}}
+
+{{/if}}
+=== INSTRUCTIONS ===
+Write in a narrative, novel-style format with proper paragraphs and dialogue.
+Maintain consistency with established characters and plot.
+Focus on showing rather than telling, with vivid descriptions and natural dialogue.
+
+=== PERSPECTIVE ===
+Write only in third-person past tense perspective.
+Use he/she/they pronouns and past tense verbs (said, walked, thought, etc.).
+Do NOT use first-person (I, me, my, we) or present tense.
+All narrative and dialogue tags should be in past tense.
+Aspects of character information, such as their profile or dialog style examples, may be in the incorrect tense. Ignore the tense, focus on the context.
+
+Do not use asterisks (*) for actions. Write everything as prose.`;
+
+/**
+ * Default user prompt templates with placeholders
+ * Available placeholders:
+ * - {{char}} / {{charName}} - Character name
+ * - {{instruction}} - Custom user instruction
+ * - {{storyContent}} - Current story content
+ * - {{user}} - User/persona name
+ */
 export const DEFAULT_PROMPT_TEMPLATES = {
   continue: "Continue the story naturally from where it left off. Write the next 2-3 paragraphs maximum, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters.",
 
@@ -57,7 +134,13 @@ export function getDefaultPresets() {
         recursionDepth: 3,
         enableRecursion: true
       },
-      promptTemplates: { ...DEFAULT_PROMPT_TEMPLATES }
+      promptTemplates: {
+        systemPrompt: null,
+        continue: null,
+        character: null,
+        instruction: null,
+        rewriteThirdPerson: null
+      }
     },
   };
 }
@@ -104,6 +187,12 @@ export function createPresetFromSettings(settings) {
       recursionDepth: settings.lorebookRecursionDepth || 3,
       enableRecursion: settings.lorebookEnableRecursion !== false
     },
-    promptTemplates: { ...DEFAULT_PROMPT_TEMPLATES }
+    promptTemplates: {
+      systemPrompt: null,
+      continue: null,
+      character: null,
+      instruction: null,
+      rewriteThirdPerson: null
+    }
   };
 }
