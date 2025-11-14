@@ -21,9 +21,11 @@
           </button>
         </div>
         <p class="field-description">
-          Available placeholders: <code v-text="'{{characterSection}}'"></code>,
-          <code v-text="'{{lorebookSection}}'"></code>, <code v-text="'{{personaSection}}'"></code>,
-          <code v-text="'{{instructionsSection}}'"></code>, <code v-text="'{{perspectiveSection}}'"></code>
+          Granular template with full control. Variables: <code v-text="'{{character.name}}'"></code>,
+          <code v-text="'{{persona.description}}'"></code>, etc.
+          Conditionals: <code v-text="'{{#if variable}}...{{/if}}'"></code>.
+          Loops: <code v-text="'{{#each array}}...{{/each}}'"></code>.
+          See default for complete reference.
         </p>
         <textarea
           v-if="isCustomized('systemPrompt')"
@@ -161,7 +163,54 @@ import { ref, computed } from 'vue'
 const DEFAULT_TEMPLATES = {
   systemPrompt: `You are a creative writing assistant helping to write a novel-style story.
 
-{{characterSection}}{{lorebookSection}}{{personaSection}}{{instructionsSection}}{{perspectiveSection}}`,
+{{#if has_single_character}}
+=== CHARACTER PROFILE ===
+Name: {{character.name}}
+{{#if character.description}}Description: {{character.description}}
+{{/if}}{{#if character.personality}}Personality: {{character.personality}}
+{{/if}}{{#if character.scenario}}
+Current Scenario: {{character.scenario}}
+{{/if}}{{#if include_dialogue_examples}}{{#if character.mes_example}}
+=== DIALOGUE STYLE EXAMPLES ===
+{{character.mes_example}}
+{{/if}}{{/if}}
+{{/if}}{{#if has_multiple_characters}}
+=== CHARACTER PROFILES ===
+{{#each characters}}
+Character {{@index_1}}: {{name}}
+{{#if description}}Description: {{description}}
+{{/if}}{{#if personality}}Personality: {{personality}}
+{{/if}}{{#unless @last}}
+---
+{{/unless}}{{/each}}
+
+{{/if}}{{#if has_lorebook}}
+=== WORLD INFORMATION ===
+{{#each lorebook_entries}}{{content}}{{#unless @last}}
+
+{{/unless}}{{/each}}
+
+{{/if}}{{#if has_persona}}
+=== USER CHARACTER (PERSONA) ===
+Name: {{persona.name}}
+{{#if persona.description}}Description: {{persona.description}}
+{{/if}}{{#if persona.writing_style}}Writing Style: {{persona.writing_style}}
+{{/if}}
+
+{{/if}}
+=== INSTRUCTIONS ===
+Write in a narrative, novel-style format with proper paragraphs and dialogue.
+Maintain consistency with established characters and plot.
+Focus on showing rather than telling, with vivid descriptions and natural dialogue.
+
+=== PERSPECTIVE ===
+Write only in third-person past tense perspective.
+Use he/she/they pronouns and past tense verbs (said, walked, thought, etc.).
+Do NOT use first-person (I, me, my, we) or present tense.
+All narrative and dialogue tags should be in past tense.
+Aspects of character information, such as their profile or dialog style examples, may be in the incorrect tense. Ignore the tense, focus on the context.
+
+Do not use asterisks (*) for actions. Write everything as prose.`,
 
   continue: "Continue the story naturally from where it left off. Write the next 2-3 paragraphs maximum, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters.",
 

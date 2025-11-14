@@ -4,6 +4,7 @@
  */
 
 import { MacroProcessor } from './macro-processor.js';
+import { TemplateEngine } from './template-engine.js';
 import { DEFAULT_SYSTEM_PROMPT_TEMPLATE, DEFAULT_PROMPT_TEMPLATES } from './default-presets.js';
 
 export class PromptBuilder {
@@ -246,29 +247,50 @@ export class PromptBuilder {
       charName: characterCard?.data?.name || (allCharacterCards && allCharacterCards.length > 0 ? allCharacterCards[0].data?.name : 'Character')
     });
 
-    // Build individual sections
-    let characterSection = '';
-    if (allCharacterCards && allCharacterCards.length > 0) {
-      characterSection = this.buildMultipleCharactersSection(allCharacterCards, persona, macroProcessor, settings);
-    } else if (characterCard) {
-      characterSection = this.buildSingleCharacterSection(characterCard, persona, macroProcessor, settings);
-    }
+    // Prepare granular template data
+    const templateData = {
+      // Character data
+      has_single_character: !!characterCard,
+      has_multiple_characters: !!allCharacterCards,
+      character: characterCard ? {
+        name: characterCard.data.name || '',
+        description: this.processContent(characterCard.data.description, characterCard, persona, macroProcessor),
+        personality: this.processContent(characterCard.data.personality, characterCard, persona, macroProcessor),
+        scenario: this.processContent(characterCard.data.scenario, characterCard, persona, macroProcessor),
+        mes_example: this.processContent(characterCard.data.mes_example, characterCard, persona, macroProcessor)
+      } : null,
+      characters: allCharacterCards ? allCharacterCards.map(card => ({
+        name: card.data.name || '',
+        description: this.processContent(card.data.description, card, persona, macroProcessor),
+        personality: this.processContent(card.data.personality, card, persona, macroProcessor),
+        scenario: this.processContent(card.data.scenario, card, persona, macroProcessor)
+      })) : [],
 
-    const lorebookSection = this.buildLorebookSection(activatedLorebooks, macroProcessor, settings);
-    const personaSection = this.buildPersonaSection(persona, characterCard, macroProcessor, settings);
-    const instructionsSection = this.buildInstructionsSection();
-    const perspectiveSection = this.buildPerspectiveSection();
+      // Lorebook data
+      has_lorebook: !!(activatedLorebooks && activatedLorebooks.length > 0),
+      lorebook_entries: activatedLorebooks ? activatedLorebooks.map(entry => ({
+        content: this.filterAsterisks(macroProcessor.process(entry.content), this.config.filterAsterisks),
+        comment: entry.comment || ''
+      })) : [],
+
+      // Persona data
+      has_persona: !!(persona && persona.name),
+      persona: persona && persona.name ? {
+        name: persona.name,
+        description: this.processContent(persona.description, characterCard, persona, macroProcessor),
+        writing_style: this.processContent(persona.writingStyle, characterCard, persona, macroProcessor)
+      } : null,
+
+      // Settings
+      include_dialogue_examples: settings.includeDialogueExamples !== false
+    };
 
     // Use custom template if provided, otherwise use default template
     const template = customTemplate || DEFAULT_SYSTEM_PROMPT_TEMPLATE;
 
-    // Replace section placeholders in template
-    let prompt = template;
-    prompt = prompt.replace(/\{\{characterSection\}\}/g, characterSection);
-    prompt = prompt.replace(/\{\{lorebookSection\}\}/g, lorebookSection);
-    prompt = prompt.replace(/\{\{personaSection\}\}/g, personaSection);
-    prompt = prompt.replace(/\{\{instructionsSection\}\}/g, instructionsSection);
-    prompt = prompt.replace(/\{\{perspectiveSection\}\}/g, perspectiveSection);
+    // Render template with granular data
+    const templateEngine = new TemplateEngine();
+    const prompt = templateEngine.render(template, templateData);
 
     return prompt;
   }
