@@ -137,19 +137,15 @@ const localApiConfig = computed({
 
 // Automatically fetch models on mount if API key is present
 onMounted(() => {
-  console.log('[DeepSeek] Component mounted, API key present:', !!localApiConfig.value.apiKey)
   if (localApiConfig.value.apiKey) {
-    console.log('[DeepSeek] Auto-fetching models on mount')
     fetchDeepSeekModels()
   }
 })
 
 // Watch for API key changes and auto-fetch when it becomes available
 let hasAutoFetched = false
-watch(() => localApiConfig.value.apiKey, (newKey, oldKey) => {
-  console.log('[DeepSeek] API key changed, new:', !!newKey, 'old:', !!oldKey, 'hasAutoFetched:', hasAutoFetched)
+watch(() => localApiConfig.value.apiKey, (newKey) => {
   if (newKey && !hasAutoFetched && availableModels.value.length === 0) {
-    console.log('[DeepSeek] Auto-fetching models after API key set')
     hasAutoFetched = true
     fetchDeepSeekModels()
   }
@@ -157,8 +153,6 @@ watch(() => localApiConfig.value.apiKey, (newKey, oldKey) => {
 
 // Fetch DeepSeek models
 async function fetchDeepSeekModels() {
-  console.log('[DeepSeek] fetchDeepSeekModels called, API key present:', !!localApiConfig.value.apiKey)
-
   if (!localApiConfig.value.apiKey) {
     modelsError.value = 'API key is required to fetch models'
     return
@@ -168,19 +162,16 @@ async function fetchDeepSeekModels() {
     loadingModels.value = true
     modelsError.value = null
 
-    console.log('[DeepSeek] Fetching models from API...')
     const response = await presetsAPI.getDeepSeekModels(localApiConfig.value.apiKey)
-    console.log('[DeepSeek] Received response:', response)
     availableModels.value = response.models || []
 
     if (availableModels.value.length === 0) {
       modelsError.value = 'No models available at this time'
     } else {
-      console.log('[DeepSeek] Successfully loaded', availableModels.value.length, 'models')
       toast.success(`Loaded ${availableModels.value.length} models`)
     }
   } catch (error) {
-    console.error('[DeepSeek] Failed to fetch models:', error)
+    console.error('Failed to fetch DeepSeek models:', error)
     modelsError.value = 'Failed to fetch models: ' + error.message
   } finally {
     loadingModels.value = false
