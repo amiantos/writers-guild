@@ -88,6 +88,11 @@ const remainingCount = computed(() => {
   height: 100%;
   object-fit: cover;
   object-position: center top;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: smooth;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .character-avatar.empty {
