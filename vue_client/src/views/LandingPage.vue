@@ -9,6 +9,25 @@
 
     <main class="app-main">
       <div class="landing-page">
+    <!-- Quick Access Section -->
+    <div v-if="!loadingStories && !loadingCharacters && recentCharacters.length > 0" class="quick-access-section">
+      <div class="quick-access-scroll">
+        <div
+          v-for="character in recentCharacters"
+          :key="character.id"
+          class="quick-access-character"
+        >
+          <CharacterCard :character="character" />
+          <button
+            class="btn btn-small btn-primary quick-continue-btn"
+            @click="showCharacterStories(character.id)"
+          >
+            <i class="fas fa-play"></i> Continue
+          </button>
+        </div>
+      </div>
+    </div>
+
     <Tabs v-model="activeTab" :tabs="tabs">
       <!-- Stories Tab -->
       <template #tab-stories>
@@ -184,6 +203,7 @@ import { useConfirm } from '../composables/useConfirm'
 import Tabs from '../components/Tabs.vue'
 import StoriesTable from '../components/StoriesTable.vue'
 import CharactersTable from '../components/CharactersTable.vue'
+import CharacterCard from '../components/CharacterCard.vue'
 import LorebooksTable from '../components/LorebooksTable.vue'
 import PresetsTable from '../components/PresetsTable.vue'
 import CharacterStoriesModal from '../components/CharacterStoriesModal.vue'
@@ -229,6 +249,26 @@ const characterStoriesForModal = computed(() => {
     story.characterIds?.includes(selectedCharacter.value.id) ||
     story.personaCharacterId === selectedCharacter.value.id
   )
+})
+
+// Get characters from recently modified stories for quick access
+const recentCharacters = computed(() => {
+  // Get the last 15 recently modified stories
+  const recentStories = stories.value.slice(0, 15)
+
+  // Extract all character IDs from these stories (excluding persona-only characters)
+  const characterIds = new Set()
+  recentStories.forEach(story => {
+    // Only add characters from characterIds array (not persona characters)
+    if (story.characterIds) {
+      story.characterIds.forEach(id => characterIds.add(id))
+    }
+  })
+
+  // Map to full character objects and filter out any that don't exist
+  return Array.from(characterIds)
+    .map(id => characters.value.find(c => c.id === id))
+    .filter(char => char != null)
 })
 
 // Tabs configuration
@@ -613,5 +653,44 @@ function goToSettings() {
   text-align: center;
   padding: 2rem;
   color: var(--text-secondary);
+}
+
+/* Quick Access Section */
+.quick-access-section {
+  margin-bottom: 2rem;
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 1.25rem;
+  border: 1px solid var(--border-color);
+}
+
+.quick-access-scroll {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.quick-access-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-access-character {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 210px;
+}
+
+.quick-continue-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  padding: 0.5rem 0.75rem;
 }
 </style>
