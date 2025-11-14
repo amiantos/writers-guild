@@ -8,7 +8,7 @@
     <!-- Universal Parameters (Most Providers) -->
     <div v-if="supportsTopP" class="form-group">
       <label for="top_p">
-        Top P (Nucleus Sampling): {{ localSettings.top_p !== null ? localSettings.top_p.toFixed(2) : 'Default' }}
+        Top P (Nucleus Sampling): {{ localSettings.top_p != null ? localSettings.top_p.toFixed(2) : 'Default' }}
       </label>
       <div class="input-with-clear">
         <input
@@ -20,7 +20,7 @@
           step="0.01"
           class="range-input"
         />
-        <button v-if="localSettings.top_p !== null" @click="localSettings.top_p = null" class="clear-btn">
+        <button v-if="localSettings.top_p != null" @click="localSettings.top_p = null" class="clear-btn">
           Clear
         </button>
       </div>
@@ -31,7 +31,7 @@
 
     <div v-if="supportsTopK" class="form-group">
       <label for="top_k">
-        Top K: {{ localSettings.top_k !== null ? localSettings.top_k : 'Default' }}
+        Top K: {{ localSettings.top_k != null ? localSettings.top_k : 'Default' }}
       </label>
       <div class="input-with-clear">
         <input
@@ -43,7 +43,7 @@
           step="1"
           class="number-input"
         />
-        <button v-if="localSettings.top_k !== null" @click="localSettings.top_k = null" class="clear-btn">
+        <button v-if="localSettings.top_k != null" @click="localSettings.top_k = null" class="clear-btn">
           Clear
         </button>
       </div>
@@ -55,7 +55,7 @@
     <!-- OpenAI / DeepSeek / OpenRouter Parameters -->
     <div v-if="supportsFrequencyPenalty" class="form-group">
       <label for="frequency_penalty">
-        Frequency Penalty: {{ localSettings.frequency_penalty !== null ? localSettings.frequency_penalty.toFixed(2) : 'Default' }}
+        Frequency Penalty: {{ localSettings.frequency_penalty != null ? localSettings.frequency_penalty.toFixed(2) : 'Default' }}
       </label>
       <div class="input-with-clear">
         <input
@@ -67,7 +67,7 @@
           step="0.1"
           class="range-input"
         />
-        <button v-if="localSettings.frequency_penalty !== null" @click="localSettings.frequency_penalty = null" class="clear-btn">
+        <button v-if="localSettings.frequency_penalty != null" @click="localSettings.frequency_penalty = null" class="clear-btn">
           Clear
         </button>
       </div>
@@ -78,7 +78,7 @@
 
     <div v-if="supportsPresencePenalty" class="form-group">
       <label for="presence_penalty">
-        Presence Penalty: {{ localSettings.presence_penalty !== null ? localSettings.presence_penalty.toFixed(2) : 'Default' }}
+        Presence Penalty: {{ localSettings.presence_penalty != null ? localSettings.presence_penalty.toFixed(2) : 'Default' }}
       </label>
       <div class="input-with-clear">
         <input
@@ -90,7 +90,7 @@
           step="0.1"
           class="range-input"
         />
-        <button v-if="localSettings.presence_penalty !== null" @click="localSettings.presence_penalty = null" class="clear-btn">
+        <button v-if="localSettings.presence_penalty != null" @click="localSettings.presence_penalty = null" class="clear-btn">
           Clear
         </button>
       </div>
@@ -122,7 +122,7 @@
 
       <div class="form-group">
         <label for="rep_pen">
-          Repetition Penalty: {{ localSettings.rep_pen !== null ? localSettings.rep_pen.toFixed(2) : 'Default (1.1)' }}
+          Repetition Penalty: {{ localSettings.rep_pen != null ? localSettings.rep_pen.toFixed(2) : 'Default (1.1)' }}
         </label>
         <div class="input-with-clear">
           <input
@@ -134,7 +134,7 @@
             step="0.05"
             class="range-input"
           />
-          <button v-if="localSettings.rep_pen !== null" @click="localSettings.rep_pen = null" class="clear-btn">
+          <button v-if="localSettings.rep_pen != null" @click="localSettings.rep_pen = null" class="clear-btn">
             Clear
           </button>
         </div>
@@ -145,7 +145,7 @@
 
       <div class="form-group">
         <label for="rep_pen_range">
-          Repetition Penalty Range: {{ localSettings.rep_pen_range !== null ? localSettings.rep_pen_range : 'Default (320)' }}
+          Repetition Penalty Range: {{ localSettings.rep_pen_range != null ? localSettings.rep_pen_range : 'Default (320)' }}
         </label>
         <div class="input-with-clear">
           <input
@@ -157,7 +157,7 @@
             step="32"
             class="number-input"
           />
-          <button v-if="localSettings.rep_pen_range !== null" @click="localSettings.rep_pen_range = null" class="clear-btn">
+          <button v-if="localSettings.rep_pen_range != null" @click="localSettings.rep_pen_range = null" class="clear-btn">
             Clear
           </button>
         </div>
@@ -168,7 +168,7 @@
 
       <div class="form-group">
         <label for="top_a">
-          Top A: {{ localSettings.top_a !== null ? localSettings.top_a.toFixed(2) : 'Default' }}
+          Top A: {{ localSettings.top_a != null ? localSettings.top_a.toFixed(2) : 'Default' }}
         </label>
         <div class="input-with-clear">
           <input
@@ -180,7 +180,7 @@
             step="0.01"
             class="range-input"
           />
-          <button v-if="localSettings.top_a !== null" @click="localSettings.top_a = null" class="clear-btn">
+          <button v-if="localSettings.top_a != null" @click="localSettings.top_a = null" class="clear-btn">
             Clear
           </button>
         </div>
@@ -191,7 +191,7 @@
 
       <div class="form-group">
         <label for="typical">
-          Typical (Tau): {{ localSettings.typical !== null ? localSettings.typical.toFixed(2) : 'Default' }}
+          Typical (Tau): {{ localSettings.typical != null ? localSettings.typical.toFixed(2) : 'Default' }}
         </label>
         <div class="input-with-clear">
           <input
@@ -203,7 +203,7 @@
             step="0.01"
             class="range-input"
           />
-          <button v-if="localSettings.typical !== null" @click="localSettings.typical = null" class="clear-btn">
+          <button v-if="localSettings.typical != null" @click="localSettings.typical = null" class="clear-btn">
             Clear
           </button>
         </div>
@@ -214,7 +214,7 @@
 
       <div class="form-group">
         <label for="tfs">
-          Tail Free Sampling (TFS): {{ localSettings.tfs !== null ? localSettings.tfs.toFixed(2) : 'Default' }}
+          Tail Free Sampling (TFS): {{ localSettings.tfs != null ? localSettings.tfs.toFixed(2) : 'Default' }}
         </label>
         <div class="input-with-clear">
           <input
@@ -226,7 +226,7 @@
             step="0.01"
             class="range-input"
           />
-          <button v-if="localSettings.tfs !== null" @click="localSettings.tfs = null" class="clear-btn">
+          <button v-if="localSettings.tfs != null" @click="localSettings.tfs = null" class="clear-btn">
             Clear
           </button>
         </div>
