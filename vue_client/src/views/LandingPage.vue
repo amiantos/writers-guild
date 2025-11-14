@@ -11,9 +11,6 @@
       <div class="landing-page">
     <!-- Quick Access Section -->
     <div v-if="!loadingStories && !loadingCharacters && recentCharacters.length > 0" class="quick-access-section">
-      <h3 class="quick-access-title">
-        <i class="fas fa-bolt"></i> Quick Access
-      </h3>
       <div class="quick-access-scroll">
         <div
           v-for="character in recentCharacters"
@@ -671,45 +668,16 @@ function goToSettings() {
   border: 1px solid var(--border-color);
 }
 
-.quick-access-title {
-  margin: 0 0 1rem 0;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.quick-access-title i {
-  color: var(--primary-color);
-}
-
 .quick-access-scroll {
   display: flex;
   gap: 1rem;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-color) transparent;
+  scrollbar-width: none;
 }
 
 .quick-access-scroll::-webkit-scrollbar {
-  height: 8px;
-}
-
-.quick-access-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.quick-access-scroll::-webkit-scrollbar-thumb {
-  background-color: var(--border-color);
-  border-radius: 4px;
-}
-
-.quick-access-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: var(--text-secondary);
+  display: none;
 }
 
 .quick-access-character {
