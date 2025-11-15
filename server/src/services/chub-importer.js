@@ -104,12 +104,23 @@ export class ChubImporter {
     // Fetch character metadata from API
     const chubData = await this.fetchCharacter(url);
 
-    // Get the character card PNG URL (has embedded character data)
-    const imageUrl = chubData.node?.max_res_url || chubData.node?.avatar_url;
+    // Get the character card PNG URL (has embedded character data including lorebooks)
+    // Note: full_path contains the complete character card export with embedded lorebooks
+    // max_res_url and avatar_url are just display images without embedded data
+    const imageUrl = chubData.node?.full_path ||
+                     chubData.node?.fullPath ||
+                     chubData.node?.max_res_url ||
+                     chubData.node?.avatar_url;
 
     if (!imageUrl) {
       throw new Error('No character image available');
     }
+
+    // Log which URL we're using for debugging
+    const urlType = chubData.node?.full_path ? 'full_path' :
+                    chubData.node?.fullPath ? 'fullPath' :
+                    chubData.node?.max_res_url ? 'max_res_url' : 'avatar_url';
+    console.log(`[CHUB Import] Using ${urlType} for character card download`);
 
     // Download the PNG file which contains embedded character data
     const imageBuffer = await this.downloadImage(imageUrl);
@@ -119,6 +130,16 @@ export class ChubImporter {
 
     if (!characterData) {
       throw new Error('Failed to parse character data from PNG');
+    }
+
+    // Log lorebook status for debugging
+    const hasLorebook = characterData.data?.character_book &&
+                       characterData.data.character_book.entries &&
+                       characterData.data.character_book.entries.length > 0;
+    if (hasLorebook) {
+      console.log(`[CHUB Import] Found embedded lorebook with ${characterData.data.character_book.entries.length} entries`);
+    } else {
+      console.log('[CHUB Import] No embedded lorebook found in character card');
     }
 
     return {
