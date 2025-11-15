@@ -70,6 +70,35 @@ export class ChubImporter {
   }
 
   /**
+   * Fetch full character JSON from CHUB GitLab repository
+   * @param {number} projectId - Project ID from CHUB API
+   * @returns {Promise<Object>} Full character card data with lorebook
+   */
+  static async fetchCharacterJson(projectId) {
+    try {
+      const url = `https://gateway.chub.ai/api/v4/projects/${projectId}/repository/files/card.json/raw?ref=main&response_type=blob`;
+
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Origin': 'https://chub.ai',
+          'Referer': 'https://chub.ai/',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch character JSON: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      throw new Error(`Character JSON fetch failed: ${error.message}`);
+    }
+  }
+
+  /**
    * Download character card from CHUB API
    * @param {string} fullPath - Character path (e.g., "author/character-id")
    * @returns {Promise<Buffer>} Character card PNG data as buffer
@@ -136,27 +165,41 @@ export class ChubImporter {
     // Fetch character metadata from API
     const chubData = await this.fetchCharacter(url);
 
-    // Debug: Log the full API response to see what's available
-    console.log('[CHUB Import] API Response node keys:', Object.keys(chubData.node || {}));
-    console.log('[CHUB Import] Definition data:', chubData.node?.definition ? 'present' : 'not present');
-    console.log('[CHUB Import] Topics:', chubData.node?.topics);
-    console.log('[CHUB Import] Related lorebooks:', chubData.node?.related_lorebooks);
-
-    let imageBuffer;
+    const projectId = chubData.node?.id;
     const fullPath = chubData.node?.full_path || chubData.node?.fullPath;
+
+    if (!projectId) {
+      throw new Error('No project ID available in API response');
+    }
 
     if (!fullPath) {
       throw new Error('No character path available');
     }
 
-    // Try to get the character card PNG from charhub.io first
-    // This URL contains the full character card with embedded data including lorebooks
-    const charCardUrl = `https://avatars.charhub.io/avatars/${fullPath}/chara_card_v2.png`;
-    console.log(`[CHUB Import] Attempting to download from: ${charCardUrl}`);
+    console.log(`[CHUB Import] Fetching character data for project ${projectId}`);
 
+    // Fetch the full character JSON from GitLab repository (includes lorebook)
+    const characterData = await this.fetchCharacterJson(projectId);
+    console.log('[CHUB Import] Successfully fetched character JSON from GitLab');
+
+    // Log lorebook status for debugging
+    const hasLorebook = characterData.data?.character_book &&
+                       characterData.data.character_book.entries &&
+                       characterData.data.character_book.entries.length > 0;
+    if (hasLorebook) {
+      console.log(`[CHUB Import] Found embedded lorebook with ${characterData.data.character_book.entries.length} entries`);
+    } else {
+      console.log('[CHUB Import] No embedded lorebook found in character data');
+    }
+
+    // Download the character image separately
+    const charCardUrl = `https://avatars.charhub.io/avatars/${fullPath}/chara_card_v2.png`;
+    console.log(`[CHUB Import] Downloading image from: ${charCardUrl}`);
+
+    let imageBuffer;
     try {
       imageBuffer = await this.downloadImage(charCardUrl);
-      console.log('[CHUB Import] Successfully downloaded character card from charhub.io');
+      console.log('[CHUB Import] Successfully downloaded character image');
     } catch (error) {
       // If that fails (404), fall back to max_res_url from API response
       console.log('[CHUB Import] charhub.io download failed, falling back to max_res_url');
@@ -168,23 +211,6 @@ export class ChubImporter {
 
       console.log(`[CHUB Import] Using fallback URL: ${imageUrl}`);
       imageBuffer = await this.downloadImage(imageUrl);
-    }
-
-    // Parse character data from the PNG using CharacterParser
-    const characterData = await CharacterParser.parseCard(imageBuffer);
-
-    if (!characterData) {
-      throw new Error('Failed to parse character data from PNG');
-    }
-
-    // Log lorebook status for debugging
-    const hasLorebook = characterData.data?.character_book &&
-                       characterData.data.character_book.entries &&
-                       characterData.data.character_book.entries.length > 0;
-    if (hasLorebook) {
-      console.log(`[CHUB Import] Found embedded lorebook with ${characterData.data.character_book.entries.length} entries`);
-    } else {
-      console.log('[CHUB Import] No embedded lorebook found in character card');
     }
 
     return {
