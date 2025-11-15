@@ -1,0 +1,86 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: cd server && npm ci
+
+      - name: Install client dependencies
+        run: cd vue_client && npm ci
+
+      - name: Run server tests
+        run: npm run test:server
+
+      - name: Run client tests
+        run: npm run test:client
+
+      - name: Generate coverage reports
+        run: npm run test:coverage
+        continue-on-error: true
+
+      - name: Upload server coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./server/coverage/coverage-final.json
+          flags: server
+          name: server-coverage
+        continue-on-error: true
+
+      - name: Upload client coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./vue_client/coverage/coverage-final.json
+          flags: client
+          name: client-coverage
+        continue-on-error: true
+
+      - name: Comment test results on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // This is a simple comment - you can enhance this to include actual test results
+            const comment = `## ✅ Tests Passed
+
+            All tests completed successfully!
+
+            - Server tests: ✓
+            - Client tests: ✓
+
+            View detailed results in the Actions tab.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+        continue-on-error: true

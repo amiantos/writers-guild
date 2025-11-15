@@ -1,20 +1,9 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [vue()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8000',
-        changeOrigin: true
-      }
-    }
-  },
   test: {
     globals: true,
-    environment: 'happy-dom',
+    environment: 'node',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -27,4 +16,4 @@ export default defineConfig({
     },
     include: ['src/**/*.{test,spec}.js'],
   },
-})
+});
