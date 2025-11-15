@@ -76,18 +76,20 @@ export class ChubImporter {
    */
   static async downloadCharacterCard(fullPath) {
     try {
-      const response = await fetch('https://api.chub.ai/api/characters/download', {
-        method: 'POST',
+      // Construct URL with query parameters
+      const params = new URLSearchParams({
+        format: 'tavern',
+        fullPath: fullPath,
+        version: 'main',
+      });
+      const url = `https://api.chub.ai/api/characters/download?${params.toString()}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Client-Agent': 'Ursceal:2.0:https://github.com/amiantos/ursceal',
         },
-        body: JSON.stringify({
-          format: 'tavern',
-          fullPath: fullPath,
-          version: 'main',
-        }),
       });
 
       if (!response.ok) {
