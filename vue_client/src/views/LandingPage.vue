@@ -184,11 +184,19 @@
       @imported="handleLorebookImported"
     />
 
+    <!-- Provider Selection Modal -->
+    <ProviderSelectionModal
+      v-if="showProviderSelectionModal"
+      @close="showProviderSelectionModal = false"
+      @select="handleProviderSelected"
+    />
+
     <!-- Preset Editor Modal -->
     <PresetEditorModal
       v-if="showPresetEditorModal"
       :preset="editingPreset"
-      @close="showPresetEditorModal = false; editingPreset = null"
+      :provider="selectedProvider"
+      @close="showPresetEditorModal = false; editingPreset = null; selectedProvider = null"
       @saved="handlePresetSaved"
     />
   </div>
@@ -212,6 +220,7 @@ import ImportCharacterModal from '../components/ImportCharacterModal.vue'
 import CreateLorebookModal from '../components/CreateLorebookModal.vue'
 import ImportLorebookModal from '../components/ImportLorebookModal.vue'
 import PresetEditorModal from '../components/PresetEditorModal.vue'
+import ProviderSelectionModal from '../components/ProviderSelectionModal.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -241,7 +250,9 @@ const showImportLorebookModal = ref(false)
 
 // Preset Editor Modal
 const showPresetEditorModal = ref(false)
+const showProviderSelectionModal = ref(false)
 const editingPreset = ref(null)
+const selectedProvider = ref(null)
 
 const characterStoriesForModal = computed(() => {
   if (!selectedCharacter.value) return []
@@ -491,11 +502,19 @@ async function loadPresets() {
 
 function createNewPreset() {
   editingPreset.value = null
+  selectedProvider.value = null
+  showProviderSelectionModal.value = true
+}
+
+function handleProviderSelected(provider) {
+  selectedProvider.value = provider
+  showProviderSelectionModal.value = false
   showPresetEditorModal.value = true
 }
 
 function editPreset(presetId) {
   editingPreset.value = presets.value.find(p => p.id === presetId)
+  selectedProvider.value = null // When editing, provider comes from preset itself
   showPresetEditorModal.value = true
 }
 
