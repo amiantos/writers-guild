@@ -8,7 +8,13 @@
     "server:dev": "cd server && npm run dev",
     "client:dev": "cd vue_client && npm run dev",
     "build": "cd vue_client && npm run build",
-    "server:start": "cd server && npm start"
+    "server:start": "cd server && npm start",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "cd server && npm test",
+    "test:client": "cd vue_client && npm test",
+    "test:coverage": "npm run test:server:coverage && npm run test:client:coverage",
+    "test:server:coverage": "cd server && npm run test:coverage",
+    "test:client:coverage": "cd vue_client && npm run test:coverage"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
