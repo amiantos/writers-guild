@@ -5,6 +5,8 @@
     :show-max-context="true"
     :context-range="{ min: 8000, max: 200000 }"
     :context-help-text="`Context window varies by model (8k-200k tokens). Check model details for accurate limits.`"
+    provider="openrouter"
+    :model="config.apiConfig?.model || ''"
   >
     <template #api-config>
       <div class="form-group">

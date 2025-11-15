@@ -5,6 +5,8 @@
     :show-max-context="true"
     :context-range="{ min: 2000, max: 16000 }"
     :context-help-text="`Context window fallback (2k-16k tokens). Automatically calculated based on selected models and their worker availability.`"
+    provider="aihorde"
+    :model="''"
   >
     <template #api-config>
       <div class="form-group">

@@ -65,18 +65,38 @@ export class AnthropicProvider extends LLMProvider {
       throw new Error("API key not set");
     }
 
+    // Validate and clamp temperature to Anthropic's range (0-1.0)
+    let temperature = options.temperature !== undefined ? options.temperature : 1.0;
+    if (temperature > 1.0) {
+      console.warn(`[Anthropic] Temperature ${temperature} exceeds max 1.0, clamping to 1.0`);
+      temperature = 1.0;
+    }
+
+    const requestBody = {
+      model: this.model,
+      system: systemPrompt,
+      messages: [
+        { role: "user", content: userPrompt }
+      ],
+      max_tokens: options.maxTokens || 4000,
+      temperature: temperature,
+    };
+
+    // Add optional sampling parameters if provided
+    if (options.top_p !== null && options.top_p !== undefined) {
+      requestBody.top_p = options.top_p;
+    }
+    if (options.top_k !== null && options.top_k !== undefined) {
+      requestBody.top_k = options.top_k;
+    }
+    if (options.stop_sequences && options.stop_sequences.length > 0) {
+      requestBody.stop_sequences = options.stop_sequences;
+    }
+
     const response = await fetch(`${this.baseURL}/messages`, {
       method: "POST",
       headers: this.buildHeaders(),
-      body: JSON.stringify({
-        model: this.model,
-        system: systemPrompt,
-        messages: [
-          { role: "user", content: userPrompt }
-        ],
-        max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature !== undefined ? options.temperature : 1.0,
-      }),
+      body: JSON.stringify(requestBody),
       signal: options.signal,
     });
 
@@ -112,19 +132,39 @@ export class AnthropicProvider extends LLMProvider {
 
     const controller = new AbortController();
 
+    // Validate and clamp temperature to Anthropic's range (0-1.0)
+    let temperature = options.temperature !== undefined ? options.temperature : 1.0;
+    if (temperature > 1.0) {
+      console.warn(`[Anthropic] Temperature ${temperature} exceeds max 1.0, clamping to 1.0`);
+      temperature = 1.0;
+    }
+
+    const requestBody = {
+      model: this.model,
+      system: systemPrompt,
+      messages: [
+        { role: "user", content: userPrompt }
+      ],
+      max_tokens: options.maxTokens || 4000,
+      temperature: temperature,
+      stream: true,
+    };
+
+    // Add optional sampling parameters if provided
+    if (options.top_p !== null && options.top_p !== undefined) {
+      requestBody.top_p = options.top_p;
+    }
+    if (options.top_k !== null && options.top_k !== undefined) {
+      requestBody.top_k = options.top_k;
+    }
+    if (options.stop_sequences && options.stop_sequences.length > 0) {
+      requestBody.stop_sequences = options.stop_sequences;
+    }
+
     const response = await fetch(`${this.baseURL}/messages`, {
       method: "POST",
       headers: this.buildHeaders(),
-      body: JSON.stringify({
-        model: this.model,
-        system: systemPrompt,
-        messages: [
-          { role: "user", content: userPrompt }
-        ],
-        max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature !== undefined ? options.temperature : 1.0,
-        stream: true,
-      }),
+      body: JSON.stringify(requestBody),
       signal: options.signal || controller.signal,
     });
 

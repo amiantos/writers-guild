@@ -49,6 +49,13 @@ export class DeepSeekProvider extends LLMProvider {
   // No need to override unless custom logic is required
 
   /**
+   * Check if current model is deepseek-reasoner (which ignores sampling params)
+   */
+  isReasonerModel() {
+    return this.model === 'deepseek-reasoner';
+  }
+
+  /**
    * Generate content without streaming
    */
   async generate(systemPrompt, userPrompt, options = {}) {
@@ -61,19 +68,45 @@ export class DeepSeekProvider extends LLMProvider {
       { role: "user", content: userPrompt },
     ];
 
+    const requestBody = {
+      model: this.model,
+      messages: messages,
+      stream: false,
+      max_tokens: options.maxTokens || 4000,
+    };
+
+    // deepseek-reasoner ignores temperature and other sampling params
+    // but for compatibility, we still send them (they just have no effect)
+    if (this.isReasonerModel() && options.temperature !== undefined) {
+      console.warn('[DeepSeek] Note: deepseek-reasoner model ignores temperature and sampling parameters');
+    }
+
+    requestBody.temperature = options.temperature !== undefined ? options.temperature : 1.5;
+
+    // Add optional sampling parameters if provided (only effective for deepseek-chat)
+    if (!this.isReasonerModel()) {
+      if (options.top_p !== null && options.top_p !== undefined) {
+        requestBody.top_p = options.top_p;
+      }
+      if (options.frequency_penalty !== null && options.frequency_penalty !== undefined) {
+        requestBody.frequency_penalty = options.frequency_penalty;
+      }
+      if (options.presence_penalty !== null && options.presence_penalty !== undefined) {
+        requestBody.presence_penalty = options.presence_penalty;
+      }
+    }
+
+    if (options.stop_sequences && options.stop_sequences.length > 0) {
+      requestBody.stop = options.stop_sequences;
+    }
+
     const response = await fetch(`${this.baseURL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: messages,
-        stream: false,
-        max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature !== undefined ? options.temperature : 1.5,
-      }),
+      body: JSON.stringify(requestBody),
       signal: options.signal,
     });
 
@@ -109,19 +142,45 @@ export class DeepSeekProvider extends LLMProvider {
 
     const controller = new AbortController();
 
+    const requestBody = {
+      model: this.model,
+      messages: messages,
+      stream: true,
+      max_tokens: options.maxTokens || 4000,
+    };
+
+    // deepseek-reasoner ignores temperature and other sampling params
+    // but for compatibility, we still send them (they just have no effect)
+    if (this.isReasonerModel() && options.temperature !== undefined) {
+      console.warn('[DeepSeek] Note: deepseek-reasoner model ignores temperature and sampling parameters');
+    }
+
+    requestBody.temperature = options.temperature !== undefined ? options.temperature : 1.5;
+
+    // Add optional sampling parameters if provided (only effective for deepseek-chat)
+    if (!this.isReasonerModel()) {
+      if (options.top_p !== null && options.top_p !== undefined) {
+        requestBody.top_p = options.top_p;
+      }
+      if (options.frequency_penalty !== null && options.frequency_penalty !== undefined) {
+        requestBody.frequency_penalty = options.frequency_penalty;
+      }
+      if (options.presence_penalty !== null && options.presence_penalty !== undefined) {
+        requestBody.presence_penalty = options.presence_penalty;
+      }
+    }
+
+    if (options.stop_sequences && options.stop_sequences.length > 0) {
+      requestBody.stop = options.stop_sequences;
+    }
+
     const response = await fetch(`${this.baseURL}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
       },
-      body: JSON.stringify({
-        model: this.model,
-        messages: messages,
-        stream: true,
-        max_tokens: options.maxTokens || 4000,
-        temperature: options.temperature !== undefined ? options.temperature : 1.5,
-      }),
+      body: JSON.stringify(requestBody),
       signal: options.signal || controller.signal,
     });
 

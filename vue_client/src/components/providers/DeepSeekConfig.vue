@@ -5,6 +5,8 @@
     :show-max-context="true"
     :context-range="{ min: 32000, max: 128000 }"
     :context-help-text="`Context window varies by model (64k-128k tokens). Check model details for accurate limits.`"
+    provider="deepseek"
+    :model="config.apiConfig?.model || ''"
   >
     <template #api-config>
       <!-- API Configuration Section -->

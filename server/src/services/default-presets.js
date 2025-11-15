@@ -106,9 +106,27 @@ export function getDefaultPresets() {
       generationSettings: {
         maxTokens: 512,  // AI Horde typically allows less
         maxContextTokens: 8192,  // Fallback; calculated dynamically based on workers
-        temperature: 1.5,
+        temperature: 0.7,
         includeDialogueExamples: false,
-        timeout: 300000  // 5 minute timeout for queue
+        timeout: 300000,  // 5 minute timeout for queue
+        // Advanced sampling parameters (optional)
+        top_p: null,
+        top_k: null,
+        top_a: null,
+        typical: null,
+        tfs: null,
+        frequency_penalty: null,
+        presence_penalty: null,
+        stop_sequences: [],
+        // AI Horde specific
+        rep_pen: 1.1,
+        rep_pen_range: 320,
+        rep_pen_slope: null,
+        sampler_order: [6, 0, 1, 3, 4, 2, 5],
+        min_p: null,
+        dynatemp_range: null,
+        dynatemp_exponent: null,
+        smoothing_factor: null
       },
       lorebookSettings: {
         scanDepth: 2000,
@@ -143,7 +161,25 @@ export function createPresetFromSettings(settings) {
       maxTokens: settings.maxTokens || 4000,
       maxContextTokens: settings.maxContextTokens || 128000,
       temperature: settings.temperature !== undefined ? settings.temperature : 1.5,
-      includeDialogueExamples: settings.includeDialogueExamples || false
+      includeDialogueExamples: settings.includeDialogueExamples || false,
+      // Advanced sampling parameters (optional, null = use API defaults)
+      top_p: null,
+      top_k: null,
+      top_a: null,
+      typical: null,
+      tfs: null,
+      frequency_penalty: null,
+      presence_penalty: null,
+      stop_sequences: [],
+      // AI Horde specific
+      rep_pen: null,
+      rep_pen_range: null,
+      rep_pen_slope: null,
+      sampler_order: null,
+      min_p: null,
+      dynatemp_range: null,
+      dynatemp_exponent: null,
+      smoothing_factor: null
     },
     lorebookSettings: {
       scanDepth: settings.lorebookScanDepth || 2000,

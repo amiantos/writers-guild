@@ -12,6 +12,15 @@
       :show-max-context="showMaxContext"
       :context-range="contextRange"
       :context-help-text="contextHelpText"
+      :provider="provider"
+      :model="model"
+    />
+
+    <!-- Shared: Advanced Sampling Settings -->
+    <AdvancedSamplingSettings
+      v-model="localGenerationSettings"
+      :provider="provider"
+      :model="model"
     />
 
     <!-- Shared: Lorebook Settings -->
@@ -25,6 +34,7 @@
 <script setup>
 import { computed } from 'vue'
 import GenerationSettings from './GenerationSettings.vue'
+import AdvancedSamplingSettings from './AdvancedSamplingSettings.vue'
 import LorebookSettings from './LorebookSettings.vue'
 import PromptTemplates from './PromptTemplates.vue'
 
@@ -44,6 +54,14 @@ const props = defineProps({
   contextHelpText: {
     type: String,
     default: 'Context window size (32k-128k tokens). Larger = more story content but higher costs.'
+  },
+  provider: {
+    type: String,
+    required: true
+  },
+  model: {
+    type: String,
+    default: ''
   }
 })
 

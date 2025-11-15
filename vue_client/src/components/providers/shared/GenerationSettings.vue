@@ -27,11 +27,19 @@
         v-model.number="localSettings.temperature"
         type="range"
         min="0"
-        max="2"
+        :max="temperatureMax"
         step="0.05"
         class="range-input"
       />
-      <small class="help-text">Creativity/randomness (0 = focused, 2 = creative)</small>
+      <small class="help-text">
+        Creativity/randomness (0 = focused, {{ temperatureMax }} = creative)
+        <span v-if="provider === 'anthropic'" class="provider-note">
+          (Anthropic max: 1.0)
+        </span>
+        <span v-if="provider === 'deepseek' && model === 'deepseek-reasoner'" class="warning-note">
+          ⚠️ Temperature is ignored by deepseek-reasoner
+        </span>
+      </small>
     </div>
 
     <!-- Max Context Tokens - optional for providers that support it -->
@@ -84,10 +92,26 @@ const props = defineProps({
   contextHelpText: {
     type: String,
     default: 'Context window size (32k-128k tokens). Larger = more story content but higher costs.'
+  },
+  provider: {
+    type: String,
+    default: ''
+  },
+  model: {
+    type: String,
+    default: ''
   }
 })
 
 const emit = defineEmits(['update:modelValue'])
+
+// Provider-specific temperature max
+const temperatureMax = computed(() => {
+  if (props.provider === 'anthropic') {
+    return 1.0
+  }
+  return 2.0
+})
 
 const localSettings = computed({
   get() {
@@ -171,5 +195,15 @@ const localSettings = computed({
   margin-top: 0.4rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+.provider-note {
+  color: var(--accent-primary);
+  font-weight: 500;
+}
+
+.warning-note {
+  color: #ff9800;
+  font-weight: 500;
 }
 </style>

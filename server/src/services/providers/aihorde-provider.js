@@ -126,21 +126,61 @@ export class AIHordeProvider extends LLMProvider {
     // Combine system and user prompts (AI Horde uses single prompt)
     const fullPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
-    // Build params object
+    // AI Horde has a maximum of 1024 tokens for max_length
+    const maxTokens = Math.min(options.maxTokens || 150, 1024);
+
+    if (options.maxTokens && options.maxTokens > 1024) {
+      console.warn(`[AI Horde] Requested maxTokens (${options.maxTokens}) exceeds AI Horde limit. Capping at 1024.`);
+    }
+
+    // Build params object with configurable samplers
     const params = {
       n: 1,
-      max_length: options.maxTokens || 150,
+      max_length: maxTokens,
       max_context_length: options.maxContextLength || 2048,
       temperature: options.temperature !== undefined ? options.temperature : 0.7,
-      rep_pen: 1.1,  // Repetition penalty
-      rep_pen_range: 320,
-      sampler_order: [6, 0, 1, 3, 4, 2, 5],
+      // Now configurable via options (with fallback to defaults)
+      rep_pen: options.rep_pen !== undefined && options.rep_pen !== null ? options.rep_pen : 1.1,
+      rep_pen_range: options.rep_pen_range !== undefined && options.rep_pen_range !== null ? options.rep_pen_range : 320,
+      sampler_order: options.sampler_order || [6, 0, 1, 3, 4, 2, 5],
       use_default_badwordsids: true,  // Prevent EOS token issues
     };
 
+    // Add optional advanced samplers if provided
+    if (options.top_p !== null && options.top_p !== undefined) {
+      params.top_p = options.top_p;
+    }
+    if (options.top_k !== null && options.top_k !== undefined) {
+      params.top_k = options.top_k;
+    }
+    if (options.top_a !== null && options.top_a !== undefined) {
+      params.top_a = options.top_a;
+    }
+    if (options.typical !== null && options.typical !== undefined) {
+      params.typical = options.typical;
+    }
+    if (options.tfs !== null && options.tfs !== undefined) {
+      params.tfs = options.tfs;
+    }
+    if (options.min_p !== null && options.min_p !== undefined) {
+      params.min_p = options.min_p;
+    }
+    if (options.rep_pen_slope !== null && options.rep_pen_slope !== undefined) {
+      params.rep_pen_slope = options.rep_pen_slope;
+    }
+    if (options.dynatemp_range !== null && options.dynatemp_range !== undefined) {
+      params.dynatemp_range = options.dynatemp_range;
+    }
+    if (options.dynatemp_exponent !== null && options.dynatemp_exponent !== undefined) {
+      params.dynatemp_exponent = options.dynatemp_exponent;
+    }
+    if (options.smoothing_factor !== null && options.smoothing_factor !== undefined) {
+      params.smoothing_factor = options.smoothing_factor;
+    }
+
     // Add stop sequences if provided
-    if (options.stopSequences && options.stopSequences.length > 0) {
-      params.stop_sequence = options.stopSequences;
+    if (options.stop_sequences && options.stop_sequences.length > 0) {
+      params.stop_sequence = options.stop_sequences;
     }
 
     // Build base payload
@@ -163,6 +203,8 @@ export class AIHordeProvider extends LLMProvider {
       payload.slow_workers = false;
     }
 
+    console.log('[AI Horde] Submitting request with payload:', JSON.stringify(payload, null, 2));
+
     const response = await fetch(`${this.baseURL}/generate/text/async`, {
       method: "POST",
       headers: {
@@ -175,9 +217,22 @@ export class AIHordeProvider extends LLMProvider {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || `AI Horde API request failed: ${response.statusText}`
-      );
+      console.error('[AI Horde] Request failed with status:', response.status, response.statusText);
+      console.error('[AI Horde] Error response:', JSON.stringify(errorData, null, 2));
+      console.error('[AI Horde] Payload that was sent:', JSON.stringify(payload, null, 2));
+
+      // Build a detailed error message
+      let errorMessage = errorData.message || `AI Horde API request failed: ${response.statusText}`;
+
+      // If there are specific validation errors, include them
+      if (errorData.errors && typeof errorData.errors === 'object') {
+        const errorDetails = Object.entries(errorData.errors)
+          .map(([field, message]) => `${field}: ${message}`)
+          .join(', ');
+        errorMessage += ` (${errorDetails})`;
+      }
+
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

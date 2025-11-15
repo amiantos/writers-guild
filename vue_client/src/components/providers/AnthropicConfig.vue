@@ -5,6 +5,8 @@
     :show-max-context="true"
     :context-range="{ min: 32000, max: 200000 }"
     :context-help-text="`Context window varies by model (100k-200k tokens). Check model details for accurate limits.`"
+    provider="anthropic"
+    :model="config.apiConfig?.model || ''"
   >
     <template #api-config>
       <!-- API Configuration Section -->

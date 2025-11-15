@@ -74,6 +74,20 @@ export class OpenAIProvider extends LLMProvider {
       body.max_tokens = options.maxTokens || 4000;
     }
 
+    // Add optional sampling parameters if provided
+    if (options.top_p !== null && options.top_p !== undefined) {
+      body.top_p = options.top_p;
+    }
+    if (options.frequency_penalty !== null && options.frequency_penalty !== undefined) {
+      body.frequency_penalty = options.frequency_penalty;
+    }
+    if (options.presence_penalty !== null && options.presence_penalty !== undefined) {
+      body.presence_penalty = options.presence_penalty;
+    }
+    if (options.stop_sequences && options.stop_sequences.length > 0) {
+      body.stop = options.stop_sequences;
+    }
+
     return body;
   }
 

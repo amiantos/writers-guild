@@ -495,8 +495,9 @@ async function streamGeneration(res, provider, preset, context, generationType, 
     console.log(`[streamGeneration] Using streaming provider, signal: ${!!abortSignal}`);
     // Start streaming generation
     const { stream, metadata } = await provider.generateStreaming(systemPrompt, userPrompt, {
-      maxTokens: preset.generationSettings.maxTokens,
-      temperature: preset.generationSettings.temperature,
+      // Pass all advanced sampling parameters
+      ...preset.generationSettings,
+      maxContextLength: preset.generationSettings.maxContextTokens,
       signal: abortSignal
     });
 
@@ -527,8 +528,9 @@ async function streamGeneration(res, provider, preset, context, generationType, 
   } else if (capabilities.requiresPolling) {
     // Handle queue-based providers (AI Horde)
     const streamWithStatus = provider.generateStreamingWithStatus(systemPrompt, userPrompt, {
-      maxTokens: preset.generationSettings.maxTokens,
-      temperature: preset.generationSettings.temperature,
+      // Pass all advanced sampling parameters
+      ...preset.generationSettings,
+      maxContextLength: preset.generationSettings.maxContextTokens,
       timeout: preset.generationSettings.timeout || 300000,
       signal: abortSignal
     });
@@ -560,8 +562,9 @@ async function streamGeneration(res, provider, preset, context, generationType, 
   } else {
     // Fallback: non-streaming generation
     const result = await provider.generate(systemPrompt, userPrompt, {
-      maxTokens: preset.generationSettings.maxTokens,
-      temperature: preset.generationSettings.temperature
+      // Pass all advanced sampling parameters
+      ...preset.generationSettings,
+      maxContextLength: preset.generationSettings.maxContextTokens
     });
 
     let processedContent = result.content || '';
