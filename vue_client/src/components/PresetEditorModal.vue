@@ -23,15 +23,15 @@
         </div>
 
         <div class="form-group">
-          <label for="provider">AI Provider *</label>
-          <select id="provider" v-model="formData.provider" class="select-input">
-            <option value="deepseek">DeepSeek (with reasoning)</option>
-            <option value="aihorde">AI Horde (free, queue-based)</option>
-            <option value="openai">OpenAI GPT-4</option>
-            <option value="anthropic">Claude (Anthropic)</option>
-            <option value="openrouter">OpenRouter (multi-model)</option>
-          </select>
-          <small class="help-text">Different providers have different capabilities and pricing</small>
+          <label for="provider">AI Provider</label>
+          <div class="locked-provider">
+            <i :class="`fas ${providerIcon}`"></i>
+            <span>{{ providerDisplayName }}</span>
+            <span class="locked-badge">
+              <i class="fas fa-lock"></i> Locked
+            </span>
+          </div>
+          <small class="help-text">Provider is locked for this preset</small>
         </div>
       </section>
 
@@ -65,10 +65,15 @@ import Modal from './Modal.vue'
 import { presetsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { getProviderComponent } from './providers'
+import { getProviderDefaults, PROVIDER_INFO } from '../config/providerDefaults'
 
 const props = defineProps({
   preset: {
     type: Object,
+    default: null
+  },
+  provider: {
+    type: String,
     default: null
   }
 })
@@ -79,15 +84,15 @@ const toast = useToast()
 const saving = ref(false)
 const nameInput = ref(null)
 
-// Form data with defaults
+// Form data - will be initialized in onMounted with provider-specific defaults
 const formData = ref({
   name: '',
-  provider: 'deepseek',
+  provider: props.provider || 'deepseek',
   apiConfig: {
     apiKey: '',
     baseURL: '',
     model: '',
-    models: []  // For AI Horde - array of model names
+    models: []
   },
   generationSettings: {
     maxTokens: 4000,
@@ -112,6 +117,15 @@ const formData = ref({
 // Get the dynamic provider component based on the selected provider
 const currentProviderComponent = computed(() => {
   return getProviderComponent(formData.value.provider)
+})
+
+// Provider display information
+const providerDisplayName = computed(() => {
+  return PROVIDER_INFO[formData.value.provider]?.name || formData.value.provider
+})
+
+const providerIcon = computed(() => {
+  return PROVIDER_INFO[formData.value.provider]?.icon || 'fa-robot'
 })
 
 onMounted(async () => {
@@ -144,6 +158,13 @@ onMounted(async () => {
       console.error('Failed to load preset:', error)
       toast.error('Failed to load preset: ' + error.message)
     }
+  } else if (props.provider) {
+    // Creating new preset with a specific provider - load provider defaults
+    const defaults = getProviderDefaults(props.provider)
+    formData.value = {
+      ...defaults,
+      name: '' // Keep name empty for user to fill
+    }
   }
 
   // Focus name input
@@ -153,30 +174,10 @@ onMounted(async () => {
 })
 
 const canSave = computed(() => {
-  return formData.value.name.trim() && formData.value.apiConfig.apiKey.trim()
+  // AI Horde uses "0000000000" as default anonymous key, so it's always valid
+  const hasValidApiKey = formData.value.apiConfig.apiKey.trim() !== ''
+  return formData.value.name.trim() && hasValidApiKey
 })
-
-function getDefaultBaseURL() {
-  const urls = {
-    deepseek: 'https://api.deepseek.com/v1',
-    aihorde: 'https://aihorde.net/api/v2',
-    openai: 'https://api.openai.com/v1',
-    anthropic: 'https://api.anthropic.com/v1',
-    openrouter: 'https://openrouter.ai/api/v1'
-  }
-  return urls[formData.value.provider] || ''
-}
-
-function getDefaultModel() {
-  const models = {
-    deepseek: 'deepseek-reasoner',
-    aihorde: 'Mythomax 13B',
-    openai: 'gpt-4-turbo-preview',
-    anthropic: 'claude-3-5-sonnet-20241022',
-    openrouter: 'anthropic/claude-3.5-sonnet'
-  }
-  return models[formData.value.provider] || ''
-}
 
 async function savePreset() {
   if (!canSave.value) return
@@ -184,15 +185,9 @@ async function savePreset() {
   try {
     saving.value = true
 
-    // Prepare data
+    // Prepare data - provider defaults already include baseURL and model
     const presetData = {
-      ...formData.value,
-      // Use defaults if fields are empty
-      apiConfig: {
-        ...formData.value.apiConfig,
-        baseURL: formData.value.apiConfig.baseURL || getDefaultBaseURL(),
-        model: formData.value.apiConfig.model || getDefaultModel()
-      }
+      ...formData.value
     }
 
     if (props.preset) {
@@ -269,6 +264,44 @@ async function savePreset() {
   margin-top: 0.4rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+.locked-provider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.locked-provider i:first-child {
+  font-size: 1.2rem;
+  color: var(--accent-primary);
+}
+
+.locked-provider span:first-of-type {
+  flex: 1;
+  font-weight: 500;
+}
+
+.locked-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.locked-badge i {
+  font-size: 0.75rem;
 }
 
 .btn {
