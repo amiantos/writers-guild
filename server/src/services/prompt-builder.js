@@ -369,6 +369,9 @@ export class PromptBuilder {
         case "rewriteThirdPerson":
           defaultTemplate = DEFAULT_PROMPT_TEMPLATES.rewriteThirdPerson;
           break;
+        case "ideate":
+          defaultTemplate = DEFAULT_PROMPT_TEMPLATES.ideate;
+          break;
         case "custom":
           defaultTemplate = templates.custom;
           break;
