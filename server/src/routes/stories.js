@@ -720,5 +720,47 @@ router.post('/:id/rewrite-third-person', asyncHandler(async (req, res) => {
   }
 }));
 
+// Ideate - Ask AI for story ideas
+router.post('/:id/ideate', asyncHandler(async (req, res) => {
+  const { id: storyId } = req.params;
+
+  const context = await loadGenerationContext(storyId);
+  const { preset, provider, characterCards, persona } = context;
+
+  setupSSE(res);
+
+  // Create abort controller for cancellation support
+  const abortController = new AbortController();
+  console.log(`[Ideate] Starting ideation for story ${storyId}`);
+
+  // Handle client disconnection (for SSE, listen to response close event)
+  res.on('close', () => {
+    if (!res.writableEnded && !abortController.signal.aborted) {
+      console.log('[Ideate] Client disconnected, aborting generation');
+      abortController.abort();
+    }
+  });
+
+  // Build a custom prompt for ideation
+  const userName = persona?.name || 'the user';
+  const customInstruction = `Instead of continuing the story, please provide 3-5 creative suggestions for what ${userName} could do next to move this story forward. Consider the characters, setting, and current situation. Format your response as a numbered list of actionable ideas.`;
+
+  try {
+    await streamGeneration(res, provider, preset, context, 'ideate', {
+      characterCards,
+      customInstruction
+    }, abortController.signal);
+  } catch (error) {
+    if (error.message === 'Generation cancelled' || abortController.signal.aborted) {
+      console.log('[Ideate] Generation was cancelled by user');
+      res.write(`data: ${JSON.stringify({ cancelled: true })}\n\n`);
+    } else {
+      console.error('[Ideate] Generation error:', error);
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    }
+    res.end();
+  }
+}));
+
 export default router;
 

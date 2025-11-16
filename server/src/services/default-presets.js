@@ -87,7 +87,9 @@ export const DEFAULT_PROMPT_TEMPLATES = {
 
   instruction: "Continue the story naturally from where it left off. Write the next 2-3 paragraphs maximum, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters. The user additionally sends along these instructions for what they would like to see happen: {{instruction}}",
 
-  rewriteThirdPerson: "Rewrite the following text to be in third person narrative perspective, using past tense. Assume reference to \"you\" in the original text are meant to reference the user's Persona, if one is provided. Convert all first-person and second-person pronouns (I, me, my, we, us, our, you) to third-person (he, she, they, him, her, them, his, her, their). Change all verbs to past tense. Maintain the same events, dialogue, and meaning, but from a third-person narrator's viewpoint. Only return the rewritten text by itself in your response.\n\nText to rewrite:\n\n{{storyContent}}"
+  rewriteThirdPerson: "Rewrite the following text to be in third person narrative perspective, using past tense. Assume reference to \"you\" in the original text are meant to reference the user's Persona, if one is provided. Convert all first-person and second-person pronouns (I, me, my, we, us, our, you) to third-person (he, she, they, him, her, them, his, her, their). Change all verbs to past tense. Maintain the same events, dialogue, and meaning, but from a third-person narrator's viewpoint. Only return the rewritten text by itself in your response.\n\nText to rewrite:\n\n{{storyContent}}",
+
+  ideate: "{{instruction}}"
 };
 
 export function getDefaultPresets() {
@@ -139,7 +141,8 @@ export function getDefaultPresets() {
         continue: null,
         character: null,
         instruction: null,
-        rewriteThirdPerson: null
+        rewriteThirdPerson: null,
+        ideate: null
       }
     },
   };
