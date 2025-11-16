@@ -142,6 +142,10 @@
               <i class="fas fa-image"></i>
               <span>Show Character Avatar</span>
             </button>
+            <button class="overflow-menu-item" @click="handleIdeate">
+              <i class="fas fa-lightbulb"></i>
+              <span>Ideate</span>
+            </button>
             <button class="overflow-menu-item" @click="rewriteToThirdPerson">
               <i class="fas fa-repeat"></i>
               <span>Rewrite to Third Person</span>
@@ -224,6 +228,14 @@
       @updated="handleStoryUpdated"
     />
 
+    <IdeateModal
+      v-if="showIdeateModal"
+      :response="ideateResponse"
+      :loading="ideateLoading"
+      :status="ideateStatus"
+      @close="showIdeateModal = false"
+    />
+
     <!-- Floating Avatar Window -->
     <FloatingAvatarWindow
       v-if="showFloatingAvatar && firstCharacter"
@@ -250,6 +262,7 @@ import ManageCharactersModal from '../components/ManageCharactersModal.vue'
 import ManageLorebooksModal from '../components/ManageLorebooksModal.vue'
 import RenameStoryModal from '../components/RenameStoryModal.vue'
 import StoryPresetModal from '../components/StoryPresetModal.vue'
+import IdeateModal from '../components/IdeateModal.vue'
 import FloatingAvatarWindow from '../components/FloatingAvatarWindow.vue'
 
 const props = defineProps({
@@ -283,6 +296,10 @@ const showManageCharacters = ref(false)
 const showManageLorebooks = ref(false)
 const showRenameStory = ref(false)
 const showPresetSelector = ref(false)
+const showIdeateModal = ref(false)
+const ideateResponse = ref('')
+const ideateLoading = ref(false)
+const ideateStatus = ref('Thinking...')
 let abortController = null
 
 // Load floating avatar state from localStorage
@@ -761,6 +778,69 @@ async function deleteStory() {
   } catch (error) {
     console.error('Failed to delete story:', error)
     toast.error('Failed to delete story: ' + error.message)
+  }
+}
+
+async function handleIdeate() {
+  if (generating.value || ideateLoading.value) return
+
+  // Open modal immediately
+  showIdeateModal.value = true
+  ideateLoading.value = true
+  ideateStatus.value = 'Thinking...'
+  ideateResponse.value = ''
+
+  // Create abort controller for cancellation
+  const ideateAbortController = new AbortController()
+
+  try {
+    let responseText = ''
+
+    // Stream ideation with abort signal
+    const stream = storiesAPI.ideate(props.storyId, ideateAbortController.signal)
+
+    for await (const chunk of stream) {
+      // Handle queue status (AI Horde)
+      if (chunk.queueStatus) {
+        const { position, waitTime, finished, faulted } = chunk.queueStatus
+        if (faulted) {
+          ideateStatus.value = 'Queue error'
+        } else if (finished) {
+          ideateStatus.value = 'Processing...'
+        } else if (position === 0) {
+          ideateStatus.value = `Generating... (ETA: ${waitTime}s)`
+        } else {
+          ideateStatus.value = `In queue: position ${position} (ETA: ${waitTime}s)`
+        }
+      }
+
+      // Handle content
+      if (chunk.content) {
+        if (ideateStatus.value === 'Thinking...' || ideateStatus.value.includes('queue') || ideateStatus.value.includes('Processing')) {
+          ideateStatus.value = 'Writing...'
+        }
+
+        responseText += chunk.content
+        ideateResponse.value = responseText
+      }
+
+      if (chunk.finished) {
+        break
+      }
+    }
+
+    ideateLoading.value = false
+  } catch (error) {
+    // Check if it was a cancellation
+    if (error.name === 'AbortError' || error.message === 'Generation cancelled') {
+      console.log('Ideation was cancelled')
+      toast.info('Ideation cancelled')
+      showIdeateModal.value = false
+    } else {
+      console.error('Ideation error:', error)
+      ideateLoading.value = false
+      ideateResponse.value = `Error: ${error.message}`
+    }
   }
 }
 </script>

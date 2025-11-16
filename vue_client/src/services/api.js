@@ -254,6 +254,62 @@ export const storiesAPI = {
       reader.releaseLock()
     }
   },
+
+  async *ideate(storyId, signal = null) {
+    const url = `${baseURL}/stories/${storyId}/ideate`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(error.error || `Request failed: ${response.statusText}`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') return
+
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.cancelled) {
+                throw new Error('Generation cancelled')
+              }
+              if (parsed.error) {
+                throw new Error(parsed.error)
+              }
+              yield parsed
+            } catch (e) {
+              if (e.message === 'Generation cancelled') throw e
+              console.error('Failed to parse SSE data:', e)
+              // Re-throw errors that came from the server
+              if (e.message && !e.message.includes('parse')) {
+                throw e
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  },
 }
 
 // Characters API
