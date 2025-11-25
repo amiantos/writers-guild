@@ -222,44 +222,66 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
-const localTemplates = computed({
-  get() {
-    // Ensure we always have an object with all fields (defaulting to null)
-    const templates = props.modelValue || {}
-    return {
-      systemPrompt: templates.systemPrompt ?? null,
-      continue: templates.continue ?? null,
-      character: templates.character ?? null,
-      instruction: templates.instruction ?? null,
-      rewriteThirdPerson: templates.rewriteThirdPerson ?? null
-    }
-  },
-  set(value) {
-    emit('update:modelValue', value)
+// Helper to get templates object with defaults
+const getTemplates = () => {
+  const templates = props.modelValue || {}
+  return {
+    systemPrompt: templates.systemPrompt ?? null,
+    continue: templates.continue ?? null,
+    character: templates.character ?? null,
+    instruction: templates.instruction ?? null,
+    rewriteThirdPerson: templates.rewriteThirdPerson ?? null
   }
-})
+}
+
+// Helper to update a single template field
+const updateTemplate = (key, value) => {
+  emit('update:modelValue', {
+    ...getTemplates(),
+    [key]: value
+  })
+}
+
+// Create a reactive object with individual computed properties for each template
+// This allows v-model to properly trigger updates when editing textareas
+const localTemplates = {
+  systemPrompt: computed({
+    get: () => getTemplates().systemPrompt,
+    set: (value) => updateTemplate('systemPrompt', value)
+  }),
+  continue: computed({
+    get: () => getTemplates().continue,
+    set: (value) => updateTemplate('continue', value)
+  }),
+  character: computed({
+    get: () => getTemplates().character,
+    set: (value) => updateTemplate('character', value)
+  }),
+  instruction: computed({
+    get: () => getTemplates().instruction,
+    set: (value) => updateTemplate('instruction', value)
+  }),
+  rewriteThirdPerson: computed({
+    get: () => getTemplates().rewriteThirdPerson,
+    set: (value) => updateTemplate('rewriteThirdPerson', value)
+  })
+}
 
 // Check if a prompt is customized (not null)
 const isCustomized = (key) => {
-  return localTemplates.value[key] !== null
+  return getTemplates()[key] !== null
 }
 
 // Toggle customization for a prompt
 const toggleCustomization = (key) => {
-  const current = localTemplates.value[key]
+  const current = getTemplates()[key]
 
   if (current === null) {
     // Switching to customize: load the default template
-    localTemplates.value = {
-      ...localTemplates.value,
-      [key]: DEFAULT_TEMPLATES[key]
-    }
+    updateTemplate(key, DEFAULT_TEMPLATES[key])
   } else {
     // Switching to use default: set to null
-    localTemplates.value = {
-      ...localTemplates.value,
-      [key]: null
-    }
+    updateTemplate(key, null)
   }
 }
 </script>
