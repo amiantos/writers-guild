@@ -4,7 +4,7 @@ FROM node:lts-alpine AS builder
 # Build Vue client
 WORKDIR /app/vue_client
 COPY vue_client/package*.json ./
-RUN npm ci
+RUN npm install
 COPY vue_client/ ./
 RUN npm run build
 
@@ -21,7 +21,7 @@ RUN apk add --no-cache tini
 COPY server/package*.json ./
 
 # Install production dependencies
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy server code
 COPY server/ ./
