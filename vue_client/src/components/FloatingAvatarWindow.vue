@@ -53,7 +53,7 @@ const props = defineProps({
 
 defineEmits(['close'])
 
-const STORAGE_KEY = 'ursceal-floating-avatar'
+const STORAGE_KEY = 'writers-guild-floating-avatar'
 
 const windowRef = ref(null)
 const showClose = ref(false)

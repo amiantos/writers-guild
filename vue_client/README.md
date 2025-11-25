@@ -1,6 +1,6 @@
-# Úrscéal Vue Client
+# Writers Guild Vue Client
 
-A Vue 3 reimplementation of the Úrscéal client, demonstrating component-based architecture and modern frontend patterns.
+A Vue 3 reimplementation of the Writers Guild client, demonstrating component-based architecture and modern frontend patterns.
 
 ## Setup
 

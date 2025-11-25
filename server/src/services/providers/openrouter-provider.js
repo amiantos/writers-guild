@@ -63,8 +63,8 @@ export class OpenRouterProvider extends LLMProvider {
     const headers = {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${this.apiKey}`,
-      "HTTP-Referer": "https://github.com/yourusername/ursceal", // Optional: For rankings
-      "X-Title": "Ursceal" // Optional: For rankings
+      "HTTP-Referer": "https://github.com/amiantos/writers-guild", // Optional: For rankings
+      "X-Title": "Writers Guild" // Optional: For rankings
     };
 
     // Add provider preferences if specified

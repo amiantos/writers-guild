@@ -1,5 +1,5 @@
 /**
- * Úrscéal Server
+ * Writers Guild Server
  * Express server for multi-story novel writing application
  */
 

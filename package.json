@@ -1,7 +1,7 @@
 {
-  "name": "ursceal",
+  "name": "writers-guild",
   "version": "2.0.0",
-  "description": "Úrscéal - AI-powered short story writing application",
+  "description": "Writers Guild - AI-powered short story writing application",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",

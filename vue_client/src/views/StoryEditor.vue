@@ -303,7 +303,7 @@ const ideateStatus = ref('Thinking...')
 let abortController = null
 
 // Load floating avatar state from localStorage
-const FLOATING_AVATAR_KEY = 'ursceal-floating-avatar-open'
+const FLOATING_AVATAR_KEY = 'writers-guild-floating-avatar-open'
 const showFloatingAvatar = ref(localStorage.getItem(FLOATING_AVATAR_KEY) === 'true')
 
 const storyCharacters = ref([])

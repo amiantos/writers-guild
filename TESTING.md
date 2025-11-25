@@ -1,10 +1,10 @@
-# Testing Guide for Úrscéal
+# Testing Guide for Writers Guild
 
-This document provides information about the testing setup and how to write and run tests for Úrscéal.
+This document provides information about the testing setup and how to write and run tests for Writers Guild.
 
 ## Overview
 
-Úrscéal uses **Vitest** as the primary testing framework for both backend and frontend code. Vitest is a fast, modern testing framework that works seamlessly with ES modules and provides a Jest-compatible API.
+Writers Guild uses **Vitest** as the primary testing framework for both backend and frontend code. Vitest is a fast, modern testing framework that works seamlessly with ES modules and provides a Jest-compatible API.
 
 **Test Coverage:**
 - **Server**: 223 tests covering services and providers
@@ -14,7 +14,7 @@ This document provides information about the testing setup and how to write and 
 ## Test Structure
 
 ```
-ursceal/
+writers-guild/
 ├── server/
 │   ├── vitest.config.js
 │   └── src/

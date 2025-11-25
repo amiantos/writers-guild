@@ -1,7 +1,7 @@
 services:
-  ursceal:
+  writers-guild:
     build: .
-    container_name: ursceal-server
+    container_name: writers-guild-server
     ports:
       - "8000:8000"
     volumes:

@@ -291,7 +291,7 @@ const tabs = [
 ]
 
 // Active tab with localStorage persistence
-const STORAGE_KEY = 'ursceal-active-tab'
+const STORAGE_KEY = 'writers-guild-active-tab'
 const activeTab = ref(localStorage.getItem(STORAGE_KEY) || 'stories')
 
 // Save active tab to localStorage when it changes

@@ -1,8 +1,8 @@
-# Úrscéal
+# Writers Guild
 
 AI-powered short story writing application that supports Tavern character cards and SillyTavern lorebooks.
 
-[![codecov](https://codecov.io/github/amiantos/ursceal/graph/badge.svg?token=QRDTDEUZ6X)](https://codecov.io/github/amiantos/ursceal)
+[![codecov](https://codecov.io/github/amiantos/writers-guild/graph/badge.svg?token=QRDTDEUZ6X)](https://codecov.io/github/amiantos/writers-guild)
 
 ## Features
 
@@ -16,7 +16,7 @@ AI-powered short story writing application that supports Tavern character cards 
 
 After years of using SillyTavern, I realized the character cards I enjoyed interacting with the most were very prose-like, and I started to suspect that the "chat" oriented nature of SillyTavern was actually preventing LLMs from fulfilling their potential as interactive story writers, and likely causing a lot of common issues (like repetitive messages, low creativity, etc).
 
-So I decided to make Úrscéal, which uses the same character cards and lorebooks as SillyTavern, but uses them to write in a format more akin to a short story or novel. Úrscéal also attempts to enforce a consistent perspective (third) and tense (past), which is something a lot of character card authors struggle with, so it has a button to automatically rewrite the original greeting from the character into a consistent style (the most useful feature, imho).
+So I decided to make Writers Guild, which uses the same character cards and lorebooks as SillyTavern, but uses them to write in a format more akin to a short story or novel. Writers Guild also attempts to enforce a consistent perspective (third) and tense (past), which is something a lot of character card authors struggle with, so it has a button to automatically rewrite the original greeting from the character into a consistent style (the most useful feature, imho).
 
 ## Quick Start
 
@@ -70,7 +70,7 @@ This builds the Vue client and serves it from the Node.js server on http://local
 ## Project Structure
 
 ```
-ursceal/
+writers-guild/
 ├── server/           # Node.js/Express API server
 ├── vue_client/       # Vue 3 frontend application
 ├── data/            # User data (stories, characters, lorebooks)
