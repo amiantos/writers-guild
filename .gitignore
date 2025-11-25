@@ -143,6 +143,7 @@ vite.config.ts.timestamp-*
 # Data folder
 data/
 data-old*/
+data-*/
 
 # Claude Code configuration
 .claude/
