@@ -326,6 +326,12 @@ watch(showFloatingAvatar, (isOpen) => {
 // Auto-save
 let autoSaveTimeout = null
 
+// Normalize trailing line breaks to exactly 2
+function normalizeTrailingLineBreaks() {
+  const trimmed = content.value.replace(/\n+$/, '')
+  content.value = trimmed + '\n\n'
+}
+
 // Keyboard shortcut handler for quick paragraph generation and modal opening
 function handleKeyboardShortcut(event) {
   // Check for Cmd (Mac) or Ctrl (Windows/Linux) modifier
@@ -597,6 +603,9 @@ async function generate(isCustom, instruction, characterId) {
       generatedContent += '\n\n'
       content.value = textBefore + generatedContent + textAfter
 
+      // Normalize trailing line breaks to prevent accumulation
+      normalizeTrailingLineBreaks()
+
       // Position cursor after generated content
       const newCursorPos = textBefore.length + generatedContent.length
       await nextTick()
@@ -736,6 +745,9 @@ async function rewriteToThirdPerson() {
     if (rewrittenContent) {
       rewrittenContent += '\n\n'
       content.value = rewrittenContent
+
+      // Normalize trailing line breaks to prevent accumulation
+      normalizeTrailingLineBreaks()
 
       // Position cursor at end
       const cursorPos = rewrittenContent.length
