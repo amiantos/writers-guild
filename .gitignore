@@ -41,6 +41,10 @@ build/Release
 node_modules/
 jspm_packages/
 
+# Subfolder package-lock files (cause cross-platform issues with native binaries)
+server/package-lock.json
+vue_client/package-lock.json
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
