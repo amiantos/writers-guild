@@ -12,7 +12,8 @@
         class="instruction-input"
         placeholder="Enter your instruction here..."
         rows="5"
-        @keydown.enter.ctrl="handleGenerate"
+        @keydown.enter.ctrl.exact="handleGenerate"
+        @keydown.enter.meta.exact="handleGenerate"
       ></textarea>
 
       <div class="modal-actions">
@@ -30,20 +31,24 @@
 
       <div class="hint">
         <i class="fas fa-lightbulb"></i>
-        Press Ctrl+Enter to generate
+        Press {{ isMac ? '⌘' : 'Ctrl' }}+Enter to generate
       </div>
     </div>
   </Modal>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Modal from './Modal.vue'
 
 const emit = defineEmits(['close', 'generate'])
 
 const instruction = ref('')
 const inputRef = ref(null)
+
+const isMac = computed(() => {
+  return navigator.platform.toUpperCase().indexOf('MAC') >= 0
+})
 
 onMounted(() => {
   // Focus the input when modal opens

@@ -326,6 +326,49 @@ watch(showFloatingAvatar, (isOpen) => {
 // Auto-save
 let autoSaveTimeout = null
 
+// Keyboard shortcut handler for quick paragraph generation and modal opening
+function handleKeyboardShortcut(event) {
+  // Check for Cmd (Mac) or Ctrl (Windows/Linux) modifier
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const modifierKey = isMac ? event.metaKey : event.ctrlKey
+
+  if (!modifierKey) return
+
+  // Cmd/Ctrl+Enter opens the Continue with Instruction modal
+  if (event.key === 'Enter' && !event.shiftKey) {
+    // Don't trigger if a modal is already open or if generating
+    if (showCustomPromptModal.value || generating.value || !story.value) return
+
+    event.preventDefault()
+    showCustomPromptModal.value = true
+    return
+  }
+
+  // Cmd/Ctrl+Shift+0-9 for quick paragraph generation
+  // Use event.code since Shift+number gives symbols in event.key
+  if (event.shiftKey) {
+    const codeMatch = event.code.match(/^Digit(\d)$/)
+    if (codeMatch) {
+      // Prevent default browser behavior
+      event.preventDefault()
+
+      // Don't trigger if already generating or if story isn't loaded
+      if (generating.value || !story.value) return
+
+      const digit = codeMatch[1]
+      let instruction
+      if (digit === '0') {
+        instruction = 'Write as many paragraphs as needed to meaningfully progress the story with new elements.'
+      } else {
+        const num = parseInt(digit, 10)
+        instruction = num === 1 ? 'Write 1 more paragraph' : `Write ${num} more paragraphs`
+      }
+
+      handleCustomPrompt(instruction)
+    }
+  }
+}
+
 onMounted(async () => {
   await loadStory()
   await Promise.all([loadCharacters(), loadSettings()])
@@ -335,10 +378,15 @@ onMounted(async () => {
   if (showFloatingAvatar.value && !firstCharacter.value) {
     showFloatingAvatar.value = false
   }
+
+  // Add keyboard shortcut listener
+  window.addEventListener('keydown', handleKeyboardShortcut)
 })
 
 onUnmounted(() => {
   stopAutoSave()
+  // Remove keyboard shortcut listener
+  window.removeEventListener('keydown', handleKeyboardShortcut)
 })
 
 // Watch content changes for auto-save
