@@ -149,7 +149,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive } from 'vue'
 
 // Default templates (matching backend defaults)
 const DEFAULT_TEMPLATES = {
@@ -243,8 +243,8 @@ const updateTemplate = (key, value) => {
 }
 
 // Create a reactive object with individual computed properties for each template
-// This allows v-model to properly trigger updates when editing textareas
-const localTemplates = {
+// Using reactive() auto-unwraps nested computed refs in templates
+const localTemplates = reactive({
   systemPrompt: computed({
     get: () => getTemplates().systemPrompt,
     set: (value) => updateTemplate('systemPrompt', value)
@@ -265,7 +265,7 @@ const localTemplates = {
     get: () => getTemplates().rewriteThirdPerson,
     set: (value) => updateTemplate('rewriteThirdPerson', value)
   })
-}
+})
 
 // Check if a prompt is customized (not null)
 const isCustomized = (key) => {
