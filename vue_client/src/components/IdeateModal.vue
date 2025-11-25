@@ -1,16 +1,23 @@
 <template>
   <Modal title="AI Ideation" max-width="800px" @close="$emit('close')">
-    <div v-if="loading" class="loading-container">
+    <!-- Show loading spinner only when loading AND no response yet -->
+    <div v-if="loading && !response" class="loading-container">
       <div class="spinner"></div>
       <p>{{ status }}</p>
     </div>
 
+    <!-- Show response (streaming or complete) -->
     <div v-else class="ideation-content">
       <div v-if="response" class="response-display">
-        {{ response }}
+        {{ response }}<span v-if="loading" class="cursor"></span>
       </div>
       <div v-else class="no-response">
         No response generated yet.
+      </div>
+      <!-- Show subtle loading indicator while streaming -->
+      <div v-if="loading && response" class="streaming-indicator">
+        <span class="streaming-dot"></span>
+        {{ status }}
       </div>
     </div>
 
@@ -92,5 +99,42 @@ defineEmits(['close'])
   padding: 2rem;
   text-align: center;
   color: var(--text-secondary);
+}
+
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: var(--accent-primary);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.streaming-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.streaming-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
 }
 </style>
