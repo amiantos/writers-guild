@@ -1,7 +1,7 @@
 <template>
   <div class="landing-wrapper">
     <header class="app-header">
-      <h1>Úrscéal</h1>
+      <h1>Writers Guild</h1>
       <button class="settings-btn" @click="goToSettings" title="Settings">
         <i class="fas fa-cog"></i>
       </button>

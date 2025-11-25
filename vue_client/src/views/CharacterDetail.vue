@@ -40,7 +40,7 @@
 
           <div class="info-note">
             <i class="fas fa-info-circle"></i>
-            <p>Úrscéal uses Name, Description, and Personality by default for character response generation. Scenario is used if the story has only one character in it. Example messages can be included optionally from the settings menu.</p>
+            <p>Writers Guild uses Name, Description, and Personality by default for character response generation. Scenario is used if the story has only one character in it. Example messages can be included optionally from the settings menu.</p>
           </div>
         </div>
 

@@ -142,7 +142,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, HOST, () => {
   console.log(`
 ╔════════════════════════════════════════╗
-║          Úrscéal Server v2.0           ║
+║       Writers Guild Server v2.0        ║
 ╚════════════════════════════════════════╝
 
 Server running at: http://${HOST}:${PORT}

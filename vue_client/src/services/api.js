@@ -1,5 +1,5 @@
 /**
- * API Client for Úrscéal
+ * API Client for Writers Guild
  */
 
 const baseURL = '/api'

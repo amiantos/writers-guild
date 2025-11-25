@@ -1,4 +1,4 @@
-# Úrscéal Server Configuration
+# Writers Guild Server Configuration
 
 server:
   port: 8000

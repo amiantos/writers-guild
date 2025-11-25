@@ -1,4 +1,4 @@
-# Úrscéal Docker Image
+# Writers Guild Docker Image
 FROM node:lts-alpine AS builder
 
 # Build Vue client
