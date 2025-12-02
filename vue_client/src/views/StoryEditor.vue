@@ -347,31 +347,6 @@ function handleKeyboardShortcut(event) {
 
     event.preventDefault()
     showCustomPromptModal.value = true
-    return
-  }
-
-  // Cmd/Ctrl+Shift+0-9 for quick paragraph generation
-  // Use event.code since Shift+number gives symbols in event.key
-  if (event.shiftKey) {
-    const codeMatch = event.code.match(/^Digit(\d)$/)
-    if (codeMatch) {
-      // Prevent default browser behavior
-      event.preventDefault()
-
-      // Don't trigger if already generating or if story isn't loaded
-      if (generating.value || !story.value) return
-
-      const digit = codeMatch[1]
-      let instruction
-      if (digit === '0') {
-        instruction = 'Write as many paragraphs as needed to meaningfully progress the story with new elements.'
-      } else {
-        const num = parseInt(digit, 10)
-        instruction = num === 1 ? 'Write 1 more paragraph' : `Write ${num} more paragraphs`
-      }
-
-      handleCustomPrompt(instruction)
-    }
   }
 }
 
