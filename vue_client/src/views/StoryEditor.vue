@@ -101,14 +101,14 @@
             <i v-else class="fas fa-check"></i>
           </button>
           <button
-            class="btn btn-primary"
+            class="btn btn-secondary"
             :disabled="!story || storyCharacters.length === 0"
             @click="handleCharacterResponse"
           >
             <i class="fas fa-comments"></i> Continue for Character
           </button>
           <button
-            class="btn btn-secondary"
+            class="btn btn-primary"
             :disabled="!story"
             @click="handleContinue"
           >
