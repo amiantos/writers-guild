@@ -22,7 +22,6 @@
         </button>
         <button
           class="btn btn-primary"
-          :disabled="!instruction.trim()"
           @click="handleGenerate"
         >
           <i class="fas fa-wand-magic-sparkles"></i> Generate
@@ -58,11 +57,9 @@ onMounted(() => {
 })
 
 function handleGenerate() {
-  const trimmed = instruction.value.trim()
-  if (trimmed) {
-    emit('generate', trimmed)
-    emit('close')
-  }
+  // Emit trimmed instruction (can be empty - server will fall back to normal continue)
+  emit('generate', instruction.value.trim())
+  emit('close')
 }
 </script>
 
