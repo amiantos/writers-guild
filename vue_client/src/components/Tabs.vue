@@ -50,7 +50,8 @@ defineEmits(['update:modelValue'])
   display: flex;
   gap: 0;
   background-color: var(--bg-tertiary);
-  border-bottom: 2px solid var(--border-color);
+  border-radius: 100px;
+  overflow:hidden;
 }
 
 .tab-button {
@@ -71,12 +72,12 @@ defineEmits(['update:modelValue'])
 }
 
 .tab-button:hover {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   color: var(--text-primary);
 }
 
 .tab-button.active {
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-primary);
   color: var(--accent-primary);
   border-bottom-color: var(--accent-primary);
 }

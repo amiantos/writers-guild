@@ -592,7 +592,7 @@ function goToSettings() {
   display: flex;
   flex-direction: column;
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .app-header {
@@ -600,7 +600,8 @@ function goToSettings() {
   border-bottom: 1px solid var(--border-color);
   padding: 1rem 1.5rem;
   box-shadow: var(--shadow);
-  position: relative;
+  position: sticky;
+  top: 0;
   z-index: 200;
   display: flex;
   justify-content: space-between;
@@ -636,8 +637,6 @@ function goToSettings() {
 }
 
 .app-main {
-  flex: 1;
-  overflow-y: auto;
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
