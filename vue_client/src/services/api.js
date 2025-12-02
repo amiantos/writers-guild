@@ -557,6 +557,11 @@ export const presetsAPI = {
   getDeepSeekModels(apiKey) {
     return request(`/presets/deepseek/models?apiKey=${encodeURIComponent(apiKey)}`)
   },
+
+  // Get default prompt templates (single source of truth from server)
+  getDefaultTemplates() {
+    return request('/presets/defaults/templates')
+  },
 }
 
 export default {

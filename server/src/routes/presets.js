@@ -6,7 +6,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler } from '../middleware/error-handler.js';
 import { StorageService } from '../services/storage.js';
-import { getDefaultPresets } from '../services/default-presets.js';
+import { getDefaultPresets, DEFAULT_SYSTEM_PROMPT_TEMPLATE, DEFAULT_PROMPT_TEMPLATES } from '../services/default-presets.js';
 import { AIHordeProvider } from '../services/providers/aihorde-provider.js';
 import { OpenRouterProvider } from '../services/providers/openrouter-provider.js';
 import { OpenAIProvider } from '../services/providers/openai-provider.js';
@@ -155,6 +155,14 @@ router.post('/initialize-defaults', asyncHandler(async (req, res) => {
   res.json({
     success: true,
     presets: createdPresets
+  });
+}));
+
+// Get default prompt templates (single source of truth for both server and client)
+router.get('/defaults/templates', asyncHandler(async (req, res) => {
+  res.json({
+    systemPrompt: DEFAULT_SYSTEM_PROMPT_TEMPLATE,
+    ...DEFAULT_PROMPT_TEMPLATES
   });
 }));
 

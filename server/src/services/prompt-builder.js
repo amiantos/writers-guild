@@ -10,10 +10,10 @@ import { DEFAULT_SYSTEM_PROMPT_TEMPLATE, DEFAULT_PROMPT_TEMPLATES } from './defa
 export class PromptBuilder {
   constructor(config = {}) {
     this.config = {
-      // Default instruction templates
+      // Default instruction templates (use imported defaults, allow override)
       instructionTemplates: config.instructionTemplates || {
-        continue: "Continue the story naturally from where it left off. Write the next 2-3 paragraphs maximum, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters.",
-        character: "Write the next part of the story from {{charName}}'s perspective. Focus on their thoughts, actions, and dialogue. Write 2-3 paragraphs maximum, less if it makes sense stylistically or sets up a good response opportunity for other characters. (There is a chance that \"{{charName}}'s\" is multiple characters, at which point you may respond as any of them as is relevant to the story.)",
+        continue: DEFAULT_PROMPT_TEMPLATES.continue,
+        character: DEFAULT_PROMPT_TEMPLATES.character,
         custom: "Continue the story."
       },
 
