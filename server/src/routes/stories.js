@@ -645,9 +645,9 @@ router.post('/:id/continue-with-instruction', asyncHandler(async (req, res) => {
   const { id: storyId } = req.params;
   const { instruction } = req.body;
 
-  if (!instruction || !instruction.trim()) {
-    throw new AppError('Instruction is required', 400);
-  }
+  // If no instruction provided, fall back to normal continue
+  const hasInstruction = instruction && instruction.trim();
+  const generationType = hasInstruction ? 'instruction' : 'continue';
 
   const context = await loadGenerationContext(storyId);
   const { preset, provider, characterCards } = context;
@@ -656,7 +656,7 @@ router.post('/:id/continue-with-instruction', asyncHandler(async (req, res) => {
 
   // Create abort controller for cancellation support
   const abortController = new AbortController();
-  console.log(`[Continue-with-Instruction] Starting generation for story ${storyId}`);
+  console.log(`[Continue-with-Instruction] Starting ${generationType} generation for story ${storyId}`);
 
   // Handle client disconnection (for SSE, listen to response close event)
   res.on('close', () => {
@@ -667,9 +667,9 @@ router.post('/:id/continue-with-instruction', asyncHandler(async (req, res) => {
   });
 
   try {
-    await streamGeneration(res, provider, preset, context, 'instruction', {
+    await streamGeneration(res, provider, preset, context, generationType, {
       characterCards,
-      customInstruction: instruction.trim()
+      customInstruction: hasInstruction ? instruction.trim() : undefined
     }, abortController.signal);
   } catch (error) {
     if (error.message === 'Generation cancelled' || abortController.signal.aborted) {
