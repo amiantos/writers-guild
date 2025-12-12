@@ -4,7 +4,7 @@
 
 import express from 'express';
 import { asyncHandler } from '../middleware/error-handler.js';
-import { StorageService } from '../services/storage.js';
+import { SqliteStorageService } from '../services/sqliteStorage.js';
 
 const router = express.Router();
 
@@ -13,7 +13,7 @@ let storage;
 
 router.use((req, res, next) => {
   if (!storage) {
-    storage = new StorageService(req.app.locals.dataRoot);
+    storage = new SqliteStorageService(req.app.locals.dataRoot);
   }
   next();
 });
