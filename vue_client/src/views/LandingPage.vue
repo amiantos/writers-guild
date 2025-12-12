@@ -244,6 +244,7 @@ const {
   loadLorebooks,
   loadPresets,
   loadAll,
+  invalidateCache,
   removeStoryLocally,
   removeCharacterLocally,
   removeLorebookLocally,
@@ -322,6 +323,8 @@ onMounted(async () => {
 async function createNewStory() {
   try {
     const { story } = await storiesAPI.create('Untitled Story')
+    // Invalidate stories cache so it refreshes when returning to dashboard
+    invalidateCache('stories')
     openStory(story.id)
   } catch (error) {
     console.error('Error creating story:', error)
@@ -344,6 +347,8 @@ async function createStoryWithCharacter(characterId) {
       await storiesAPI.updateContent(story.id, response.processedFirstMessage + '\n\n')
     }
 
+    // Invalidate stories cache so it refreshes when returning to dashboard
+    invalidateCache('stories')
     openStory(story.id)
   } catch (error) {
     console.error('Error creating story with character:', error)
