@@ -208,6 +208,7 @@ import { useRouter } from 'vue-router'
 import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useConfirm } from '../composables/useConfirm'
+import { useDataCache } from '../composables/useDataCache'
 import Tabs from '../components/Tabs.vue'
 import StoriesTable from '../components/StoriesTable.vue'
 import CharactersTable from '../components/CharactersTable.vue'
@@ -226,15 +227,29 @@ const router = useRouter()
 const toast = useToast()
 const { confirm } = useConfirm()
 
-const stories = ref([])
-const characters = ref([])
-const lorebooks = ref([])
-const presets = ref([])
-const defaultPresetId = ref(null)
-const loadingStories = ref(true)
-const loadingCharacters = ref(true)
-const loadingLorebooks = ref(true)
-const loadingPresets = ref(true)
+// Use centralized data cache for better performance
+const {
+  stories,
+  characters,
+  lorebooks,
+  presets,
+  defaultPresetId,
+  loadingStories,
+  loadingCharacters,
+  loadingLorebooks,
+  loadingPresets,
+  getStoryCount,
+  loadStories,
+  loadCharacters,
+  loadLorebooks,
+  loadPresets,
+  loadAll,
+  removeStoryLocally,
+  removeCharacterLocally,
+  removeLorebookLocally,
+  removePresetLocally,
+  setDefaultPresetIdLocally
+} = useDataCache()
 
 // Character Stories Modal
 const showCharacterStoriesModal = ref(false)
@@ -300,41 +315,9 @@ watch(activeTab, (newTab) => {
 })
 
 onMounted(async () => {
-  await Promise.all([loadStories(), loadCharacters(), loadLorebooks(), loadPresets()])
+  // Load all data using cache - will skip API calls if data is fresh
+  await loadAll()
 })
-
-async function loadStories() {
-  try {
-    const { stories: data } = await storiesAPI.list()
-    stories.value = data || []
-  } catch (error) {
-    console.error('Error loading stories:', error)
-  } finally {
-    loadingStories.value = false
-  }
-}
-
-async function loadCharacters() {
-  try {
-    const { characters: data } = await charactersAPI.list()
-    characters.value = data || []
-  } catch (error) {
-    console.error('Error loading characters:', error)
-  } finally {
-    loadingCharacters.value = false
-  }
-}
-
-async function loadLorebooks() {
-  try {
-    const { lorebooks: data } = await lorebooksAPI.list()
-    lorebooks.value = data || []
-  } catch (error) {
-    console.error('Error loading lorebooks:', error)
-  } finally {
-    loadingLorebooks.value = false
-  }
-}
 
 async function createNewStory() {
   try {
@@ -399,7 +382,7 @@ async function deleteStory(story) {
 
   try {
     await storiesAPI.delete(story.id)
-    stories.value = stories.value.filter(s => s.id !== story.id)
+    removeStoryLocally(story.id)
     toast.success('Story deleted successfully')
   } catch (error) {
     console.error('Error deleting story:', error)
@@ -408,10 +391,7 @@ async function deleteStory(story) {
 }
 
 async function deleteCharacter(character) {
-  const storyCount = stories.value.filter(s =>
-    s.characterIds?.includes(character.id) ||
-    s.personaCharacterId === character.id
-  ).length
+  const storyCount = getStoryCount(character.id)
 
   let msg = `Delete character "${character.name}"?`
   if (storyCount > 0) {
@@ -429,7 +409,7 @@ async function deleteCharacter(character) {
 
   try {
     await charactersAPI.delete(character.id)
-    characters.value = characters.value.filter(c => c.id !== character.id)
+    removeCharacterLocally(character.id)
     toast.success('Character deleted successfully')
   } catch (error) {
     console.error('Error deleting character:', error)
@@ -448,7 +428,7 @@ async function deleteLorebook(lorebook) {
 
   try {
     await lorebooksAPI.delete(lorebook.id)
-    lorebooks.value = lorebooks.value.filter(l => l.id !== lorebook.id)
+    removeLorebookLocally(lorebook.id)
     toast.success('Lorebook deleted successfully')
   } catch (error) {
     console.error('Error deleting lorebook:', error)
@@ -457,47 +437,32 @@ async function deleteLorebook(lorebook) {
 }
 
 async function handleCharacterCreated(character) {
-  // Reload characters to include the new one
-  await loadCharacters()
+  // Force reload characters to include the new one
+  await loadCharacters(true)
   // Switch to characters tab if not already there
   activeTab.value = 'characters'
 }
 
 async function handleCharacterImported(character) {
-  // Reload characters to include the imported one
-  await loadCharacters()
-  // Also reload lorebooks in case character had embedded lorebook
-  await loadLorebooks()
+  // Force reload characters to include the imported one
+  await loadCharacters(true)
+  // Also force reload lorebooks in case character had embedded lorebook
+  await loadLorebooks(true)
   // Switch to characters tab if not already there
   activeTab.value = 'characters'
 }
 
 async function handleLorebookCreated(lorebook) {
-  // Reload lorebooks to include the new one
-  await loadLorebooks()
+  // Force reload lorebooks to include the new one
+  await loadLorebooks(true)
   // The modal already handles navigation to the editor
 }
 
 async function handleLorebookImported(lorebook) {
-  // Reload lorebooks to include the imported one
-  await loadLorebooks()
+  // Force reload lorebooks to include the imported one
+  await loadLorebooks(true)
   // Switch to lorebooks tab if not already there
   activeTab.value = 'lorebooks'
-}
-
-async function loadPresets() {
-  try {
-    const [presetsData, defaultData] = await Promise.all([
-      presetsAPI.list(),
-      presetsAPI.getDefaultId()
-    ])
-    presets.value = presetsData.presets || []
-    defaultPresetId.value = defaultData.defaultPresetId
-  } catch (error) {
-    console.error('Error loading presets:', error)
-  } finally {
-    loadingPresets.value = false
-  }
 }
 
 function createNewPreset() {
@@ -532,7 +497,7 @@ async function duplicatePreset(presetId) {
     delete duplicateData.id
 
     await presetsAPI.create(duplicateData)
-    await loadPresets()
+    await loadPresets(true)
     toast.success('Preset duplicated successfully')
   } catch (error) {
     console.error('Error duplicating preset:', error)
@@ -556,7 +521,7 @@ async function deletePreset(preset) {
 
   try {
     await presetsAPI.delete(preset.id)
-    presets.value = presets.value.filter(p => p.id !== preset.id)
+    removePresetLocally(preset.id)
     toast.success('Preset deleted successfully')
   } catch (error) {
     console.error('Error deleting preset:', error)
@@ -567,7 +532,7 @@ async function deletePreset(preset) {
 async function setDefaultPreset(presetId) {
   try {
     await presetsAPI.setDefaultId(presetId)
-    defaultPresetId.value = presetId
+    setDefaultPresetIdLocally(presetId)
     toast.success('Default preset updated')
   } catch (error) {
     console.error('Error setting default preset:', error)
@@ -578,7 +543,7 @@ async function setDefaultPreset(presetId) {
 async function handlePresetSaved() {
   showPresetEditorModal.value = false
   editingPreset.value = null
-  await loadPresets()
+  await loadPresets(true)
   toast.success('Preset saved successfully')
 }
 

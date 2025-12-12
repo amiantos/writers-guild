@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
   columns: {
@@ -79,21 +79,49 @@ const props = defineProps({
 const sortColumn = ref(props.defaultSort || props.columns.find(c => c.sortable)?.key)
 const sortAsc = ref(props.defaultSortAsc)
 
+// Cache for sort values to avoid recomputation during sorting
+let sortValueCache = new WeakMap()
+let lastSortColumn = null
+
+// Invalidate cache when data changes
+watch(() => props.data, () => {
+  sortValueCache = new WeakMap()
+}, { flush: 'sync' })
+
+// Get cached sort value for a row
+function getCachedSortValue(row, key) {
+  if (!sortValueCache.has(row)) {
+    sortValueCache.set(row, {})
+  }
+  const cache = sortValueCache.get(row)
+  if (!(key in cache)) {
+    cache[key] = getCellValue(row, key)
+  }
+  return cache[key]
+}
+
 const sortedData = computed(() => {
   if (!sortColumn.value) return props.data
 
+  // Clear value cache if sort column changed
+  if (lastSortColumn !== sortColumn.value) {
+    sortValueCache = new WeakMap()
+    lastSortColumn = sortColumn.value
+  }
+
   const sorted = [...props.data]
   const column = props.columns.find(c => c.key === sortColumn.value)
+  const currentSortCol = sortColumn.value
+  const ascending = sortAsc.value
 
   sorted.sort((a, b) => {
-    let aVal = getCellValue(a, sortColumn.value)
-    let bVal = getCellValue(b, sortColumn.value)
-
     // Use custom sort function if provided
     if (column?.sortFn) {
-      // Pass the full row objects to the sort function
-      return column.sortFn(a, b, sortAsc.value)
+      return column.sortFn(a, b, ascending)
     }
+
+    let aVal = getCachedSortValue(a, currentSortCol)
+    let bVal = getCachedSortValue(b, currentSortCol)
 
     // Handle null/undefined - push to end
     if (aVal == null && bVal == null) return 0
@@ -104,19 +132,19 @@ const sortedData = computed(() => {
     if (typeof aVal === 'string') {
       aVal = aVal.toLowerCase()
       bVal = (bVal || '').toLowerCase()
-      return sortAsc.value ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
+      return ascending ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal)
     }
 
     // Handle dates
     if (aVal instanceof Date || (typeof aVal === 'string' && !isNaN(Date.parse(aVal)))) {
-      aVal = new Date(aVal)
-      bVal = new Date(bVal)
-      return sortAsc.value ? aVal - bVal : bVal - aVal
+      aVal = new Date(aVal).getTime()
+      bVal = new Date(bVal).getTime()
+      return ascending ? aVal - bVal : bVal - aVal
     }
 
     // Handle numbers
     if (typeof aVal === 'number') {
-      return sortAsc.value ? aVal - bVal : bVal - aVal
+      return ascending ? aVal - bVal : bVal - aVal
     }
 
     return 0
