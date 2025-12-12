@@ -213,26 +213,31 @@ function calculateWordCount(content) {
 function migrateSchema(db, fromVersion) {
   console.log(`Migrating database from version ${fromVersion} to ${SCHEMA_VERSION}`);
 
-  // Migration to version 2: Add word_count column to stories
-  if (fromVersion < 2) {
-    console.log('Adding word_count column to stories table...');
+  // Wrap all migrations in a transaction for atomicity
+  const migrate = db.transaction(() => {
+    // Migration to version 2: Add word_count column to stories
+    if (fromVersion < 2) {
+      console.log('Adding word_count column to stories table...');
 
-    // Add the word_count column
-    db.exec('ALTER TABLE stories ADD COLUMN word_count INTEGER DEFAULT 0');
+      // Add the word_count column
+      db.exec('ALTER TABLE stories ADD COLUMN word_count INTEGER DEFAULT 0');
 
-    // Calculate and populate word counts for existing stories
-    const stories = db.prepare('SELECT id, content FROM stories').all();
-    const updateStmt = db.prepare('UPDATE stories SET word_count = ? WHERE id = ?');
+      // Calculate and populate word counts for existing stories
+      const stories = db.prepare('SELECT id, content FROM stories').all();
+      const updateStmt = db.prepare('UPDATE stories SET word_count = ? WHERE id = ?');
 
-    for (const story of stories) {
-      const wordCount = calculateWordCount(story.content);
-      updateStmt.run(wordCount, story.id);
+      for (const story of stories) {
+        const wordCount = calculateWordCount(story.content);
+        updateStmt.run(wordCount, story.id);
+      }
+
+      console.log(`Updated word counts for ${stories.length} existing stories`);
     }
 
-    console.log(`Updated word counts for ${stories.length} existing stories`);
-  }
+    db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
+  });
 
-  db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
+  migrate();
 }
 
 export { SCHEMA_VERSION, calculateWordCount };
