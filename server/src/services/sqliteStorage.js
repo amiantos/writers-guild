@@ -86,6 +86,9 @@ export class SqliteStorageService {
         JOIN story_characters sc ON s.id = sc.story_id
         WHERE sc.character_id = ?
       `),
+      updateStoryModified: this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?'),
+      clearStoryPersona: this.db.prepare('UPDATE stories SET persona_character_id = NULL WHERE id = ?'),
+      setStoryPersona: this.db.prepare('UPDATE stories SET persona_character_id = ?, modified = ? WHERE id = ?'),
 
       // Lorebooks
       listLorebooks: this.db.prepare(`
@@ -137,6 +140,7 @@ export class SqliteStorageService {
         WHERE id = @id AND lorebook_id = @lorebookId
       `),
       deleteLorebookEntry: this.db.prepare('DELETE FROM lorebook_entries WHERE id = ? AND lorebook_id = ?'),
+      deleteLorebookEntries: this.db.prepare('DELETE FROM lorebook_entries WHERE lorebook_id = ?'),
 
       // Story-Lorebook relationships
       getStoryLorebookIds: this.db.prepare('SELECT lorebook_id FROM story_lorebooks WHERE story_id = ?'),
@@ -490,7 +494,7 @@ export class SqliteStorageService {
 
     // Update story modified timestamp
     const modified = new Date().toISOString();
-    this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?').run(modified, storyId);
+    this.stmts.updateStoryModified.run(modified, storyId);
 
     return { success: true };
   }
@@ -505,12 +509,12 @@ export class SqliteStorageService {
 
     // If this character was the persona, clear it
     if (story.persona_character_id === characterId) {
-      this.db.prepare('UPDATE stories SET persona_character_id = NULL WHERE id = ?').run(storyId);
+      this.stmts.clearStoryPersona.run(storyId);
     }
 
     // Update story modified timestamp
     const modified = new Date().toISOString();
-    this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?').run(modified, storyId);
+    this.stmts.updateStoryModified.run(modified, storyId);
 
     return { success: true };
   }
@@ -529,8 +533,7 @@ export class SqliteStorageService {
     }
 
     const modified = new Date().toISOString();
-    this.db.prepare('UPDATE stories SET persona_character_id = ?, modified = ? WHERE id = ?')
-      .run(characterId, modified, storyId);
+    this.stmts.setStoryPersona.run(characterId, modified, storyId);
 
     return { success: true };
   }
@@ -634,7 +637,7 @@ export class SqliteStorageService {
         });
 
         // Delete existing entries and re-insert
-        this.db.prepare('DELETE FROM lorebook_entries WHERE lorebook_id = ?').run(lorebookId);
+        this.stmts.deleteLorebookEntries.run(lorebookId);
       } else {
         // Insert new lorebook
         this.stmts.insertLorebook.run({
@@ -706,7 +709,7 @@ export class SqliteStorageService {
 
     // Update story modified timestamp
     const modified = new Date().toISOString();
-    this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?').run(modified, storyId);
+    this.stmts.updateStoryModified.run(modified, storyId);
 
     return { success: true };
   }
@@ -721,7 +724,7 @@ export class SqliteStorageService {
 
     // Update story modified timestamp
     const modified = new Date().toISOString();
-    this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?').run(modified, storyId);
+    this.stmts.updateStoryModified.run(modified, storyId);
 
     return { success: true };
   }
