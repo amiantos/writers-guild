@@ -3,7 +3,7 @@
  * Handles all database operations for stories, characters, lorebooks, presets, and settings
  */
 
-import { initializeDatabase } from './database.js';
+import { initializeDatabase, calculateWordCount } from './database.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 
@@ -41,22 +41,21 @@ export class SqliteStorageService {
 
       // Stories
       listStories: this.db.prepare(`
-        SELECT id, title, description, created, modified, persona_character_id, config_preset_id,
-               LENGTH(content) - LENGTH(REPLACE(content, ' ', '')) + 1 as word_count
+        SELECT id, title, description, created, modified, persona_character_id, config_preset_id, word_count
         FROM stories
         ORDER BY modified DESC
       `),
       getStory: this.db.prepare('SELECT * FROM stories WHERE id = ?'),
       insertStory: this.db.prepare(`
-        INSERT INTO stories (id, title, description, content, persona_character_id, config_preset_id, created, modified)
-        VALUES (@id, @title, @description, @content, @personaCharacterId, @configPresetId, @created, @modified)
+        INSERT INTO stories (id, title, description, content, word_count, persona_character_id, config_preset_id, created, modified)
+        VALUES (@id, @title, @description, @content, @wordCount, @personaCharacterId, @configPresetId, @created, @modified)
       `),
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, persona_character_id = @personaCharacterId,
                           config_preset_id = @configPresetId, modified = @modified
         WHERE id = @id
       `),
-      updateStoryContent: this.db.prepare('UPDATE stories SET content = ?, modified = ? WHERE id = ?'),
+      updateStoryContent: this.db.prepare('UPDATE stories SET content = ?, word_count = ?, modified = ? WHERE id = ?'),
       deleteStory: this.db.prepare('DELETE FROM stories WHERE id = ?'),
 
       // Characters
@@ -298,6 +297,7 @@ export class SqliteStorageService {
       title,
       description,
       content: '',
+      wordCount: 0,
       personaCharacterId: null,
       configPresetId: null,
       created: now,
@@ -313,7 +313,8 @@ export class SqliteStorageService {
       characterIds: [],
       personaCharacterId: null,
       lorebookIds: [],
-      configPresetId: null
+      configPresetId: null,
+      wordCount: 0
     };
   }
 
@@ -351,7 +352,8 @@ export class SqliteStorageService {
     const modified = new Date().toISOString();
 
     if (changed) {
-      this.stmts.updateStoryContent.run(content, modified, storyId);
+      const wordCount = calculateWordCount(content);
+      this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
     }
 
     return { success: true, modified, changed };

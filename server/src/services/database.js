@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 /**
  * Initialize the SQLite database with schema
@@ -92,6 +92,7 @@ function createAllTables(db) {
       title TEXT NOT NULL,
       description TEXT DEFAULT '',
       content TEXT DEFAULT '',
+      word_count INTEGER DEFAULT 0,
       persona_character_id TEXT,
       config_preset_id TEXT,
       created TEXT NOT NULL,
@@ -195,15 +196,43 @@ function createAllTables(db) {
 }
 
 /**
+ * Calculate word count from text content
+ * Counts sequences of word characters (letters, numbers, underscores) as words
+ */
+function calculateWordCount(content) {
+  if (!content || typeof content !== 'string') {
+    return 0;
+  }
+  const words = content.match(/\b\w+\b/g);
+  return words ? words.length : 0;
+}
+
+/**
  * Migrate schema to latest version
  */
 function migrateSchema(db, fromVersion) {
   console.log(`Migrating database from version ${fromVersion} to ${SCHEMA_VERSION}`);
 
-  // Future migrations would go here
-  // if (fromVersion < 2) { ... }
+  // Migration to version 2: Add word_count column to stories
+  if (fromVersion < 2) {
+    console.log('Adding word_count column to stories table...');
+
+    // Add the word_count column
+    db.exec('ALTER TABLE stories ADD COLUMN word_count INTEGER DEFAULT 0');
+
+    // Calculate and populate word counts for existing stories
+    const stories = db.prepare('SELECT id, content FROM stories').all();
+    const updateStmt = db.prepare('UPDATE stories SET word_count = ? WHERE id = ?');
+
+    for (const story of stories) {
+      const wordCount = calculateWordCount(story.content);
+      updateStmt.run(wordCount, story.id);
+    }
+
+    console.log(`Updated word counts for ${stories.length} existing stories`);
+  }
 
   db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
 }
 
-export { SCHEMA_VERSION };
+export { SCHEMA_VERSION, calculateWordCount };
