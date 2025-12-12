@@ -7,7 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { StorageService } from './storage.js';
+import { SqliteStorageService } from './sqliteStorage.js';
+import { runSqliteMigration } from './dataMigration.js';
 import { getDefaultPresets, createPresetFromSettings } from './default-presets.js';
 import { CharacterParser } from './character-parser.js';
 import { LorebookParser } from './lorebook-parser.js';
@@ -362,16 +363,23 @@ export async function migrate(storage) {
  * @returns {Promise<Object>} Migration result
  */
 export async function runMigration(dataRoot) {
-  const storage = new StorageService(dataRoot);
-  const migrationResult = await migrate(storage);
-
-  // Always check for missing thumbnails, independent of preset migration
-  // This ensures thumbnails are generated even on existing installations
-  if (!migrationResult.thumbnailsGenerated) {
-    console.log('Running independent thumbnail check...');
-    const thumbnailsGenerated = await generateMissingThumbnails(storage);
-    migrationResult.thumbnailsGenerated = thumbnailsGenerated;
+  // First, run SQLite migration if needed (migrates file data to database)
+  try {
+    const sqliteMigrationResult = await runSqliteMigration(dataRoot);
+    if (sqliteMigrationResult.migrated) {
+      console.log(`✓ ${sqliteMigrationResult.message}`);
+      if (sqliteMigrationResult.backupDir) {
+        console.log(`  Backup created at: ${sqliteMigrationResult.backupDir}`);
+      }
+    }
+  } catch (error) {
+    console.error('SQLite migration error:', error);
+    // Continue with preset migration even if SQLite migration fails
   }
+
+  // Now use SQLite storage for preset migration
+  const storage = new SqliteStorageService(dataRoot);
+  const migrationResult = await migrate(storage);
 
   return migrationResult;
 }

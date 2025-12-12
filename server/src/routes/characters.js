@@ -6,7 +6,7 @@ import express from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
-import { StorageService } from '../services/storage.js';
+import { SqliteStorageService } from '../services/sqliteStorage.js';
 import { CharacterParser } from '../services/character-parser.js';
 import { LorebookParser } from '../services/lorebook-parser.js';
 import { ChubImporter } from '../services/chub-importer.js';
@@ -34,7 +34,7 @@ let storage;
 
 router.use((req, res, next) => {
   if (!storage) {
-    storage = new StorageService(req.app.locals.dataRoot);
+    storage = new SqliteStorageService(req.app.locals.dataRoot);
   }
   next();
 });

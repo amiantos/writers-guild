@@ -5,7 +5,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler } from '../middleware/error-handler.js';
-import { StorageService } from '../services/storage.js';
+import { SqliteStorageService } from '../services/sqliteStorage.js';
 import { getDefaultPresets, DEFAULT_SYSTEM_PROMPT_TEMPLATE, DEFAULT_PROMPT_TEMPLATES } from '../services/default-presets.js';
 import { AIHordeProvider } from '../services/providers/aihorde-provider.js';
 import { OpenRouterProvider } from '../services/providers/openrouter-provider.js';
@@ -20,7 +20,7 @@ let storage;
 
 router.use((req, res, next) => {
   if (!storage) {
-    storage = new StorageService(req.app.locals.dataRoot);
+    storage = new SqliteStorageService(req.app.locals.dataRoot);
   }
   next();
 });
