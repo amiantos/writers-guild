@@ -197,13 +197,15 @@ function createAllTables(db) {
 
 /**
  * Calculate word count from text content
- * Counts sequences of word characters (letters, numbers, underscores) as words
+ * Counts words including contractions (don't, it's) and hyphenated words (well-known)
+ * as single words, matching typical word processor behavior.
  */
 function calculateWordCount(content) {
   if (!content || typeof content !== 'string') {
     return 0;
   }
-  const words = content.match(/\b\w+\b/g);
+  // Match word characters, apostrophes within words (contractions), and hyphens within words
+  const words = content.match(/\b[\w]+(?:[''-][\w]+)*\b/g);
   return words ? words.length : 0;
 }
 
