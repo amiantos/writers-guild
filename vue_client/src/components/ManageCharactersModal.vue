@@ -63,8 +63,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Modal from './Modal.vue'
 import CharacterCard from './CharacterCard.vue'
-import { charactersAPI, storiesAPI } from '../services/api'
+import { storiesAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
+import { useDataCache } from '../composables/useDataCache'
 
 const props = defineProps({
   story: {
@@ -77,31 +78,25 @@ const emit = defineEmits(['close', 'updated'])
 
 const router = useRouter()
 const toast = useToast()
-const loading = ref(true)
-const allCharacters = ref([])
+const { characters: cachedCharacters, loadCharacters, loadingCharacters } = useDataCache()
 const filterText = ref('')
 const actionInProgress = ref(null)
 
-onMounted(async () => {
-  await loadCharacters()
+// Use loading state from cache
+const loading = loadingCharacters
+
+// Map cached characters with image URLs
+const allCharacters = computed(() => {
+  return cachedCharacters.value.map(char => ({
+    ...char,
+    imageUrl: `/api/characters/${char.id}/image`
+  }))
 })
 
-async function loadCharacters() {
-  try {
-    loading.value = true
-    const { characters } = await charactersAPI.list()
-    // Add image URLs to characters
-    allCharacters.value = characters.map(char => ({
-      ...char,
-      imageUrl: `/api/characters/${char.id}/image?t=${Date.now()}`
-    }))
-  } catch (error) {
-    console.error('Failed to load characters:', error)
-    toast.error('Failed to load characters: ' + error.message)
-  } finally {
-    loading.value = false
-  }
-}
+onMounted(async () => {
+  // Load characters from cache (will skip if already loaded)
+  await loadCharacters()
+})
 
 const filteredCharacters = computed(() => {
   let characters = allCharacters.value

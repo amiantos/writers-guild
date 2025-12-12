@@ -1,9 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
+// Eager load landing page for fast initial load
 import LandingPage from '../views/LandingPage.vue'
-import StoryEditor from '../views/StoryEditor.vue'
-import CharacterDetail from '../views/CharacterDetail.vue'
-import LorebookDetail from '../views/LorebookDetail.vue'
-import SettingsPage from '../views/SettingsPage.vue'
+
+// Lazy load heavy views for better performance
+const StoryEditor = () => import('../views/StoryEditor.vue')
+const CharacterDetail = () => import('../views/CharacterDetail.vue')
+const LorebookDetail = () => import('../views/LorebookDetail.vue')
+const SettingsPage = () => import('../views/SettingsPage.vue')
 
 const routes = [
   {

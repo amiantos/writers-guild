@@ -49,8 +49,10 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import DataTable from './DataTable.vue'
 import CharacterAvatar from './CharacterAvatar.vue'
+import { useDataCache } from '../composables/useDataCache'
 
 const props = defineProps({
   characters: {
@@ -65,16 +67,37 @@ const props = defineProps({
 
 defineEmits(['continue', 'new-story', 'edit', 'delete'])
 
+// Use centralized memoized story counts for O(1) lookup
+const { getStoryCount: getCachedStoryCount, storyCountsByCharacter } = useDataCache()
+
+// Memoize story counts for sorting - computed once, reused for all rows
+const storyCountMap = computed(() => {
+  // If using cache, return its pre-computed map
+  if (storyCountsByCharacter.value.size > 0) {
+    return storyCountsByCharacter.value
+  }
+  // Fallback: compute from props.stories if cache not populated
+  const counts = new Map()
+  for (const story of props.stories) {
+    if (story.characterIds) {
+      for (const charId of story.characterIds) {
+        counts.set(charId, (counts.get(charId) || 0) + 1)
+      }
+    }
+    if (story.personaCharacterId && !story.characterIds?.includes(story.personaCharacterId)) {
+      counts.set(story.personaCharacterId, (counts.get(story.personaCharacterId) || 0) + 1)
+    }
+  }
+  return counts
+})
+
 function getStoryCount(characterId) {
-  return props.stories.filter(story =>
-    story.characterIds?.includes(characterId) ||
-    story.personaCharacterId === characterId
-  ).length
+  return storyCountMap.value.get(characterId) || 0
 }
 
 function sortByStoryCount(aCharacter, bCharacter, asc) {
-  const aCount = getStoryCount(aCharacter.id)
-  const bCount = getStoryCount(bCharacter.id)
+  const aCount = storyCountMap.value.get(aCharacter.id) || 0
+  const bCount = storyCountMap.value.get(bCharacter.id) || 0
   return asc ? aCount - bCount : bCount - aCount
 }
 
