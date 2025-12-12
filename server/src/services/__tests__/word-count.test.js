@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { calculateWordCount } from '../database.js';
+import { SqliteStorageService } from '../sqliteStorage.js';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 describe('calculateWordCount', () => {
   describe('Basic Word Counting', () => {
@@ -119,6 +123,104 @@ describe('calculateWordCount', () => {
       // Words: I, don't, believe, it, she, said, her, well-known, temper, flaring,
       //        It's, impossible, He, wasn't, convinced, but, the, state-of-the-art, evidence, was, clear
       expect(calculateWordCount(content)).toBe(21);
+    });
+  });
+});
+
+describe('SqliteStorageService Word Count Integration', () => {
+  let storage;
+  let tempDir;
+
+  beforeEach(() => {
+    // Create a temporary directory for the test database
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'writers-guild-test-'));
+    storage = new SqliteStorageService(tempDir);
+  });
+
+  afterEach(() => {
+    // Close the database and clean up
+    storage.close();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe('Story Creation', () => {
+    it('should initialize word_count to 0 for new stories', async () => {
+      const story = await storage.createStory('Test Story', 'A test description');
+
+      expect(story.wordCount).toBe(0);
+
+      // Verify it's also stored in the database
+      const stories = await storage.listStories();
+      const created = stories.find(s => s.id === story.id);
+      expect(created.wordCount).toBe(0);
+    });
+  });
+
+  describe('Story Content Updates', () => {
+    it('should calculate and save word_count when content is updated', async () => {
+      const story = await storage.createStory('Test Story', 'Description');
+
+      await storage.updateStoryContent(story.id, 'Hello world');
+
+      const stories = await storage.listStories();
+      const updated = stories.find(s => s.id === story.id);
+      expect(updated.wordCount).toBe(2);
+    });
+
+    it('should update word_count when content changes', async () => {
+      const story = await storage.createStory('Test Story', 'Description');
+
+      await storage.updateStoryContent(story.id, 'One two three');
+      let stories = await storage.listStories();
+      expect(stories.find(s => s.id === story.id).wordCount).toBe(3);
+
+      await storage.updateStoryContent(story.id, 'One two three four five');
+      stories = await storage.listStories();
+      expect(stories.find(s => s.id === story.id).wordCount).toBe(5);
+    });
+
+    it('should not update when content is unchanged', async () => {
+      const story = await storage.createStory('Test Story', 'Description');
+
+      const result1 = await storage.updateStoryContent(story.id, 'Hello world');
+      expect(result1.changed).toBe(true);
+
+      const result2 = await storage.updateStoryContent(story.id, 'Hello world');
+      expect(result2.changed).toBe(false);
+    });
+
+    it('should correctly count contractions and hyphenated words', async () => {
+      const story = await storage.createStory('Test Story', 'Description');
+
+      await storage.updateStoryContent(story.id, "I don't know about this well-known fact");
+
+      const stories = await storage.listStories();
+      const updated = stories.find(s => s.id === story.id);
+      // Words: I, don't, know, about, this, well-known, fact = 7
+      expect(updated.wordCount).toBe(7);
+    });
+
+    it('should handle empty content', async () => {
+      const story = await storage.createStory('Test Story', 'Description');
+
+      await storage.updateStoryContent(story.id, 'Some initial content');
+      await storage.updateStoryContent(story.id, '');
+
+      const stories = await storage.listStories();
+      const updated = stories.find(s => s.id === story.id);
+      expect(updated.wordCount).toBe(0);
+    });
+
+    it('should handle large content', async () => {
+      const story = await storage.createStory('Test Story', 'Description');
+
+      // Generate content with exactly 1000 words
+      const words = Array(1000).fill('word').join(' ');
+      await storage.updateStoryContent(story.id, words);
+
+      const stories = await storage.listStories();
+      const updated = stories.find(s => s.id === story.id);
+      expect(updated.wordCount).toBe(1000);
     });
   });
 });
