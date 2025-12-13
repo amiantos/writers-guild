@@ -82,6 +82,9 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'update'])
 
+// Minimum visible pixels when window is partially off-screen
+const MIN_VISIBLE_PIXELS = 100
+
 const windowRef = ref(null)
 const showControls = ref(false)
 
@@ -204,11 +207,11 @@ function ensureWithinViewport() {
 
   // Ensure window is not too far off-screen
   if (x + width < padding) {
-    x = padding - width + 100
+    x = padding - width + MIN_VISIBLE_PIXELS
     changed = true
   }
   if (x > viewportWidth - padding) {
-    x = viewportWidth - padding - 100
+    x = viewportWidth - padding - MIN_VISIBLE_PIXELS
     changed = true
   }
   if (y + height < padding) {
@@ -216,7 +219,7 @@ function ensureWithinViewport() {
     changed = true
   }
   if (y > viewportHeight - padding) {
-    y = viewportHeight - padding - 100
+    y = viewportHeight - padding - MIN_VISIBLE_PIXELS
     changed = true
   }
   if (x < 0 && x + width <= padding) {
@@ -252,13 +255,17 @@ onUnmounted(() => {
   window.removeEventListener('resize', onWindowResize)
 })
 
-// Watch for character list changes
-watch(() => props.characters, () => {
+// Watch for character list changes - use computed IDs to avoid deep watch performance issues
+const characterIds = computed(() => props.characters.map(c => c.id))
+watch(characterIds, () => {
   if (props.characters.length > 0 && !props.characters.some(c => c.id === selectedCharacterId.value)) {
     selectedCharacterId.value = props.characters[0].id
     emitUpdate()
+  } else if (props.characters.length === 0) {
+    selectedCharacterId.value = null
+    emitUpdate()
   }
-}, { deep: true })
+})
 </script>
 
 <style scoped>

@@ -71,12 +71,45 @@ router.post('/:id/rewrite-prompt', asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
+// Validate avatar window structure
+function validateAvatarWindow(win, index) {
+  if (typeof win !== 'object' || win === null) {
+    return `avatarWindows[${index}] must be an object`;
+  }
+  const requiredProps = ['id', 'characterId', 'x', 'y', 'width', 'height'];
+  for (const prop of requiredProps) {
+    if (!(prop in win)) {
+      return `avatarWindows[${index}] is missing required property '${prop}'`;
+    }
+  }
+  if (typeof win.id !== 'string') {
+    return `avatarWindows[${index}].id must be a string`;
+  }
+  if (typeof win.characterId !== 'string') {
+    return `avatarWindows[${index}].characterId must be a string`;
+  }
+  for (const numProp of ['x', 'y', 'width', 'height']) {
+    if (typeof win[numProp] !== 'number' || !Number.isFinite(win[numProp])) {
+      return `avatarWindows[${index}].${numProp} must be a finite number`;
+    }
+  }
+  return null;
+}
+
 // Update avatar windows for a story
 router.put('/:id/avatar-windows', asyncHandler(async (req, res) => {
   const { avatarWindows } = req.body;
 
   if (!Array.isArray(avatarWindows)) {
     throw new AppError('avatarWindows must be an array', 400);
+  }
+
+  // Validate each avatar window
+  for (let i = 0; i < avatarWindows.length; i++) {
+    const error = validateAvatarWindow(avatarWindows[i], i);
+    if (error) {
+      throw new AppError(error, 400);
+    }
   }
 
   const result = await storage.updateStoryAvatarWindows(req.params.id, avatarWindows);

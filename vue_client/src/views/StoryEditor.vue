@@ -394,6 +394,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopAutoSave()
+  // Clear avatar window save timeout to prevent memory leaks
+  if (saveAvatarTimeout) {
+    clearTimeout(saveAvatarTimeout)
+  }
   // Remove keyboard shortcut listener
   window.removeEventListener('keydown', handleKeyboardShortcut)
 })
@@ -923,7 +927,7 @@ async function handleIdeate() {
 
 // Generate a unique ID for avatar windows
 function generateWindowId() {
-  return `avatar-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  return `avatar-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
 // Add a new avatar window
