@@ -93,6 +93,20 @@ function validateAvatarWindow(win, index) {
       return `avatarWindows[${index}].${numProp} must be a finite number`;
     }
   }
+  // Range validation
+  if (win.width <= 0) {
+    return `avatarWindows[${index}].width must be a positive number`;
+  }
+  if (win.height <= 0) {
+    return `avatarWindows[${index}].height must be a positive number`;
+  }
+  const MIN_POS = -10000, MAX_POS = 10000;
+  if (win.x < MIN_POS || win.x > MAX_POS) {
+    return `avatarWindows[${index}].x must be between ${MIN_POS} and ${MAX_POS}`;
+  }
+  if (win.y < MIN_POS || win.y > MAX_POS) {
+    return `avatarWindows[${index}].y must be between ${MIN_POS} and ${MAX_POS}`;
+  }
   return null;
 }
 

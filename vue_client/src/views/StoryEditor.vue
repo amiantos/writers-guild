@@ -394,9 +394,11 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopAutoSave()
+  // Mark component as unmounted to prevent API calls after destruction
+  isMounted.value = false
   // Clear avatar window save timeout to prevent memory leaks
-  if (saveAvatarTimeout) {
-    clearTimeout(saveAvatarTimeout)
+  if (saveAvatarTimeoutRef.value) {
+    clearTimeout(saveAvatarTimeoutRef.value)
   }
   // Remove keyboard shortcut listener
   window.removeEventListener('keydown', handleKeyboardShortcut)
@@ -927,6 +929,9 @@ async function handleIdeate() {
 
 // Generate a unique ID for avatar windows
 function generateWindowId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `avatar-${crypto.randomUUID()}`
+  }
   return `avatar-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
@@ -994,17 +999,24 @@ function handleAvatarWindowUpdate(update) {
   }
 }
 
-// Debounced save to server
-let saveAvatarTimeout = null
+// Debounced save to server - use ref to avoid race conditions
+const saveAvatarTimeoutRef = ref(null)
+const isMounted = ref(true)
+
 function saveAvatarWindows() {
-  if (saveAvatarTimeout) {
-    clearTimeout(saveAvatarTimeout)
+  if (saveAvatarTimeoutRef.value) {
+    clearTimeout(saveAvatarTimeoutRef.value)
   }
-  saveAvatarTimeout = setTimeout(async () => {
+  saveAvatarTimeoutRef.value = setTimeout(async () => {
+    // Check if component is still mounted before making API call
+    if (!isMounted.value) return
     try {
       await storiesAPI.updateAvatarWindows(props.storyId, avatarWindows.value)
     } catch (error) {
       console.error('Failed to save avatar windows:', error)
+      if (isMounted.value) {
+        toast.error('Failed to save avatar window positions')
+      }
     }
   }, 500) // Debounce 500ms
 }

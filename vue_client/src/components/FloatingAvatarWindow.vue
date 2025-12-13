@@ -185,7 +185,14 @@ function onMouseUp() {
   }
 }
 
-// Ensure window is within viewport bounds
+/**
+ * Ensure window stays accessible within viewport bounds.
+ *
+ * The logic ensures:
+ * 1. Window size doesn't exceed viewport (with padding)
+ * 2. At least MIN_VISIBLE_PIXELS of the window remains visible on each edge
+ * 3. Partial off-screen positioning is allowed for flexibility
+ */
 function ensureWithinViewport() {
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
@@ -195,7 +202,7 @@ function ensureWithinViewport() {
   let { width, height } = size.value
   let changed = false
 
-  // Ensure minimum size fits in viewport
+  // Ensure size fits in viewport
   if (width > viewportWidth - padding * 2) {
     width = viewportWidth - padding * 2
     changed = true
@@ -205,29 +212,25 @@ function ensureWithinViewport() {
     changed = true
   }
 
-  // Ensure window is not too far off-screen
-  if (x + width < padding) {
-    x = padding - width + MIN_VISIBLE_PIXELS
+  // Ensure at least MIN_VISIBLE_PIXELS remains visible on each edge
+  // Right edge: window must not extend too far left (off left side of screen)
+  if (x + width < MIN_VISIBLE_PIXELS) {
+    x = MIN_VISIBLE_PIXELS - width
     changed = true
   }
-  if (x > viewportWidth - padding) {
-    x = viewportWidth - padding - MIN_VISIBLE_PIXELS
+  // Left edge: window must not extend too far right (off right side of screen)
+  if (x > viewportWidth - MIN_VISIBLE_PIXELS) {
+    x = viewportWidth - MIN_VISIBLE_PIXELS
     changed = true
   }
-  if (y + height < padding) {
-    y = padding
+  // Bottom edge: window must not extend too far up (off top of screen)
+  if (y + height < MIN_VISIBLE_PIXELS) {
+    y = MIN_VISIBLE_PIXELS - height
     changed = true
   }
-  if (y > viewportHeight - padding) {
-    y = viewportHeight - padding - MIN_VISIBLE_PIXELS
-    changed = true
-  }
-  if (x < 0 && x + width <= padding) {
-    x = padding
-    changed = true
-  }
-  if (y < 0 && y + height <= padding) {
-    y = padding
+  // Top edge: window must not extend too far down (off bottom of screen)
+  if (y > viewportHeight - MIN_VISIBLE_PIXELS) {
+    y = viewportHeight - MIN_VISIBLE_PIXELS
     changed = true
   }
 
@@ -262,8 +265,8 @@ watch(characterIds, () => {
     selectedCharacterId.value = props.characters[0].id
     emitUpdate()
   } else if (props.characters.length === 0) {
+    // Just update local state; don't emit update as the window will be closed by parent
     selectedCharacterId.value = null
-    emitUpdate()
   }
 })
 </script>
