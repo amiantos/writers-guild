@@ -268,7 +268,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storiesAPI, charactersAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
@@ -333,11 +333,6 @@ const avatarWindows = ref([])
 
 const storyCharacters = ref([])
 const shouldShowReasoning = ref(false) // Setting from server
-
-// Computed
-const hasUnsavedChanges = computed(() => {
-  return content.value !== originalContent.value
-})
 
 // Auto-save
 let autoSaveTimeout = null
@@ -587,8 +582,6 @@ async function handleUndo() {
     setTimeout(() => {
       isUndoRedoOperation = false
     }, 50)
-
-    toast.success('Undone')
   } catch (error) {
     console.error('Failed to undo:', error)
     if (error.message !== 'Nothing to undo') {
@@ -624,8 +617,6 @@ async function handleRedo() {
     setTimeout(() => {
       isUndoRedoOperation = false
     }, 50)
-
-    toast.success('Redone')
   } catch (error) {
     console.error('Failed to redo:', error)
     if (error.message !== 'Nothing to redo') {

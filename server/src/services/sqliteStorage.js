@@ -175,7 +175,6 @@ export class SqliteStorageService {
         INSERT INTO story_history_position (story_id, history_id) VALUES (?, ?)
         ON CONFLICT(story_id) DO UPDATE SET history_id = excluded.history_id
       `),
-      getHistoryEntry: this.db.prepare('SELECT * FROM story_history WHERE id = ?'),
       getHistoryBefore: this.db.prepare(`
         SELECT * FROM story_history
         WHERE story_id = ? AND id < ?
