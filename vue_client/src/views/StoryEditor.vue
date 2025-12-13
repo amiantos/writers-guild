@@ -94,11 +94,19 @@
         <div v-else class="toolbar-main-buttons">
           <button
             class="btn btn-secondary icon-btn"
-            @click="saveStory"
-            :title="hasUnsavedChanges ? 'Save changes' : 'All changes saved'"
+            @click="handleUndo"
+            :disabled="!canUndo"
+            title="Undo (Ctrl/Cmd+Z)"
           >
-            <i v-if="hasUnsavedChanges" class="fas fa-floppy-disk"></i>
-            <i v-else class="fas fa-check"></i>
+            <i class="fas fa-rotate-left"></i>
+          </button>
+          <button
+            v-if="canRedo"
+            class="btn btn-secondary icon-btn"
+            @click="handleRedo"
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+          >
+            <i class="fas fa-rotate-right"></i>
           </button>
           <button
             class="btn btn-secondary"
@@ -260,7 +268,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storiesAPI, charactersAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
@@ -326,13 +334,13 @@ const avatarWindows = ref([])
 const storyCharacters = ref([])
 const shouldShowReasoning = ref(false) // Setting from server
 
-// Computed
-const hasUnsavedChanges = computed(() => {
-  return content.value !== originalContent.value
-})
-
 // Auto-save
 let autoSaveTimeout = null
+
+// Undo/Redo state
+const canUndo = ref(false)
+const canRedo = ref(false)
+let isUndoRedoOperation = false // Flag to skip auto-save during undo/redo
 
 // Normalize trailing line breaks to exactly 2
 function normalizeTrailingLineBreaks() {
@@ -340,7 +348,7 @@ function normalizeTrailingLineBreaks() {
   content.value = trimmed + '\n\n'
 }
 
-// Keyboard shortcut handler for quick paragraph generation and modal opening
+// Keyboard shortcut handler for quick paragraph generation, modal opening, and undo/redo
 function handleKeyboardShortcut(event) {
   // Check for Cmd (Mac) or Ctrl (Windows/Linux) modifier
   const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
@@ -355,6 +363,23 @@ function handleKeyboardShortcut(event) {
 
     event.preventDefault()
     showCustomPromptModal.value = true
+    return
+  }
+
+  // Cmd/Ctrl+Z for undo, Cmd/Ctrl+Shift+Z for redo
+  if (event.key === 'z' || event.key === 'Z') {
+    // Don't trigger if generating
+    if (generating.value || !story.value) return
+
+    if (event.shiftKey) {
+      // Redo
+      event.preventDefault()
+      handleRedo()
+    } else {
+      // Undo
+      event.preventDefault()
+      handleUndo()
+    }
   }
 }
 
@@ -406,6 +431,11 @@ onUnmounted(() => {
 
 // Watch content changes for auto-save
 watch(content, () => {
+  // Skip auto-save if this is an undo/redo operation
+  if (isUndoRedoOperation) {
+    return
+  }
+
   if (autoSaveTimeout) {
     clearTimeout(autoSaveTimeout)
   }
@@ -441,6 +471,15 @@ async function loadStory() {
     originalContent.value = content.value
     // Update page title with story name
     setPageTitle(loadedStory.title || 'Untitled Story')
+
+    // Fetch initial history status
+    try {
+      const historyStatus = await storiesAPI.getHistoryStatus(props.storyId)
+      canUndo.value = historyStatus.canUndo
+      canRedo.value = historyStatus.canRedo
+    } catch (err) {
+      console.error('Failed to load history status:', err)
+    }
   } catch (error) {
     console.error('Failed to load story:', error)
     toast.error('Failed to load story: ' + error.message)
@@ -480,8 +519,17 @@ async function saveStory(silent = false) {
   }
 
   try {
-    await storiesAPI.updateContent(props.storyId, content.value)
+    const result = await storiesAPI.updateContent(props.storyId, content.value)
     originalContent.value = content.value
+
+    // Update history status from response
+    if (result.canUndo !== undefined) {
+      canUndo.value = result.canUndo
+    }
+    if (result.canRedo !== undefined) {
+      canRedo.value = result.canRedo
+    }
+
     if (!silent) {
       toast.success('Story saved')
     }
@@ -505,6 +553,76 @@ function stopAutoSave() {
 
 function handleInput() {
   // Handled by watch
+}
+
+async function handleUndo() {
+  if (!canUndo.value || generating.value) return
+
+  try {
+    const result = await storiesAPI.undo(props.storyId)
+
+    // Set flag before updating content to prevent auto-save
+    isUndoRedoOperation = true
+
+    // Update content
+    content.value = result.content
+    originalContent.value = result.content
+
+    // Update history status
+    canUndo.value = result.canUndo
+    canRedo.value = result.canRedo
+
+    // Scroll to bottom after content update
+    await nextTick()
+    if (editorRef.value) {
+      editorRef.value.scrollTop = editorRef.value.scrollHeight
+    }
+
+    // Clear the flag after a short delay to allow watch to complete
+    setTimeout(() => {
+      isUndoRedoOperation = false
+    }, 50)
+  } catch (error) {
+    console.error('Failed to undo:', error)
+    if (error.message !== 'Nothing to undo') {
+      toast.error('Failed to undo: ' + error.message)
+    }
+  }
+}
+
+async function handleRedo() {
+  if (!canRedo.value || generating.value) return
+
+  try {
+    const result = await storiesAPI.redo(props.storyId)
+
+    // Set flag before updating content to prevent auto-save
+    isUndoRedoOperation = true
+
+    // Update content
+    content.value = result.content
+    originalContent.value = result.content
+
+    // Update history status
+    canUndo.value = result.canUndo
+    canRedo.value = result.canRedo
+
+    // Scroll to bottom after content update
+    await nextTick()
+    if (editorRef.value) {
+      editorRef.value.scrollTop = editorRef.value.scrollHeight
+    }
+
+    // Clear the flag after a short delay to allow watch to complete
+    setTimeout(() => {
+      isUndoRedoOperation = false
+    }, 50)
+  } catch (error) {
+    console.error('Failed to redo:', error)
+    if (error.message !== 'Nothing to redo') {
+      toast.error('Failed to redo: ' + error.message)
+    }
+  }
 }
 
 async function handleContinue() {

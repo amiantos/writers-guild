@@ -103,6 +103,23 @@ export const storiesAPI = {
     })
   },
 
+  // History (undo/redo)
+  getHistoryStatus(storyId) {
+    return request(`/stories/${storyId}/history/status`)
+  },
+
+  undo(storyId) {
+    return request(`/stories/${storyId}/undo`, {
+      method: 'POST',
+    })
+  },
+
+  redo(storyId) {
+    return request(`/stories/${storyId}/redo`, {
+      method: 'POST',
+    })
+  },
+
   // Streaming generation
   async *continueStory(storyId, characterId = null, signal = null) {
     const url = `${baseURL}/stories/${storyId}/continue${characterId ? `?characterId=${characterId}` : ''}`

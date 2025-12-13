@@ -169,6 +169,37 @@ router.put('/:id/content', asyncHandler(async (req, res) => {
   }
 
   const result = await storage.updateStoryContent(req.params.id, content);
+
+  // Include history status in response
+  const historyStatus = await storage.getHistoryStatus(req.params.id);
+  res.json({ ...result, ...historyStatus });
+}));
+
+// Get undo/redo status for a story
+router.get('/:id/history/status', asyncHandler(async (req, res) => {
+  const status = await storage.getHistoryStatus(req.params.id);
+  res.json(status);
+}));
+
+// Undo story content
+router.post('/:id/undo', asyncHandler(async (req, res) => {
+  const result = await storage.undoStoryContent(req.params.id);
+
+  if (!result) {
+    throw new AppError('Nothing to undo', 400);
+  }
+
+  res.json(result);
+}));
+
+// Redo story content
+router.post('/:id/redo', asyncHandler(async (req, res) => {
+  const result = await storage.redoStoryContent(req.params.id);
+
+  if (!result) {
+    throw new AppError('Nothing to redo', 400);
+  }
+
   res.json(result);
 }));
 
