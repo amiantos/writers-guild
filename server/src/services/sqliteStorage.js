@@ -349,14 +349,15 @@ export class SqliteStorageService {
     }
 
     const changed = existing.content !== content;
-    const modified = new Date().toISOString();
 
     if (changed) {
+      const modified = new Date().toISOString();
       const wordCount = calculateWordCount(content);
       this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
+      return { success: true, modified, changed };
     }
 
-    return { success: true, modified, changed };
+    return { success: true, modified: existing.modified, changed };
   }
 
   async deleteStory(storyId) {
