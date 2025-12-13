@@ -273,6 +273,7 @@ import StoryPresetModal from '../components/StoryPresetModal.vue'
 import IdeateModal from '../components/IdeateModal.vue'
 import FloatingAvatarWindow from '../components/FloatingAvatarWindow.vue'
 import ThirdPersonPromptModal from '../components/ThirdPersonPromptModal.vue'
+import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys'
 
 const props = defineProps({
   storyId: {
@@ -286,9 +287,6 @@ const route = useRoute()
 const toast = useToast()
 const { goBack } = useNavigation()
 const { confirm } = useConfirm()
-
-// localStorage key for "don't ask again" preference
-const THIRD_PERSON_PROMPT_KEY = 'writers-guild-skip-third-person-prompt'
 
 // State
 const story = ref(null)
@@ -366,7 +364,7 @@ function handleKeyboardShortcut(event) {
 
 // Check if we should show the third person prompt (respects "don't ask again" preference)
 function shouldShowThirdPersonPrompt() {
-  return localStorage.getItem(THIRD_PERSON_PROMPT_KEY) !== 'true'
+  return localStorage.getItem(SKIP_THIRD_PERSON_PROMPT_KEY) !== 'true'
 }
 
 onMounted(async () => {
@@ -383,12 +381,14 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeyboardShortcut)
 
   // Check if we should prompt for third-person rewrite (from story creation with first message)
-  if (route.query.promptRewrite === 'true' && shouldShowThirdPersonPrompt()) {
+  if (route.query.promptRewrite === 'true') {
     // Clear the query param from URL without triggering navigation (preserve other params)
     router.replace({ query: { ...route.query, promptRewrite: undefined } })
-    // Show the prompt after a short delay to let the UI settle
-    await nextTick()
-    showThirdPersonPrompt.value = true
+    if (shouldShowThirdPersonPrompt()) {
+      // Show the prompt after a short delay to let the UI settle
+      await nextTick()
+      showThirdPersonPrompt.value = true
+    }
   }
 })
 
@@ -668,7 +668,6 @@ async function selectGreeting(greeting) {
 
 // Handler for when user accepts the third-person prompt
 function handleThirdPersonRewrite() {
-  showThirdPersonPrompt.value = false
   // Call with skipConfirm=true since user already confirmed via the prompt modal
   rewriteToThirdPerson(true)
 }

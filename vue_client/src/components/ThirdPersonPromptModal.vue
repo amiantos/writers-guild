@@ -27,8 +27,7 @@
 <script setup>
 import { ref } from 'vue'
 import Modal from './Modal.vue'
-
-const DONT_ASK_KEY = 'writers-guild-skip-third-person-prompt'
+import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys'
 
 const emit = defineEmits(['close', 'rewrite', 'skip'])
 
@@ -37,7 +36,7 @@ const isProcessing = ref(false)
 
 function savePreference() {
   if (dontAskAgain.value) {
-    localStorage.setItem(DONT_ASK_KEY, 'true')
+    localStorage.setItem(SKIP_THIRD_PERSON_PROMPT_KEY, 'true')
   }
 }
 

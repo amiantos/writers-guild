@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import ThirdPersonPromptModal from '../ThirdPersonPromptModal.vue';
 import Modal from '../Modal.vue';
+import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../../config/storageKeys';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -149,7 +150,7 @@ describe('ThirdPersonPromptModal', () => {
       await skipButton.trigger('click');
 
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'writers-guild-skip-third-person-prompt',
+        SKIP_THIRD_PERSON_PROMPT_KEY,
         'true'
       );
     });
@@ -196,7 +197,7 @@ describe('ThirdPersonPromptModal', () => {
       await rewriteButton.trigger('click');
 
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'writers-guild-skip-third-person-prompt',
+        SKIP_THIRD_PERSON_PROMPT_KEY,
         'true'
       );
     });
@@ -225,7 +226,7 @@ describe('ThirdPersonPromptModal', () => {
       await skipButton.trigger('click');
 
       expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'writers-guild-skip-third-person-prompt',
+        SKIP_THIRD_PERSON_PROMPT_KEY,
         'true'
       );
     });
