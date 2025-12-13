@@ -940,6 +940,9 @@ export class SqliteStorageService {
       throw new Error(`Story not found: ${storyId}`);
     }
 
+    // Initialize history for existing stories that have content but no history
+    await this.ensureHistoryInitialized(storyId, existing);
+
     const positionRow = this.stmts.getHistoryPosition.get(storyId);
     const currentHistoryId = positionRow?.history_id;
 
@@ -956,6 +959,27 @@ export class SqliteStorageService {
       canUndo: beforeCount.count > 0,
       canRedo: afterCount.count > 0
     };
+  }
+
+  /**
+   * Ensure history is initialized for a story
+   * For existing stories with content but no history, creates an initial entry
+   */
+  async ensureHistoryInitialized(storyId, existingStory = null) {
+    const story = existingStory || this.stmts.getStory.get(storyId);
+    if (!story) return;
+
+    // Check if history exists for this story
+    const historyCount = this.stmts.countHistory.get(storyId);
+
+    // If story has content but no history, create initial entry
+    if (story.content && story.content.length > 0 && historyCount.count === 0) {
+      const wordCount = calculateWordCount(story.content);
+      const now = new Date().toISOString();
+
+      const result = this.stmts.insertHistory.run(storyId, story.content, wordCount, now);
+      this.stmts.setHistoryPosition.run(storyId, result.lastInsertRowid);
+    }
   }
 
   /**
