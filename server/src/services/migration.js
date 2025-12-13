@@ -4,8 +4,8 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { readFile } from 'fs/promises';
-import { join, dirname } from 'path';
+import { readFile, readdir } from 'fs/promises';
+import { join, dirname, extname } from 'path';
 import { fileURLToPath } from 'url';
 import { SqliteStorageService } from './sqliteStorage.js';
 import { runSqliteMigration } from './dataMigration.js';
@@ -20,16 +20,15 @@ const __dirname = dirname(__filename);
 const PROJECT_ROOT = join(__dirname, '../../..');
 
 /**
- * Import default character from project root
+ * Import a character card from a PNG file
  * @param {StorageService} storage - Storage service instance
+ * @param {string} filePath - Path to the character PNG file
  * @returns {Promise<Object|null>} Character info or null if failed
  */
-async function importDefaultCharacter(storage) {
+async function importCharacterFromFile(storage, filePath) {
   try {
-    const defaultCharacterPath = join(PROJECT_ROOT, 'default_Seraphina.png');
-
     // Read the character PNG file
-    const fileBuffer = await readFile(defaultCharacterPath);
+    const fileBuffer = await readFile(filePath);
 
     // Parse character card from PNG
     const cardData = await CharacterParser.parseCard(fileBuffer);
@@ -72,7 +71,7 @@ async function importDefaultCharacter(storage) {
     // Save character data and image
     await storage.saveCharacter(characterId, cardData, fileBuffer);
 
-    console.log(`✓ Imported default character: ${cardData.data.name}`);
+    console.log(`✓ Imported character: ${cardData.data.name}`);
 
     return {
       id: characterId,
@@ -80,8 +79,38 @@ async function importDefaultCharacter(storage) {
       embeddedLorebook: embeddedLorebook
     };
   } catch (error) {
-    console.error('Failed to import default character:', error.message);
+    console.error(`Failed to import character from ${filePath}:`, error.message);
     return null;
+  }
+}
+
+/**
+ * Import all default characters from the defaults directory
+ * @param {StorageService} storage - Storage service instance
+ * @returns {Promise<Array>} Array of imported character info objects
+ */
+async function importDefaultCharacters(storage) {
+  const defaultsDir = join(PROJECT_ROOT, 'defaults');
+  const importedCharacters = [];
+
+  try {
+    const files = await readdir(defaultsDir);
+    const pngFiles = files.filter(file => extname(file).toLowerCase() === '.png');
+
+    console.log(`Found ${pngFiles.length} character cards in defaults directory`);
+
+    for (const file of pngFiles) {
+      const filePath = join(defaultsDir, file);
+      const character = await importCharacterFromFile(storage, filePath);
+      if (character) {
+        importedCharacters.push(character);
+      }
+    }
+
+    return importedCharacters;
+  } catch (error) {
+    console.error('Failed to import default characters:', error.message);
+    return importedCharacters;
   }
 }
 
@@ -312,17 +341,20 @@ export async function migrate(storage) {
       await storage.setDefaultPresetId(defaultPresetId);
     }
 
-    // Import default character on fresh install
-    let importedCharacter = null;
-    let defaultStory = null;
+    // Import default characters on fresh install
+    let importedCharacters = [];
+    let defaultStories = [];
     if (!hasExistingConfig) {
-      console.log('Importing default character...');
-      importedCharacter = await importDefaultCharacter(storage);
+      console.log('Importing default characters...');
+      importedCharacters = await importDefaultCharacters(storage);
 
-      // Create default story with the imported character
-      if (importedCharacter) {
-        console.log('Creating default story...');
-        defaultStory = await createDefaultStory(storage, importedCharacter);
+      // Create a default story for each imported character
+      for (const character of importedCharacters) {
+        console.log(`Creating default story for ${character.name}...`);
+        const story = await createDefaultStory(storage, character);
+        if (story) {
+          defaultStories.push(story);
+        }
       }
     }
 
@@ -339,8 +371,8 @@ export async function migrate(storage) {
       presetsCreated: createdPresets.length,
       defaultPresetId,
       presets: createdPresets,
-      importedCharacter,
-      defaultStory,
+      importedCharacters,
+      defaultStories,
       thumbnailsGenerated,
       message: hasExistingConfig
         ? 'Migrated existing configuration to preset system'
