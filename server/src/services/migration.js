@@ -197,9 +197,9 @@ async function needsMigration(storage) {
       return true;
     }
 
-    // Fresh install - create default presets anyway
-    console.log('Fresh install detected, will create default presets');
-    return true;
+    // Fresh install - don't migrate here, let onboarding handle it
+    console.log('Fresh install detected, onboarding will handle setup');
+    return false;
   } catch (error) {
     console.error('Error checking migration status:', error);
     return false;
@@ -341,22 +341,11 @@ export async function migrate(storage) {
       await storage.setDefaultPresetId(defaultPresetId);
     }
 
-    // Import default characters on fresh install
+    // Note: For fresh installs, we no longer auto-import characters here.
+    // The onboarding wizard will handle importing defaults if the user chooses.
+    // This gives users control over whether they want the default content.
     let importedCharacters = [];
     let defaultStories = [];
-    if (!hasExistingConfig) {
-      console.log('Importing default characters...');
-      importedCharacters = await importDefaultCharacters(storage);
-
-      // Create a default story for each imported character
-      for (const character of importedCharacters) {
-        console.log(`Creating default story for ${character.name}...`);
-        const story = await createDefaultStory(storage, character);
-        if (story) {
-          defaultStories.push(story);
-        }
-      }
-    }
 
     // Generate thumbnails for any existing characters that don't have them
     const thumbnailsGenerated = await generateMissingThumbnails(storage);
@@ -388,6 +377,9 @@ export async function migrate(storage) {
     };
   }
 }
+
+// Export helper functions for use in onboarding
+export { importDefaultCharacters, createDefaultStory };
 
 /**
  * Run migration automatically on server start

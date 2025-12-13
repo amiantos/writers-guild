@@ -564,10 +564,50 @@ export const presetsAPI = {
   },
 }
 
+// Onboarding API
+export const onboardingAPI = {
+  getStatus() {
+    return request('/onboarding/status')
+  },
+
+  createPersona(firstName, description) {
+    return request('/onboarding/persona', {
+      method: 'POST',
+      body: JSON.stringify({ firstName, description }),
+    })
+  },
+
+  createPreset(provider, apiKey) {
+    return request('/onboarding/preset', {
+      method: 'POST',
+      body: JSON.stringify({ provider, apiKey }),
+    })
+  },
+
+  importDefaults() {
+    return request('/onboarding/import-defaults', {
+      method: 'POST',
+    })
+  },
+
+  complete() {
+    return request('/onboarding/complete', {
+      method: 'POST',
+    })
+  },
+
+  skip() {
+    return request('/onboarding/skip', {
+      method: 'POST',
+    })
+  },
+}
+
 export default {
   stories: storiesAPI,
   characters: charactersAPI,
   lorebooks: lorebooksAPI,
   settings: settingsAPI,
   presets: presetsAPI,
+  onboarding: onboardingAPI,
 }

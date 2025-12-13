@@ -35,7 +35,8 @@ export class SqliteStorageService {
           lorebook_recursion_depth = @lorebookRecursionDepth,
           lorebook_enable_recursion = @lorebookEnableRecursion,
           default_persona_id = @defaultPersonaId,
-          default_preset_id = @defaultPresetId
+          default_preset_id = @defaultPresetId,
+          onboarding_completed = @onboardingCompleted
         WHERE id = 1
       `),
 
@@ -211,7 +212,8 @@ export class SqliteStorageService {
       lorebookRecursionDepth: row.lorebook_recursion_depth,
       lorebookEnableRecursion: !!row.lorebook_enable_recursion,
       defaultPersonaId: row.default_persona_id,
-      defaultPresetId: row.default_preset_id
+      defaultPresetId: row.default_preset_id,
+      onboardingCompleted: !!row.onboarding_completed
     };
   }
 
@@ -228,7 +230,8 @@ export class SqliteStorageService {
       lorebookRecursionDepth: settings.lorebookRecursionDepth ?? 3,
       lorebookEnableRecursion: settings.lorebookEnableRecursion ? 1 : 0,
       defaultPersonaId: settings.defaultPersonaId || null,
-      defaultPresetId: settings.defaultPresetId || null
+      defaultPresetId: settings.defaultPresetId || null,
+      onboardingCompleted: settings.onboardingCompleted ? 1 : 0
     });
     return settings;
   }
