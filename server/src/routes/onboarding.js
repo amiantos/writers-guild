@@ -12,12 +12,15 @@ import { getDefaultPresets } from '../services/default-presets.js';
 
 const router = express.Router();
 
-// Initialize storage service
+// Initialize storage service - track dataRoot to recreate if it changes (for testing)
 let storage;
+let currentDataRoot;
 
 router.use((req, res, next) => {
-  if (!storage) {
-    storage = new SqliteStorageService(req.app.locals.dataRoot);
+  const dataRoot = req.app.locals.dataRoot;
+  if (!storage || currentDataRoot !== dataRoot) {
+    storage = new SqliteStorageService(dataRoot);
+    currentDataRoot = dataRoot;
   }
   next();
 });
