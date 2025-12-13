@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { SqliteStorageService } from '../services/sqliteStorage.js';
 import { importDefaultCharacters, createDefaultStory } from '../services/migration.js';
-import { getDefaultPresets, DEFAULT_PROMPT_TEMPLATES } from '../services/default-presets.js';
+import { getDefaultPresets } from '../services/default-presets.js';
 
 const router = express.Router();
 
