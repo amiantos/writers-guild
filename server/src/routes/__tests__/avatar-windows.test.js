@@ -274,6 +274,61 @@ describe('Avatar Windows API Routes', () => {
 
         expect(response.body.error).toContain('avatarWindows[1]');
       });
+
+      it('should reject width exceeding maximum', async () => {
+        const response = await request(app)
+          .put(`/api/stories/${storyId}/avatar-windows`)
+          .send({ avatarWindows: [{ ...validWindow, width: 6000 }] })
+          .expect(400);
+
+        expect(response.body.error).toContain('width must not exceed 5000');
+      });
+
+      it('should reject height exceeding maximum', async () => {
+        const response = await request(app)
+          .put(`/api/stories/${storyId}/avatar-windows`)
+          .send({ avatarWindows: [{ ...validWindow, height: 10000 }] })
+          .expect(400);
+
+        expect(response.body.error).toContain('height must not exceed 5000');
+      });
+
+      it('should accept maximum valid dimensions', async () => {
+        const response = await request(app)
+          .put(`/api/stories/${storyId}/avatar-windows`)
+          .send({ avatarWindows: [{ ...validWindow, width: 5000, height: 5000 }] })
+          .expect(200);
+
+        expect(response.body.success).toBe(true);
+      });
+
+      it('should reject too many avatar windows', async () => {
+        const windows = Array.from({ length: 21 }, (_, i) => ({
+          ...validWindow,
+          id: `avatar-${i}`
+        }));
+
+        const response = await request(app)
+          .put(`/api/stories/${storyId}/avatar-windows`)
+          .send({ avatarWindows: windows })
+          .expect(400);
+
+        expect(response.body.error).toContain('maximum of 20 avatar windows');
+      });
+
+      it('should accept exactly 20 avatar windows', async () => {
+        const windows = Array.from({ length: 20 }, (_, i) => ({
+          ...validWindow,
+          id: `avatar-${i}`
+        }));
+
+        const response = await request(app)
+          .put(`/api/stories/${storyId}/avatar-windows`)
+          .send({ avatarWindows: windows })
+          .expect(200);
+
+        expect(response.body.success).toBe(true);
+      });
     });
 
     it('should return error for non-existent story', async () => {

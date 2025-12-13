@@ -94,11 +94,18 @@ function validateAvatarWindow(win, index) {
     }
   }
   // Range validation
+  const MAX_DIMENSION = 5000;
   if (win.width <= 0) {
     return `avatarWindows[${index}].width must be a positive number`;
   }
+  if (win.width > MAX_DIMENSION) {
+    return `avatarWindows[${index}].width must not exceed ${MAX_DIMENSION}`;
+  }
   if (win.height <= 0) {
     return `avatarWindows[${index}].height must be a positive number`;
+  }
+  if (win.height > MAX_DIMENSION) {
+    return `avatarWindows[${index}].height must not exceed ${MAX_DIMENSION}`;
   }
   const MIN_POS = -10000, MAX_POS = 10000;
   if (win.x < MIN_POS || win.x > MAX_POS) {
@@ -116,6 +123,12 @@ router.put('/:id/avatar-windows', asyncHandler(async (req, res) => {
 
   if (!Array.isArray(avatarWindows)) {
     throw new AppError('avatarWindows must be an array', 400);
+  }
+
+  // Enforce maximum number of avatar windows
+  const MAX_AVATAR_WINDOWS = 20;
+  if (avatarWindows.length > MAX_AVATAR_WINDOWS) {
+    throw new AppError(`A maximum of ${MAX_AVATAR_WINDOWS} avatar windows is allowed`, 400);
   }
 
   // Validate each avatar window

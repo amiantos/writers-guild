@@ -425,6 +425,14 @@ watch(showReasoningPanel, async (isOpen) => {
   }
 })
 
+// Close all avatar windows when characters are removed from story
+watch(storyCharacters, (characters) => {
+  if (characters.length === 0 && avatarWindows.value.length > 0) {
+    avatarWindows.value = []
+    saveAvatarWindows()
+  }
+})
+
 async function loadStory() {
   try {
     const { story: loadedStory } = await storiesAPI.get(props.storyId)
@@ -1000,8 +1008,8 @@ function handleAvatarWindowUpdate(update) {
 }
 
 // Debounced save to server - use ref to avoid race conditions
-const saveAvatarTimeoutRef = ref(null)
 const isMounted = ref(true)
+const saveAvatarTimeoutRef = ref(null)
 
 function saveAvatarWindows() {
   if (saveAvatarTimeoutRef.value) {
