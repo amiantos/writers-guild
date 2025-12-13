@@ -164,6 +164,55 @@ export class SqliteStorageService {
       `),
       deletePreset: this.db.prepare('DELETE FROM presets WHERE id = ?'),
       presetExists: this.db.prepare('SELECT 1 FROM presets WHERE id = ?'),
+
+      // Story History (undo/redo)
+      insertHistory: this.db.prepare(`
+        INSERT INTO story_history (story_id, content, word_count, created)
+        VALUES (?, ?, ?, ?)
+      `),
+      getHistoryPosition: this.db.prepare('SELECT history_id FROM story_history_position WHERE story_id = ?'),
+      setHistoryPosition: this.db.prepare(`
+        INSERT INTO story_history_position (story_id, history_id) VALUES (?, ?)
+        ON CONFLICT(story_id) DO UPDATE SET history_id = excluded.history_id
+      `),
+      getHistoryEntry: this.db.prepare('SELECT * FROM story_history WHERE id = ?'),
+      getHistoryBefore: this.db.prepare(`
+        SELECT * FROM story_history
+        WHERE story_id = ? AND id < ?
+        ORDER BY id DESC LIMIT 1
+      `),
+      getHistoryAfter: this.db.prepare(`
+        SELECT * FROM story_history
+        WHERE story_id = ? AND id > ?
+        ORDER BY id ASC LIMIT 1
+      `),
+      getLatestHistory: this.db.prepare(`
+        SELECT * FROM story_history
+        WHERE story_id = ?
+        ORDER BY id DESC LIMIT 1
+      `),
+      countHistoryBefore: this.db.prepare(`
+        SELECT COUNT(*) as count FROM story_history
+        WHERE story_id = ? AND id < ?
+      `),
+      countHistoryAfter: this.db.prepare(`
+        SELECT COUNT(*) as count FROM story_history
+        WHERE story_id = ? AND id > ?
+      `),
+      deleteHistoryAfter: this.db.prepare(`
+        DELETE FROM story_history
+        WHERE story_id = ? AND id > ?
+      `),
+      pruneOldHistory: this.db.prepare(`
+        DELETE FROM story_history
+        WHERE story_id = ? AND id NOT IN (
+          SELECT id FROM story_history
+          WHERE story_id = ?
+          ORDER BY id DESC
+          LIMIT ?
+        )
+      `),
+      countHistory: this.db.prepare('SELECT COUNT(*) as count FROM story_history WHERE story_id = ?'),
     };
   }
 
@@ -370,7 +419,7 @@ export class SqliteStorageService {
     };
   }
 
-  async updateStoryContent(storyId, content) {
+  async updateStoryContent(storyId, content, options = {}) {
     const existing = this.stmts.getStory.get(storyId);
     if (!existing) {
       throw new Error(`Story not found: ${storyId}`);
@@ -381,6 +430,12 @@ export class SqliteStorageService {
     if (changed) {
       const modified = new Date().toISOString();
       const wordCount = calculateWordCount(content);
+
+      // Save to history unless this is an undo/redo operation
+      if (!options.skipHistory) {
+        await this.saveToHistory(storyId, content, wordCount);
+      }
+
       this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
       return { success: true, modified, changed };
     }
@@ -828,6 +883,163 @@ export class SqliteStorageService {
     settings.defaultPresetId = presetId;
     await this.saveSettings(settings);
     return { success: true };
+  }
+
+  // ==================== Story History (Undo/Redo) Operations ====================
+
+  /**
+   * Maximum number of history entries to keep per story
+   */
+  static MAX_HISTORY_ENTRIES = 50;
+
+  /**
+   * Save content to history
+   * Called automatically when content changes
+   */
+  async saveToHistory(storyId, content, wordCount) {
+    const now = new Date().toISOString();
+
+    // Get current position
+    const positionRow = this.stmts.getHistoryPosition.get(storyId);
+    const currentHistoryId = positionRow?.history_id;
+
+    // If we have a current position, delete all entries after it (user made new edit after undo)
+    if (currentHistoryId) {
+      this.stmts.deleteHistoryAfter.run(storyId, currentHistoryId);
+    }
+
+    // Check if the latest history entry has the same content (avoid duplicates)
+    const latest = this.stmts.getLatestHistory.get(storyId);
+    if (latest && latest.content === content) {
+      // Content is the same as latest, just update position to latest
+      this.stmts.setHistoryPosition.run(storyId, latest.id);
+      return;
+    }
+
+    // Insert new history entry
+    const result = this.stmts.insertHistory.run(storyId, content, wordCount, now);
+    const newHistoryId = result.lastInsertRowid;
+
+    // Update position to point to new entry
+    this.stmts.setHistoryPosition.run(storyId, newHistoryId);
+
+    // Prune old history entries if we have too many
+    const count = this.stmts.countHistory.get(storyId);
+    if (count.count > SqliteStorageService.MAX_HISTORY_ENTRIES) {
+      this.stmts.pruneOldHistory.run(storyId, storyId, SqliteStorageService.MAX_HISTORY_ENTRIES);
+    }
+  }
+
+  /**
+   * Get the undo/redo status for a story
+   * Returns whether undo and redo are available
+   */
+  async getHistoryStatus(storyId) {
+    const existing = this.stmts.getStory.get(storyId);
+    if (!existing) {
+      throw new Error(`Story not found: ${storyId}`);
+    }
+
+    const positionRow = this.stmts.getHistoryPosition.get(storyId);
+    const currentHistoryId = positionRow?.history_id;
+
+    if (!currentHistoryId) {
+      // No history yet
+      return { canUndo: false, canRedo: false };
+    }
+
+    // Check if there are entries before and after current position
+    const beforeCount = this.stmts.countHistoryBefore.get(storyId, currentHistoryId);
+    const afterCount = this.stmts.countHistoryAfter.get(storyId, currentHistoryId);
+
+    return {
+      canUndo: beforeCount.count > 0,
+      canRedo: afterCount.count > 0
+    };
+  }
+
+  /**
+   * Undo to the previous history entry
+   * Returns the restored content or null if nothing to undo
+   */
+  async undoStoryContent(storyId) {
+    const existing = this.stmts.getStory.get(storyId);
+    if (!existing) {
+      throw new Error(`Story not found: ${storyId}`);
+    }
+
+    const positionRow = this.stmts.getHistoryPosition.get(storyId);
+    const currentHistoryId = positionRow?.history_id;
+
+    if (!currentHistoryId) {
+      return null; // No history
+    }
+
+    // Get the entry before current position
+    const previousEntry = this.stmts.getHistoryBefore.get(storyId, currentHistoryId);
+
+    if (!previousEntry) {
+      return null; // Nothing to undo
+    }
+
+    // Update position to previous entry
+    this.stmts.setHistoryPosition.run(storyId, previousEntry.id);
+
+    // Update the story content (skip history save since this is an undo)
+    const modified = new Date().toISOString();
+    this.stmts.updateStoryContent.run(previousEntry.content, previousEntry.word_count, modified, storyId);
+
+    // Get updated status
+    const status = await this.getHistoryStatus(storyId);
+
+    return {
+      content: previousEntry.content,
+      wordCount: previousEntry.word_count,
+      modified,
+      ...status
+    };
+  }
+
+  /**
+   * Redo to the next history entry
+   * Returns the restored content or null if nothing to redo
+   */
+  async redoStoryContent(storyId) {
+    const existing = this.stmts.getStory.get(storyId);
+    if (!existing) {
+      throw new Error(`Story not found: ${storyId}`);
+    }
+
+    const positionRow = this.stmts.getHistoryPosition.get(storyId);
+    const currentHistoryId = positionRow?.history_id;
+
+    if (!currentHistoryId) {
+      return null; // No history
+    }
+
+    // Get the entry after current position
+    const nextEntry = this.stmts.getHistoryAfter.get(storyId, currentHistoryId);
+
+    if (!nextEntry) {
+      return null; // Nothing to redo
+    }
+
+    // Update position to next entry
+    this.stmts.setHistoryPosition.run(storyId, nextEntry.id);
+
+    // Update the story content (skip history save since this is a redo)
+    const modified = new Date().toISOString();
+    this.stmts.updateStoryContent.run(nextEntry.content, nextEntry.word_count, modified, storyId);
+
+    // Get updated status
+    const status = await this.getHistoryStatus(storyId);
+
+    return {
+      content: nextEntry.content,
+      wordCount: nextEntry.word_count,
+      modified,
+      ...status
+    };
   }
 
   // ==================== Database Management ====================
