@@ -113,6 +113,16 @@ describe('Onboarding API Routes', () => {
       expect(response.body.error).toContain('First name is required');
     });
 
+    it('should return 400 if firstName exceeds 100 characters', async () => {
+      const longName = 'A'.repeat(101);
+      const response = await request(app)
+        .post('/api/onboarding/persona')
+        .send({ firstName: longName })
+        .expect(400);
+
+      expect(response.body.error).toContain('100 characters or fewer');
+    });
+
     it('should set the created persona as default', async () => {
       // Create persona
       const personaResponse = await request(app)
@@ -133,7 +143,7 @@ describe('Onboarding API Routes', () => {
     it('should create a DeepSeek preset', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-12345' })
+        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-1234567890' })
         .expect(201);
 
       expect(response.body).toHaveProperty('id');
@@ -144,7 +154,7 @@ describe('Onboarding API Routes', () => {
     it('should create an OpenAI preset', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'openai', apiKey: 'sk-openai-test-key-12345' })
+        .send({ provider: 'openai', apiKey: 'sk-openai-test-key-1234567890' })
         .expect(201);
 
       expect(response.body.name).toBe('OpenAI');
@@ -154,7 +164,7 @@ describe('Onboarding API Routes', () => {
     it('should create an Anthropic preset', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'anthropic', apiKey: 'sk-ant-api-test-key-12345' })
+        .send({ provider: 'anthropic', apiKey: 'sk-ant-api-test-key-1234567890' })
         .expect(201);
 
       expect(response.body.name).toBe('Anthropic');
@@ -164,7 +174,7 @@ describe('Onboarding API Routes', () => {
     it('should create an OpenRouter preset', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'openrouter', apiKey: 'sk-or-test-key-12345' })
+        .send({ provider: 'openrouter', apiKey: 'sk-or-test-key-1234567890' })
         .expect(201);
 
       expect(response.body.name).toBe('OpenRouter');
@@ -184,7 +194,7 @@ describe('Onboarding API Routes', () => {
     it('should create an AI Horde preset with optional API key', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'aihorde', apiKey: 'my-horde-key' })
+        .send({ provider: 'aihorde', apiKey: 'my-horde-api-key-1234567890' })
         .expect(201);
 
       expect(response.body.provider).toBe('aihorde');
@@ -226,11 +236,38 @@ describe('Onboarding API Routes', () => {
       expect(response.body.error).toContain('API key is required');
     });
 
+    it('should return 400 if API key is too short', async () => {
+      const response = await request(app)
+        .post('/api/onboarding/preset')
+        .send({ provider: 'deepseek', apiKey: 'short-key' })
+        .expect(400);
+
+      expect(response.body.error).toContain('too short');
+    });
+
+    it('should return 400 if OpenAI API key does not start with sk-', async () => {
+      const response = await request(app)
+        .post('/api/onboarding/preset')
+        .send({ provider: 'openai', apiKey: 'invalid-openai-key-1234567890' })
+        .expect(400);
+
+      expect(response.body.error).toContain('sk-');
+    });
+
+    it('should return 400 if Anthropic API key does not start with sk-ant-', async () => {
+      const response = await request(app)
+        .post('/api/onboarding/preset')
+        .send({ provider: 'anthropic', apiKey: 'sk-invalid-anthropic-key-12345' })
+        .expect(400);
+
+      expect(response.body.error).toContain('sk-ant-');
+    });
+
     it('should set the created preset as default', async () => {
       // Create preset
       const presetResponse = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-12345' })
+        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-1234567890' })
         .expect(201);
 
       // Verify it's set as default
@@ -295,7 +332,7 @@ describe('Onboarding API Routes', () => {
       // Create a preset first
       await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-12345' })
+        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-1234567890' })
         .expect(201);
 
       // Skip onboarding
@@ -368,7 +405,7 @@ describe('Onboarding API Routes', () => {
       // Step 3: Create preset
       const presetResponse = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-12345' })
+        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-1234567890' })
         .expect(201);
       expect(presetResponse.body.provider).toBe('deepseek');
 

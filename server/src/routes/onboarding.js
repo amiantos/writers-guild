@@ -113,8 +113,8 @@ router.post('/preset', asyncHandler(async (req, res) => {
   if (apiKey && apiKey.trim()) {
     const trimmedKey = apiKey.trim();
 
-    // Check for reasonable length (most API keys are at least 20 chars)
-    if (trimmedKey.length < 10) {
+    // Check for reasonable length
+    if (trimmedKey.length < 20) {
       throw new AppError('API key appears to be too short', 400);
     }
 
@@ -296,7 +296,7 @@ function getProviderPresetConfig(provider, apiKey) {
         apiConfig: {
           apiKey: apiKey,
           baseURL: 'https://openrouter.ai/api/v1',
-          model: 'deepseek/deepseek-r1'
+          model: 'deepseek/deepseek-chat'
         },
         ...baseConfig
       };
