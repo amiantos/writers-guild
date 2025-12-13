@@ -96,6 +96,13 @@ export const storiesAPI = {
     })
   },
 
+  updateAvatarWindows(storyId, avatarWindows) {
+    return request(`/stories/${storyId}/avatar-windows`, {
+      method: 'PUT',
+      body: JSON.stringify({ avatarWindows }),
+    })
+  },
+
   // Streaming generation
   async *continueStory(storyId, characterId = null, signal = null) {
     const url = `${baseURL}/stories/${storyId}/continue${characterId ? `?characterId=${characterId}` : ''}`

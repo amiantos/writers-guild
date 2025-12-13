@@ -27,27 +27,16 @@
       <p>No avatar</p>
     </div>
 
-    <!-- Character name overlay -->
-    <div v-if="currentCharacter" class="character-name-overlay">
-      {{ currentCharacter.name }}
-    </div>
-
-    <!-- Character navigation (when multiple characters) -->
-    <div v-if="showControls && characters.length > 1" class="character-nav">
+    <!-- Character name overlay with cycle button -->
+    <div v-if="currentCharacter" class="character-info-overlay">
+      <span class="character-name">{{ currentCharacter.name }}</span>
       <button
-        class="nav-btn"
-        @click="prevCharacter"
-        title="Previous character"
+        v-if="characters.length > 1"
+        class="cycle-btn"
+        @click="cycleCharacter"
+        title="Switch character"
       >
-        <i class="fas fa-chevron-left"></i>
-      </button>
-      <span class="nav-indicator">{{ currentIndex + 1 }} / {{ characters.length }}</span>
-      <button
-        class="nav-btn"
-        @click="nextCharacter"
-        title="Next character"
-      >
-        <i class="fas fa-chevron-right"></i>
+        <i class="fas fa-sync-alt"></i>
       </button>
     </div>
 
@@ -73,71 +62,35 @@ const props = defineProps({
     type: Array,
     required: true
   },
+  windowId: {
+    type: String,
+    required: true
+  },
   initialCharacterId: {
     type: String,
     default: null
   },
-  storyId: {
-    type: String,
-    default: null
+  initialPosition: {
+    type: Object,
+    default: () => ({ x: 20, y: 100 })
+  },
+  initialSize: {
+    type: Object,
+    default: () => ({ width: 300, height: 400 })
   }
 })
 
-const emit = defineEmits(['close', 'character-change'])
-
-const STORAGE_KEY = 'writers-guild-floating-avatar'
-const SELECTED_CHARACTER_KEY = 'writers-guild-floating-avatar-character'
+const emit = defineEmits(['close', 'update'])
 
 const windowRef = ref(null)
 const showControls = ref(false)
 
-// Load saved position and size from localStorage
-const savedState = localStorage.getItem(STORAGE_KEY)
-const defaultState = savedState ? JSON.parse(savedState) : {
-  x: 20,
-  y: 100,
-  width: 300,
-  height: 400
-}
-
 // Window position and size
-const position = ref({ x: defaultState.x, y: defaultState.y })
-const size = ref({ width: defaultState.width, height: defaultState.height })
+const position = ref({ ...props.initialPosition })
+const size = ref({ ...props.initialSize })
 
 // Character selection
-const selectedCharacterId = ref(null)
-
-// Initialize selected character
-function initializeSelectedCharacter() {
-  // First priority: initialCharacterId prop
-  if (props.initialCharacterId && props.characters.some(c => c.id === props.initialCharacterId)) {
-    selectedCharacterId.value = props.initialCharacterId
-    return
-  }
-
-  // Second priority: saved selection for this story
-  const savedSelection = localStorage.getItem(getStorageKeyForStory())
-  if (savedSelection && props.characters.some(c => c.id === savedSelection)) {
-    selectedCharacterId.value = savedSelection
-    return
-  }
-
-  // Third priority: global saved selection
-  const globalSavedSelection = localStorage.getItem(SELECTED_CHARACTER_KEY)
-  if (globalSavedSelection && props.characters.some(c => c.id === globalSavedSelection)) {
-    selectedCharacterId.value = globalSavedSelection
-    return
-  }
-
-  // Default: first character
-  if (props.characters.length > 0) {
-    selectedCharacterId.value = props.characters[0].id
-  }
-}
-
-function getStorageKeyForStory() {
-  return props.storyId ? `${SELECTED_CHARACTER_KEY}-${props.storyId}` : SELECTED_CHARACTER_KEY
-}
+const selectedCharacterId = ref(props.initialCharacterId || (props.characters[0]?.id ?? null))
 
 // Computed properties
 const currentIndex = computed(() => {
@@ -149,27 +102,12 @@ const currentCharacter = computed(() => {
   return props.characters[currentIndex.value] || props.characters[0] || null
 })
 
-// Character navigation
-function prevCharacter() {
-  const newIndex = (currentIndex.value - 1 + props.characters.length) % props.characters.length
-  selectCharacter(props.characters[newIndex].id)
-}
-
-function nextCharacter() {
+// Cycle to next character
+function cycleCharacter() {
+  if (props.characters.length <= 1) return
   const newIndex = (currentIndex.value + 1) % props.characters.length
-  selectCharacter(props.characters[newIndex].id)
-}
-
-function selectCharacter(characterId) {
-  selectedCharacterId.value = characterId
-
-  // Save selection
-  localStorage.setItem(SELECTED_CHARACTER_KEY, characterId)
-  if (props.storyId) {
-    localStorage.setItem(getStorageKeyForStory(), characterId)
-  }
-
-  emit('character-change', characterId)
+  selectedCharacterId.value = props.characters[newIndex].id
+  emitUpdate()
 }
 
 // Dragging state
@@ -180,15 +118,17 @@ const dragStart = ref({ x: 0, y: 0 })
 const isResizing = ref(false)
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0 })
 
-// Save state to localStorage whenever position or size changes
-watch([position, size], () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+// Emit update to parent for server sync
+function emitUpdate() {
+  emit('update', {
+    windowId: props.windowId,
+    characterId: selectedCharacterId.value,
     x: position.value.x,
     y: position.value.y,
     width: size.value.width,
     height: size.value.height
-  }))
-}, { deep: true })
+  })
+}
 
 const windowStyle = computed(() => ({
   left: `${position.value.x}px`,
@@ -235,19 +175,21 @@ function onMouseMove(e) {
 }
 
 function onMouseUp() {
-  isDragging.value = false
-  isResizing.value = false
+  if (isDragging.value || isResizing.value) {
+    isDragging.value = false
+    isResizing.value = false
+    emitUpdate()
+  }
 }
 
 // Ensure window is within viewport bounds
 function ensureWithinViewport() {
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
-  const padding = 20 // Minimum visible area
+  const padding = 20
 
   let { x, y } = position.value
   let { width, height } = size.value
-
   let changed = false
 
   // Ensure minimum size fits in viewport
@@ -260,42 +202,28 @@ function ensureWithinViewport() {
     changed = true
   }
 
-  // Ensure window is not too far left (at least some part visible)
+  // Ensure window is not too far off-screen
   if (x + width < padding) {
-    x = padding - width + 100 // Keep at least 100px visible
+    x = padding - width + 100
     changed = true
   }
-
-  // Ensure window is not too far right
   if (x > viewportWidth - padding) {
-    x = viewportWidth - padding - 100 // Keep at least 100px visible
+    x = viewportWidth - padding - 100
     changed = true
   }
-
-  // Ensure window is not too far up
   if (y + height < padding) {
     y = padding
     changed = true
   }
-
-  // Ensure window is not too far down
   if (y > viewportHeight - padding) {
-    y = viewportHeight - padding - 100 // Keep at least 100px visible
+    y = viewportHeight - padding - 100
     changed = true
   }
-
-  // Adjust x to keep window more visible if partially off-screen
-  if (x < 0 && x + width > padding) {
-    // Window is partially off left edge - that's OK
-  } else if (x < 0) {
+  if (x < 0 && x + width <= padding) {
     x = padding
     changed = true
   }
-
-  // Adjust y similarly
-  if (y < 0 && y + height > padding) {
-    // Window is partially off top edge - that's OK
-  } else if (y < 0) {
+  if (y < 0 && y + height <= padding) {
     y = padding
     changed = true
   }
@@ -303,10 +231,10 @@ function ensureWithinViewport() {
   if (changed) {
     size.value = { width, height }
     position.value = { x, y }
+    emitUpdate()
   }
 }
 
-// Handle window resize
 function onWindowResize() {
   ensureWithinViewport()
 }
@@ -315,11 +243,6 @@ onMounted(() => {
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
   window.addEventListener('resize', onWindowResize)
-
-  // Initialize character selection
-  initializeSelectedCharacter()
-
-  // Ensure window is within viewport on mount
   ensureWithinViewport()
 })
 
@@ -329,10 +252,11 @@ onUnmounted(() => {
   window.removeEventListener('resize', onWindowResize)
 })
 
-// Watch for character list changes (in case characters are added/removed)
+// Watch for character list changes
 watch(() => props.characters, () => {
   if (props.characters.length > 0 && !props.characters.some(c => c.id === selectedCharacterId.value)) {
     selectedCharacterId.value = props.characters[0].id
+    emitUpdate()
   }
 }, { deep: true })
 </script>
@@ -394,60 +318,50 @@ watch(() => props.characters, () => {
   font-size: 3rem;
 }
 
-.character-name-overlay {
+.character-info-overlay {
   position: absolute;
   bottom: 0;
   left: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   padding: 0.5rem 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #ffffff;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   border-top-right-radius: 8px;
-  max-width: calc(100% - 80px);
+  max-width: 100%;
+}
+
+.character-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.character-nav {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  border-top-left-radius: 8px;
-}
-
-.nav-btn {
+.cycle-btn {
   background: transparent;
   border: none;
   color: white;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.2s;
+  flex-shrink: 0;
 }
 
-.nav-btn:hover {
+.cycle-btn:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 
-.nav-indicator {
-  color: white;
+.cycle-btn i {
   font-size: 0.75rem;
-  padding: 0 0.25rem;
-  min-width: 40px;
-  text-align: center;
 }
 
 .drag-handle {

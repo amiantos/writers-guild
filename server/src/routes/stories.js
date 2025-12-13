@@ -71,6 +71,18 @@ router.post('/:id/rewrite-prompt', asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
+// Update avatar windows for a story
+router.put('/:id/avatar-windows', asyncHandler(async (req, res) => {
+  const { avatarWindows } = req.body;
+
+  if (!Array.isArray(avatarWindows)) {
+    throw new AppError('avatarWindows must be an array', 400);
+  }
+
+  const result = await storage.updateStoryAvatarWindows(req.params.id, avatarWindows);
+  res.json(result);
+}));
+
 // Update story metadata
 router.put('/:id', asyncHandler(async (req, res) => {
   const { title, description, configPresetId } = req.body;

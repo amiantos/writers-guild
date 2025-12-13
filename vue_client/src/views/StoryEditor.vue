@@ -137,10 +137,10 @@
             <button
               class="overflow-menu-item"
               :disabled="storyCharacters.length === 0"
-              @click="handleShowCharacterAvatar"
+              @click="handleAddAvatarWindow"
             >
               <i class="fas fa-image"></i>
-              <span>Show Character Avatar</span>
+              <span>Add Character Avatar</span>
             </button>
             <button class="overflow-menu-item" @click="handleIdeate">
               <i class="fas fa-lightbulb"></i>
@@ -236,21 +236,17 @@
       @close="showIdeateModal = false"
     />
 
-    <!-- Character Avatar Selector Modal -->
-    <CharacterAvatarSelectorModal
-      v-if="showAvatarSelector"
-      :characters="storyCharacters"
-      @close="showAvatarSelector = false"
-      @select="handleAvatarCharacterSelected"
-    />
-
-    <!-- Floating Avatar Window -->
+    <!-- Floating Avatar Windows -->
     <FloatingAvatarWindow
-      v-if="showFloatingAvatar && storyCharacters.length > 0"
+      v-for="win in avatarWindows"
+      :key="win.id"
+      :window-id="win.id"
       :characters="storyCharacters"
-      :initial-character-id="selectedAvatarCharacterId"
-      :story-id="props.storyId"
-      @close="showFloatingAvatar = false"
+      :initial-character-id="win.characterId"
+      :initial-position="{ x: win.x, y: win.y }"
+      :initial-size="{ width: win.width, height: win.height }"
+      @close="handleAvatarWindowClose(win.id)"
+      @update="handleAvatarWindowUpdate"
     />
 
     <!-- Third Person Prompt Modal -->
@@ -283,7 +279,6 @@ import StoryPresetModal from '../components/StoryPresetModal.vue'
 import IdeateModal from '../components/IdeateModal.vue'
 import FloatingAvatarWindow from '../components/FloatingAvatarWindow.vue'
 import ThirdPersonPromptModal from '../components/ThirdPersonPromptModal.vue'
-import CharacterAvatarSelectorModal from '../components/CharacterAvatarSelectorModal.vue'
 import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys'
 
 const props = defineProps({
@@ -323,13 +318,10 @@ const ideateResponse = ref('')
 const ideateLoading = ref(false)
 const ideateStatus = ref('Thinking...')
 const showThirdPersonPrompt = ref(false)
-const showAvatarSelector = ref(false)
-const selectedAvatarCharacterId = ref(null)
 let abortController = null
 
-// Load floating avatar state from localStorage
-const FLOATING_AVATAR_KEY = 'writers-guild-floating-avatar-open'
-const showFloatingAvatar = ref(localStorage.getItem(FLOATING_AVATAR_KEY) === 'true')
+// Avatar windows (stored on server per-story)
+const avatarWindows = ref([])
 
 const storyCharacters = ref([])
 const shouldShowReasoning = ref(false) // Setting from server
@@ -337,12 +329,6 @@ const shouldShowReasoning = ref(false) // Setting from server
 // Computed
 const hasUnsavedChanges = computed(() => {
   return content.value !== originalContent.value
-})
-
-
-// Save floating avatar state to localStorage when it changes
-watch(showFloatingAvatar, (isOpen) => {
-  localStorage.setItem(FLOATING_AVATAR_KEY, isOpen.toString())
 })
 
 // Auto-save
@@ -382,9 +368,9 @@ onMounted(async () => {
   await Promise.all([loadCharacters(), loadSettings()])
   startAutoSave()
 
-  // Ensure floating avatar is hidden if there are no characters
-  if (showFloatingAvatar.value && storyCharacters.value.length === 0) {
-    showFloatingAvatar.value = false
+  // Load avatar windows from story
+  if (story.value?.avatarWindows) {
+    avatarWindows.value = story.value.avatarWindows
   }
 
   // Add keyboard shortcut listener
@@ -935,25 +921,63 @@ async function handleIdeate() {
   }
 }
 
-function handleShowCharacterAvatar() {
-  if (storyCharacters.value.length === 0) {
-    return
+// Generate a unique ID for avatar windows
+function generateWindowId() {
+  return `avatar-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
+// Add a new avatar window
+function handleAddAvatarWindow() {
+  if (storyCharacters.value.length === 0) return
+
+  const newWindow = {
+    id: generateWindowId(),
+    characterId: storyCharacters.value[0].id,
+    x: 20 + (avatarWindows.value.length * 30), // Offset each new window
+    y: 100 + (avatarWindows.value.length * 30),
+    width: 300,
+    height: 400
   }
 
-  if (storyCharacters.value.length === 1) {
-    // Only one character, show avatar directly
-    selectedAvatarCharacterId.value = storyCharacters.value[0].id
-    showFloatingAvatar.value = true
-  } else {
-    // Multiple characters, show selector modal
-    showAvatarSelector.value = true
+  avatarWindows.value.push(newWindow)
+  saveAvatarWindows()
+}
+
+// Handle window close
+function handleAvatarWindowClose(windowId) {
+  avatarWindows.value = avatarWindows.value.filter(w => w.id !== windowId)
+  saveAvatarWindows()
+}
+
+// Handle window update (position, size, or character change)
+function handleAvatarWindowUpdate(update) {
+  const index = avatarWindows.value.findIndex(w => w.id === update.windowId)
+  if (index >= 0) {
+    avatarWindows.value[index] = {
+      id: update.windowId,
+      characterId: update.characterId,
+      x: update.x,
+      y: update.y,
+      width: update.width,
+      height: update.height
+    }
+    saveAvatarWindows()
   }
 }
 
-function handleAvatarCharacterSelected(characterId) {
-  selectedAvatarCharacterId.value = characterId
-  showAvatarSelector.value = false
-  showFloatingAvatar.value = true
+// Debounced save to server
+let saveAvatarTimeout = null
+function saveAvatarWindows() {
+  if (saveAvatarTimeout) {
+    clearTimeout(saveAvatarTimeout)
+  }
+  saveAvatarTimeout = setTimeout(async () => {
+    try {
+      await storiesAPI.updateAvatarWindows(props.storyId, avatarWindows.value)
+    } catch (error) {
+      console.error('Failed to save avatar windows:', error)
+    }
+  }, 500) // Debounce 500ms
 }
 </script>
 

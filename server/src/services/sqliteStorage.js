@@ -52,6 +52,7 @@ export class SqliteStorageService {
         VALUES (@id, @title, @description, @content, @wordCount, @needsRewritePrompt, @personaCharacterId, @configPresetId, @created, @modified)
       `),
       setStoryNeedsRewritePrompt: this.db.prepare('UPDATE stories SET needs_rewrite_prompt = ? WHERE id = ?'),
+      updateStoryAvatarWindows: this.db.prepare('UPDATE stories SET avatar_windows = ? WHERE id = ?'),
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, persona_character_id = @personaCharacterId,
                           config_preset_id = @configPresetId, modified = @modified
@@ -289,7 +290,8 @@ export class SqliteStorageService {
       lorebookIds,
       configPresetId: row.config_preset_id,
       characters,
-      needsRewritePrompt: !!row.needs_rewrite_prompt
+      needsRewritePrompt: !!row.needs_rewrite_prompt,
+      avatarWindows: JSON.parse(row.avatar_windows || '[]')
     };
   }
 
@@ -333,6 +335,15 @@ export class SqliteStorageService {
     }
     this.stmts.setStoryNeedsRewritePrompt.run(value ? 1 : 0, storyId);
     return { success: true };
+  }
+
+  async updateStoryAvatarWindows(storyId, avatarWindows) {
+    const existing = this.stmts.getStory.get(storyId);
+    if (!existing) {
+      throw new Error(`Story not found: ${storyId}`);
+    }
+    this.stmts.updateStoryAvatarWindows.run(JSON.stringify(avatarWindows), storyId);
+    return { success: true, avatarWindows };
   }
 
   async updateStoryMetadata(storyId, updates) {
