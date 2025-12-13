@@ -288,36 +288,8 @@ describe('ThirdPersonPromptModal', () => {
     });
   });
 
-  describe('Event Order', () => {
-    it('should emit events in correct order for Skip: skip then close', async () => {
-      const wrapper = mount(ThirdPersonPromptModal);
-
-      const skipButton = wrapper.findAll('button').find(b => b.text() === 'Skip');
-      await skipButton.trigger('click');
-
-      const emittedEvents = Object.keys(wrapper.emitted());
-      const skipIndex = emittedEvents.indexOf('skip');
-      const closeIndex = emittedEvents.indexOf('close');
-
-      expect(skipIndex).toBeLessThan(closeIndex);
-    });
-
-    it('should emit events in correct order for Rewrite: rewrite then close', async () => {
-      const wrapper = mount(ThirdPersonPromptModal);
-
-      const rewriteButton = wrapper.findAll('button').find(b => b.text().includes('Rewrite'));
-      await rewriteButton.trigger('click');
-
-      const emittedEvents = Object.keys(wrapper.emitted());
-      const rewriteIndex = emittedEvents.indexOf('rewrite');
-      const closeIndex = emittedEvents.indexOf('close');
-
-      expect(rewriteIndex).toBeLessThan(closeIndex);
-    });
-  });
-
-  describe('Multiple Actions', () => {
-    it('should handle rapid clicking without duplicate events', async () => {
+  describe('Rapid Click Protection', () => {
+    it('should only emit events once when Skip is clicked multiple times rapidly', async () => {
       const wrapper = mount(ThirdPersonPromptModal);
 
       const skipButton = wrapper.findAll('button').find(b => b.text() === 'Skip');
@@ -327,9 +299,63 @@ describe('ThirdPersonPromptModal', () => {
       await skipButton.trigger('click');
       await skipButton.trigger('click');
 
-      // Each click should emit events (component doesn't prevent this)
-      expect(wrapper.emitted('skip').length).toBe(3);
-      expect(wrapper.emitted('close').length).toBe(3);
+      // Only first click should emit events
+      expect(wrapper.emitted('skip')).toHaveLength(1);
+      expect(wrapper.emitted('close')).toHaveLength(1);
+    });
+
+    it('should only emit events once when Rewrite is clicked multiple times rapidly', async () => {
+      const wrapper = mount(ThirdPersonPromptModal);
+
+      const rewriteButton = wrapper.findAll('button').find(b => b.text().includes('Rewrite'));
+
+      // Simulate rapid clicks
+      await rewriteButton.trigger('click');
+      await rewriteButton.trigger('click');
+      await rewriteButton.trigger('click');
+
+      // Only first click should emit events
+      expect(wrapper.emitted('rewrite')).toHaveLength(1);
+      expect(wrapper.emitted('close')).toHaveLength(1);
+    });
+
+    it('should disable Skip button after first click', async () => {
+      const wrapper = mount(ThirdPersonPromptModal);
+
+      const skipButton = wrapper.findAll('button').find(b => b.text() === 'Skip');
+
+      expect(skipButton.attributes('disabled')).toBeUndefined();
+
+      await skipButton.trigger('click');
+
+      expect(skipButton.attributes('disabled')).toBeDefined();
+    });
+
+    it('should disable Rewrite button after first click', async () => {
+      const wrapper = mount(ThirdPersonPromptModal);
+
+      const rewriteButton = wrapper.findAll('button').find(b => b.text().includes('Rewrite'));
+
+      expect(rewriteButton.attributes('disabled')).toBeUndefined();
+
+      await rewriteButton.trigger('click');
+
+      expect(rewriteButton.attributes('disabled')).toBeDefined();
+    });
+
+    it('should only save preference once even with rapid clicks', async () => {
+      const wrapper = mount(ThirdPersonPromptModal);
+
+      const checkbox = wrapper.find('input[type="checkbox"]');
+      await checkbox.setValue(true);
+
+      const skipButton = wrapper.findAll('button').find(b => b.text() === 'Skip');
+
+      await skipButton.trigger('click');
+      await skipButton.trigger('click');
+      await skipButton.trigger('click');
+
+      expect(localStorageMock.setItem).toHaveBeenCalledTimes(1);
     });
   });
 });

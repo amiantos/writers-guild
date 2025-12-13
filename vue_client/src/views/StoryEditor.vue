@@ -384,8 +384,8 @@ onMounted(async () => {
 
   // Check if we should prompt for third-person rewrite (from story creation with first message)
   if (route.query.promptRewrite === 'true' && shouldShowThirdPersonPrompt()) {
-    // Clear the query param from URL without triggering navigation
-    router.replace({ query: {} })
+    // Clear the query param from URL without triggering navigation (preserve other params)
+    router.replace({ query: { ...route.query, promptRewrite: undefined } })
     // Show the prompt after a short delay to let the UI settle
     await nextTick()
     showThirdPersonPrompt.value = true

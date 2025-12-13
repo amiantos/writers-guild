@@ -14,10 +14,10 @@
     </div>
 
     <template #footer>
-      <button class="btn btn-secondary" @click="handleSkip">
+      <button class="btn btn-secondary" @click="handleSkip" :disabled="isProcessing">
         Skip
       </button>
-      <button class="btn btn-primary" @click="handleRewrite">
+      <button class="btn btn-primary" @click="handleRewrite" :disabled="isProcessing">
         <i class="fas fa-repeat"></i> Rewrite
       </button>
     </template>
@@ -33,6 +33,7 @@ const DONT_ASK_KEY = 'writers-guild-skip-third-person-prompt'
 const emit = defineEmits(['close', 'rewrite', 'skip'])
 
 const dontAskAgain = ref(false)
+const isProcessing = ref(false)
 
 function savePreference() {
   if (dontAskAgain.value) {
@@ -41,12 +42,16 @@ function savePreference() {
 }
 
 function handleSkip() {
+  if (isProcessing.value) return
+  isProcessing.value = true
   savePreference()
   emit('skip')
   emit('close')
 }
 
 function handleRewrite() {
+  if (isProcessing.value) return
+  isProcessing.value = true
   savePreference()
   emit('rewrite')
   emit('close')
