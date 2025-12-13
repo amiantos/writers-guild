@@ -247,7 +247,7 @@ import { useToast } from '../composables/useToast'
 import { markOnboardingComplete } from '../router'
 
 const router = useRouter()
-const { showToast } = useToast()
+const toast = useToast()
 
 const currentStep = ref(1)
 const totalSteps = 5
@@ -331,7 +331,7 @@ async function skipOnboarding() {
     markOnboardingComplete()
     router.push('/')
   } catch (error) {
-    showToast('Failed to skip onboarding: ' + error.message, 'error')
+    toast.error('Failed to skip onboarding: ' + error.message)
   } finally {
     isLoading.value = false
   }
@@ -339,7 +339,7 @@ async function skipOnboarding() {
 
 async function createPersona() {
   if (!persona.value.firstName.trim()) {
-    showToast('Please enter your first name', 'error')
+    toast.error('Please enter your first name')
     return
   }
 
@@ -357,7 +357,7 @@ async function createPersona() {
     }
     nextStep()
   } catch (error) {
-    showToast('Failed to create persona: ' + error.message, 'error')
+    toast.error('Failed to create persona: ' + error.message)
   } finally {
     isLoading.value = false
   }
@@ -365,12 +365,12 @@ async function createPersona() {
 
 async function createPreset() {
   if (!selectedProvider.value) {
-    showToast('Please select a provider', 'error')
+    toast.error('Please select a provider')
     return
   }
 
   if (selectedProvider.value !== 'aihorde' && !apiKey.value.trim()) {
-    showToast('Please enter your API key', 'error')
+    toast.error('Please enter your API key')
     return
   }
 
@@ -388,7 +388,7 @@ async function createPreset() {
     }
     nextStep()
   } catch (error) {
-    showToast('Failed to create preset: ' + error.message, 'error')
+    toast.error('Failed to create preset: ' + error.message)
   } finally {
     isLoading.value = false
   }
@@ -412,7 +412,7 @@ async function handleImportChoice() {
     await onboardingAPI.complete()
     nextStep()
   } catch (error) {
-    showToast('Failed to complete setup: ' + error.message, 'error')
+    toast.error('Failed to complete setup: ' + error.message)
   } finally {
     isLoading.value = false
   }
