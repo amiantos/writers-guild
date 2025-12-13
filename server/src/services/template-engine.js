@@ -59,6 +59,8 @@ export class TemplateEngine {
 
   /**
    * Process block directives (if, each)
+   * Processes blocks in order of their position in the template to ensure
+   * outer blocks are processed before inner ones (important for nested loops/conditionals)
    */
   processBlocks(template, data, context = data) {
     let result = template;
@@ -68,11 +70,30 @@ export class TemplateEngine {
     // Keep processing until no more blocks are found
     while (iteration < maxIterations) {
       iteration++;
+
+      // Find the earliest block by position
+      const ifStart = result.indexOf('{{#if ');
+      const unlessStart = result.indexOf('{{#unless ');
+      const eachStart = result.indexOf('{{#each ');
+
+      // Determine which block comes first (use Infinity for not found)
+      const positions = [
+        { type: 'if', pos: ifStart === -1 ? Infinity : ifStart },
+        { type: 'unless', pos: unlessStart === -1 ? Infinity : unlessStart },
+        { type: 'each', pos: eachStart === -1 ? Infinity : eachStart }
+      ];
+
+      // Sort by position to find the earliest
+      positions.sort((a, b) => a.pos - b.pos);
+      const earliest = positions[0];
+
+      // If no blocks found, we're done
+      if (earliest.pos === Infinity) break;
+
       let processed = false;
 
-      // Process {{#if}} blocks
-      const ifStart = result.indexOf('{{#if ');
-      if (ifStart !== -1) {
+      // Process the earliest block
+      if (earliest.type === 'if') {
         const conditionStart = ifStart + 6; // length of '{{#if '
         const conditionEnd = result.indexOf('}}', conditionStart);
 
@@ -88,14 +109,9 @@ export class TemplateEngine {
 
             result = result.replace(fullBlock, conditionValue ? content : '');
             processed = true;
-            continue;
           }
         }
-      }
-
-      // Process {{#unless}} blocks (inverse if)
-      const unlessStart = result.indexOf('{{#unless ');
-      if (unlessStart !== -1) {
+      } else if (earliest.type === 'unless') {
         const conditionStart = unlessStart + 10; // length of '{{#unless '
         const conditionEnd = result.indexOf('}}', conditionStart);
 
@@ -111,14 +127,9 @@ export class TemplateEngine {
 
             result = result.replace(fullBlock, !conditionValue ? content : '');
             processed = true;
-            continue;
           }
         }
-      }
-
-      // Process {{#each}} blocks
-      const eachStart = result.indexOf('{{#each ');
-      if (eachStart !== -1) {
+      } else if (earliest.type === 'each') {
         const arrayPathStart = eachStart + 8; // length of '{{#each '
         const arrayPathEnd = result.indexOf('}}', arrayPathStart);
 
@@ -153,7 +164,6 @@ export class TemplateEngine {
 
             result = result.replace(fullBlock, replacement);
             processed = true;
-            continue;
           }
         }
       }

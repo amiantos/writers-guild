@@ -255,6 +255,54 @@ describe('TemplateEngine', () => {
       const result = engine.render(template, data);
       expect(result).toBe('Item1 Item2 ');
     });
+
+    it('should handle conditionals inside each blocks with item context', () => {
+      // This test ensures {{#if}} inside {{#each}} uses item context, not root context
+      const template = `{{#each characters}}
+Character: {{name}}
+{{#if description}}Description: {{description}}
+{{/if}}{{#if personality}}Personality: {{personality}}
+{{/if}}---
+{{/each}}`;
+      const data = {
+        characters: [
+          { name: 'Alice', description: 'A brave hero', personality: 'Bold' },
+          { name: 'Bob', description: 'A wise sage' },
+          { name: 'Charlie', personality: 'Mysterious' }
+        ]
+      };
+      const result = engine.render(template, data);
+
+      // All names should appear
+      expect(result).toContain('Character: Alice');
+      expect(result).toContain('Character: Bob');
+      expect(result).toContain('Character: Charlie');
+
+      // Descriptions should appear for items that have them
+      expect(result).toContain('Description: A brave hero');
+      expect(result).toContain('Description: A wise sage');
+
+      // Personalities should appear for items that have them
+      expect(result).toContain('Personality: Bold');
+      expect(result).toContain('Personality: Mysterious');
+
+      // Bob has no personality, Charlie has no description
+      expect(result).not.toContain('Bob\nPersonality:');
+      expect(result).not.toContain('Charlie\nDescription:');
+    });
+
+    it('should handle unless inside each blocks with item context', () => {
+      const template = '{{#each items}}{{name}}{{#unless hidden}} (visible){{/unless}} {{/each}}';
+      const data = {
+        items: [
+          { name: 'A', hidden: false },
+          { name: 'B', hidden: true },
+          { name: 'C' }
+        ]
+      };
+      const result = engine.render(template, data);
+      expect(result).toBe('A (visible) B C (visible) ');
+    });
   });
 
   describe('Complex Templates', () => {
