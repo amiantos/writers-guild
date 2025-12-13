@@ -137,7 +137,7 @@
             <button
               class="overflow-menu-item"
               :disabled="storyCharacters.length === 0"
-              @click="showFloatingAvatar = true"
+              @click="handleShowCharacterAvatar"
             >
               <i class="fas fa-image"></i>
               <span>Show Character Avatar</span>
@@ -236,10 +236,20 @@
       @close="showIdeateModal = false"
     />
 
+    <!-- Character Avatar Selector Modal -->
+    <CharacterAvatarSelectorModal
+      v-if="showAvatarSelector"
+      :characters="storyCharacters"
+      @close="showAvatarSelector = false"
+      @select="handleAvatarCharacterSelected"
+    />
+
     <!-- Floating Avatar Window -->
     <FloatingAvatarWindow
-      v-if="showFloatingAvatar && firstCharacter"
-      :character="firstCharacter"
+      v-if="showFloatingAvatar && storyCharacters.length > 0"
+      :characters="storyCharacters"
+      :initial-character-id="selectedAvatarCharacterId"
+      :story-id="props.storyId"
       @close="showFloatingAvatar = false"
     />
 
@@ -273,6 +283,7 @@ import StoryPresetModal from '../components/StoryPresetModal.vue'
 import IdeateModal from '../components/IdeateModal.vue'
 import FloatingAvatarWindow from '../components/FloatingAvatarWindow.vue'
 import ThirdPersonPromptModal from '../components/ThirdPersonPromptModal.vue'
+import CharacterAvatarSelectorModal from '../components/CharacterAvatarSelectorModal.vue'
 import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys'
 
 const props = defineProps({
@@ -312,6 +323,8 @@ const ideateResponse = ref('')
 const ideateLoading = ref(false)
 const ideateStatus = ref('Thinking...')
 const showThirdPersonPrompt = ref(false)
+const showAvatarSelector = ref(false)
+const selectedAvatarCharacterId = ref(null)
 let abortController = null
 
 // Load floating avatar state from localStorage
@@ -326,9 +339,6 @@ const hasUnsavedChanges = computed(() => {
   return content.value !== originalContent.value
 })
 
-const firstCharacter = computed(() => {
-  return storyCharacters.value.length > 0 ? storyCharacters.value[0] : null
-})
 
 // Save floating avatar state to localStorage when it changes
 watch(showFloatingAvatar, (isOpen) => {
@@ -373,7 +383,7 @@ onMounted(async () => {
   startAutoSave()
 
   // Ensure floating avatar is hidden if there are no characters
-  if (showFloatingAvatar.value && !firstCharacter.value) {
+  if (showFloatingAvatar.value && storyCharacters.value.length === 0) {
     showFloatingAvatar.value = false
   }
 
@@ -923,6 +933,27 @@ async function handleIdeate() {
       ideateResponse.value = `Error: ${error.message}`
     }
   }
+}
+
+function handleShowCharacterAvatar() {
+  if (storyCharacters.value.length === 0) {
+    return
+  }
+
+  if (storyCharacters.value.length === 1) {
+    // Only one character, show avatar directly
+    selectedAvatarCharacterId.value = storyCharacters.value[0].id
+    showFloatingAvatar.value = true
+  } else {
+    // Multiple characters, show selector modal
+    showAvatarSelector.value = true
+  }
+}
+
+function handleAvatarCharacterSelected(characterId) {
+  selectedAvatarCharacterId.value = characterId
+  showAvatarSelector.value = false
+  showFloatingAvatar.value = true
 }
 </script>
 
