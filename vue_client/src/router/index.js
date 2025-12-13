@@ -89,8 +89,8 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // Redirect to onboarding if not completed
-  if (!onboardingCompleted) {
+  // Redirect to onboarding if not completed, unless already navigating to onboarding
+  if (!onboardingCompleted && to.name !== 'onboarding') {
     return next({ name: 'onboarding' })
   }
 

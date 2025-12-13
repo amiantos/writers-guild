@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { SqliteStorageService } from '../../services/sqliteStorage.js';
@@ -12,7 +12,6 @@ import onboardingRouter from '../onboarding.js';
 describe('Onboarding API Routes', () => {
   let app;
   let tempDir;
-  let storage;
 
   beforeEach(() => {
     // Create temp directory for test database
@@ -134,7 +133,7 @@ describe('Onboarding API Routes', () => {
     it('should create a DeepSeek preset', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'deepseek', apiKey: 'sk-test-key' })
+        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-12345' })
         .expect(201);
 
       expect(response.body).toHaveProperty('id');
@@ -145,7 +144,7 @@ describe('Onboarding API Routes', () => {
     it('should create an OpenAI preset', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'openai', apiKey: 'sk-test-key' })
+        .send({ provider: 'openai', apiKey: 'sk-openai-test-key-12345' })
         .expect(201);
 
       expect(response.body.name).toBe('OpenAI');
@@ -155,7 +154,7 @@ describe('Onboarding API Routes', () => {
     it('should create an Anthropic preset', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'anthropic', apiKey: 'sk-ant-test' })
+        .send({ provider: 'anthropic', apiKey: 'sk-ant-api-test-key-12345' })
         .expect(201);
 
       expect(response.body.name).toBe('Anthropic');
@@ -165,7 +164,7 @@ describe('Onboarding API Routes', () => {
     it('should create an OpenRouter preset', async () => {
       const response = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'openrouter', apiKey: 'sk-or-test' })
+        .send({ provider: 'openrouter', apiKey: 'sk-or-test-key-12345' })
         .expect(201);
 
       expect(response.body.name).toBe('OpenRouter');
@@ -231,7 +230,7 @@ describe('Onboarding API Routes', () => {
       // Create preset
       const presetResponse = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'deepseek', apiKey: 'test-key' })
+        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-12345' })
         .expect(201);
 
       // Verify it's set as default
@@ -296,7 +295,7 @@ describe('Onboarding API Routes', () => {
       // Create a preset first
       await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'deepseek', apiKey: 'test-key' })
+        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-12345' })
         .expect(201);
 
       // Skip onboarding
@@ -369,7 +368,7 @@ describe('Onboarding API Routes', () => {
       // Step 3: Create preset
       const presetResponse = await request(app)
         .post('/api/onboarding/preset')
-        .send({ provider: 'deepseek', apiKey: 'sk-test-key' })
+        .send({ provider: 'deepseek', apiKey: 'sk-deepseek-test-key-12345' })
         .expect(201);
       expect(presetResponse.body.provider).toBe('deepseek');
 

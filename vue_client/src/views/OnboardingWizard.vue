@@ -51,7 +51,7 @@
             v-model="persona.firstName"
             type="text"
             placeholder="Enter your first name"
-            @keyup.enter="nextStep"
+            @keyup.enter="createPersona"
           />
         </div>
         <div class="form-group">
@@ -88,13 +88,18 @@
           Writers Guild uses AI to help generate story content. Choose a provider and enter your API key.
         </p>
 
-        <div class="provider-selection">
+        <div class="provider-selection" role="radiogroup" aria-label="Select AI provider">
           <div
             v-for="provider in providers"
             :key="provider.id"
             class="provider-option"
             :class="{ selected: selectedProvider === provider.id, recommended: provider.recommended }"
-            @click="selectedProvider = provider.id"
+            role="radio"
+            :aria-checked="selectedProvider === provider.id"
+            tabindex="0"
+            @click="selectProvider(provider.id)"
+            @keydown.enter="selectProvider(provider.id)"
+            @keydown.space.prevent="selectProvider(provider.id)"
           >
             <div class="provider-header">
               <span class="provider-name">{{ provider.name }}</span>
@@ -161,11 +166,16 @@
           This is a great way to explore the app's features.
         </p>
 
-        <div class="import-options">
+        <div class="import-options" role="radiogroup" aria-label="Import sample content choice">
           <div
             class="import-option"
             :class="{ selected: importDefaults }"
+            role="radio"
+            :aria-checked="importDefaults"
+            tabindex="0"
             @click="importDefaults = true"
+            @keydown.enter="importDefaults = true"
+            @keydown.space.prevent="importDefaults = true"
           >
             <i class="fas fa-check-circle"></i>
             <div>
@@ -176,7 +186,12 @@
           <div
             class="import-option"
             :class="{ selected: !importDefaults }"
+            role="radio"
+            :aria-checked="!importDefaults"
+            tabindex="0"
             @click="importDefaults = false"
+            @keydown.enter="importDefaults = false"
+            @keydown.space.prevent="importDefaults = false"
           >
             <i class="fas fa-times-circle"></i>
             <div>
@@ -231,8 +246,8 @@
       </div>
 
       <!-- Loading overlay -->
-      <div v-if="isLoading" class="loading-overlay">
-        <div class="spinner"></div>
+      <div v-if="isLoading" class="loading-overlay" role="status" aria-live="polite">
+        <div class="spinner" aria-label="Loading"></div>
         <p>{{ loadingMessage }}</p>
       </div>
     </div>
@@ -240,7 +255,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { onboardingAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
@@ -308,6 +323,13 @@ const canProceedFromProvider = computed(() => {
 function getProviderName(providerId) {
   const provider = providers.find(p => p.id === providerId)
   return provider?.name || providerId
+}
+
+function selectProvider(providerId) {
+  if (selectedProvider.value !== providerId) {
+    selectedProvider.value = providerId
+    apiKey.value = ''
+  }
 }
 
 function nextStep() {

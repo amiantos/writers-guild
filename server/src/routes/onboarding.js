@@ -16,9 +16,13 @@ const router = express.Router();
 let storage;
 let currentDataRoot;
 
-router.use((req, res, next) => {
+router.use(async (req, res, next) => {
   const dataRoot = req.app.locals.dataRoot;
   if (!storage || currentDataRoot !== dataRoot) {
+    // Close existing storage instance to prevent connection leaks
+    if (storage) {
+      storage.close();
+    }
     storage = new SqliteStorageService(dataRoot);
     currentDataRoot = dataRoot;
   }
@@ -39,6 +43,10 @@ router.post('/persona', asyncHandler(async (req, res) => {
 
   if (!firstName || !firstName.trim()) {
     throw new AppError('First name is required', 400);
+  }
+
+  if (firstName.trim().length > 100) {
+    throw new AppError('First name must be 100 characters or fewer', 400);
   }
 
   const characterId = uuidv4();
@@ -99,6 +107,25 @@ router.post('/preset', asyncHandler(async (req, res) => {
   // AI Horde doesn't require an API key
   if (provider !== 'aihorde' && (!apiKey || !apiKey.trim())) {
     throw new AppError('API key is required for this provider', 400);
+  }
+
+  // Basic API key validation
+  if (apiKey && apiKey.trim()) {
+    const trimmedKey = apiKey.trim();
+
+    // Check for reasonable length (most API keys are at least 20 chars)
+    if (trimmedKey.length < 10) {
+      throw new AppError('API key appears to be too short', 400);
+    }
+
+    // Provider-specific format validation
+    if (provider === 'openai' && !trimmedKey.startsWith('sk-')) {
+      throw new AppError('OpenAI API keys typically start with "sk-"', 400);
+    }
+
+    if (provider === 'anthropic' && !trimmedKey.startsWith('sk-ant-')) {
+      throw new AppError('Anthropic API keys typically start with "sk-ant-"', 400);
+    }
   }
 
   const presetId = uuidv4();
