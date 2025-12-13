@@ -221,7 +221,7 @@ describe('SqliteStorageService Word Count Integration', () => {
   });
 });
 
-describe('Schema Migration (v1 to v2)', () => {
+describe('Schema Migration (v1 to v3)', () => {
   let tempDir;
 
   /**
@@ -387,7 +387,7 @@ describe('Schema Migration (v1 to v2)', () => {
 
     // Check schema version was updated
     const version = storage.db.prepare('SELECT version FROM schema_version').get();
-    expect(version.version).toBe(2);
+    expect(version.version).toBe(3);
 
     storage.close();
   });
@@ -442,7 +442,7 @@ describe('Schema Migration (v1 to v2)', () => {
 
     // Verify schema version was updated
     const version = storage.db.prepare('SELECT version FROM schema_version').get();
-    expect(version.version).toBe(2);
+    expect(version.version).toBe(3);
 
     // Verify we can create stories with word_count
     const story = storage.db.prepare(`
@@ -477,7 +477,7 @@ describe('Schema Migration (v1 to v2)', () => {
 
     // Both should be updated together (atomic)
     expect(story.word_count).toBe(2);
-    expect(version.version).toBe(2);
+    expect(version.version).toBe(3);
 
     storage.close();
   });
