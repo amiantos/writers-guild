@@ -7,10 +7,10 @@
       <p class="prompt-description">
         This will convert the text to third-person past tense, which is the recommended format for story writing in Writers Guild.
       </p>
-      <label class="dont-ask-checkbox">
-        <input type="checkbox" v-model="dontAskAgain" />
-        <span>Don't ask me again</span>
-      </label>
+      <div class="dont-ask-checkbox">
+        <input type="checkbox" id="dont-ask-third-person" v-model="dontAskAgain" />
+        <label for="dont-ask-third-person">Don't ask me again</label>
+      </div>
     </div>
 
     <template #footer>
@@ -76,7 +76,6 @@ function handleRewrite() {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  cursor: pointer;
   color: var(--text-secondary);
   font-size: 0.9rem;
 }
@@ -84,6 +83,10 @@ function handleRewrite() {
 .dont-ask-checkbox input[type="checkbox"] {
   width: 1rem;
   height: 1rem;
+  cursor: pointer;
+}
+
+.dont-ask-checkbox label {
   cursor: pointer;
 }
 
