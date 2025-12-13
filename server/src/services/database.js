@@ -205,7 +205,7 @@ function calculateWordCount(content) {
     return 0;
   }
   // Match word characters, apostrophes within words (contractions), and hyphens within words
-  const words = content.match(/\b[\w]+(?:['-][\w]+)*\b/g);
+  const words = content.match(/\b\w+(?:['-]\w+)*\b/g);
   return words ? words.length : 0;
 }
 
