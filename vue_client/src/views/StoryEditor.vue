@@ -930,15 +930,40 @@ function generateWindowId() {
   return `avatar-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
+// Find next available position that doesn't overlap with existing windows
+function findNextWindowPosition() {
+  const baseX = 20
+  const baseY = 100
+  const offset = 30
+
+  // Find the maximum offset index used by existing windows
+  let maxOffsetIndex = -1
+  for (const win of avatarWindows.value) {
+    // Calculate which offset index this window might be at
+    const offsetIndex = Math.round((win.x - baseX) / offset)
+    if (offsetIndex > maxOffsetIndex) {
+      maxOffsetIndex = offsetIndex
+    }
+  }
+
+  // Use the next offset index
+  const nextIndex = maxOffsetIndex + 1
+  return {
+    x: baseX + (nextIndex * offset),
+    y: baseY + (nextIndex * offset)
+  }
+}
+
 // Add a new avatar window
 function handleAddAvatarWindow() {
   if (storyCharacters.value.length === 0) return
 
+  const position = findNextWindowPosition()
   const newWindow = {
     id: generateWindowId(),
     characterId: storyCharacters.value[0].id,
-    x: 20 + (avatarWindows.value.length * 30), // Offset each new window
-    y: 100 + (avatarWindows.value.length * 30),
+    x: position.x,
+    y: position.y,
     width: 300,
     height: 400
   }
