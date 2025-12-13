@@ -385,9 +385,9 @@ describe('Schema Migration (v1 to v3)', () => {
       }, {})
     );
 
-    // Check schema version was updated
+    // Check schema version was updated (v5 includes avatar_windows column)
     const version = storage.db.prepare('SELECT version FROM schema_version').get();
-    expect(version.version).toBe(4);
+    expect(version.version).toBe(5);
 
     storage.close();
   });
@@ -440,9 +440,9 @@ describe('Schema Migration (v1 to v3)', () => {
     // Open with SqliteStorageService, triggering migration
     const storage = new SqliteStorageService(tempDir);
 
-    // Verify schema version was updated
+    // Verify schema version was updated (v5 includes avatar_windows column)
     const version = storage.db.prepare('SELECT version FROM schema_version').get();
-    expect(version.version).toBe(4);
+    expect(version.version).toBe(5);
 
     // Verify we can create stories with word_count
     const story = storage.db.prepare(`
@@ -475,9 +475,9 @@ describe('Schema Migration (v1 to v3)', () => {
     const story = storage.db.prepare('SELECT word_count FROM stories WHERE id = ?').get('story-1');
     const version = storage.db.prepare('SELECT version FROM schema_version').get();
 
-    // Both should be updated together (atomic)
+    // Both should be updated together (atomic) - v5 includes avatar_windows column
     expect(story.word_count).toBe(2);
-    expect(version.version).toBe(4);
+    expect(version.version).toBe(5);
 
     storage.close();
   });

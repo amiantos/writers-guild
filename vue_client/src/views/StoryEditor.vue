@@ -137,10 +137,10 @@
             <button
               class="overflow-menu-item"
               :disabled="storyCharacters.length === 0"
-              @click="showFloatingAvatar = true"
+              @click="handleAddAvatarWindow"
             >
               <i class="fas fa-image"></i>
-              <span>Show Character Avatar</span>
+              <span>Add Character Avatar</span>
             </button>
             <button class="overflow-menu-item" @click="handleIdeate">
               <i class="fas fa-lightbulb"></i>
@@ -236,11 +236,17 @@
       @close="showIdeateModal = false"
     />
 
-    <!-- Floating Avatar Window -->
+    <!-- Floating Avatar Windows -->
     <FloatingAvatarWindow
-      v-if="showFloatingAvatar && firstCharacter"
-      :character="firstCharacter"
-      @close="showFloatingAvatar = false"
+      v-for="win in avatarWindows"
+      :key="win.id"
+      :window-id="win.id"
+      :characters="storyCharacters"
+      :initial-character-id="win.characterId"
+      :initial-position="{ x: win.x, y: win.y }"
+      :initial-size="{ width: win.width, height: win.height }"
+      @close="handleAvatarWindowClose(win.id)"
+      @update="handleAvatarWindowUpdate"
     />
 
     <!-- Third Person Prompt Modal -->
@@ -314,9 +320,8 @@ const ideateStatus = ref('Thinking...')
 const showThirdPersonPrompt = ref(false)
 let abortController = null
 
-// Load floating avatar state from localStorage
-const FLOATING_AVATAR_KEY = 'writers-guild-floating-avatar-open'
-const showFloatingAvatar = ref(localStorage.getItem(FLOATING_AVATAR_KEY) === 'true')
+// Avatar windows (stored on server per-story)
+const avatarWindows = ref([])
 
 const storyCharacters = ref([])
 const shouldShowReasoning = ref(false) // Setting from server
@@ -324,15 +329,6 @@ const shouldShowReasoning = ref(false) // Setting from server
 // Computed
 const hasUnsavedChanges = computed(() => {
   return content.value !== originalContent.value
-})
-
-const firstCharacter = computed(() => {
-  return storyCharacters.value.length > 0 ? storyCharacters.value[0] : null
-})
-
-// Save floating avatar state to localStorage when it changes
-watch(showFloatingAvatar, (isOpen) => {
-  localStorage.setItem(FLOATING_AVATAR_KEY, isOpen.toString())
 })
 
 // Auto-save
@@ -372,9 +368,9 @@ onMounted(async () => {
   await Promise.all([loadCharacters(), loadSettings()])
   startAutoSave()
 
-  // Ensure floating avatar is hidden if there are no characters
-  if (showFloatingAvatar.value && !firstCharacter.value) {
-    showFloatingAvatar.value = false
+  // Load avatar windows from story
+  if (story.value?.avatarWindows) {
+    avatarWindows.value = story.value.avatarWindows
   }
 
   // Add keyboard shortcut listener
@@ -398,6 +394,12 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopAutoSave()
+  // Mark component as unmounted to prevent API calls after destruction
+  isMounted.value = false
+  // Clear avatar window save timeout to prevent memory leaks
+  if (saveAvatarTimeoutRef.value) {
+    clearTimeout(saveAvatarTimeoutRef.value)
+  }
   // Remove keyboard shortcut listener
   window.removeEventListener('keydown', handleKeyboardShortcut)
 })
@@ -420,6 +422,14 @@ watch(showReasoningPanel, async (isOpen) => {
       editorRef.value.scrollTop = editorRef.value.scrollHeight
       editorRef.value.focus()
     }
+  }
+})
+
+// Close all avatar windows when characters are removed from story
+watch(storyCharacters, (characters) => {
+  if (characters.length === 0 && avatarWindows.value.length > 0) {
+    avatarWindows.value = []
+    saveAvatarWindows()
   }
 })
 
@@ -923,6 +933,100 @@ async function handleIdeate() {
       ideateResponse.value = `Error: ${error.message}`
     }
   }
+}
+
+// Generate a unique ID for avatar windows
+function generateWindowId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `avatar-${crypto.randomUUID()}`
+  }
+  return `avatar-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+}
+
+// Find next available position that doesn't overlap with existing windows
+function findNextWindowPosition() {
+  const baseX = 20
+  const baseY = 100
+  const offset = 30
+
+  // Find the maximum offset index used by existing windows
+  let maxOffsetIndex = -1
+  for (const win of avatarWindows.value) {
+    // Calculate which offset index this window might be at
+    const offsetIndex = Math.round((win.x - baseX) / offset)
+    if (offsetIndex > maxOffsetIndex) {
+      maxOffsetIndex = offsetIndex
+    }
+  }
+
+  // Use the next offset index
+  const nextIndex = maxOffsetIndex + 1
+  return {
+    x: baseX + (nextIndex * offset),
+    y: baseY + (nextIndex * offset)
+  }
+}
+
+// Add a new avatar window
+function handleAddAvatarWindow() {
+  if (storyCharacters.value.length === 0) return
+
+  const position = findNextWindowPosition()
+  const newWindow = {
+    id: generateWindowId(),
+    characterId: storyCharacters.value[0].id,
+    x: position.x,
+    y: position.y,
+    width: 300,
+    height: 400
+  }
+
+  avatarWindows.value.push(newWindow)
+  saveAvatarWindows()
+}
+
+// Handle window close
+function handleAvatarWindowClose(windowId) {
+  avatarWindows.value = avatarWindows.value.filter(w => w.id !== windowId)
+  saveAvatarWindows()
+}
+
+// Handle window update (position, size, or character change)
+function handleAvatarWindowUpdate(update) {
+  const index = avatarWindows.value.findIndex(w => w.id === update.windowId)
+  if (index >= 0) {
+    avatarWindows.value[index] = {
+      id: update.windowId,
+      characterId: update.characterId,
+      x: update.x,
+      y: update.y,
+      width: update.width,
+      height: update.height
+    }
+    saveAvatarWindows()
+  }
+}
+
+// Debounced save to server - use ref to avoid race conditions
+const isMounted = ref(true)
+const saveAvatarTimeoutRef = ref(null)
+
+function saveAvatarWindows() {
+  if (saveAvatarTimeoutRef.value) {
+    clearTimeout(saveAvatarTimeoutRef.value)
+  }
+  saveAvatarTimeoutRef.value = setTimeout(async () => {
+    // Check if component is still mounted before making API call
+    if (!isMounted.value) return
+    try {
+      await storiesAPI.updateAvatarWindows(props.storyId, avatarWindows.value)
+    } catch (error) {
+      console.error('Failed to save avatar windows:', error)
+      if (isMounted.value) {
+        toast.error('Failed to save avatar window positions')
+      }
+    }
+  }, 500) // Debounce 500ms
 }
 </script>
 

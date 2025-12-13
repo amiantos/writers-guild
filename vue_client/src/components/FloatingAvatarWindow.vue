@@ -3,11 +3,11 @@
     ref="windowRef"
     class="floating-avatar-window"
     :style="windowStyle"
-    @mouseenter="showClose = true"
-    @mouseleave="showClose = false"
+    @mouseenter="showControls = true"
+    @mouseleave="showControls = false"
   >
     <button
-      v-if="showClose"
+      v-if="showControls"
       class="close-btn"
       @click="$emit('close')"
       title="Close"
@@ -16,15 +16,28 @@
     </button>
 
     <img
-      v-if="character?.imageUrl"
-      :src="character.imageUrl"
-      :alt="character.name"
+      v-if="currentCharacter?.imageUrl"
+      :src="currentCharacter.imageUrl"
+      :alt="currentCharacter.name"
       class="avatar-image"
       draggable="false"
     />
     <div v-else class="no-image">
       <i class="fas fa-user"></i>
       <p>No avatar</p>
+    </div>
+
+    <!-- Character name overlay (clickable to cycle) -->
+    <div v-if="currentCharacter" class="character-info-overlay">
+      <button
+        v-if="characters.length > 1"
+        class="character-name-btn"
+        @click="cycleCharacter"
+        title="Click to switch character"
+      >
+        {{ currentCharacter.name }}
+      </button>
+      <span v-else class="character-name">{{ currentCharacter.name }}</span>
     </div>
 
     <!-- Drag handle -->
@@ -45,31 +58,60 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 
 const props = defineProps({
-  character: {
-    type: Object,
+  characters: {
+    type: Array,
     required: true
+  },
+  windowId: {
+    type: String,
+    required: true
+  },
+  initialCharacterId: {
+    type: String,
+    default: null
+  },
+  initialPosition: {
+    type: Object,
+    default: () => ({ x: 20, y: 100 })
+  },
+  initialSize: {
+    type: Object,
+    default: () => ({ width: 300, height: 400 })
   }
 })
 
-defineEmits(['close'])
+const emit = defineEmits(['close', 'update'])
 
-const STORAGE_KEY = 'writers-guild-floating-avatar'
+// Minimum visible pixels when window is partially off-screen
+const MIN_VISIBLE_PIXELS = 100
 
 const windowRef = ref(null)
-const showClose = ref(false)
-
-// Load saved position and size from localStorage
-const savedState = localStorage.getItem(STORAGE_KEY)
-const defaultState = savedState ? JSON.parse(savedState) : {
-  x: 20,
-  y: 100,
-  width: 300,
-  height: 400
-}
+const showControls = ref(false)
 
 // Window position and size
-const position = ref({ x: defaultState.x, y: defaultState.y })
-const size = ref({ width: defaultState.width, height: defaultState.height })
+const position = ref({ ...props.initialPosition })
+const size = ref({ ...props.initialSize })
+
+// Character selection
+const selectedCharacterId = ref(props.initialCharacterId || (props.characters[0]?.id ?? null))
+
+// Computed properties
+const currentIndex = computed(() => {
+  const index = props.characters.findIndex(c => c.id === selectedCharacterId.value)
+  return index >= 0 ? index : 0
+})
+
+const currentCharacter = computed(() => {
+  return props.characters[currentIndex.value] || props.characters[0] || null
+})
+
+// Cycle to next character
+function cycleCharacter() {
+  if (props.characters.length <= 1) return
+  const newIndex = (currentIndex.value + 1) % props.characters.length
+  selectedCharacterId.value = props.characters[newIndex].id
+  emitUpdate()
+}
 
 // Dragging state
 const isDragging = ref(false)
@@ -79,15 +121,17 @@ const dragStart = ref({ x: 0, y: 0 })
 const isResizing = ref(false)
 const resizeStart = ref({ x: 0, y: 0, width: 0, height: 0 })
 
-// Save state to localStorage whenever position or size changes
-watch([position, size], () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+// Emit update to parent for server sync
+function emitUpdate() {
+  emit('update', {
+    windowId: props.windowId,
+    characterId: selectedCharacterId.value,
     x: position.value.x,
     y: position.value.y,
     width: size.value.width,
     height: size.value.height
-  }))
-}, { deep: true })
+  })
+}
 
 const windowStyle = computed(() => ({
   left: `${position.value.x}px`,
@@ -134,18 +178,96 @@ function onMouseMove(e) {
 }
 
 function onMouseUp() {
-  isDragging.value = false
-  isResizing.value = false
+  if (isDragging.value || isResizing.value) {
+    isDragging.value = false
+    isResizing.value = false
+    emitUpdate()
+  }
+}
+
+/**
+ * Ensure window stays accessible within viewport bounds.
+ *
+ * The logic ensures:
+ * 1. Window size doesn't exceed viewport (with padding)
+ * 2. At least MIN_VISIBLE_PIXELS of the window remains visible on each edge
+ * 3. Partial off-screen positioning is allowed for flexibility
+ */
+function ensureWithinViewport() {
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const padding = 20
+
+  let { x, y } = position.value
+  let { width, height } = size.value
+  let changed = false
+
+  // Ensure size fits in viewport
+  if (width > viewportWidth - padding * 2) {
+    width = viewportWidth - padding * 2
+    changed = true
+  }
+  if (height > viewportHeight - padding * 2) {
+    height = viewportHeight - padding * 2
+    changed = true
+  }
+
+  // Ensure at least MIN_VISIBLE_PIXELS remains visible on each edge
+  // Right edge: window must not extend too far left (off left side of screen)
+  if (x + width < MIN_VISIBLE_PIXELS) {
+    x = MIN_VISIBLE_PIXELS - width
+    changed = true
+  }
+  // Left edge: window must not extend too far right (off right side of screen)
+  if (x > viewportWidth - MIN_VISIBLE_PIXELS) {
+    x = viewportWidth - MIN_VISIBLE_PIXELS
+    changed = true
+  }
+  // Bottom edge: window must not extend too far up (off top of screen)
+  if (y + height < MIN_VISIBLE_PIXELS) {
+    y = MIN_VISIBLE_PIXELS - height
+    changed = true
+  }
+  // Top edge: window must not extend too far down (off bottom of screen)
+  if (y > viewportHeight - MIN_VISIBLE_PIXELS) {
+    y = viewportHeight - MIN_VISIBLE_PIXELS
+    changed = true
+  }
+
+  if (changed) {
+    size.value = { width, height }
+    position.value = { x, y }
+    emitUpdate()
+  }
+}
+
+function onWindowResize() {
+  ensureWithinViewport()
 }
 
 onMounted(() => {
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
+  window.addEventListener('resize', onWindowResize)
+  ensureWithinViewport()
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', onMouseMove)
   document.removeEventListener('mouseup', onMouseUp)
+  window.removeEventListener('resize', onWindowResize)
+})
+
+// Watch for character list changes - use computed IDs to avoid deep watch performance issues
+const characterIds = computed(() => props.characters.map(c => c.id))
+watch(characterIds, () => {
+  if (props.characters.length > 0 && !props.characters.some(c => c.id === selectedCharacterId.value)) {
+    selectedCharacterId.value = props.characters[0].id
+    emitUpdate()
+  } else if (props.characters.length === 0) {
+    // Just update local state; don't emit update as the window will be closed by parent
+    selectedCharacterId.value = null
+  }
 })
 </script>
 
@@ -204,6 +326,44 @@ onUnmounted(() => {
 
 .no-image i {
   font-size: 3rem;
+}
+
+.character-info-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  border-top-right-radius: 8px;
+  max-width: 100%;
+}
+
+.character-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.character-name-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.2s;
+}
+
+.character-name-btn:hover {
+  opacity: 0.8;
 }
 
 .drag-handle {

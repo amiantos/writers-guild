@@ -71,6 +71,78 @@ router.post('/:id/rewrite-prompt', asyncHandler(async (req, res) => {
   res.json({ success: true });
 }));
 
+// Validate avatar window structure
+function validateAvatarWindow(win, index) {
+  if (typeof win !== 'object' || win === null) {
+    return `avatarWindows[${index}] must be an object`;
+  }
+  const requiredProps = ['id', 'characterId', 'x', 'y', 'width', 'height'];
+  for (const prop of requiredProps) {
+    if (!(prop in win)) {
+      return `avatarWindows[${index}] is missing required property '${prop}'`;
+    }
+  }
+  if (typeof win.id !== 'string') {
+    return `avatarWindows[${index}].id must be a string`;
+  }
+  if (typeof win.characterId !== 'string') {
+    return `avatarWindows[${index}].characterId must be a string`;
+  }
+  for (const numProp of ['x', 'y', 'width', 'height']) {
+    if (typeof win[numProp] !== 'number' || !Number.isFinite(win[numProp])) {
+      return `avatarWindows[${index}].${numProp} must be a finite number`;
+    }
+  }
+  // Range validation
+  const MAX_DIMENSION = 5000;
+  if (win.width <= 0) {
+    return `avatarWindows[${index}].width must be a positive number`;
+  }
+  if (win.width > MAX_DIMENSION) {
+    return `avatarWindows[${index}].width must not exceed ${MAX_DIMENSION}`;
+  }
+  if (win.height <= 0) {
+    return `avatarWindows[${index}].height must be a positive number`;
+  }
+  if (win.height > MAX_DIMENSION) {
+    return `avatarWindows[${index}].height must not exceed ${MAX_DIMENSION}`;
+  }
+  const MIN_POS = -10000, MAX_POS = 10000;
+  if (win.x < MIN_POS || win.x > MAX_POS) {
+    return `avatarWindows[${index}].x must be between ${MIN_POS} and ${MAX_POS}`;
+  }
+  if (win.y < MIN_POS || win.y > MAX_POS) {
+    return `avatarWindows[${index}].y must be between ${MIN_POS} and ${MAX_POS}`;
+  }
+  return null;
+}
+
+// Update avatar windows for a story
+router.put('/:id/avatar-windows', asyncHandler(async (req, res) => {
+  const { avatarWindows } = req.body;
+
+  if (!Array.isArray(avatarWindows)) {
+    throw new AppError('avatarWindows must be an array', 400);
+  }
+
+  // Enforce maximum number of avatar windows
+  const MAX_AVATAR_WINDOWS = 20;
+  if (avatarWindows.length > MAX_AVATAR_WINDOWS) {
+    throw new AppError(`A maximum of ${MAX_AVATAR_WINDOWS} avatar windows is allowed`, 400);
+  }
+
+  // Validate each avatar window
+  for (let i = 0; i < avatarWindows.length; i++) {
+    const error = validateAvatarWindow(avatarWindows[i], i);
+    if (error) {
+      throw new AppError(error, 400);
+    }
+  }
+
+  const result = await storage.updateStoryAvatarWindows(req.params.id, avatarWindows);
+  res.json(result);
+}));
+
 // Update story metadata
 router.put('/:id', asyncHandler(async (req, res) => {
   const { title, description, configPresetId } = req.body;
