@@ -437,7 +437,7 @@ function finishOnboarding() {
 .onboarding-card {
   background: var(--bg-secondary);
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
   max-width: 600px;
   width: 100%;
   position: relative;
@@ -451,7 +451,7 @@ function finishOnboarding() {
 
 .progress-fill {
   height: 100%;
-  background: var(--accent-color);
+  background: var(--accent-primary);
   transition: width 0.3s ease;
 }
 
@@ -464,7 +464,7 @@ function finishOnboarding() {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: var(--accent-color);
+  background: var(--accent-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -508,7 +508,7 @@ h1 {
 }
 
 .feature-list li i {
-  color: var(--accent-color);
+  color: var(--accent-primary);
   width: 20px;
   text-align: center;
 }
@@ -530,7 +530,7 @@ h1 {
   width: 100%;
   padding: 0.75rem 1rem;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg-tertiary);
   color: var(--text-primary);
   font-size: 1rem;
@@ -540,8 +540,7 @@ h1 {
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.1);
+  border-color: var(--accent-primary);
 }
 
 .form-group textarea {
@@ -556,7 +555,11 @@ h1 {
 }
 
 .help-text a {
-  color: var(--accent-color);
+  color: var(--accent-primary);
+}
+
+.help-text a:hover {
+  color: var(--accent-hover);
 }
 
 .provider-selection {
@@ -570,23 +573,19 @@ h1 {
 .provider-option {
   padding: 1rem;
   border: 2px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .provider-option:hover {
-  border-color: var(--accent-color);
+  border-color: var(--accent-primary);
   background: var(--bg-tertiary);
 }
 
 .provider-option.selected {
-  border-color: var(--accent-color);
-  background: rgba(var(--accent-color-rgb), 0.1);
-}
-
-.provider-option.recommended {
-  position: relative;
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
 }
 
 .provider-header {
@@ -602,7 +601,7 @@ h1 {
 }
 
 .recommended-badge {
-  background: var(--accent-color);
+  background: var(--accent-primary);
   color: white;
   font-size: 0.7rem;
   padding: 0.2rem 0.5rem;
@@ -621,14 +620,15 @@ h1 {
   display: flex;
   gap: 0.75rem;
   padding: 1rem;
-  background: rgba(var(--accent-color-rgb), 0.1);
+  background: var(--bg-tertiary);
   border-radius: 8px;
   margin-bottom: 1.5rem;
   text-align: left;
+  border-left: 3px solid var(--accent-primary);
 }
 
 .info-box i {
-  color: var(--accent-color);
+  color: var(--accent-primary);
   flex-shrink: 0;
   margin-top: 0.2rem;
 }
@@ -652,20 +652,20 @@ h1 {
   gap: 1rem;
   padding: 1rem;
   border: 2px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
   text-align: left;
 }
 
 .import-option:hover {
-  border-color: var(--accent-color);
+  border-color: var(--accent-primary);
   background: var(--bg-tertiary);
 }
 
 .import-option.selected {
-  border-color: var(--accent-color);
-  background: rgba(var(--accent-color-rgb), 0.1);
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
 }
 
 .import-option i {
@@ -674,7 +674,7 @@ h1 {
 }
 
 .import-option.selected i {
-  color: var(--accent-color);
+  color: var(--accent-primary);
 }
 
 .import-option strong {
@@ -691,7 +691,7 @@ h1 {
 
 .summary {
   background: var(--bg-tertiary);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   text-align: left;
@@ -708,7 +708,7 @@ h1 {
 .summary-item i {
   width: 20px;
   text-align: center;
-  color: var(--accent-color);
+  color: var(--accent-primary);
 }
 
 .summary-item strong {
@@ -722,44 +722,14 @@ h1 {
   margin-top: 1.5rem;
 }
 
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
+/* Use slightly larger buttons for onboarding */
+.button-group .btn {
   min-width: 120px;
 }
 
-.btn-primary {
-  background: var(--accent-color);
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.btn-secondary:hover {
-  background: var(--border-color);
-}
-
 .btn-large {
-  padding: 1rem 2rem;
-  font-size: 1.125rem;
+  padding: 0.875rem 2rem !important;
+  font-size: 1rem;
 }
 
 .loading-overlay {
@@ -768,7 +738,7 @@ h1 {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(var(--bg-secondary-rgb), 0.9);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -780,7 +750,7 @@ h1 {
   width: 40px;
   height: 40px;
   border: 3px solid var(--border-color);
-  border-top-color: var(--accent-color);
+  border-top-color: var(--accent-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -792,7 +762,7 @@ h1 {
 }
 
 .loading-overlay p {
-  color: var(--text-secondary);
+  color: var(--text-primary);
   margin: 0;
 }
 </style>
