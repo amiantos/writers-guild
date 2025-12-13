@@ -27,17 +27,17 @@
       <p>No avatar</p>
     </div>
 
-    <!-- Character name overlay with cycle button -->
+    <!-- Character name overlay (clickable to cycle) -->
     <div v-if="currentCharacter" class="character-info-overlay">
-      <span class="character-name">{{ currentCharacter.name }}</span>
       <button
         v-if="characters.length > 1"
-        class="cycle-btn"
+        class="character-name-btn"
         @click="cycleCharacter"
-        title="Switch character"
+        title="Click to switch character"
       >
-        <i class="fas fa-sync-alt"></i>
+        {{ currentCharacter.name }}
       </button>
+      <span v-else class="character-name">{{ currentCharacter.name }}</span>
     </div>
 
     <!-- Drag handle -->
@@ -322,9 +322,6 @@ watch(() => props.characters, () => {
   position: absolute;
   bottom: 0;
   left: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
@@ -341,27 +338,22 @@ watch(() => props.characters, () => {
   text-overflow: ellipsis;
 }
 
-.cycle-btn {
+.character-name-btn {
   background: transparent;
   border: none;
-  color: white;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  flex-shrink: 0;
+  padding: 0;
+  transition: opacity 0.2s;
 }
 
-.cycle-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.cycle-btn i {
-  font-size: 0.75rem;
+.character-name-btn:hover {
+  opacity: 0.8;
 }
 
 .drag-handle {
