@@ -122,6 +122,10 @@ router.post('/preset', asyncHandler(async (req, res) => {
 router.post('/import-defaults', asyncHandler(async (req, res) => {
   console.log('Importing default characters and stories...');
 
+  // Get the default persona ID to set on stories
+  const settings = await storage.getSettings();
+  const defaultPersonaId = settings?.defaultPersonaId;
+
   // Import default characters
   const importedCharacters = await importDefaultCharacters(storage);
 
@@ -131,6 +135,11 @@ router.post('/import-defaults', asyncHandler(async (req, res) => {
     console.log(`Creating default story for ${character.name}...`);
     const story = await createDefaultStory(storage, character);
     if (story) {
+      // Set the default persona on the story
+      if (defaultPersonaId) {
+        await storage.setStoryPersona(story.id, defaultPersonaId);
+        console.log(`✓ Set default persona on story: ${story.title}`);
+      }
       defaultStories.push(story);
     }
   }
