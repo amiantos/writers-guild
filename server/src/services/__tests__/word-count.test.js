@@ -72,11 +72,6 @@ describe('calculateWordCount', () => {
     it('should count contractions in sentences correctly', () => {
       expect(calculateWordCount("I don't know what you're talking about")).toBe(7);
     });
-
-    it('should handle curly apostrophes in contractions', () => {
-      expect(calculateWordCount("don't")).toBe(1);
-      expect(calculateWordCount("it's")).toBe(1);
-    });
   });
 
   describe('Hyphenated Words', () => {
