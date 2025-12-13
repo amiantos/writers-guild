@@ -41,6 +41,7 @@ router.put('/', asyncHandler(async (req, res) => {
     lorebookRecursionDepth,
     lorebookEnableRecursion,
     defaultPersonaId,
+    onboardingCompleted,
   } = req.body;
 
   // Get current settings
@@ -63,6 +64,7 @@ router.put('/', asyncHandler(async (req, res) => {
     ...(lorebookRecursionDepth !== undefined && { lorebookRecursionDepth: parseInt(lorebookRecursionDepth) || 3 }),
     ...(lorebookEnableRecursion !== undefined && { lorebookEnableRecursion: Boolean(lorebookEnableRecursion) }),
     ...(defaultPersonaId !== undefined && { defaultPersonaId: defaultPersonaId || null }),
+    ...(onboardingCompleted !== undefined && { onboardingCompleted: Boolean(onboardingCompleted) }),
   };
 
   const saved = await storage.saveSettings(updated);

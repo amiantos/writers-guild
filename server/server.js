@@ -22,6 +22,7 @@ import charactersRouter from './src/routes/characters.js';
 import settingsRouter from './src/routes/settings.js';
 import lorebooksRouter from './src/routes/lorebooks.js';
 import presetsRouter from './src/routes/presets.js';
+import onboardingRouter from './src/routes/onboarding.js';
 
 // Import migration service
 import { runMigration } from './src/services/migration.js';
@@ -102,6 +103,7 @@ app.use('/api/characters', charactersRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/lorebooks', lorebooksRouter);
 app.use('/api/presets', presetsRouter);
+app.use('/api/onboarding', onboardingRouter);
 
 // Check if we're in production (built client exists)
 const publicPath = path.join(__dirname, 'public');

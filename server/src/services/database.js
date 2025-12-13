@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /**
  * Initialize the SQLite database with schema
@@ -80,7 +80,8 @@ function createAllTables(db) {
       lorebook_recursion_depth INTEGER DEFAULT 3,
       lorebook_enable_recursion INTEGER DEFAULT 1,
       default_persona_id TEXT,
-      default_preset_id TEXT
+      default_preset_id TEXT,
+      onboarding_completed INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -236,6 +237,20 @@ function migrateSchema(db, fromVersion) {
       }
 
       console.log(`Updated word counts for ${stories.length} existing stories`);
+    }
+
+    // Migration to version 3: Add onboarding_completed column to settings
+    if (fromVersion < 3) {
+      console.log('Adding onboarding_completed column to settings table...');
+
+      // Add the onboarding_completed column
+      db.exec('ALTER TABLE settings ADD COLUMN onboarding_completed INTEGER DEFAULT 0');
+
+      // For existing users who have been using the app, mark onboarding as completed
+      // since they don't need to go through the wizard
+      db.exec('UPDATE settings SET onboarding_completed = 1 WHERE id = 1');
+
+      console.log('Marked existing users as onboarding completed');
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
