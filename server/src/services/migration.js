@@ -126,9 +126,14 @@ async function createDefaultStory(storage, character) {
   }
 
   try {
+    // Check if character has a first message - if so, flag story for rewrite prompt
+    const characterCard = await storage.getCharacter(character.id);
+    const hasFirstMessage = !!characterCard.data?.first_mes;
+
     const story = await storage.createStory(
       `A Story with ${character.name}`,
-      `An adventure featuring ${character.name}`
+      `An adventure featuring ${character.name}`,
+      { needsRewritePrompt: hasFirstMessage }
     );
 
     // Add character to story

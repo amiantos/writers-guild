@@ -381,9 +381,13 @@ onMounted(async () => {
   window.addEventListener('keydown', handleKeyboardShortcut)
 
   // Check if we should prompt for third-person rewrite (from story creation with first message)
-  if (route.query.promptRewrite === 'true') {
-    // Clear the query param from URL without triggering navigation (preserve other params)
-    router.replace({ query: { ...route.query, promptRewrite: undefined } })
+  if (story.value?.needsRewritePrompt) {
+    // Clear the flag on the server
+    try {
+      await storiesAPI.setRewritePrompt(props.storyId, false)
+    } catch (error) {
+      console.error('Failed to clear rewrite prompt flag:', error)
+    }
     if (shouldShowThirdPersonPrompt()) {
       // Show the prompt after a short delay to let the UI settle
       await nextTick()

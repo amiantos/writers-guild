@@ -48,9 +48,10 @@ export class SqliteStorageService {
       `),
       getStory: this.db.prepare('SELECT * FROM stories WHERE id = ?'),
       insertStory: this.db.prepare(`
-        INSERT INTO stories (id, title, description, content, word_count, persona_character_id, config_preset_id, created, modified)
-        VALUES (@id, @title, @description, @content, @wordCount, @personaCharacterId, @configPresetId, @created, @modified)
+        INSERT INTO stories (id, title, description, content, word_count, needs_rewrite_prompt, persona_character_id, config_preset_id, created, modified)
+        VALUES (@id, @title, @description, @content, @wordCount, @needsRewritePrompt, @personaCharacterId, @configPresetId, @created, @modified)
       `),
+      setStoryNeedsRewritePrompt: this.db.prepare('UPDATE stories SET needs_rewrite_prompt = ? WHERE id = ?'),
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, persona_character_id = @personaCharacterId,
                           config_preset_id = @configPresetId, modified = @modified
@@ -287,13 +288,15 @@ export class SqliteStorageService {
       personaCharacterId: row.persona_character_id,
       lorebookIds,
       configPresetId: row.config_preset_id,
-      characters
+      characters,
+      needsRewritePrompt: !!row.needs_rewrite_prompt
     };
   }
 
-  async createStory(title, description = '') {
+  async createStory(title, description = '', options = {}) {
     const storyId = uuidv4();
     const now = new Date().toISOString();
+    const needsRewritePrompt = options.needsRewritePrompt ? 1 : 0;
 
     this.stmts.insertStory.run({
       id: storyId,
@@ -301,6 +304,7 @@ export class SqliteStorageService {
       description,
       content: '',
       wordCount: 0,
+      needsRewritePrompt,
       personaCharacterId: null,
       configPresetId: null,
       created: now,
@@ -317,8 +321,18 @@ export class SqliteStorageService {
       personaCharacterId: null,
       lorebookIds: [],
       configPresetId: null,
-      wordCount: 0
+      wordCount: 0,
+      needsRewritePrompt: !!needsRewritePrompt
     };
+  }
+
+  async setStoryNeedsRewritePrompt(storyId, value) {
+    const existing = this.stmts.getStory.get(storyId);
+    if (!existing) {
+      throw new Error(`Story not found: ${storyId}`);
+    }
+    this.stmts.setStoryNeedsRewritePrompt.run(value ? 1 : 0, storyId);
+    return { success: true };
   }
 
   async updateStoryMetadata(storyId, updates) {

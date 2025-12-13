@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /**
  * Initialize the SQLite database with schema
@@ -94,6 +94,7 @@ function createAllTables(db) {
       description TEXT DEFAULT '',
       content TEXT DEFAULT '',
       word_count INTEGER DEFAULT 0,
+      needs_rewrite_prompt INTEGER DEFAULT 0,
       persona_character_id TEXT,
       config_preset_id TEXT,
       created TEXT NOT NULL,
@@ -251,6 +252,15 @@ function migrateSchema(db, fromVersion) {
       db.exec('UPDATE settings SET onboarding_completed = 1 WHERE id = 1');
 
       console.log('Marked existing users as onboarding completed');
+    }
+
+    // Migration to version 4: Add needs_rewrite_prompt column to stories
+    if (fromVersion < 4) {
+      console.log('Adding needs_rewrite_prompt column to stories table...');
+
+      db.exec('ALTER TABLE stories ADD COLUMN needs_rewrite_prompt INTEGER DEFAULT 0');
+
+      console.log('Added needs_rewrite_prompt column');
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

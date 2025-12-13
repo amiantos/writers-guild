@@ -32,10 +32,21 @@ export const storiesAPI = {
     return request(`/stories/${storyId}`)
   },
 
-  create(title, description = '') {
+  create(title, description = '', options = {}) {
     return request('/stories', {
       method: 'POST',
-      body: JSON.stringify({ title, description }),
+      body: JSON.stringify({
+        title,
+        description,
+        needsRewritePrompt: options.needsRewritePrompt || false
+      }),
+    })
+  },
+
+  setRewritePrompt(storyId, value) {
+    return request(`/stories/${storyId}/rewrite-prompt`, {
+      method: 'POST',
+      body: JSON.stringify({ value }),
     })
   },
 

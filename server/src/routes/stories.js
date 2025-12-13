@@ -31,13 +31,17 @@ router.get('/', asyncHandler(async (req, res) => {
 
 // Create new story
 router.post('/', asyncHandler(async (req, res) => {
-  const { title, description } = req.body;
+  const { title, description, needsRewritePrompt } = req.body;
 
   if (!title || !title.trim()) {
     throw new AppError('Title is required', 400);
   }
 
-  const story = await storage.createStory(title.trim(), description?.trim() || '');
+  const story = await storage.createStory(
+    title.trim(),
+    description?.trim() || '',
+    { needsRewritePrompt: !!needsRewritePrompt }
+  );
 
   // Auto-assign default persona if set in settings
   try {
@@ -58,6 +62,13 @@ router.post('/', asyncHandler(async (req, res) => {
 router.get('/:id', asyncHandler(async (req, res) => {
   const story = await storage.getStory(req.params.id);
   res.json({ story });
+}));
+
+// Set or clear the rewrite prompt flag for a story
+router.post('/:id/rewrite-prompt', asyncHandler(async (req, res) => {
+  const { value } = req.body;
+  await storage.setStoryNeedsRewritePrompt(req.params.id, !!value);
+  res.json({ success: true });
 }));
 
 // Update story metadata
