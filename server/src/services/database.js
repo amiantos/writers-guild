@@ -225,18 +225,17 @@ function migrateSchema(db, fromVersion) {
       db.exec('ALTER TABLE stories ADD COLUMN word_count INTEGER DEFAULT 0');
 
       // Calculate and populate word counts for existing stories
-      // Use iterate() instead of all() for memory efficiency with large datasets
-      const storyIterator = db.prepare('SELECT id, content FROM stories').iterate();
+      // Note: Using .all() here because .iterate() cannot be used with other
+      // statements inside a transaction. For one-time migrations, this is acceptable.
+      const stories = db.prepare('SELECT id, content FROM stories').all();
       const updateStmt = db.prepare('UPDATE stories SET word_count = ? WHERE id = ?');
 
-      let count = 0;
-      for (const story of storyIterator) {
+      for (const story of stories) {
         const wordCount = calculateWordCount(story.content);
         updateStmt.run(wordCount, story.id);
-        count++;
       }
 
-      console.log(`Updated word counts for ${count} existing stories`);
+      console.log(`Updated word counts for ${stories.length} existing stories`);
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
