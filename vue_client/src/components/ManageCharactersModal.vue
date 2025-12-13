@@ -63,7 +63,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Modal from './Modal.vue'
 import CharacterCard from './CharacterCard.vue'
-import { storiesAPI } from '../services/api'
+import { storiesAPI, charactersAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useDataCache } from '../composables/useDataCache'
 
