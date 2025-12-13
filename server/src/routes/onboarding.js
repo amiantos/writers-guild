@@ -225,7 +225,7 @@ function getProviderPresetConfig(provider, apiKey) {
         apiConfig: {
           apiKey: apiKey,
           baseURL: 'https://api.deepseek.com/v1',
-          model: 'deepseek-reasoner'
+          model: 'deepseek-chat'
         },
         ...baseConfig,
         generationSettings: {
