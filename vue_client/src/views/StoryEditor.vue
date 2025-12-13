@@ -577,6 +577,12 @@ async function handleUndo() {
     canUndo.value = result.canUndo
     canRedo.value = result.canRedo
 
+    // Scroll to bottom after content update
+    await nextTick()
+    if (editorRef.value) {
+      editorRef.value.scrollTop = editorRef.value.scrollHeight
+    }
+
     // Clear the flag after a short delay to allow watch to complete
     setTimeout(() => {
       isUndoRedoOperation = false
@@ -607,6 +613,12 @@ async function handleRedo() {
     // Update history status
     canUndo.value = result.canUndo
     canRedo.value = result.canRedo
+
+    // Scroll to bottom after content update
+    await nextTick()
+    if (editorRef.value) {
+      editorRef.value.scrollTop = editorRef.value.scrollHeight
+    }
 
     // Clear the flag after a short delay to allow watch to complete
     setTimeout(() => {
