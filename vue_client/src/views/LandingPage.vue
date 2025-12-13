@@ -342,14 +342,24 @@ async function createStoryWithCharacter(characterId) {
     // Add character to story
     const response = await charactersAPI.addToStory(story.id, characterId)
 
+    // Track whether we should prompt for third-person rewrite
+    let hasFirstMessage = false
+
     // If there's a first message, add it
     if (response.processedFirstMessage) {
       await storiesAPI.updateContent(story.id, response.processedFirstMessage + '\n\n')
+      hasFirstMessage = true
     }
 
     // Invalidate stories cache so it refreshes when returning to dashboard
     invalidateCache('stories')
-    openStory(story.id)
+
+    // Navigate to story, with prompt flag if there's a first message
+    if (hasFirstMessage) {
+      router.push({ name: 'story', params: { storyId: story.id }, query: { promptRewrite: 'true' } })
+    } else {
+      openStory(story.id)
+    }
   } catch (error) {
     console.error('Error creating story with character:', error)
     toast.error('Failed to create story')

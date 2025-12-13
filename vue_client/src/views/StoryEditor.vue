@@ -242,12 +242,20 @@
       :character="firstCharacter"
       @close="showFloatingAvatar = false"
     />
+
+    <!-- Third Person Prompt Modal -->
+    <ThirdPersonPromptModal
+      v-if="showThirdPersonPrompt"
+      @close="showThirdPersonPrompt = false"
+      @rewrite="handleThirdPersonRewrite"
+      @skip="showThirdPersonPrompt = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { storiesAPI, charactersAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
 import { useNavigation } from '../composables/useNavigation'
@@ -264,6 +272,8 @@ import RenameStoryModal from '../components/RenameStoryModal.vue'
 import StoryPresetModal from '../components/StoryPresetModal.vue'
 import IdeateModal from '../components/IdeateModal.vue'
 import FloatingAvatarWindow from '../components/FloatingAvatarWindow.vue'
+import ThirdPersonPromptModal from '../components/ThirdPersonPromptModal.vue'
+import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys'
 
 const props = defineProps({
   storyId: {
@@ -273,6 +283,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 const { goBack } = useNavigation()
 const { confirm } = useConfirm()
@@ -300,6 +311,7 @@ const showIdeateModal = ref(false)
 const ideateResponse = ref('')
 const ideateLoading = ref(false)
 const ideateStatus = ref('Thinking...')
+const showThirdPersonPrompt = ref(false)
 let abortController = null
 
 // Load floating avatar state from localStorage
@@ -350,6 +362,11 @@ function handleKeyboardShortcut(event) {
   }
 }
 
+// Check if we should show the third person prompt (respects "don't ask again" preference)
+function shouldShowThirdPersonPrompt() {
+  return localStorage.getItem(SKIP_THIRD_PERSON_PROMPT_KEY) !== 'true'
+}
+
 onMounted(async () => {
   await loadStory()
   await Promise.all([loadCharacters(), loadSettings()])
@@ -362,6 +379,17 @@ onMounted(async () => {
 
   // Add keyboard shortcut listener
   window.addEventListener('keydown', handleKeyboardShortcut)
+
+  // Check if we should prompt for third-person rewrite (from story creation with first message)
+  if (route.query.promptRewrite === 'true') {
+    // Clear the query param from URL without triggering navigation (preserve other params)
+    router.replace({ query: { ...route.query, promptRewrite: undefined } })
+    if (shouldShowThirdPersonPrompt()) {
+      // Show the prompt after a short delay to let the UI settle
+      await nextTick()
+      showThirdPersonPrompt.value = true
+    }
+  }
 })
 
 onUnmounted(() => {
@@ -630,16 +658,30 @@ async function selectGreeting(greeting) {
   await saveStory()
   showGreetingSelector.value = false
   toast.success('Greeting selected')
+
+  // Prompt user to rewrite to third person if they haven't opted out
+  if (shouldShowThirdPersonPrompt()) {
+    await nextTick()
+    showThirdPersonPrompt.value = true
+  }
 }
 
-async function rewriteToThirdPerson() {
-  const confirmed = await confirm({
-    message: 'This will replace the entire document with a rewritten version in third-person past tense. Continue?',
-    confirmText: 'Rewrite',
-    variant: 'warning'
-  })
+// Handler for when user accepts the third-person prompt
+function handleThirdPersonRewrite() {
+  // Call with skipConfirm=true since user already confirmed via the prompt modal
+  rewriteToThirdPerson(true)
+}
 
-  if (!confirmed) return
+async function rewriteToThirdPerson(skipConfirm = false) {
+  if (!skipConfirm) {
+    const confirmed = await confirm({
+      message: 'This will replace the entire document with a rewritten version in third-person past tense. Continue?',
+      confirmText: 'Rewrite',
+      variant: 'warning'
+    })
+
+    if (!confirmed) return
+  }
 
   // Save before rewriting
   await saveStory(true)
