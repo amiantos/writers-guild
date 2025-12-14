@@ -925,6 +925,9 @@ export class SqliteStorageService {
       this.stmts.setHistoryPosition.run(storyId, newHistoryId);
 
       // Prune old history entries if we have too many
+      // Note: After undo+edit, deleteHistoryAfter has already removed the "future" branch,
+      // so the remaining entries form a linear chain. We keep the most recent entries
+      // (highest IDs) which are the ones reachable via undo from current position.
       const count = this.stmts.countHistory.get(storyId);
       if (count.count > SqliteStorageService.MAX_HISTORY_ENTRIES) {
         this.stmts.pruneOldHistory.run(storyId, storyId, SqliteStorageService.MAX_HISTORY_ENTRIES);
@@ -944,7 +947,11 @@ export class SqliteStorageService {
     }
 
     // Initialize history for existing stories that have content but no history
-    await this.ensureHistoryInitialized(storyId, existing);
+    // Only call if no history exists to avoid unnecessary overhead on every save
+    const historyCount = this.stmts.countHistory.get(storyId)?.count || 0;
+    if (historyCount === 0) {
+      await this.ensureHistoryInitialized(storyId, existing);
+    }
 
     const positionRow = this.stmts.getHistoryPosition.get(storyId);
     const currentHistoryId = positionRow?.history_id;

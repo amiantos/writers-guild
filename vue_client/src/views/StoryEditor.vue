@@ -341,6 +341,7 @@ let autoSaveTimeout = null
 const canUndo = ref(false)
 const canRedo = ref(false)
 let isUndoRedoOperation = false // Flag to skip auto-save during undo/redo
+const undoRedoInProgress = ref(false) // Prevents rapid concurrent undo/redo operations
 
 // Normalize trailing line breaks to exactly 2
 function normalizeTrailingLineBreaks() {
@@ -367,7 +368,7 @@ function handleKeyboardShortcut(event) {
   }
 
   // Cmd/Ctrl+Z for undo, Cmd/Ctrl+Shift+Z for redo
-  if (event.key === 'z' || event.key === 'Z') {
+  if (event.key === 'z') {
     // Don't trigger if generating
     if (generating.value || !story.value) return
 
@@ -556,13 +557,13 @@ function handleInput() {
 }
 
 async function handleUndo() {
-  if (!canUndo.value || generating.value) return
+  if (!canUndo.value || generating.value || undoRedoInProgress.value) return
+
+  undoRedoInProgress.value = true
+  isUndoRedoOperation = true
 
   try {
     const result = await storiesAPI.undo(props.storyId)
-
-    // Set flag before updating content to prevent auto-save
-    isUndoRedoOperation = true
 
     // Update content
     content.value = result.content
@@ -577,26 +578,27 @@ async function handleUndo() {
     if (editorRef.value) {
       editorRef.value.scrollTop = editorRef.value.scrollHeight
     }
-
-    // Clear the flag after Vue's reactivity system has completed updates
-    await nextTick()
-    isUndoRedoOperation = false
   } catch (error) {
     console.error('Failed to undo:', error)
     if (error.message !== 'Nothing to undo') {
       toast.error('Failed to undo: ' + error.message)
     }
+  } finally {
+    // Always clear flags, even on error
+    await nextTick()
+    isUndoRedoOperation = false
+    undoRedoInProgress.value = false
   }
 }
 
 async function handleRedo() {
-  if (!canRedo.value || generating.value) return
+  if (!canRedo.value || generating.value || undoRedoInProgress.value) return
+
+  undoRedoInProgress.value = true
+  isUndoRedoOperation = true
 
   try {
     const result = await storiesAPI.redo(props.storyId)
-
-    // Set flag before updating content to prevent auto-save
-    isUndoRedoOperation = true
 
     // Update content
     content.value = result.content
@@ -611,15 +613,16 @@ async function handleRedo() {
     if (editorRef.value) {
       editorRef.value.scrollTop = editorRef.value.scrollHeight
     }
-
-    // Clear the flag after Vue's reactivity system has completed updates
-    await nextTick()
-    isUndoRedoOperation = false
   } catch (error) {
     console.error('Failed to redo:', error)
     if (error.message !== 'Nothing to redo') {
       toast.error('Failed to redo: ' + error.message)
     }
+  } finally {
+    // Always clear flags, even on error
+    await nextTick()
+    isUndoRedoOperation = false
+    undoRedoInProgress.value = false
   }
 }
 
