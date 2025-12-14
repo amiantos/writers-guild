@@ -280,7 +280,11 @@ router.post('/:lorebookId/entries', asyncHandler(async (req, res) => {
   // Save
   await storage.saveLorebook(lorebookId, lorebook);
 
-  res.json({ entry: newEntry });
+  // Refetch to get actual entry ID from database
+  const savedLorebook = await storage.getLorebook(lorebookId);
+  const savedEntry = savedLorebook.entries[savedLorebook.entries.length - 1];
+
+  res.json({ entry: savedEntry });
 }));
 
 /**
