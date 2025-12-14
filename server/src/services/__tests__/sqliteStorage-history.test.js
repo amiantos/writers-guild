@@ -116,6 +116,42 @@ describe('SqliteStorageService - History Operations', () => {
     });
   });
 
+  describe('saveToHistory', () => {
+    it('should not create duplicate entry when saving same content as latest history', async () => {
+      // Create a story
+      const storyId = uuidv4();
+      const now = new Date().toISOString();
+
+      storage.stmts.insertStory.run({
+        id: storyId,
+        title: 'Test Story',
+        description: 'Description',
+        content: '',
+        wordCount: 0,
+        needsRewritePrompt: 0,
+        personaCharacterId: null,
+        configPresetId: null,
+        created: now,
+        modified: now
+      });
+
+      // Call saveToHistory directly with some content
+      await storage.saveToHistory(storyId, 'Test content', 2);
+
+      // Verify one history entry exists
+      let historyCount = storage.stmts.countHistory.get(storyId);
+      expect(historyCount.count).toBe(1);
+
+      // Call saveToHistory again with the SAME content
+      // This should hit the duplicate detection code path (lines 909-910)
+      await storage.saveToHistory(storyId, 'Test content', 2);
+
+      // Should still have only one history entry
+      historyCount = storage.stmts.countHistory.get(storyId);
+      expect(historyCount.count).toBe(1);
+    });
+  });
+
   describe('undoStoryContent edge cases', () => {
     it('should return null when story has no history', async () => {
       // Create a story with no content (no history will be created)
