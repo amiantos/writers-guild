@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 /**
  * Initialize the SQLite database with schema
@@ -193,6 +193,27 @@ function createAllTables(db) {
 
     -- Character-Lorebook relationship (one-to-one optional)
     -- Stored in characters.data JSON as extensions.ursceal_lorebook_id
+
+    -- Story history for undo/redo functionality
+    CREATE TABLE IF NOT EXISTS story_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      story_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      word_count INTEGER DEFAULT 0,
+      created TEXT NOT NULL,
+      FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE
+    );
+
+    -- Index for fast history lookups by story
+    CREATE INDEX IF NOT EXISTS idx_story_history_story ON story_history(story_id, id);
+
+    -- Track current position in history for each story (for undo/redo navigation)
+    CREATE TABLE IF NOT EXISTS story_history_position (
+      story_id TEXT PRIMARY KEY,
+      history_id INTEGER,
+      FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+      FOREIGN KEY (history_id) REFERENCES story_history(id) ON DELETE SET NULL
+    );
   `);
 
   console.log('Database schema created successfully');
@@ -271,6 +292,36 @@ function migrateSchema(db, fromVersion) {
       db.exec("ALTER TABLE stories ADD COLUMN avatar_windows TEXT DEFAULT '[]'");
 
       console.log('Added avatar_windows column');
+    }
+
+    // Migration to version 6: Add story_history tables for undo/redo
+    if (fromVersion < 6) {
+      console.log('Adding story_history tables for undo/redo functionality...');
+
+      db.exec(`
+        -- Story history for undo/redo functionality
+        CREATE TABLE IF NOT EXISTS story_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          story_id TEXT NOT NULL,
+          content TEXT NOT NULL,
+          word_count INTEGER DEFAULT 0,
+          created TEXT NOT NULL,
+          FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE
+        );
+
+        -- Index for fast history lookups by story
+        CREATE INDEX IF NOT EXISTS idx_story_history_story ON story_history(story_id, id);
+
+        -- Track current position in history for each story (for undo/redo navigation)
+        CREATE TABLE IF NOT EXISTS story_history_position (
+          story_id TEXT PRIMARY KEY,
+          history_id INTEGER,
+          FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+          FOREIGN KEY (history_id) REFERENCES story_history(id) ON DELETE SET NULL
+        );
+      `);
+
+      console.log('Added story_history tables');
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

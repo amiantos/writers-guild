@@ -93,14 +93,6 @@
         <!-- Toolbar Buttons -->
         <div v-else class="toolbar-main-buttons">
           <button
-            class="btn btn-secondary icon-btn"
-            @click="saveStory"
-            :title="hasUnsavedChanges ? 'Save changes' : 'All changes saved'"
-          >
-            <i v-if="hasUnsavedChanges" class="fas fa-floppy-disk"></i>
-            <i v-else class="fas fa-check"></i>
-          </button>
-          <button
             class="btn btn-secondary"
             :disabled="!story || storyCharacters.length === 0"
             @click="handleCharacterResponse"
@@ -121,12 +113,33 @@
           >
             <i class="fas fa-wand-magic-sparkles"></i> Continue with Instruction
           </button>
-          <button
-            class="btn btn-secondary icon-btn"
-            @click="showOverflowMenu = !showOverflowMenu"
-          >
-            <i class="fas fa-ellipsis-vertical"></i>
-          </button>
+          <div class="toolbar-icon-group">
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="handleUndo"
+              :disabled="!canUndo"
+              title="Undo (Ctrl/Cmd+Z)"
+              aria-label="Undo"
+            >
+              <i class="fas fa-rotate-left" aria-hidden="true"></i>
+            </button>
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="handleRedo"
+              :disabled="!canRedo"
+              title="Redo (Ctrl/Cmd+Shift+Z)"
+              aria-label="Redo"
+            >
+              <i class="fas fa-rotate-right" aria-hidden="true"></i>
+            </button>
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="showOverflowMenu = !showOverflowMenu"
+              aria-label="More options"
+            >
+              <i class="fas fa-ellipsis-vertical" aria-hidden="true"></i>
+            </button>
+          </div>
 
           <!-- Overflow Menu -->
           <div v-if="showOverflowMenu" class="overflow-menu" @click="showOverflowMenu = false">
@@ -260,7 +273,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { storiesAPI, charactersAPI, settingsAPI } from '../services/api'
 import { useToast } from '../composables/useToast'
@@ -326,13 +339,14 @@ const avatarWindows = ref([])
 const storyCharacters = ref([])
 const shouldShowReasoning = ref(false) // Setting from server
 
-// Computed
-const hasUnsavedChanges = computed(() => {
-  return content.value !== originalContent.value
-})
-
 // Auto-save
 let autoSaveTimeout = null
+
+// Undo/Redo state
+const canUndo = ref(false)
+const canRedo = ref(false)
+let isUndoRedoOperation = false // Flag to skip auto-save during undo/redo
+const undoRedoInProgress = ref(false) // Prevents rapid concurrent undo/redo operations
 
 // Normalize trailing line breaks to exactly 2
 function normalizeTrailingLineBreaks() {
@@ -340,7 +354,7 @@ function normalizeTrailingLineBreaks() {
   content.value = trimmed + '\n\n'
 }
 
-// Keyboard shortcut handler for quick paragraph generation and modal opening
+// Keyboard shortcut handler for quick paragraph generation, modal opening, and undo/redo
 function handleKeyboardShortcut(event) {
   // Check for Cmd (Mac) or Ctrl (Windows/Linux) modifier
   const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
@@ -355,6 +369,23 @@ function handleKeyboardShortcut(event) {
 
     event.preventDefault()
     showCustomPromptModal.value = true
+    return
+  }
+
+  // Cmd/Ctrl+Z for undo, Cmd/Ctrl+Shift+Z for redo
+  if (event.key === 'z') {
+    // Don't trigger if generating
+    if (generating.value || !story.value) return
+
+    if (event.shiftKey) {
+      // Redo
+      event.preventDefault()
+      handleRedo()
+    } else {
+      // Undo
+      event.preventDefault()
+      handleUndo()
+    }
   }
 }
 
@@ -406,6 +437,11 @@ onUnmounted(() => {
 
 // Watch content changes for auto-save
 watch(content, () => {
+  // Skip auto-save if this is an undo/redo operation
+  if (isUndoRedoOperation) {
+    return
+  }
+
   if (autoSaveTimeout) {
     clearTimeout(autoSaveTimeout)
   }
@@ -441,6 +477,15 @@ async function loadStory() {
     originalContent.value = content.value
     // Update page title with story name
     setPageTitle(loadedStory.title || 'Untitled Story')
+
+    // Fetch initial history status
+    try {
+      const historyStatus = await storiesAPI.getHistoryStatus(props.storyId)
+      canUndo.value = historyStatus.canUndo
+      canRedo.value = historyStatus.canRedo
+    } catch (err) {
+      console.error('Failed to load history status:', err)
+    }
   } catch (error) {
     console.error('Failed to load story:', error)
     toast.error('Failed to load story: ' + error.message)
@@ -480,8 +525,17 @@ async function saveStory(silent = false) {
   }
 
   try {
-    await storiesAPI.updateContent(props.storyId, content.value)
+    const result = await storiesAPI.updateContent(props.storyId, content.value)
     originalContent.value = content.value
+
+    // Update history status from response
+    if (result.canUndo !== undefined) {
+      canUndo.value = result.canUndo
+    }
+    if (result.canRedo !== undefined) {
+      canRedo.value = result.canRedo
+    }
+
     if (!silent) {
       toast.success('Story saved')
     }
@@ -505,6 +559,76 @@ function stopAutoSave() {
 
 function handleInput() {
   // Handled by watch
+}
+
+async function handleUndo() {
+  if (!canUndo.value || generating.value || undoRedoInProgress.value) return
+
+  undoRedoInProgress.value = true
+  isUndoRedoOperation = true
+
+  try {
+    const result = await storiesAPI.undo(props.storyId)
+
+    // Update content
+    content.value = result.content
+    originalContent.value = result.content
+
+    // Update history status
+    canUndo.value = result.canUndo
+    canRedo.value = result.canRedo
+
+    // Scroll to bottom after content update
+    await nextTick()
+    if (editorRef.value) {
+      editorRef.value.scrollTop = editorRef.value.scrollHeight
+    }
+  } catch (error) {
+    console.error('Failed to undo:', error)
+    if (error.message !== 'Nothing to undo') {
+      toast.error('Failed to undo: ' + error.message)
+    }
+  } finally {
+    // Always clear flags, even on error
+    await nextTick()
+    isUndoRedoOperation = false
+    undoRedoInProgress.value = false
+  }
+}
+
+async function handleRedo() {
+  if (!canRedo.value || generating.value || undoRedoInProgress.value) return
+
+  undoRedoInProgress.value = true
+  isUndoRedoOperation = true
+
+  try {
+    const result = await storiesAPI.redo(props.storyId)
+
+    // Update content
+    content.value = result.content
+    originalContent.value = result.content
+
+    // Update history status
+    canUndo.value = result.canUndo
+    canRedo.value = result.canRedo
+
+    // Scroll to bottom after content update
+    await nextTick()
+    if (editorRef.value) {
+      editorRef.value.scrollTop = editorRef.value.scrollHeight
+    }
+  } catch (error) {
+    console.error('Failed to redo:', error)
+    if (error.message !== 'Nothing to redo') {
+      toast.error('Failed to redo: ' + error.message)
+    }
+  } finally {
+    // Always clear flags, even on error
+    await nextTick()
+    isUndoRedoOperation = false
+    undoRedoInProgress.value = false
+  }
 }
 
 async function handleContinue() {
@@ -1134,6 +1258,12 @@ function saveAvatarWindows() {
 
 .toolbar-main-buttons .btn:not(.icon-btn) {
   flex: 1;
+}
+
+.toolbar-icon-group {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
 }
 
 .overflow-menu {
