@@ -119,22 +119,25 @@
               @click="handleUndo"
               :disabled="!canUndo"
               title="Undo (Ctrl/Cmd+Z)"
+              aria-label="Undo"
             >
-              <i class="fas fa-rotate-left"></i>
+              <i class="fas fa-rotate-left" aria-hidden="true"></i>
             </button>
             <button
               class="btn btn-secondary icon-btn"
               @click="handleRedo"
               :disabled="!canRedo"
               title="Redo (Ctrl/Cmd+Shift+Z)"
+              aria-label="Redo"
             >
-              <i class="fas fa-rotate-right"></i>
+              <i class="fas fa-rotate-right" aria-hidden="true"></i>
             </button>
             <button
               class="btn btn-secondary icon-btn"
               @click="showOverflowMenu = !showOverflowMenu"
+              aria-label="More options"
             >
-              <i class="fas fa-ellipsis-vertical"></i>
+              <i class="fas fa-ellipsis-vertical" aria-hidden="true"></i>
             </button>
           </div>
 
