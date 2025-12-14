@@ -902,11 +902,6 @@ export class SqliteStorageService {
     const positionRow = this.stmts.getHistoryPosition.get(storyId);
     const currentHistoryId = positionRow?.history_id;
 
-    // If we have a current position, delete all entries after it (user made new edit after undo)
-    if (currentHistoryId) {
-      this.stmts.deleteHistoryAfter.run(storyId, currentHistoryId);
-    }
-
     // Check if the latest history entry has the same content (avoid duplicates)
     const latest = this.stmts.getLatestHistory.get(storyId);
     if (latest && latest.content === content) {
@@ -915,18 +910,27 @@ export class SqliteStorageService {
       return;
     }
 
-    // Insert new history entry
-    const result = this.stmts.insertHistory.run(storyId, content, wordCount, now);
-    const newHistoryId = result.lastInsertRowid;
+    // Use transaction to ensure atomicity
+    const transaction = this.db.transaction(() => {
+      // If we have a current position, delete all entries after it (user made new edit after undo)
+      if (currentHistoryId) {
+        this.stmts.deleteHistoryAfter.run(storyId, currentHistoryId);
+      }
 
-    // Update position to point to new entry
-    this.stmts.setHistoryPosition.run(storyId, newHistoryId);
+      // Insert new history entry
+      const result = this.stmts.insertHistory.run(storyId, content, wordCount, now);
+      const newHistoryId = result.lastInsertRowid;
 
-    // Prune old history entries if we have too many
-    const count = this.stmts.countHistory.get(storyId);
-    if (count.count > SqliteStorageService.MAX_HISTORY_ENTRIES) {
-      this.stmts.pruneOldHistory.run(storyId, storyId, SqliteStorageService.MAX_HISTORY_ENTRIES);
-    }
+      // Update position to point to new entry
+      this.stmts.setHistoryPosition.run(storyId, newHistoryId);
+
+      // Prune old history entries if we have too many
+      const count = this.stmts.countHistory.get(storyId);
+      if (count.count > SqliteStorageService.MAX_HISTORY_ENTRIES) {
+        this.stmts.pruneOldHistory.run(storyId, storyId, SqliteStorageService.MAX_HISTORY_ENTRIES);
+      }
+    });
+    transaction();
   }
 
   /**
@@ -976,8 +980,12 @@ export class SqliteStorageService {
       const wordCount = calculateWordCount(story.content);
       const now = new Date().toISOString();
 
-      const result = this.stmts.insertHistory.run(storyId, story.content, wordCount, now);
-      this.stmts.setHistoryPosition.run(storyId, result.lastInsertRowid);
+      // Use transaction to ensure atomicity
+      const transaction = this.db.transaction(() => {
+        const result = this.stmts.insertHistory.run(storyId, story.content, wordCount, now);
+        this.stmts.setHistoryPosition.run(storyId, result.lastInsertRowid);
+      });
+      transaction();
     }
   }
 
@@ -1005,12 +1013,17 @@ export class SqliteStorageService {
       return null; // Nothing to undo
     }
 
-    // Update position to previous entry
-    this.stmts.setHistoryPosition.run(storyId, previousEntry.id);
-
-    // Update the story content (skip history save since this is an undo)
     const modified = new Date().toISOString();
-    this.stmts.updateStoryContent.run(previousEntry.content, previousEntry.word_count, modified, storyId);
+
+    // Use transaction to ensure atomicity
+    const transaction = this.db.transaction(() => {
+      // Update position to previous entry
+      this.stmts.setHistoryPosition.run(storyId, previousEntry.id);
+
+      // Update the story content (skip history save since this is an undo)
+      this.stmts.updateStoryContent.run(previousEntry.content, previousEntry.word_count, modified, storyId);
+    });
+    transaction();
 
     // Get updated status
     const status = await this.getHistoryStatus(storyId);
@@ -1047,12 +1060,17 @@ export class SqliteStorageService {
       return null; // Nothing to redo
     }
 
-    // Update position to next entry
-    this.stmts.setHistoryPosition.run(storyId, nextEntry.id);
-
-    // Update the story content (skip history save since this is a redo)
     const modified = new Date().toISOString();
-    this.stmts.updateStoryContent.run(nextEntry.content, nextEntry.word_count, modified, storyId);
+
+    // Use transaction to ensure atomicity
+    const transaction = this.db.transaction(() => {
+      // Update position to next entry
+      this.stmts.setHistoryPosition.run(storyId, nextEntry.id);
+
+      // Update the story content (skip history save since this is a redo)
+      this.stmts.updateStoryContent.run(nextEntry.content, nextEntry.word_count, modified, storyId);
+    });
+    transaction();
 
     // Get updated status
     const status = await this.getHistoryStatus(storyId);

@@ -101,9 +101,9 @@
             <i class="fas fa-rotate-left"></i>
           </button>
           <button
-            v-if="canRedo"
             class="btn btn-secondary icon-btn"
             @click="handleRedo"
+            :disabled="!canRedo"
             title="Redo (Ctrl/Cmd+Shift+Z)"
           >
             <i class="fas fa-rotate-right"></i>
@@ -578,10 +578,9 @@ async function handleUndo() {
       editorRef.value.scrollTop = editorRef.value.scrollHeight
     }
 
-    // Clear the flag after a short delay to allow watch to complete
-    setTimeout(() => {
-      isUndoRedoOperation = false
-    }, 50)
+    // Clear the flag after Vue's reactivity system has completed updates
+    await nextTick()
+    isUndoRedoOperation = false
   } catch (error) {
     console.error('Failed to undo:', error)
     if (error.message !== 'Nothing to undo') {
@@ -613,10 +612,9 @@ async function handleRedo() {
       editorRef.value.scrollTop = editorRef.value.scrollHeight
     }
 
-    // Clear the flag after a short delay to allow watch to complete
-    setTimeout(() => {
-      isUndoRedoOperation = false
-    }, 50)
+    // Clear the flag after Vue's reactivity system has completed updates
+    await nextTick()
+    isUndoRedoOperation = false
   } catch (error) {
     console.error('Failed to redo:', error)
     if (error.message !== 'Nothing to redo') {
