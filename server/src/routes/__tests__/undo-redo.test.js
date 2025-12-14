@@ -408,6 +408,63 @@ describe('Undo/Redo API Routes', () => {
     });
   });
 
+  describe('Edge cases', () => {
+    it('should return nothing to undo when already at oldest entry', async () => {
+      // Create history with just one entry
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content: 'Only version' })
+        .expect(200);
+
+      // First undo attempt should fail (only one version, nothing before it)
+      const response = await request(app)
+        .post(`/api/stories/${storyId}/undo`)
+        .expect(400);
+
+      expect(response.body.error).toBe('Nothing to undo');
+    });
+
+    it('should return nothing to undo after undoing to oldest entry', async () => {
+      // Create two versions
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content: 'Version 1' })
+        .expect(200);
+
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content: 'Version 2' })
+        .expect(200);
+
+      // Undo once (to Version 1)
+      await request(app)
+        .post(`/api/stories/${storyId}/undo`)
+        .expect(200);
+
+      // Try to undo again - should fail, already at oldest
+      const response = await request(app)
+        .post(`/api/stories/${storyId}/undo`)
+        .expect(400);
+
+      expect(response.body.error).toBe('Nothing to undo');
+    });
+
+    it('should return nothing to redo when no redo history exists', async () => {
+      // Create a version
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content: 'Some content' })
+        .expect(200);
+
+      // Try to redo without any prior undo
+      const response = await request(app)
+        .post(`/api/stories/${storyId}/redo`)
+        .expect(400);
+
+      expect(response.body.error).toBe('Nothing to redo');
+    });
+  });
+
   describe('History limits', () => {
     it('should limit history to 50 entries (prune oldest)', async () => {
       // Create 55 versions
