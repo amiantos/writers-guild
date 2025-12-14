@@ -190,6 +190,9 @@ export class SqliteStorageService {
         WHERE story_id = ?
         ORDER BY id DESC LIMIT 1
       `),
+      getHistoryEntry: this.db.prepare(`
+        SELECT * FROM story_history WHERE id = ?
+      `),
       countHistoryBefore: this.db.prepare(`
         SELECT COUNT(*) as count FROM story_history
         WHERE story_id = ? AND id < ?
@@ -902,12 +905,14 @@ export class SqliteStorageService {
     const positionRow = this.stmts.getHistoryPosition.get(storyId);
     const currentHistoryId = positionRow?.history_id;
 
-    // Check if the latest history entry has the same content (avoid duplicates)
-    const latest = this.stmts.getLatestHistory.get(storyId);
-    if (latest && latest.content === content) {
-      // Content is the same as latest, just update position to latest
-      this.stmts.setHistoryPosition.run(storyId, latest.id);
-      return;
+    // Check if content matches the entry at CURRENT position (not latest)
+    // This correctly handles the case where user undos and types same content
+    if (currentHistoryId) {
+      const currentEntry = this.stmts.getHistoryEntry.get(currentHistoryId);
+      if (currentEntry && currentEntry.content === content) {
+        // Content is the same as current position, no need to save
+        return;
+      }
     }
 
     // Use transaction to ensure atomicity
