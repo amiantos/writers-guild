@@ -101,9 +101,9 @@
             <i class="fas fa-rotate-left"></i>
           </button>
           <button
+            v-if="canRedo"
             class="btn btn-secondary icon-btn"
             @click="handleRedo"
-            :disabled="!canRedo"
             title="Redo (Ctrl/Cmd+Shift+Z)"
           >
             <i class="fas fa-rotate-right"></i>
