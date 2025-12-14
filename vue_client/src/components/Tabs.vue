@@ -87,6 +87,6 @@ defineEmits(['update:modelValue'])
 }
 
 .tabs-content {
-  padding: 1.5rem;
+  padding: 1.5rem 0;
 }
 </style>
