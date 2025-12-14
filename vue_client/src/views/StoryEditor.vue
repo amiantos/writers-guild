@@ -93,22 +93,6 @@
         <!-- Toolbar Buttons -->
         <div v-else class="toolbar-main-buttons">
           <button
-            class="btn btn-secondary icon-btn"
-            @click="handleUndo"
-            :disabled="!canUndo"
-            title="Undo (Ctrl/Cmd+Z)"
-          >
-            <i class="fas fa-rotate-left"></i>
-          </button>
-          <button
-            v-if="canRedo"
-            class="btn btn-secondary icon-btn"
-            @click="handleRedo"
-            title="Redo (Ctrl/Cmd+Shift+Z)"
-          >
-            <i class="fas fa-rotate-right"></i>
-          </button>
-          <button
             class="btn btn-secondary"
             :disabled="!story || storyCharacters.length === 0"
             @click="handleCharacterResponse"
@@ -129,12 +113,30 @@
           >
             <i class="fas fa-wand-magic-sparkles"></i> Continue with Instruction
           </button>
-          <button
-            class="btn btn-secondary icon-btn"
-            @click="showOverflowMenu = !showOverflowMenu"
-          >
-            <i class="fas fa-ellipsis-vertical"></i>
-          </button>
+          <div class="toolbar-icon-group">
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="handleUndo"
+              :disabled="!canUndo"
+              title="Undo (Ctrl/Cmd+Z)"
+            >
+              <i class="fas fa-rotate-left"></i>
+            </button>
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="handleRedo"
+              :disabled="!canRedo"
+              title="Redo (Ctrl/Cmd+Shift+Z)"
+            >
+              <i class="fas fa-rotate-right"></i>
+            </button>
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="showOverflowMenu = !showOverflowMenu"
+            >
+              <i class="fas fa-ellipsis-vertical"></i>
+            </button>
+          </div>
 
           <!-- Overflow Menu -->
           <div v-if="showOverflowMenu" class="overflow-menu" @click="showOverflowMenu = false">
@@ -1253,6 +1255,12 @@ function saveAvatarWindows() {
 
 .toolbar-main-buttons .btn:not(.icon-btn) {
   flex: 1;
+}
+
+.toolbar-icon-group {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
 }
 
 .overflow-menu {
