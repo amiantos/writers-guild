@@ -144,6 +144,32 @@
           <pre class="default-content">{{ DEFAULT_TEMPLATES.rewriteThirdPerson }}</pre>
         </div>
       </div>
+
+      <!-- Ideate Template -->
+      <div class="form-group">
+        <div class="label-row">
+          <label for="templateIdeate">Ideate Template</label>
+          <button
+            type="button"
+            class="btn-toggle"
+            @click="toggleCustomization('ideate')"
+          >
+            {{ isCustomized('ideate') ? 'Use Default' : 'Customize' }}
+          </button>
+        </div>
+        <textarea
+          v-if="isCustomized('ideate')"
+          id="templateIdeate"
+          v-model="localTemplates.ideate"
+          class="textarea-input"
+          rows="3"
+          placeholder="Enter custom ideate template..."
+        ></textarea>
+        <div v-else class="default-display">
+          <div class="default-label">Using System Default:</div>
+          <pre class="default-content">{{ DEFAULT_TEMPLATES.ideate }}</pre>
+        </div>
+      </div>
     </section>
   </div>
 </template>
@@ -158,7 +184,8 @@ const DEFAULT_TEMPLATES = ref({
   continue: '',
   character: '',
   instruction: '',
-  rewriteThirdPerson: ''
+  rewriteThirdPerson: '',
+  ideate: ''
 })
 
 const isLoading = ref(true)
@@ -192,7 +219,8 @@ const getTemplates = () => {
     continue: templates.continue ?? null,
     character: templates.character ?? null,
     instruction: templates.instruction ?? null,
-    rewriteThirdPerson: templates.rewriteThirdPerson ?? null
+    rewriteThirdPerson: templates.rewriteThirdPerson ?? null,
+    ideate: templates.ideate ?? null
   }
 }
 
@@ -226,6 +254,10 @@ const localTemplates = reactive({
   rewriteThirdPerson: computed({
     get: () => getTemplates().rewriteThirdPerson,
     set: (value) => updateTemplate('rewriteThirdPerson', value)
+  }),
+  ideate: computed({
+    get: () => getTemplates().ideate,
+    set: (value) => updateTemplate('ideate', value)
   })
 })
 

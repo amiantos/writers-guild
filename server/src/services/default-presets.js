@@ -89,7 +89,7 @@ export const DEFAULT_PROMPT_TEMPLATES = {
 
   rewriteThirdPerson: "Rewrite the following text to be in third person narrative perspective, using past tense. Assume reference to \"you\" in the original text are meant to reference the user's Persona, if one is provided. Change all verbs to past tense. Maintain the same events, dialogue, and meaning, but from a third-person narrator's viewpoint. Feel free to correct errors in grammar, punctuation, and paragraph formatting. Only return the rewritten text by itself in your response.\n\nText to rewrite:\n\n{{storyContent}}",
 
-  ideate: "{{instruction}}"
+  ideate: "Instead of continuing the story, please provide 3-5 creative suggestions for what {{user}} could do next to move this story forward. Consider the characters, setting, and current situation. Format your response as a numbered list of actionable ideas."
 };
 
 export function getDefaultPresets() {

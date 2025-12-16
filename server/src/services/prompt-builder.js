@@ -317,7 +317,7 @@ export class PromptBuilder {
    * Build generation prompt based on type
    */
   buildGenerationPrompt(type, params) {
-    const { storyContent, characterName, customInstruction, templateText, maxChars } = params;
+    const { storyContent, characterName, customInstruction, templateText, maxChars, userName } = params;
 
     let storyContext = "";
     let instruction = "";
@@ -341,6 +341,7 @@ export class PromptBuilder {
       if (storyContent) {
         instruction = instruction.replace(/\{\{storyContent\}\}/g, storyContent);
       }
+      instruction = instruction.replace(/\{\{user\}\}/gi, userName || 'the user');
 
       // If template doesn't use {{storyContent}}, add story context separately
       if (storyContent && storyContent.trim() && !templateText.includes('{{storyContent}}')) {
@@ -388,6 +389,7 @@ export class PromptBuilder {
       if (storyContent) {
         instruction = instruction.replace(/\{\{storyContent\}\}/g, storyContent);
       }
+      instruction = instruction.replace(/\{\{user\}\}/gi, userName || 'the user');
 
       // Only add story context separately if template doesn't use {{storyContent}}
       if (storyContent && storyContent.trim() && !defaultTemplate.includes('{{storyContent}}')) {
@@ -433,7 +435,8 @@ export class PromptBuilder {
       characterName,
       customInstruction,
       templateText,
-      systemPromptTemplate = null
+      systemPromptTemplate = null,
+      userName
     } = options;
 
     // Build system prompt first (with custom template if provided and not null)
@@ -459,7 +462,8 @@ export class PromptBuilder {
       characterName,
       customInstruction,
       templateText,
-      maxChars: availableChars
+      maxChars: availableChars,
+      userName
     });
 
     return {

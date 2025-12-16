@@ -855,14 +855,13 @@ router.post('/:id/ideate', asyncHandler(async (req, res) => {
     }
   });
 
-  // Build a custom prompt for ideation
+  // Get userName for ideate prompt template
   const userName = persona?.name || 'the user';
-  const customInstruction = `Instead of continuing the story, please provide 3-5 creative suggestions for what ${userName} could do next to move this story forward. Consider the characters, setting, and current situation. Format your response as a numbered list of actionable ideas.`;
 
   try {
     await streamGeneration(res, provider, preset, context, 'ideate', {
       characterCards,
-      customInstruction
+      userName
     }, abortController.signal);
   } catch (error) {
     if (error.message === 'Generation cancelled' || abortController.signal.aborted) {
