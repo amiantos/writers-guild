@@ -348,10 +348,6 @@ export class PromptBuilder {
       }
     } else {
       // Use default templates
-      if (storyContent && storyContent.trim()) {
-        storyContext = this.truncateStoryContent(storyContent, maxChars);
-      }
-
       const templates = this.config.instructionTemplates;
 
       // Get the default template based on type
@@ -388,6 +384,14 @@ export class PromptBuilder {
       }
       if (customInstruction) {
         instruction = instruction.replace(/\{\{instruction\}\}/g, customInstruction);
+      }
+      if (storyContent) {
+        instruction = instruction.replace(/\{\{storyContent\}\}/g, storyContent);
+      }
+
+      // Only add story context separately if template doesn't use {{storyContent}}
+      if (storyContent && storyContent.trim() && !defaultTemplate.includes('{{storyContent}}')) {
+        storyContext = this.truncateStoryContent(storyContent, maxChars);
       }
     }
 
