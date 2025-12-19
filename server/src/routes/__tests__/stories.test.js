@@ -707,5 +707,45 @@ describe('Stories API Routes - Auto-Title Functionality', () => {
         .expect(200);
       expect(getResponse.body.story.title).toBe('My Custom Adventure');
     });
+
+    it('should trim whitespace from character names in titles', async () => {
+      // Create a character with whitespace-padded name
+      const charResponse = await request(app)
+        .post('/api/characters')
+        .send({ name: '  Alice  ' })
+        .expect(201);
+      const characterId = charResponse.body.id;
+
+      // Create a story
+      const storyResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Untitled Story' })
+        .expect(201);
+      const storyId = storyResponse.body.story.id;
+
+      // Add character - title should use trimmed name
+      const addResponse = await request(app)
+        .post(`/api/stories/${storyId}/characters`)
+        .send({ characterId })
+        .expect(200);
+
+      // The title should have trimmed whitespace
+      expect(addResponse.body.updatedTitle).toBe('A Story with Alice');
+    });
+
+    it('should handle removing non-existent character gracefully', async () => {
+      // Create a story
+      const storyResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Untitled Story' })
+        .expect(201);
+      const storyId = storyResponse.body.story.id;
+
+      // Try to remove a character that was never added
+      // This should fail gracefully (storage layer handles this)
+      await request(app)
+        .delete(`/api/stories/${storyId}/characters/non-existent-char-id`)
+        .expect(200); // Storage layer allows this operation even if char wasn't in story
+    });
   });
 });
