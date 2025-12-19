@@ -496,8 +496,8 @@ describe('Stories API Routes - Auto-Title Functionality', () => {
       expect(title).toContain('Bob');
       expect(title).toContain('Charlie');
       expect(title).toContain(', and ');
-      // Verify it has the comma-separated format
-      expect(title).toMatch(/A Story with \w+, \w+, and \w+$/);
+      // Verify it has the comma-separated format (allowing names with spaces/hyphens/etc.)
+      expect(title).toMatch(/^A Story with [^,]+, [^,]+, and [^,]+$/);
     });
 
     it('should update existing auto-generated title starting with "Story with"', async () => {
