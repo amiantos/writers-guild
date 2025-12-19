@@ -179,13 +179,14 @@ import { computed, reactive, ref, onMounted } from 'vue'
 import { presetsAPI } from '../../../services/api'
 
 // Default templates fetched from server (single source of truth)
+// These are placeholder defaults that get replaced by server values on mount
 const DEFAULT_TEMPLATES = ref({
   systemPrompt: '',
   continue: '',
   character: '',
   instruction: '',
   rewriteThirdPerson: '',
-  ideate: ''
+  ideate: 'Instead of continuing the story, please provide 3-5 creative suggestions for what {{user}} could do next to move this story forward. Consider the characters, setting, and current situation. Format your response as a numbered list of actionable ideas.'
 })
 
 const isLoading = ref(true)
@@ -194,7 +195,11 @@ const isLoading = ref(true)
 onMounted(async () => {
   try {
     const templates = await presetsAPI.getDefaultTemplates()
-    DEFAULT_TEMPLATES.value = templates
+    // Merge with existing defaults to ensure new fields are preserved
+    DEFAULT_TEMPLATES.value = {
+      ...DEFAULT_TEMPLATES.value,
+      ...templates
+    }
   } catch (error) {
     console.error('Failed to load default templates:', error)
   } finally {

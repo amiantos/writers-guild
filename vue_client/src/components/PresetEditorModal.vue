@@ -110,7 +110,8 @@ const formData = ref({
     continue: null,
     character: null,
     instruction: null,
-    rewriteThirdPerson: null
+    rewriteThirdPerson: null,
+    ideate: null
   }
 })
 
@@ -141,7 +142,8 @@ onMounted(async () => {
         continue: presetTemplates.continue ?? null,
         character: presetTemplates.character ?? null,
         instruction: presetTemplates.instruction ?? null,
-        rewriteThirdPerson: presetTemplates.rewriteThirdPerson ?? null
+        rewriteThirdPerson: presetTemplates.rewriteThirdPerson ?? null,
+        ideate: presetTemplates.ideate ?? null
       }
 
       formData.value = {
