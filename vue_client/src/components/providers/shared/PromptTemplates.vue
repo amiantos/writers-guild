@@ -186,7 +186,7 @@ const DEFAULT_TEMPLATES = ref({
   character: '',
   instruction: '',
   rewriteThirdPerson: '',
-  ideate: 'Instead of continuing the story, please provide 3-5 creative suggestions for what {{user}} could do next to move this story forward. Consider the characters, setting, and current situation. Format your response as a numbered list of actionable ideas.'
+  ideate: ''
 })
 
 const isLoading = ref(true)
