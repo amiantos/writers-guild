@@ -1,0 +1,70 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import Database from 'better-sqlite3';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import {
+  openBureauDb,
+  closeBureauDb,
+  migrateBureauDb,
+  BUREAU_DB_FILENAME,
+  BUREAU_SCHEMA_VERSION,
+} from '../bureau-db.js';
+
+describe('bureau-db', () => {
+  let tempDir;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bureau-db-'));
+  });
+
+  afterEach(() => {
+    closeBureauDb(tempDir);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('creates bureau.db with the current schema', () => {
+    const db = openBureauDb(tempDir);
+
+    expect(fs.existsSync(path.join(tempDir, BUREAU_DB_FILENAME))).toBe(true);
+    expect(db.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((table) => table.name);
+    expect(tables).toEqual(
+      expect.arrayContaining(['bureaus', 'cast_members', 'agent_runs', 'agent_steps']),
+    );
+  });
+
+  it('leaves writers-guild.db alone', () => {
+    openBureauDb(tempDir);
+    expect(fs.existsSync(path.join(tempDir, 'writers-guild.db'))).toBe(false);
+  });
+
+  it('reuses one connection per data root', () => {
+    expect(openBureauDb(tempDir)).toBe(openBureauDb(tempDir));
+  });
+
+  it('keeps existing data when reopened', () => {
+    openBureauDb(tempDir)
+      .prepare(
+        `INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
+         VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now')`,
+      )
+      .run();
+    closeBureauDb(tempDir);
+
+    const reopened = openBureauDb(tempDir);
+    expect(reopened.prepare('SELECT name FROM bureaus').get().name).toBe('Kept');
+    expect(reopened.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+  });
+
+  it('refuses a database written by a newer build', () => {
+    const db = new Database(path.join(tempDir, 'future.db'));
+    db.pragma('user_version = 999');
+
+    expect(() => migrateBureauDb(db)).toThrow(/newer than this build supports/);
+    db.close();
+  });
+});

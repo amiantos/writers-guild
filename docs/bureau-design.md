@@ -279,14 +279,23 @@ separate per Bureau. The UI shows keys masked, and the API never returns a store
 
 ### DeepSeek client
 
-Bureau gets its own `deepseek-client.js`; the existing `deepseek-provider.js` stays untouched.
+Bureau gets its own `deepseek-client.js`; the existing `deepseek-provider.js` stays untouched. It
+handles multi-turn `messages`, `tools`, a thinking toggle, and streaming that assembles tool-call
+deltas. `tool-loop.js` runs tool calls on top of it, and `run-recorder.js` stores every step.
 
-- Multi-turn `messages`, `tools`, a thinking toggle, and streaming that includes tool-call deltas.
-- In thinking mode with tools, `reasoning_content` from earlier turns in the tool loop must be sent
-  back to the API.
-- Strict function schemas require the `/beta` base URL. Supported schema types: string, number,
-  integer, boolean, object, array, enum, and anyOf.
+API details it relies on (checked against api-docs.deepseek.com on 2026-09-12):
+
+- V4.1 Flash's model ID is `deepseek-flash`, the default model for new Bureaus.
+- Thinking is on unless a request turns it off, so the client always sends `thinking` explicitly.
+  `reasoning_effort` (`low`, `high`, or `max`) is a top-level field.
+- Thinking mode rejects `tool_choice: "required"` and named tool choices.
+- When a request includes tools, every earlier assistant message must keep its
+  `reasoning_content`, even turns without tool calls, or the API returns 400.
+- Strict function schemas require the `/beta` base URL, `strict: true` on every function, every
+  object property marked required, and `additionalProperties: false`. The client checks schemas
+  before sending them.
 - JSON output mode (`response_format: { type: 'json_object' }`) is available as a fallback.
+- Streams can include `: keep-alive` comment lines, which the parser skips.
 
 ## Memory
 
@@ -442,13 +451,14 @@ One service, two ways in:
 `data/bureau.db` uses better-sqlite3 in WAL mode, with its own schema versioning. References to rows
 in `writers-guild.db` (library characters and lorebooks) are plain ids, not foreign keys.
 
-A sketch, not final:
+A sketch, not final. Phase 1 created `bureaus`, `cast_members`, `agent_runs`, and `agent_steps`;
+later phases add the rest as migrations:
 
 ```text
 bureaus        (id, name, description, api_key, model, bureau_time, present_offset_days,
                 timezone, house_style, settings JSON, created, modified)
-cast_members   (id, bureau_id, library_character_id NULL, is_persona, is_draft,
-                seed_card JSON, routine JSON, created)
+cast_members   (id, bureau_id, library_character_id NULL, name, is_persona, is_draft,
+                seed_card JSON, routine JSON, created, modified)
 arc_notes      (id, cast_member_id, content, rationale, source_refs JSON,
                 status [proposed|accepted|rejected], created, decided)
 bureau_lorebooks (bureau_id, lorebook_id)
@@ -470,9 +480,10 @@ memories       (id, cast_member_id, layer [knowledge|episode|era|offscreen|backs
 memories_fts   -- FTS5 over memories.content
 archive_fts    -- FTS5 over turn and message text
 
-agent_runs     (id, bureau_id, trigger, target_type, target_id, status, started, finished)
-agent_steps    (id, run_id, role, request JSON, response JSON, reasoning, tool_calls JSON,
-                usage JSON, duration_ms, error)
+agent_runs     (id, bureau_id, purpose, target_type, target_id,
+                status [running|completed|failed|cancelled], error, started, finished)
+agent_steps    (id, run_id, position, role, kind [model|tool], request JSON, response JSON,
+                reasoning, tool_calls JSON, usage JSON, duration_ms, error, created)
 ```
 
 Messages store their Bureau time directly instead of deriving it from `created`, because a Bureau's
@@ -488,6 +499,7 @@ server/src/services/bureau/
   bureau-db.js                           # bureau.db connection and schema
   bureau-storage.js                      # queries
   deepseek-client.js                     # messages, tools, strict schemas, streaming
+  tool-loop.js                           # runs tool calls until the model answers
   pipeline.js                            # Director → Writer → lint → Editor
   director.js
   writer-prompt.js
@@ -499,6 +511,7 @@ server/src/services/bureau/
   offscreen.js
   character-generator.js
   run-recorder.js                        # agent_runs and agent_steps
+server/scripts/bureau-smoke.js           # tool-loop smoke test against the real API
 
 vue_client/src/views/bureau/             # Bureau list and home, story, correspondence
 vue_client/src/components/bureau/        # TurnBlock, TurnSeam, Composer, MemoryBrowser, ...
