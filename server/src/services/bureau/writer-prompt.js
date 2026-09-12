@@ -51,19 +51,26 @@ function fitToBudget(parts, budget) {
   return { kept: parts.slice(start), truncated: start > 0 };
 }
 
-function instructionFor({ request, userName, openingTime, hasProse, hasGeneratedProse }) {
+function instructionFor({ request, readerName, openingTime, hasProse, hasGeneratedProse }) {
   const lines = [];
 
   if (!hasProse) {
     lines.push(
       'Write the opening of this story: set the scene, bring in the characters naturally, and end at a point that invites what comes next.',
     );
-  } else if (request.action === 'write') {
+  } else if (request.action === 'write' && readerName) {
     lines.push(
-      `Continue the story from where ${userName} left off. Respond to what ${userName} just did, and leave ${userName}'s next words and choices to ${userName}.`,
+      `Continue the story from where ${readerName} left off. Respond to what ${readerName} just did, and leave ${readerName}'s next words and choices to ${readerName}.`,
     );
     lines.push(
-      `${userName}'s passages may be written in first or second person; write yours in the house style's perspective and refer to ${userName} by name.`,
+      `${readerName}'s passages may be written in first or second person; write yours in the house style's perspective and refer to ${readerName} by name.`,
+    );
+  } else if (request.action === 'write') {
+    lines.push(
+      "Continue the story from the reader's latest passage, responding to what happens in it.",
+    );
+    lines.push(
+      "The reader's passages may be written in first or second person; write yours in the house style's perspective.",
     );
   } else {
     lines.push('Continue the story naturally from where it left off.');
@@ -123,7 +130,9 @@ export function buildWriterMessages({
   storyCharacterBudget = STORY_CHARACTER_BUDGET,
 }) {
   const persona = cast.find((member) => member.isPersona) ?? null;
-  const characters = cast.filter((member) => !member.isPersona);
+  // A Bureau has one reader's character. Anyone else still marked as one is described as a
+  // character rather than dropped.
+  const characters = cast.filter((member) => member !== persona);
   const personaInfo = persona ? { name: persona.seedCard?.data?.name || persona.name } : null;
   const userName = personaInfo?.name || 'User';
   const macros = new MacroProcessor({
@@ -183,7 +192,7 @@ export function buildWriterMessages({
   const hasProse = storyTurns.some((turn) => turn.kind === 'prose');
   const instruction = instructionFor({
     request,
-    userName,
+    readerName: personaInfo?.name ?? null,
     openingTime,
     hasProse,
     hasGeneratedProse: storyTurns.some(

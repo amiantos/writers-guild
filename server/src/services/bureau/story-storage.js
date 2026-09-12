@@ -113,7 +113,7 @@ export class StoryStorage {
       ),
       showVariant: this.db.prepare(`
         UPDATE turns SET content = @content, run_id = @runId, active_variant_id = @variantId,
-                         modified = @modified
+                         edited = @edited, modified = @modified
         WHERE id = @turnId
       `),
       deleteTurn: this.db.prepare('DELETE FROM turns WHERE story_id = ? AND id = ?'),
@@ -133,7 +133,9 @@ export class StoryStorage {
         WHERE t.story_id = ?
         ORDER BY v.created, v.rowid
       `),
-      updateVariantContent: this.db.prepare('UPDATE turn_variants SET content = ? WHERE id = ?'),
+      markVariantEdited: this.db.prepare(
+        'UPDATE turn_variants SET content = ?, edited = 1 WHERE id = ?',
+      ),
     };
   }
 
@@ -306,7 +308,14 @@ export class StoryStorage {
     const created = timestamp();
     this.db.transaction(() => {
       this.stmts.insertVariant.run({ id: variantId, turnId, content, runId, created });
-      this.stmts.showVariant.run({ turnId, content, runId, variantId, modified: created });
+      this.stmts.showVariant.run({
+        turnId,
+        content,
+        runId,
+        variantId,
+        edited: 0,
+        modified: created,
+      });
       this.stmts.touchStory.run(created, storyId);
     })();
     return this.getTurn(storyId, turnId);
@@ -326,6 +335,7 @@ export class StoryStorage {
       content: variant.content,
       runId: variant.run_id,
       variantId,
+      edited: variant.edited,
       modified: timestamp(),
     });
     return this.getTurn(storyId, turnId);
@@ -343,7 +353,7 @@ export class StoryStorage {
     this.db.transaction(() => {
       this.stmts.editTurn.run(content, modified, turnId);
       if (row.active_variant_id) {
-        this.stmts.updateVariantContent.run(content, row.active_variant_id);
+        this.stmts.markVariantEdited.run(content, row.active_variant_id);
       }
       this.stmts.touchStory.run(modified, storyId);
     })();

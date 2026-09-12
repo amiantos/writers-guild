@@ -169,6 +169,20 @@ export async function generateWriterTurn({
           runId: recorder.runId,
         });
 
+  // Saving can fail too (say, the story was deleted mid-generation), and the run must not
+  // be left looking like it's still writing.
+  const saveAndFinish = (text, finish) => {
+    let turn;
+    try {
+      turn = save(text);
+    } catch (saveError) {
+      recorder.fail(saveError);
+      throw saveError;
+    }
+    finish();
+    return turn;
+  };
+
   let content = '';
   let reasoning = '';
   let done = null;
@@ -213,8 +227,11 @@ export async function generateWriterTurn({
       recorder.fail(error);
       throw error;
     }
-    recorder.finish('cancelled', 'Cancelled');
-    return partial ? save(partial) : null;
+    if (!partial) {
+      recorder.finish('cancelled', 'Cancelled');
+      return null;
+    }
+    return saveAndFinish(partial, () => recorder.finish('cancelled', 'Cancelled'));
   }
 
   const finalContent = restore(content);
@@ -238,7 +255,5 @@ export async function generateWriterTurn({
     throw error;
   }
 
-  const turn = save(finalContent);
-  recorder.complete();
-  return turn;
+  return saveAndFinish(finalContent, () => recorder.complete());
 }

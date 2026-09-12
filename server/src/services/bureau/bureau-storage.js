@@ -179,6 +179,10 @@ export class BureauStorage {
         UPDATE cast_members SET is_persona = @isPersona, modified = @modified
         WHERE bureau_id = @bureauId AND id = @id
       `),
+      clearOtherPersonas: this.db.prepare(`
+        UPDATE cast_members SET is_persona = 0, modified = @modified
+        WHERE bureau_id = @bureauId AND is_persona = 1 AND id != @id
+      `),
       deleteCastMember: this.db.prepare('DELETE FROM cast_members WHERE bureau_id = ? AND id = ?'),
 
       // Run records
@@ -329,7 +333,8 @@ export class BureauStorage {
    * @param {Object} member
    * @param {Object} member.seedCard - Full V2 card to copy.
    * @param {string|null} [member.libraryCharacterId]
-   * @param {boolean} [member.isPersona]
+   * @param {boolean} [member.isPersona] - A Bureau has one reader's character, so this
+   *   unmarks whoever had the role.
    * @returns {Object} The new cast member.
    * @throws {CastConflictError} When the library character is already in the cast.
    */
@@ -352,6 +357,9 @@ export class BureauStorage {
         created: now,
         modified: now,
       });
+      if (isPersona) {
+        this.stmts.clearOtherPersonas.run({ bureauId, id, modified: now });
+      }
       this.stmts.touchBureau.run(now, bureauId);
     })();
     return this.getCastMember(bureauId, id);
@@ -361,19 +369,26 @@ export class BureauStorage {
    * @param {string} bureauId
    * @param {string} castId
    * @param {Object} updates
-   * @param {boolean} [updates.isPersona]
+   * @param {boolean} [updates.isPersona] - Marking a member unmarks the previous reader's
+   *   character.
    * @returns {Object|null} The updated member, or null if it doesn't exist.
    */
   updateCastMember(bureauId, castId, { isPersona }) {
     if (!this.stmts.getCastMember.get(bureauId, castId)) return null;
 
     if (isPersona !== undefined) {
-      this.stmts.updateCastPersona.run({
-        bureauId,
-        id: castId,
-        isPersona: isPersona ? 1 : 0,
-        modified: new Date().toISOString(),
-      });
+      const modified = new Date().toISOString();
+      this.db.transaction(() => {
+        if (isPersona) {
+          this.stmts.clearOtherPersonas.run({ bureauId, id: castId, modified });
+        }
+        this.stmts.updateCastPersona.run({
+          bureauId,
+          id: castId,
+          isPersona: isPersona ? 1 : 0,
+          modified,
+        });
+      })();
     }
     return this.getCastMember(bureauId, castId);
   }

@@ -96,6 +96,26 @@ describe('buildWriterMessages', () => {
     );
   });
 
+  it('writes for a reader with no character in the story without inventing a name', () => {
+    const { user } = build({
+      cast: [MARA],
+      turns: [prose('The lamp was lit.'), prose('I opened the door.', 'user')],
+      request: { action: 'write' },
+    });
+
+    expect(user).toContain("Continue the story from the reader's latest passage");
+    expect(user).not.toContain('User');
+  });
+
+  it("still describes anyone else marked as a reader's character", () => {
+    const ines = member('Ines', { description: 'A second traveler.' }, { isPersona: true });
+
+    const { system } = build({ cast: [MARA, THEO, ines] });
+
+    expect(system).toContain("=== THEO (THE READER'S CHARACTER) ===");
+    expect(system).toContain('Name: Ines\nDescription: A second traveler.');
+  });
+
   it('keeps directions out of the story text and passes the current one as an instruction', () => {
     const { user } = build({
       turns: [

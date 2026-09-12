@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -76,6 +76,7 @@ describe('generateWriterTurn', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     stores.library.close();
     closeBureauDb(tempDir);
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -330,6 +331,23 @@ describe('generateWriterTurn', () => {
     expect(recorded.content).toContain('earlier characters not recorded');
     expect(recorded.content).toContain('The end of the page.');
     expect(recorded.content.length).toBeLessThan(RECORDED_STORY_TAIL + 1000);
+  });
+
+  it('marks the run failed when the turn cannot be saved', async () => {
+    vi.spyOn(stores.stories, 'addTurn').mockImplementation(() => {
+      throw new Error('FOREIGN KEY constraint failed');
+    });
+    const client = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
+    let runId;
+
+    await expect(
+      generate(client, { action: 'continue' }, { onEvent: (event) => (runId ??= event.runId) }),
+    ).rejects.toThrow('FOREIGN KEY constraint failed');
+
+    expect(stores.bureaus.getRun(bureau.id, runId)).toMatchObject({
+      status: 'failed',
+      error: 'FOREIGN KEY constraint failed',
+    });
   });
 });
 

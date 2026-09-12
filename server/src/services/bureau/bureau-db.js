@@ -134,6 +134,13 @@ const MIGRATIONS = [
     );
     CREATE INDEX idx_turn_variants_turn ON turn_variants(turn_id, created);
   `,
+
+  // 3: Track edits per version of a turn, so a fresh version isn't marked edited
+  `
+    ALTER TABLE turn_variants ADD COLUMN edited INTEGER NOT NULL DEFAULT 0;
+    UPDATE turn_variants SET edited = 1
+      WHERE id IN (SELECT active_variant_id FROM turns WHERE edited = 1);
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

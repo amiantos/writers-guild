@@ -199,6 +199,23 @@ describe('StoryStorage', () => {
       expect(back).toMatchObject({ content: 'Second try, edited.', edited: true });
     });
 
+    it('tracks edits per version', () => {
+      const turn = stories.addTurn(story.id, {
+        kind: 'prose',
+        source: 'generated',
+        content: 'First try.',
+      });
+      stories.editTurn(story.id, turn.id, 'First try, edited.');
+
+      const regenerated = stories.addVariant(story.id, turn.id, { content: 'Second try.' });
+      expect(regenerated.edited).toBe(false);
+
+      expect(stories.selectVariant(story.id, turn.id, turn.activeVariantId).edited).toBe(true);
+      expect(stories.selectVariant(story.id, turn.id, regenerated.activeVariantId).edited).toBe(
+        false,
+      );
+    });
+
     it('edits and deletes user turns', () => {
       const turn = stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Hi.' });
 

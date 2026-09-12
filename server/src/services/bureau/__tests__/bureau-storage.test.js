@@ -227,6 +227,26 @@ describe('BureauStorage', () => {
       );
     });
 
+    it("keeps one reader's character per Bureau", () => {
+      const theo = storage.addCastMember(bureau.id, {
+        seedCard: card('Theo'),
+        libraryCharacterId: 'char-2',
+        isPersona: true,
+      });
+      const mara = storage.addCastMember(bureau.id, {
+        seedCard: card('Mara'),
+        libraryCharacterId: 'char-1',
+        isPersona: true,
+      });
+
+      expect(mara.isPersona).toBe(true);
+      expect(storage.getCastMember(bureau.id, theo.id).isPersona).toBe(false);
+
+      storage.updateCastMember(bureau.id, theo.id, { isPersona: true });
+      const readers = storage.listCast(bureau.id).filter((member) => member.isPersona);
+      expect(readers.map((member) => member.name)).toEqual(['Theo']);
+    });
+
     it('removes a member', () => {
       const member = storage.addCastMember(bureau.id, {
         seedCard: card('Mara'),

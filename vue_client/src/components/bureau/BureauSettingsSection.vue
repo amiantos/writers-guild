@@ -191,8 +191,23 @@ function snapshot(bureau) {
   };
 }
 
-function resetForm() {
-  Object.assign(form, snapshot(props.bureau), { apiKey: '' });
+// What the form was last synced from. When the Bureau changes elsewhere (removing the
+// key, setting the time zone), only fields the reader hasn't touched take the new values.
+let syncedFrom = null;
+
+function syncForm(bureau) {
+  const incoming = snapshot(bureau);
+  if (!syncedFrom) {
+    Object.assign(form, incoming, { apiKey: '' });
+  } else {
+    for (const [field, value] of Object.entries(incoming)) {
+      const untouched = JSON.stringify(form[field]) === JSON.stringify(syncedFrom[field]);
+      if (untouched) {
+        form[field] = field === 'writer' ? { ...value } : value;
+      }
+    }
+  }
+  syncedFrom = incoming;
 }
 
 const dirty = computed(() => {
@@ -202,7 +217,7 @@ const dirty = computed(() => {
   );
 });
 
-watch(() => props.bureau, resetForm, { immediate: true });
+watch(() => props.bureau, syncForm, { immediate: true });
 
 async function update(updates, message) {
   saving.value = true;
@@ -210,14 +225,16 @@ async function update(updates, message) {
     const { bureau } = await bureausAPI.update(props.bureau.id, updates);
     emit('updated', bureau);
     toast.success(message);
+    return true;
   } catch (error) {
     toast.error('Failed to save: ' + error.message);
+    return false;
   } finally {
     saving.value = false;
   }
 }
 
-function save() {
+async function save() {
   const updates = {
     name: form.name.trim(),
     description: form.description.trim(),
@@ -228,7 +245,14 @@ function save() {
   if (form.apiKey.trim()) {
     updates.apiKey = form.apiKey.trim();
   }
-  update(updates, 'Settings saved');
+  if (await update(updates, 'Settings saved')) {
+    Object.assign(form, {
+      name: updates.name,
+      description: updates.description,
+      model: updates.model,
+      apiKey: '',
+    });
+  }
 }
 
 async function removeKey() {
