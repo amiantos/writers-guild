@@ -408,6 +408,26 @@ describe('DeepSeekClient', () => {
       );
     });
 
+    it('cancels the response body when the caller stops reading early', async () => {
+      const cancel = vi.fn();
+      const encoder = new TextEncoder();
+      const body = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(delta({ content: 'first' })));
+          controller.enqueue(encoder.encode(delta({ content: 'second' })));
+          // Never closed: without a cancel, the connection would stay open.
+        },
+        cancel,
+      });
+      fetchMock.mockResolvedValue(new Response(body));
+
+      for await (const event of client.chatStream({ messages: MESSAGES })) {
+        if (event.type === 'content') break;
+      }
+
+      expect(cancel).toHaveBeenCalled();
+    });
+
     it('reports API errors before streaming starts', async () => {
       fetchMock.mockResolvedValue(
         jsonResponse({ error: { message: 'Insufficient Balance' } }, 402),

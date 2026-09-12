@@ -181,6 +181,10 @@ export async function* readServerSentEvents(body) {
       if (done) return;
     }
   } finally {
+    // A no-op after a complete read. When the caller stopped early or a chunk
+    // was malformed, cancelling closes the connection so DeepSeek stops
+    // generating tokens nobody will read.
+    await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

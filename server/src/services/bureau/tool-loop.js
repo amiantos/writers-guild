@@ -147,6 +147,10 @@ export async function runToolLoop({
       };
     }
 
+    // Run tools only when the model will get to see their results. Tools that
+    // write (memories, draft characters) must not act on a run about to fail.
+    if (iteration === maxIterations) break;
+
     for (const call of result.toolCalls) {
       const toolStarted = Date.now();
       const outcome = await executeToolCall(call, handlers, signal);

@@ -197,22 +197,25 @@ describe('runToolLoop', () => {
     expect(client.chat).toHaveBeenCalledTimes(1);
   });
 
-  it('gives up after maxIterations model calls', async () => {
+  it("gives up after maxIterations model calls without running the last call's tools", async () => {
     const endless = modelTurn({ toolCalls: [toolCall('call_1', 'recall', { query: 'again' })] });
     const client = { model: 'deepseek-flash', chat: vi.fn(async () => endless) };
+    const recall = vi.fn(() => 'more');
 
     const error = await runToolLoop({
       client,
       role: 'director',
       messages: MESSAGES,
       tools: TOOLS,
-      handlers: { recall: () => 'more' },
+      handlers: { recall },
       maxIterations: 3,
     }).catch((caught) => caught);
 
     expect(error).toBeInstanceOf(ToolLoopError);
     expect(client.chat).toHaveBeenCalledTimes(3);
-    expect(error.messages.filter((message) => message.role === 'tool')).toHaveLength(3);
+    // The model would never see the third call's results, so those tools don't run.
+    expect(recall).toHaveBeenCalledTimes(2);
+    expect(error.messages.filter((message) => message.role === 'tool')).toHaveLength(2);
   });
 
   it('records the prompt once, then only the messages added since', async () => {
