@@ -9,8 +9,10 @@
 import express from 'express';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { CastConflictError } from '../services/bureau/bureau-storage.js';
-import { BureauSettingsError } from '../services/bureau/bureau-settings.js';
+import { BureauSettingsError, DEFAULT_SETTINGS } from '../services/bureau/bureau-settings.js';
 import { isValidTimeZone } from '../services/bureau/bureau-time.js';
+import { DEFAULT_MODEL } from '../services/bureau/deepseek-client.js';
+import { DEFAULT_HOUSE_STYLE } from '../services/bureau/writer-prompt.js';
 import bureauStoriesRouter from './bureau-stories.js';
 import { attachBureauStores, optionalString, requireBureau } from './bureau-route-helpers.js';
 
@@ -46,6 +48,14 @@ router.post(
       ...(model ? { model } : {}),
     });
     res.status(201).json({ bureau });
+  }),
+);
+
+// Defaults a Bureau starts with, so the settings page can show them
+router.get(
+  '/defaults',
+  asyncHandler(async (req, res) => {
+    res.json({ houseStyle: DEFAULT_HOUSE_STYLE, settings: DEFAULT_SETTINGS, model: DEFAULT_MODEL });
   }),
 );
 

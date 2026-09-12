@@ -145,6 +145,11 @@
               @set-default="setDefaultPreset"
             />
           </template>
+
+          <!-- Bureaus Tab (experimental) -->
+          <template #tab-bureaus>
+            <BureausTab />
+          </template>
         </Tabs>
       </div>
     </main>
@@ -231,6 +236,7 @@ import CreateLorebookModal from '../components/CreateLorebookModal.vue';
 import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
 import ProviderSelectionModal from '../components/ProviderSelectionModal.vue';
+import BureausTab from '../components/bureau/BureausTab.vue';
 
 const router = useRouter();
 const toast = useToast();
@@ -315,6 +321,7 @@ const tabs = [
   { key: 'characters', label: 'Characters', icon: 'fas fa-users' },
   { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' },
   { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' },
+  { key: 'bureaus', label: 'Bureaus', icon: 'fas fa-landmark' },
 ];
 
 // Active tab with localStorage persistence

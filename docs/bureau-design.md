@@ -145,9 +145,9 @@ expands in place to show how the turn below it was made:
 Collapsed, the story reads like a story. Expanded, it reads like an agent transcript. Everything
 stays in one interface, and no separate screen is needed to see how a turn was made.
 
-- **While a turn is generating,** its seam stays open with a one-line live status (for example
-  "Recalling: the lighthouse"), which can be expanded to follow each step as it happens. It collapses
-  when the turn is done.
+- **While a turn is generating,** its seam stays visible with a one-line live status (for example
+  "Recalling: the lighthouse"). Clicking it shows the reasoning as it streams. It collapses when the
+  turn is done.
 - **Touch screens have no hover,** so on touch devices seams show as a faint marker you can tap.
 - **User-written turns** have seams too, showing only when they were written and whether they've
   been edited.
@@ -158,10 +158,13 @@ A multi-line textarea at the bottom (story mode's preview bar is a single-line i
 actions:
 
 - **Write:** add the text as a prose turn, then generate a response (like story mode's preview bar).
+  Ctrl or ⌘ + Enter also writes.
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate.
 - **Continue:** generate with no new input.
-- **Continue as…:** choose which cast member leads the next turn (like story mode's character
-  button).
+- **Focus:** choose which cast member the next passage centers on, for any of the three actions
+  (like story mode's character button). "Whoever fits" leaves it to the Writer.
+- **Scene break** adds a divider without generating, and **Stop** ends a generation early while
+  keeping whatever was already written.
 
 Editing a turn opens a textarea for just that turn, which recovers most of the feel of editing
 directly.

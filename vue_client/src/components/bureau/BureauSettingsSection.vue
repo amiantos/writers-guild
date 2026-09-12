@@ -1,0 +1,335 @@
+<template>
+  <section class="edit-section">
+    <div class="section-header">
+      <h2><i class="fas fa-sliders"></i> Settings</h2>
+    </div>
+
+    <div class="section-content">
+      <div class="form-group">
+        <label for="bureau-settings-name">Name</label>
+        <input id="bureau-settings-name" v-model="form.name" type="text" class="text-input" />
+      </div>
+
+      <div class="form-group">
+        <label for="bureau-settings-description">Description</label>
+        <textarea
+          id="bureau-settings-description"
+          v-model="form.description"
+          class="textarea-input"
+          rows="2"
+        ></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="bureau-settings-api-key">DeepSeek API key</label>
+        <p v-if="bureau.hasApiKey" class="status-line">
+          <i class="fas fa-lock"></i> Saved key {{ bureau.apiKeyPreview }}
+        </p>
+        <div class="inline-row">
+          <input
+            id="bureau-settings-api-key"
+            v-model="form.apiKey"
+            type="password"
+            class="text-input"
+            autocomplete="off"
+            :placeholder="bureau.hasApiKey ? 'Paste a new key to replace it' : 'sk-...'"
+          />
+          <button
+            v-if="bureau.hasApiKey"
+            class="btn btn-secondary btn-small"
+            :disabled="saving"
+            @click="removeKey"
+          >
+            Remove key
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="bureau-settings-model">Model</label>
+        <input
+          id="bureau-settings-model"
+          v-model="form.model"
+          type="text"
+          class="text-input"
+          list="bureau-settings-models"
+        />
+        <datalist id="bureau-settings-models">
+          <option value="deepseek-flash">DeepSeek V4.1 Flash</option>
+          <option value="deepseek-v4-pro">DeepSeek V4 Pro</option>
+        </datalist>
+      </div>
+
+      <fieldset class="writer-settings">
+        <legend>Writer</legend>
+        <label class="checkbox-label">
+          <input v-model="form.writer.thinking" type="checkbox" />
+          Thinking mode
+        </label>
+        <div class="settings-grid">
+          <div v-if="form.writer.thinking" class="form-group">
+            <label for="bureau-settings-effort">Reasoning effort</label>
+            <select
+              id="bureau-settings-effort"
+              v-model="form.writer.reasoningEffort"
+              class="select-input"
+            >
+              <option value="low">Low</option>
+              <option value="high">High</option>
+              <option value="max">Max</option>
+            </select>
+          </div>
+          <div v-else class="form-group">
+            <label for="bureau-settings-temperature">Temperature</label>
+            <input
+              id="bureau-settings-temperature"
+              v-model.number="form.writer.temperature"
+              type="number"
+              min="0"
+              max="2"
+              step="0.1"
+              class="text-input"
+            />
+          </div>
+          <div class="form-group">
+            <label for="bureau-settings-max-tokens">Max tokens</label>
+            <input
+              id="bureau-settings-max-tokens"
+              v-model.number="form.writer.maxTokens"
+              type="number"
+              min="256"
+              max="32000"
+              step="100"
+              class="text-input"
+            />
+          </div>
+        </div>
+        <p class="help-text">
+          DeepSeek ignores temperature in thinking mode. The Writer's reasoning shows in each turn's
+          seam.
+        </p>
+      </fieldset>
+
+      <div class="form-group">
+        <div class="label-row">
+          <label for="bureau-settings-house-style">House style</label>
+          <button
+            v-if="defaults && !form.houseStyle"
+            class="btn btn-secondary btn-small"
+            @click="form.houseStyle = defaults.houseStyle"
+          >
+            Edit the default
+          </button>
+        </div>
+        <textarea
+          id="bureau-settings-house-style"
+          v-model="form.houseStyle"
+          class="textarea-input house-style"
+          rows="8"
+          :placeholder="defaults?.houseStyle"
+        ></textarea>
+        <p class="help-text">
+          Rules the Writer follows on every turn. While this is empty, the default shown in the box
+          applies.
+        </p>
+      </div>
+
+      <div class="form-group">
+        <span class="group-label">Time zone</span>
+        <p class="status-line">
+          {{
+            bureau.timezone ||
+            "Not set yet. This browser's time zone is saved when you start a story."
+          }}
+        </p>
+        <div v-if="browserZone && bureau.timezone !== browserZone">
+          <button class="btn btn-secondary btn-small" :disabled="saving" @click="useBrowserZone">
+            Use {{ browserZone }}
+          </button>
+        </div>
+      </div>
+
+      <div class="section-actions">
+        <button class="btn btn-danger" :disabled="saving" @click="deleteBureau">
+          <i class="fas fa-trash"></i> Delete Bureau
+        </button>
+        <button class="btn btn-primary" :disabled="!dirty || saving" @click="save">
+          <i class="fas fa-save"></i> {{ saving ? 'Saving...' : 'Save settings' }}
+        </button>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script setup>
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { bureausAPI } from '../../services/bureauApi';
+import { useToast } from '../../composables/useToast';
+import { useConfirm } from '../../composables/useConfirm';
+import { browserTimeZone } from '../../composables/bureau/format';
+
+const props = defineProps({
+  bureau: { type: Object, required: true },
+});
+
+const emit = defineEmits(['updated', 'deleted']);
+const toast = useToast();
+const { confirm } = useConfirm();
+
+const browserZone = browserTimeZone();
+const defaults = ref(null);
+const saving = ref(false);
+const form = reactive({});
+
+function snapshot(bureau) {
+  return {
+    name: bureau.name,
+    description: bureau.description,
+    model: bureau.model,
+    houseStyle: bureau.houseStyle,
+    writer: { ...bureau.settings.writer },
+  };
+}
+
+function resetForm() {
+  Object.assign(form, snapshot(props.bureau), { apiKey: '' });
+}
+
+const dirty = computed(() => {
+  const { apiKey, ...current } = form;
+  return (
+    Boolean(apiKey.trim()) || JSON.stringify(current) !== JSON.stringify(snapshot(props.bureau))
+  );
+});
+
+watch(() => props.bureau, resetForm, { immediate: true });
+
+async function update(updates, message) {
+  saving.value = true;
+  try {
+    const { bureau } = await bureausAPI.update(props.bureau.id, updates);
+    emit('updated', bureau);
+    toast.success(message);
+  } catch (error) {
+    toast.error('Failed to save: ' + error.message);
+  } finally {
+    saving.value = false;
+  }
+}
+
+function save() {
+  const updates = {
+    name: form.name.trim(),
+    description: form.description.trim(),
+    model: form.model.trim(),
+    houseStyle: form.houseStyle,
+    settings: { writer: { ...form.writer } },
+  };
+  if (form.apiKey.trim()) {
+    updates.apiKey = form.apiKey.trim();
+  }
+  update(updates, 'Settings saved');
+}
+
+async function removeKey() {
+  const confirmed = await confirm({
+    message: "Remove this Bureau's API key? Stories can't be generated until you add another.",
+    confirmText: 'Remove key',
+    variant: 'danger',
+  });
+  if (confirmed) update({ apiKey: '' }, 'API key removed');
+}
+
+function useBrowserZone() {
+  update({ timezone: browserZone }, `Time zone set to ${browserZone}`);
+}
+
+async function deleteBureau() {
+  const confirmed = await confirm({
+    message: `Delete "${props.bureau.name}"?\n\nIts stories, cast, and run records are deleted. Your library characters and lorebooks are not affected. This cannot be undone.`,
+    confirmText: 'Delete Bureau',
+    variant: 'danger',
+  });
+  if (!confirmed) return;
+
+  saving.value = true;
+  try {
+    await bureausAPI.remove(props.bureau.id);
+    toast.success(`Deleted ${props.bureau.name}`);
+    emit('deleted');
+  } catch (error) {
+    toast.error('Failed to delete Bureau: ' + error.message);
+    saving.value = false;
+  }
+}
+
+onMounted(async () => {
+  try {
+    defaults.value = await bureausAPI.defaults();
+  } catch (error) {
+    console.error('Failed to load Bureau defaults:', error);
+  }
+});
+</script>
+
+<style scoped src="./bureau-ui.css"></style>
+
+<style scoped>
+.status-line {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.inline-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.writer-settings {
+  margin: 0;
+  padding: 0.875rem 1rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.writer-settings legend {
+  padding: 0 0.375rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.label-row label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.house-style {
+  font-size: 0.875rem;
+}
+
+.section-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+</style>

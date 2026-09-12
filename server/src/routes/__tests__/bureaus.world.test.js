@@ -10,6 +10,7 @@ import { errorHandler } from '../../middleware/error-handler.js';
 import { getBureauStores } from '../../services/bureau/stores.js';
 import { closeBureauDb } from '../../services/bureau/bureau-db.js';
 import { DEFAULT_SETTINGS } from '../../services/bureau/bureau-settings.js';
+import { DEFAULT_HOUSE_STYLE } from '../../services/bureau/writer-prompt.js';
 
 describe('Bureau settings and world routes', () => {
   let app;
@@ -41,6 +42,16 @@ describe('Bureau settings and world routes', () => {
   });
 
   const bureauUrl = () => `/api/bureaus/${bureau.id}`;
+
+  it('offers the defaults a Bureau starts with', async () => {
+    const { body } = await request(app).get('/api/bureaus/defaults').expect(200);
+
+    expect(body).toEqual({
+      houseStyle: DEFAULT_HOUSE_STYLE,
+      settings: DEFAULT_SETTINGS,
+      model: 'deepseek-flash',
+    });
+  });
 
   describe('settings and time zone', () => {
     it('updates writer settings and the time zone', async () => {

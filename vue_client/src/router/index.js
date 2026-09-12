@@ -9,6 +9,8 @@ const StoryEditor = () => import('../views/StoryEditor.vue');
 const CharacterDetail = () => import('../views/CharacterDetail.vue');
 const LorebookDetail = () => import('../views/LorebookDetail.vue');
 const SettingsPage = () => import('../views/SettingsPage.vue');
+const BureauHome = () => import('../views/bureau/BureauHome.vue');
+const BureauStory = () => import('../views/bureau/BureauStory.vue');
 const OnboardingWizard = () => import('../views/OnboardingWizard.vue');
 
 const routes = [
@@ -44,6 +46,20 @@ const routes = [
     component: LorebookDetail,
     props: true,
     meta: { title: 'Lorebook - Writers Guild', dynamicTitle: true },
+  },
+  {
+    path: '/bureaus/:bureauId',
+    name: 'bureau',
+    component: BureauHome,
+    props: true,
+    meta: { title: 'Bureau - Writers Guild', dynamicTitle: true },
+  },
+  {
+    path: '/bureaus/:bureauId/stories/:storyId',
+    name: 'bureau-story',
+    component: BureauStory,
+    props: true,
+    meta: { title: 'Bureau Story - Writers Guild', dynamicTitle: true },
   },
   {
     path: '/settings',
