@@ -5,6 +5,7 @@ import path from 'path';
 import {
   RECORD_OFFSCREEN_TOOL,
   buildOffscreenMessages,
+  findOffscreenGaps,
   generateOffscreenLife,
   isOffscreenGap,
 } from '../offscreen.js';
@@ -57,7 +58,7 @@ describe('isOffscreenGap', () => {
 });
 
 describe('buildOffscreenMessages', () => {
-  it("describes the gap and each character, and leaves the reader's character out", () => {
+  it("describes each character's time away, and leaves the reader's character out", () => {
     const mara = {
       id: 'c1',
       name: 'Mara',
@@ -67,9 +68,8 @@ describe('buildOffscreenMessages', () => {
 
     const [system, user] = buildOffscreenMessages({
       bureau: { timezone: 'UTC', presentOffsetDays: 0 },
-      members: [mara],
+      gaps: [{ member: mara, from: FROM }],
       persona: { name: 'Theo' },
-      from: FROM,
       to: TO,
       now: new Date('2026-10-08T21:00:00Z'),
       memoriesByCast: new Map([
@@ -86,12 +86,11 @@ describe('buildOffscreenMessages', () => {
     });
 
     expect(system.content).toContain('Leave Theo out entirely');
-    expect(user.content).toContain(
-      '=== TIME THAT PASSED ===\nFrom a Thursday, evening, early October to a Thursday, evening, early October: about a week.',
-    );
+    expect(user.content).toContain("=== NOW ===\nIt's a Thursday, evening, early October.");
     expect(user.content).toContain(
       [
         '=== MARA ===',
+        'Last seen: a Thursday, evening, early October (about a week ago)',
         'Description: Keeps the light.',
         'Usual routine: Nights at the light.',
         'How Mara has changed:',
@@ -107,11 +106,12 @@ describe('buildOffscreenMessages', () => {
   });
 });
 
-describe('generateOffscreenLife', () => {
+describe('offscreen life in a Bureau', () => {
   let tempDir;
   let stores;
   let bureau;
   let mara;
+  let ines;
   let theo;
 
   beforeEach(() => {
@@ -121,6 +121,10 @@ describe('generateOffscreenLife', () => {
     mara = stores.bureaus.addCastMember(bureau.id, {
       seedCard: card('Mara', 'Keeps the light.'),
       libraryCharacterId: 'c1',
+    });
+    ines = stores.bureaus.addCastMember(bureau.id, {
+      seedCard: card('Ines', 'Runs the pub.'),
+      libraryCharacterId: 'c3',
     });
     theo = stores.bureaus.addCastMember(bureau.id, {
       seedCard: card('Theo'),
@@ -135,82 +139,141 @@ describe('generateOffscreenLife', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  function generate(client, options = {}) {
-    return generateOffscreenLife({
-      stores,
-      bureau: stores.bureaus.getBureau(bureau.id),
-      members: [
-        stores.bureaus.getCastMember(bureau.id, mara.id),
-        stores.bureaus.getCastMember(bureau.id, theo.id),
-      ],
-      from: FROM,
-      to: TO,
-      client,
-      ...options,
+  function member(castMember) {
+    return stores.bureaus.getCastMember(bureau.id, castMember.id);
+  }
+
+  function seen(castMember, worldTime) {
+    stores.memories.addMemory(bureau.id, castMember.id, {
+      layer: 'knowledge',
+      content: `${castMember.name} was around.`,
+      worldTime,
     });
   }
 
-  it('uses a schema that strict mode accepts', () => {
-    expect(() => assertStrictSchema(RECORD_OFFSCREEN_TOOL.parameters)).not.toThrow();
-  });
+  describe('findOffscreenGaps', () => {
+    it("measures each character's gap from when they were last seen", () => {
+      seen(mara, FROM);
+      seen(ines, '2026-10-08T12:00:00.000Z');
 
-  it('saves an account for each character just before the new time', async () => {
-    const client = offscreenClient([
-      { character: 'mara', content: 'Repainted the boathouse and argued with the ferry clerk.' },
-      { character: 'Theo', content: 'Should be skipped.' },
-      { character: 'Ines', content: 'Not in the cast.' },
-    ]);
+      const gaps = findOffscreenGaps(
+        stores,
+        bureau,
+        [member(mara), member(ines), member(theo)],
+        TO,
+      );
 
-    const saved = await generate(client);
-
-    expect(saved).toHaveLength(1);
-    expect(saved[0]).toMatchObject({
-      castMemberId: mara.id,
-      layer: 'offscreen',
-      sourceType: 'offscreen',
-      importance: 2,
-      worldTime: '2026-10-08T19:59:59.999Z',
-      content: 'Repainted the boathouse and argued with the ferry clerk.',
-    });
-    expect(client.calls[0]).toMatchObject({
-      strict: true,
-      toolChoice: { name: 'record_offscreen' },
-      thinking: false,
-    });
-    expect(client.calls[0].messages[1].content).toContain('=== MARA ===');
-    expect(client.calls[0].messages[1].content).not.toContain('=== THEO ===');
-    const run = stores.bureaus.getRun(bureau.id, saved[0].runId);
-    expect(run).toMatchObject({ purpose: 'offscreen', status: 'completed' });
-    expect(run.steps.at(-1).response).toEqual({ saved: 1, skipped: ['Theo', 'Ines'] });
-  });
-
-  it('does nothing for a short gap or with no one to account for', async () => {
-    const client = offscreenClient([]);
-
-    expect(await generate(client, { to: '2026-10-02T01:00:00.000Z' })).toEqual([]);
-    expect(
-      await generate(client, { members: [stores.bureaus.getCastMember(bureau.id, theo.id)] }),
-    ).toEqual([]);
-    expect(client.calls).toHaveLength(0);
-  });
-
-  it('records into a run it was given, and saves nothing when the call fails', async () => {
-    const recorder = new RunRecorder(stores.bureaus, {
-      bureauId: bureau.id,
-      purpose: 'reply',
-      targetType: 'thread',
-      targetId: 'thread-1',
+      expect(gaps.map((gap) => [gap.member.id, gap.from])).toEqual([[mara.id, FROM]]);
     });
 
-    await expect(
-      generate(offscreenClient([], { failWith: new Error('Network down') }), { recorder }),
-    ).rejects.toThrow('Network down');
+    it('counts their messages, and has nothing to go on for someone never seen', () => {
+      const thread = stores.threads.getOrCreateThread(bureau.id, mara.id);
+      stores.threads.addMessage(thread.id, {
+        source: 'generated',
+        senderCastId: mara.id,
+        content: 'Night.',
+        bureauTime: FROM,
+      });
 
-    const run = stores.bureaus.getRun(bureau.id, recorder.runId);
-    expect(run.status).toBe('running');
-    expect(run.steps.map((step) => [step.role, step.error])).toEqual([
-      ['offscreen', 'Network down'],
-    ]);
-    expect(stores.memories.listMemories(bureau.id, mara.id)).toEqual([]);
+      expect(
+        findOffscreenGaps(stores, bureau, [member(mara), member(ines)], TO).map(
+          (gap) => gap.member.id,
+        ),
+      ).toEqual([mara.id]);
+    });
+
+    it('treats a story as time they were seen, and leaves alone anyone in a story still going', () => {
+      seen(mara, FROM);
+      const week = stores.stories.createStory(bureau.id, { startTime: FROM, castIds: [mara.id] });
+      stores.stories.endStory(bureau.id, week.id, { endTime: '2026-10-08T10:00:00.000Z' });
+      seen(ines, FROM);
+      const open = stores.stories.createStory(bureau.id, {
+        startTime: '2026-10-02T09:00:00.000Z',
+        castIds: [ines.id],
+      });
+
+      expect(findOffscreenGaps(stores, bureau, [member(mara), member(ines)], TO)).toEqual([]);
+      expect(
+        findOffscreenGaps(stores, bureau, [member(ines)], TO, { ignoreStoryId: open.id }).map(
+          (gap) => gap.from,
+        ),
+      ).toEqual([FROM]);
+    });
+  });
+
+  describe('generateOffscreenLife', () => {
+    it('uses a schema that strict mode accepts', () => {
+      expect(() => assertStrictSchema(RECORD_OFFSCREEN_TOOL.parameters)).not.toThrow();
+    });
+
+    it('saves an account for each character just before the new time', async () => {
+      const client = offscreenClient([
+        { character: 'mara', content: 'Repainted the boathouse and argued with the ferry clerk.' },
+        { character: 'Theo', content: 'Should be skipped.' },
+        { character: 'Ines', content: 'Not owed an account.' },
+      ]);
+
+      const saved = await generateOffscreenLife({
+        stores,
+        bureau: stores.bureaus.getBureau(bureau.id),
+        gaps: [{ member: member(mara), from: FROM }],
+        to: TO,
+        client,
+      });
+
+      expect(saved).toHaveLength(1);
+      expect(saved[0]).toMatchObject({
+        castMemberId: mara.id,
+        layer: 'offscreen',
+        sourceType: 'offscreen',
+        importance: 2,
+        worldTime: '2026-10-08T19:59:59.999Z',
+        content: 'Repainted the boathouse and argued with the ferry clerk.',
+      });
+      expect(client.calls[0]).toMatchObject({
+        strict: true,
+        toolChoice: { name: 'record_offscreen' },
+        thinking: false,
+      });
+      expect(client.calls[0].messages[1].content).toContain('=== MARA ===');
+      expect(client.calls[0].messages[1].content).not.toContain('=== INES ===');
+      const run = stores.bureaus.getRun(bureau.id, saved[0].runId);
+      expect(run).toMatchObject({ purpose: 'offscreen', status: 'completed' });
+      expect(run.steps.at(-1).response).toEqual({ saved: 1, skipped: ['Theo', 'Ines'] });
+    });
+
+    it('does nothing when no one is owed an account', async () => {
+      const client = offscreenClient([]);
+
+      expect(await generateOffscreenLife({ stores, bureau, gaps: [], to: TO, client })).toEqual([]);
+      expect(client.calls).toHaveLength(0);
+    });
+
+    it('records into a run it was given, and saves nothing when the call fails', async () => {
+      const recorder = new RunRecorder(stores.bureaus, {
+        bureauId: bureau.id,
+        purpose: 'reply',
+        targetType: 'thread',
+        targetId: 'thread-1',
+      });
+
+      await expect(
+        generateOffscreenLife({
+          stores,
+          bureau: stores.bureaus.getBureau(bureau.id),
+          gaps: [{ member: member(mara), from: FROM }],
+          to: TO,
+          client: offscreenClient([], { failWith: new Error('Network down') }),
+          recorder,
+        }),
+      ).rejects.toThrow('Network down');
+
+      const run = stores.bureaus.getRun(bureau.id, recorder.runId);
+      expect(run.status).toBe('running');
+      expect(run.steps.map((step) => [step.role, step.error])).toEqual([
+        ['offscreen', 'Network down'],
+      ]);
+      expect(stores.memories.listMemories(bureau.id, mara.id)).toEqual([]);
+    });
   });
 });

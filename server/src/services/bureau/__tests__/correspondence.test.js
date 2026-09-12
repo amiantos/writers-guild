@@ -19,6 +19,29 @@ function message(source, content, bureauTime) {
   return { source, content, bureauTime };
 }
 
+/** Gives a streaming client a chat call answering with one offscreen account for Mara. */
+function withOffscreen(client, content) {
+  client.chat = async (options) => {
+    client.calls.push(options);
+    const entries = [{ character: 'Mara', content }];
+    return {
+      content: '',
+      reasoning: '',
+      finishReason: 'tool_calls',
+      model: 'deepseek-flash',
+      usage: null,
+      toolCalls: [
+        {
+          id: 'call-1',
+          type: 'function',
+          function: { name: 'record_offscreen', arguments: JSON.stringify({ entries }) },
+        },
+      ],
+    };
+  };
+  return client;
+}
+
 /** A client whose stream sends each chunk as content, then throws `fail` or finishes. */
 function streamingClient(chunks, { fail = null } = {}) {
   const client = {
@@ -277,6 +300,50 @@ describe('generateReply', () => {
     ]);
     const run = stores.bureaus.getRun(bureau.id, saved[0].runId);
     expect(run.steps.map((step) => step.role)).toEqual(['offscreen', 'offscreen', 'writer']);
+  });
+
+  it('dates time away to just before the session began', async () => {
+    const day = 24 * 3_600_000;
+    stores.threads.addMessage(thread.id, {
+      source: 'generated',
+      senderCastId: mara.id,
+      content: 'Night.',
+      bureauTime: new Date(Date.now() - 9 * day).toISOString(),
+    });
+    const opened = new Date(Date.now() - 60_000).toISOString();
+    stores.threads.addMessage(thread.id, {
+      source: 'user',
+      senderCastId: theo.id,
+      content: 'Back yet?',
+      bureauTime: opened,
+    });
+
+    await reply(withOffscreen(streamingClient(['Yes.']), 'Mended nets on the pier.'));
+
+    const [away] = stores.memories.listMemories(bureau.id, mara.id, { layer: 'offscreen' });
+    expect(away.worldTime).toBe(new Date(Date.parse(opened) - 1).toISOString());
+  });
+
+  it("doesn't write time away that a story covered", async () => {
+    const day = 24 * 3_600_000;
+    const story = stores.stories.createStory(bureau.id, {
+      startTime: new Date(Date.now() - 5 * day).toISOString(),
+      castIds: [mara.id, theo.id],
+    });
+    stores.stories.endStory(bureau.id, story.id, {
+      endTime: new Date(Date.now() - 3_600_000).toISOString(),
+    });
+    stores.threads.addMessage(thread.id, {
+      source: 'generated',
+      senderCastId: mara.id,
+      content: 'Night.',
+      bureauTime: new Date(Date.now() - 9 * day).toISOString(),
+    });
+    const client = withOffscreen(streamingClient(['Hi.']), 'Should not be written.');
+
+    await reply(client);
+
+    expect(client.calls.map((call) => call.tools?.[0]?.name ?? 'reply')).toEqual(['reply']);
   });
 
   it("uses the character's memories as they stand at the present", async () => {

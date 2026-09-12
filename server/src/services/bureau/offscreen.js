@@ -1,18 +1,20 @@
 /**
  * Offscreen Life
  *
- * When Bureau time jumps forward, the characters involved get a short account of
+ * When Bureau time moves on without a character, they get a short account of
  * how they spent the gap (see "Offscreen life" in docs/bureau-design.md), saved
- * as an offscreen memory just before the new time. One forced call to a strict
- * record_offscreen tool covers everyone at once. Nothing runs in the background,
- * so a month away is one account, not thirty days of invented drama.
+ * as an offscreen memory just before the new time. Each character's gap runs
+ * from when they were last seen: their latest dated memory, their latest
+ * message, or the end of a story they were in. One forced call to a strict
+ * record_offscreen tool covers everyone at once. Nothing runs in the
+ * background, so a month away is one account, not thirty days of invented drama.
  */
 
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
 import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 
-// Shorter jumps aren't worth an account.
+// Shorter gaps aren't worth an account.
 export const OFFSCREEN_MIN_GAP_HOURS = 12;
 export const OFFSCREEN_MAX_TOKENS = 3000;
 const OFFSCREEN_IMPORTANCE = 2;
@@ -68,19 +70,81 @@ function timestampOf(value) {
   return value instanceof Date ? value.getTime() : Date.parse(value);
 }
 
-/** Whether Bureau time moving from `from` to `to` leaves a gap worth an account. */
+/** Whether time moving from `from` to `to` leaves a gap worth an account. */
 export function isOffscreenGap(from, to) {
   const hours = (timestampOf(to) - timestampOf(from)) / 3_600_000;
   return Number.isFinite(hours) && hours >= OFFSCREEN_MIN_GAP_HOURS;
 }
 
 /**
+ * When a character was last seen at or before a moment: their latest dated
+ * memory, their latest message, or the end of a story they were in (a story
+ * still going counts from its start). Null when there's nothing to go on.
+ *
+ * @param {Object} [options]
+ * @param {string|null} [options.ignoreStoryId] - A story that doesn't count, such as the one
+ *   starting.
+ * @returns {Date|null}
+ */
+export function lastSeen(stores, bureau, member, to, { ignoreStoryId = null } = {}) {
+  const times = stores.memories
+    .listMemories(bureau.id, member.id, { status: 'all' })
+    .filter((memory) => memory.worldTime)
+    .map((memory) => Date.parse(memory.worldTime));
+  const thread = stores.threads.getThreadForCast(bureau.id, member.id);
+  if (thread) {
+    for (const message of stores.threads.listMessages(thread.id)) {
+      if (message.source === 'generated') times.push(Date.parse(message.bureauTime));
+    }
+  }
+  for (const story of stores.stories.listStories(bureau.id)) {
+    if (story.id === ignoreStoryId || !story.castIds.includes(member.id)) continue;
+    times.push(Date.parse(story.endTime ?? story.startTime));
+  }
+
+  const limit = timestampOf(to);
+  const seen = times.filter((time) => time <= limit);
+  return seen.length > 0 ? new Date(Math.max(...seen)) : null;
+}
+
+/**
+ * The characters owed an account of time away before a moment, each with when
+ * they were last seen. Leaves out the reader's character, anyone in a story
+ * that's still going (the story is their time), anyone with nothing to go on,
+ * and anyone seen less than OFFSCREEN_MIN_GAP_HOURS before.
+ *
+ * @param {Array<Object>} members - Cast members, with seed cards.
+ * @param {string} to - The new time (ISO).
+ * @param {Object} [options]
+ * @param {string|null} [options.ignoreStoryId] - A story that doesn't count, such as the one
+ *   starting.
+ * @returns {Array<{ member: Object, from: string }>}
+ */
+export function findOffscreenGaps(stores, bureau, members, to, { ignoreStoryId = null } = {}) {
+  const limit = timestampOf(to);
+  const openStories = stores.stories
+    .listStories(bureau.id)
+    .filter(
+      (story) =>
+        story.status === 'active' &&
+        story.id !== ignoreStoryId &&
+        Date.parse(story.startTime) <= limit,
+    );
+  return members
+    .filter((member) => !member.isPersona)
+    .filter((member) => !openStories.some((story) => story.castIds.includes(member.id)))
+    .map((member) => ({ member, since: lastSeen(stores, bureau, member, to, { ignoreStoryId }) }))
+    .filter(({ since }) => since && isOffscreenGap(since, to))
+    .map(({ member, since }) => ({ member, from: since.toISOString() }));
+}
+
+/**
  * @param {Object} params
  * @param {Object} params.bureau - Uses timezone and presentOffsetDays.
- * @param {Array<Object>} params.members - Characters to account for, with seed cards and routines.
+ * @param {Array<{member: Object, from: string}>} params.gaps - Characters to account for, with
+ *   seed cards and routines, and when each was last seen.
  * @param {Object|null} [params.persona] - The reader's character, left out of every account.
- * @param {string} params.from - Bureau time before the jump (ISO).
- * @param {string} params.to - Bureau time after it (ISO).
+ * @param {string} params.to - The new time (ISO).
  * @param {Map<string, {knowledge: Array<Object>, episodes: Array<Object>, offscreen: Object|null}>}
  *   [params.memoriesByCast]
  * @param {Map<string, Array<{content: string}>>} [params.notesByCast] - Accepted arc notes.
@@ -89,9 +153,8 @@ export function isOffscreenGap(from, to) {
  */
 export function buildOffscreenMessages({
   bureau,
-  members,
+  gaps,
   persona = null,
-  from,
   to,
   memoriesByCast = new Map(),
   notesByCast = new Map(),
@@ -101,7 +164,7 @@ export function buildOffscreenMessages({
   const system = [
     'You keep track of what the characters in an ongoing series of stories do between the scenes the reader sees. Call record_offscreen once, with one entry for each character listed.',
     [
-      '- Write two to four sentences for each character, in the past tense and the third person, about how they spent the time: work, errands, habits, small pleasures and annoyances, people they ran into.',
+      '- Write two to four sentences for each character, in the past tense and the third person, about how they spent the time since they were last seen: work, errands, habits, small pleasures and annoyances, people they ran into.',
       '- Keep it mostly mundane and true to who they are: their routine, what they know, and how they have changed. At most one thing in an entry can be notable, and nothing that settles or invents a major turn in their story.',
       '- Fit the length of the gap: an evening holds a little, a few weeks hold more.',
       personaName
@@ -112,15 +175,15 @@ export function buildOffscreenMessages({
       .join('\n'),
   ];
 
-  const time = [
-    `From ${describeBureauTime(from, bureau.timezone)} to ${describeBureauTime(to, bureau.timezone)}: ${describeGap(from, to) ?? 'a few hours'}.`,
-  ];
+  const nowLines = [`It's ${describeBureauTime(to, bureau.timezone)}.`];
   const year = settingYear(bureau, to, now);
-  if (year) time.push(`The year is ${year}.`);
-  const user = [section('TIME THAT PASSED', time.join('\n'))];
+  if (year) nowLines.push(`The year is ${year}.`);
+  const user = [section('NOW', nowLines.join('\n'))];
 
-  for (const member of members) {
-    const lines = [];
+  for (const { member, from } of gaps) {
+    const lines = [
+      `Last seen: ${describeBureauTime(from, bureau.timezone)} (${describeGap(from, to) ?? 'a few hours'} ago)`,
+    ];
     const description = text(member.seedCard?.data?.description);
     if (description) lines.push(`Description: ${truncate(description, DESCRIPTION_CHARACTERS)}`);
     const routine = text(member.routine?.text);
@@ -143,7 +206,7 @@ export function buildOffscreenMessages({
     if (memories?.offscreen) {
       lines.push(`The last time away: ${memories.offscreen.content}`);
     }
-    user.push(section(nameOf(member).toUpperCase(), lines.join('\n') || '(Nothing known yet.)'));
+    user.push(section(nameOf(member).toUpperCase(), lines.join('\n')));
   }
 
   return [
@@ -153,34 +216,30 @@ export function buildOffscreenMessages({
 }
 
 /**
- * Write and save offscreen life for characters across a jump in Bureau time.
+ * Write and save offscreen life for the characters owed it (see findOffscreenGaps).
  *
  * @param {Object} params
  * @param {ReturnType<import('./stores.js').getBureauStores>} params.stores
  * @param {Object} params.bureau
- * @param {Array<Object>} params.members - Characters to account for, with seed cards. The
- *   reader's character is skipped.
- * @param {string} params.from - Bureau time before the jump (ISO).
- * @param {string} params.to - Bureau time after it (ISO).
+ * @param {Array<{member: Object, from: string}>} params.gaps - From findOffscreenGaps.
+ * @param {string} params.to - The new time (ISO); accounts are dated just before it.
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {import('./run-recorder.js').RunRecorder} [params.recorder] - Record into this run (a
  *   reply's) instead of a run of its own.
  * @param {AbortSignal} [params.signal]
- * @returns {Promise<Array<Object>>} The saved memories; empty when the gap is too short or no one
- *   is left to account for.
+ * @returns {Promise<Array<Object>>} The saved memories; empty when no one is owed an account.
  */
 export async function generateOffscreenLife({
   stores,
   bureau,
-  members,
-  from,
+  gaps,
   to,
   client,
   recorder = null,
   signal,
 }) {
-  const characters = members.filter((member) => !member.isPersona);
-  if (characters.length === 0 || !isOffscreenGap(from, to)) return [];
+  if (gaps.length === 0) return [];
+  const characters = gaps.map(({ member }) => member);
 
   const persona = stores.bureaus.listCast(bureau.id).find((member) => member.isPersona) ?? null;
   const memoriesByCast = new Map(
@@ -200,9 +259,8 @@ export async function generateOffscreenLife({
   );
   const messages = buildOffscreenMessages({
     bureau,
-    members: characters,
+    gaps,
     persona,
-    from,
     to,
     memoriesByCast,
     notesByCast,

@@ -494,13 +494,17 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
 
 ### Offscreen life
 
-- When time moves forward at least 12 hours for the characters involved, one forced call to a strict
-  `record_offscreen` tool writes each of them two to four sentences about how they spent the gap,
-  saved as an offscreen memory dated just before the new time:
-  - A story starting later than the Bureau's clock: its cast, after their unread messages are
-    committed to memory. If either step fails, the story still starts, with a notice.
-  - A reply after a quiet stretch: that character, measured from their latest message or dated
-    memory. A failure there doesn't stop the reply.
+- A character is owed an account when at least 12 hours have passed since they were last seen: their
+  latest dated memory, their latest message, or the end of a story they were in. Anyone in a story
+  that's still going is left alone, since the story is their time. One forced call to a strict
+  `record_offscreen` tool writes everyone owed one two to four sentences about how they spent the
+  gap, saved as an offscreen memory:
+  - Before a story starts: its cast, after their unread messages are committed to memory (a thread
+    that fails doesn't keep the others out). Accounts are dated just before the story's start, and
+    if either step fails, the story still starts, with a notice.
+  - Before a reply: that character, with the account dated just before the current session of
+    messages began, so the session's episode takes over from it once recorded. A failure there
+    doesn't stop the reply.
 - The call sees each character's routine, what they know, recent episodes, how they have changed,
   and their last time away. It leaves out the reader's character, whose doings belong to the reader.
 - Moving time forward when a story **ends** doesn't generate offscreen life. That span counts as time

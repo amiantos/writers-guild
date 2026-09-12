@@ -220,6 +220,37 @@ describe('Bureau story routes', () => {
       ]);
     });
 
+    it('commits the other threads when one fails before a story starts', async () => {
+      const ines = stores.bureaus.addCastMember(bureau.id, {
+        seedCard: card('Ines'),
+        libraryCharacterId: 'c3',
+      });
+      for (const member of [mara, ines]) {
+        const thread = stores.threads.getOrCreateThread(bureau.id, member.id);
+        stores.threads.addMessage(thread.id, {
+          source: 'user',
+          senderCastId: theo.id,
+          content: 'Hello?',
+          bureauTime: '2026-09-01T20:00:00.000Z',
+        });
+      }
+      const answer = client.chat;
+      let calls = 0;
+      client.chat = async (options) => {
+        calls += 1;
+        if (calls === 1) throw new DeepSeekError('DeepSeek API error 502: Bad gateway');
+        return answer(options);
+      };
+
+      const { body } = await request(app)
+        .post(storiesUrl())
+        .send({ castIds: [mara.id, ines.id, theo.id] })
+        .expect(201);
+
+      expect(body.archiveError).toBe('Mara: DeepSeek API error 502: Bad gateway');
+      expect(stores.threads.getThreadForCast(bureau.id, ines.id).archivedThrough).toBe(0);
+    });
+
     it("starts at the Bureau's present when its date is moved", async () => {
       stores.bureaus.updateBureau(bureau.id, { presentOffsetDays: -365 });
       const before = Date.now();

@@ -145,6 +145,14 @@ function truncate(value, length) {
   return value.length > length ? `${value.slice(0, length).trimEnd()}…` : value;
 }
 
+/** Where a memory came from, for the Director. */
+function sourceLabelOf(memory) {
+  if (memory.sourceTitle) return memory.sourceTitle;
+  if (memory.sourceType === 'correspondence') return 'messages';
+  if (memory.sourceType === 'offscreen') return 'time away';
+  return 'backstory';
+}
+
 function findMember(members, name) {
   const wanted = text(name).toLowerCase();
   return members.find(
@@ -314,7 +322,7 @@ function toolHandlers({
             id: remember(member, memory),
             character: nameOf(member),
             kind: memory.layer,
-            from: memory.sourceTitle ?? 'backstory',
+            from: sourceLabelOf(memory),
             content: memory.content,
           });
         }
@@ -389,7 +397,7 @@ function toolHandlers({
         }));
         file.recentStories = episodes.map((memory) => ({
           id: remember(member, memory),
-          story: memory.sourceTitle,
+          story: sourceLabelOf(memory),
           content: memory.content,
         }));
         file.hasChanged = notesAsOf(

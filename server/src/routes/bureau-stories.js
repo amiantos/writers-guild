@@ -23,7 +23,7 @@ import {
   resolveStoryStartTime,
 } from '../services/bureau/bureau-time.js';
 import { archiveSettledTurns, archiveStory, archiveThread } from '../services/bureau/archivist.js';
-import { generateOffscreenLife } from '../services/bureau/offscreen.js';
+import { findOffscreenGaps, generateOffscreenLife } from '../services/bureau/offscreen.js';
 import { generateWriterTurn, requestForRegeneration } from '../services/bureau/writer-turn.js';
 import {
   createBureauClient,
@@ -192,30 +192,33 @@ router.get(
 
 /**
  * Before a story begins: commit what its characters said in messages to memory,
- * then give them an account of any jump forward in Bureau time. Neither stops
- * the story; a failure comes back as its message.
- * @param {Object} bureau - The Bureau as it was before its clock moved to the start.
+ * then give each of them an account of their time away since they were last
+ * seen. Neither stops the story; failures come back as messages.
  */
-async function catchUpBeforeStory(req, stores, bureau, { castIds, startTime }) {
+async function catchUpBeforeStory(req, stores, bureau, story) {
   const result = { archiveError: null, offscreenError: null };
   if (!bureau.hasApiKey) return result;
 
   const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureau.id));
-  const members = castIds
+  const members = story.castIds
     .map((castId) => stores.bureaus.getCastMember(bureau.id, castId))
     .filter((member) => member && !member.isPersona);
 
   if (bureau.settings.memory.autoArchive) {
-    try {
-      for (const member of members) {
-        const thread = stores.threads.getThreadForCast(bureau.id, member.id);
-        if (thread) {
-          await archiveThread({ stores, bureauId: bureau.id, threadId: thread.id, client });
-        }
+    // One thread failing doesn't keep the others out of memory.
+    const failures = [];
+    for (const member of members) {
+      const thread = stores.threads.getThreadForCast(bureau.id, member.id);
+      if (!thread) continue;
+      try {
+        await archiveThread({ stores, bureauId: bureau.id, threadId: thread.id, client });
+      } catch (error) {
+        console.error(`[Bureau] Committing messages with ${member.name} failed:`, error.message);
+        failures.push(`${member.name}: ${error.message}`);
       }
-    } catch (error) {
-      console.error('[Bureau] Committing messages before the story failed:', error.message);
-      result.archiveError = error.message;
+    }
+    if (failures.length > 0) {
+      result.archiveError = failures.join('; ');
     }
   }
 
@@ -224,9 +227,10 @@ async function catchUpBeforeStory(req, stores, bureau, { castIds, startTime }) {
       await generateOffscreenLife({
         stores,
         bureau,
-        members,
-        from: bureau.bureauTime,
-        to: startTime,
+        gaps: findOffscreenGaps(stores, bureau, members, story.startTime, {
+          ignoreStoryId: story.id,
+        }),
+        to: story.startTime,
         client,
       });
     } catch (error) {
@@ -274,10 +278,7 @@ router.post(
       }
     })();
 
-    const { archiveError, offscreenError } = await catchUpBeforeStory(req, stores, bureau, {
-      castIds,
-      startTime,
-    });
+    const { archiveError, offscreenError } = await catchUpBeforeStory(req, stores, bureau, story);
     res
       .status(201)
       .json({ story, bureau: bureaus.getBureau(bureauId), archiveError, offscreenError });

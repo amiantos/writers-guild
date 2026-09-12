@@ -13,10 +13,11 @@
 
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
+import { SESSION_GAP_MS, threadSessions } from './archivist.js';
 import { bureauPresent, describeBureauTime, describeGap, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
-import { generateOffscreenLife, isOffscreenGap } from './offscreen.js';
+import { findOffscreenGaps, generateOffscreenLife } from './offscreen.js';
 import { RunRecorder } from './run-recorder.js';
 import { activatedLore } from './writer-turn.js';
 
@@ -109,17 +110,15 @@ function memoryBlock(name, { knowledge, episodes, offscreen = null }) {
 }
 
 /**
- * When a character was last seen before the present: their latest message, or
- * their latest dated memory. Null when there's nothing to go on.
+ * When the current session of messages began: its first message, or the present
+ * when the last message belongs to an earlier session (or there are none).
  */
-function lastSeen(history, memories, present) {
-  const times = [
-    ...history
-      .filter((message) => message.source === 'generated')
-      .map((message) => Date.parse(message.bureauTime)),
-    ...memories.filter((memory) => memory.worldTime).map((memory) => Date.parse(memory.worldTime)),
-  ].filter((time) => time <= present.getTime());
-  return times.length > 0 ? new Date(Math.max(...times)) : null;
+function sessionStartOf(history, present) {
+  const session = threadSessions(history).at(-1);
+  if (!session || present.getTime() - Date.parse(session.at(-1).bureauTime) > SESSION_GAP_MS) {
+    return present;
+  }
+  return new Date(Math.min(Date.parse(session[0].bureauTime), present.getTime()));
 }
 
 /** The latest messages that fit the budget, always keeping at least the last one. */
@@ -303,19 +302,20 @@ export async function generateReply({
 
   let messages;
   try {
-    // After a quiet stretch, the character first gets an account of what they did meanwhile.
-    const since = bureau.settings.memory.offscreenLife
-      ? lastSeen(history, allMemories(), present)
-      : null;
-    if (since && isOffscreenGap(since, present)) {
+    // After a quiet stretch, the character first gets an account of what they did meanwhile,
+    // dated just before this session of messages began, so the session's episode takes over.
+    const sessionStart = sessionStartOf(history, present).toISOString();
+    const gaps = bureau.settings.memory.offscreenLife
+      ? findOffscreenGaps(stores, bureau, [member], sessionStart)
+      : [];
+    if (gaps.length > 0) {
       onEvent({ type: 'stage', stage: 'catching-up' });
       try {
         await generateOffscreenLife({
           stores,
           bureau,
-          members: [member],
-          from: since.toISOString(),
-          to: present.toISOString(),
+          gaps,
+          to: sessionStart,
           client,
           recorder,
           signal,
