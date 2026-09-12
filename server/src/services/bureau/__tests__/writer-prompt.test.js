@@ -109,7 +109,7 @@ describe('buildWriterMessages', () => {
     });
 
     expect(system).toContain(
-      "=== MEMORIES ===\nWhat the characters remember from before this story. Let it shape what they do and bring up, without reciting it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
+      "=== MEMORIES ===\nWhat the characters remember from before this story, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
     );
     expect(system).not.toContain('The reader remembers this.');
   });
@@ -232,7 +232,7 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain(
-      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nPoint of view: Mara, narrated in the house style's person and tense. Tone: uneasy.\nKeep in mind:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
+      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nPoint of view: Mara, narrated in the house style's person and tense. Tone: uneasy.\nStay consistent with:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
     );
     expect(user).not.toContain('Write the next 3 to 6 paragraphs');
   });

@@ -96,7 +96,8 @@ export const DIRECTOR_TOOLS = [
         beats: {
           type: 'array',
           items: { type: 'string' },
-          description: 'What happens in the next passage, in order: two to five short beats.',
+          description:
+            'What happens in the next passage, in order: one to four short beats, each a plain sentence.',
         },
         pov: {
           type: 'string',
@@ -115,16 +116,21 @@ export const DIRECTOR_TOOLS = [
             type: 'object',
             properties: {
               id: { type: 'integer', description: 'The id of a memory you found.' },
-              reason: { type: 'string', description: 'Why it matters here, in one line.' },
+              reason: {
+                type: 'string',
+                description: 'What in this passage depends on it, in one line.',
+              },
             },
             required: ['id', 'reason'],
             additionalProperties: false,
           },
-          description: 'Memories you found that the Writer should keep in mind. Empty if none.',
+          description:
+            'Memories you found that this passage depends on, so the Writer stays consistent with them. Usually empty: memories are background, not something for the characters to bring up.',
         },
         notes: {
           type: 'string',
-          description: 'Anything else the Writer should know. Empty if nothing.',
+          description:
+            "Continuity the Writer could get wrong, such as where everyone is or what just happened, in a sentence or two. Don't restate the character cards. Empty if nothing.",
         },
       },
       required: ['beats', 'pov', 'tone', 'length', 'memories', 'notes'],
@@ -205,8 +211,11 @@ export function buildDirectorMessages({
   const system = [
     'You are the Director for an ongoing story. Before the Writer writes the next passage, decide what should happen in it and gather anything the Writer needs.',
     [
-      '- Use recall when the passage touches earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for more about someone. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
+      '- Use recall when the passage turns on earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for more about someone. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
       '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
+      '- Plan what happens and leave how it reads to the Writer. Each beat is a plain sentence about what someone does or what changes, without lines of dialogue, jokes, imagery, or explanations of what anyone feels underneath.',
+      '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
+      "- The Writer has the character cards, so don't restate anyone's traits or habits in the notes.",
       "- For the point of view, name only the character the passage stays closest to. The narration's person and tense come from the house style, so don't specify them.",
       canCreateCharacters
         ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this story.'

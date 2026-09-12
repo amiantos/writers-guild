@@ -195,7 +195,7 @@ const WORDING = {
     unit: 'Passage',
     scope: 'this story',
     episodes:
-      'Episodes: one for each character who remembers, telling what happened in this story so far from their point of view, in the past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
+      'Episodes: one for each character who remembers, telling what happened in this story so far from their point of view, in the third person and past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
     summary:
       'story_summary: what has happened in the whole story so far, in at most 150 words, updating the previous summary.',
   },
@@ -204,7 +204,7 @@ const WORDING = {
     unit: 'Message',
     scope: 'this exchange',
     episodes:
-      'Episodes: one for each character who remembers, telling what happened in this exchange of messages from their point of view, in the past tense, in at most 60 words, such as "Theo texted late one night about swimming out to the buoy, and Mara talked him out of it." When they already have an episode for this exchange, rewrite it to include the new messages.',
+      'Episodes: one for each character who remembers, telling what happened in this exchange of messages from their point of view, in the third person and past tense, in at most 60 words, such as "Theo texted late one night about swimming out to the buoy, and Mara talked him out of it." When they already have an episode for this exchange, rewrite it to include the new messages.',
     summary: 'story_summary: leave it empty.',
   },
 };
@@ -267,7 +267,7 @@ export function buildArchivistMessages({
       `- Lasting facts a character learned, or that changed: about ${about}, their relationships, promises, plans, preferences, places, and running jokes.`,
       '- One fact per memory, in the third person with names, never "I" or "you". Record only what that character saw, heard, or was told.',
       '- Each memory must make sense on its own, read months later: say who and what, never "this" or "that" for something in another memory.',
-      '- Skip passing actions, scenery, short-lived plans, and anything the character already knows.',
+      '- Skip passing actions, scenery, incidental details such as exact times, short-lived plans, and anything the character already knows. The episode tells what happened; knowledge keeps what will still matter later.',
       "- When a fact updates or contradicts one of the character's numbered memories, set supersedes to that number and write the complete updated fact. Otherwise set supersedes to 0.",
       '- Importance: 1 trivia, 2 minor detail, 3 useful, 4 significant, 5 defining (a milestone in a relationship, a secret revealed).',
       `- passages lists the numbers of the ${wording.units} the fact comes from.`,

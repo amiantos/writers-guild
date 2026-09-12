@@ -3,7 +3,7 @@
 - **Status:** Experimental; phases 1–7 are built
 - **Started:** 2026-09-11 (last updated 2026-09-12)
 - **Working name:** Bureau (not final)
-- **Branch:** built on `feature/bureau`, merged into `main`
+- **Branch:** built on `feature/bureau`, not yet merged into `main`
 - **Discussion:** [#49 Chat Mode + Memories](https://github.com/amiantos/writers-guild/discussions/49)
 
 ## Summary
@@ -224,9 +224,12 @@ gather what the next turn needs.
 Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, point of view
 (whose view only: the house style sets the narration's person and tense, so any narrative person a
 brief names, such as "first person" or "close third", is dropped),
-tone, target length, memories (each with a one-line reason, and only ones the Director found), and
-notes for the Writer. The Director runs with thinking on at low effort by default and gets four
-lookups per passage, after which it's told to hand over its brief. Creating a character isn't a
+tone, target length, memories (only ones the Director found and the passage depends on, each with a
+one-line reason; usually none), and notes on continuity the Writer could get wrong. Beats say plainly
+what happens and leave dialogue and wording to the Writer. The brief doesn't restate the cards or
+plan callbacks to earlier events unless the scene is about them: memories are background, and
+characters who keep bringing up the past read as talky and artificial. The Director runs with
+thinking on at low effort by default and gets four lookups per passage, after which it's told to hand over its brief. Creating a character isn't a
 lookup; it has its own limit of two per passage. A successful `submit_brief` call
 ends the tool loop without another model call. `recall` only finds what the story can see: memories
 from before its start, and this story's memories from passages before the one being written.

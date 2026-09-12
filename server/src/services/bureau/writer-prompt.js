@@ -16,9 +16,11 @@ export const DEFAULT_HOUSE_STYLE = [
   'Write in a narrative, novel-style format with proper paragraphs and dialogue.',
   'Write in third-person past tense, including dialogue tags.',
   "Give each character's dialogue its own paragraph: when a different character speaks, start a new paragraph.",
-  'Show rather than tell, with specific, vivid description and natural dialogue.',
+  'Show rather than tell, with specific, concrete detail and natural dialogue.',
+  'Let dialogue sound like real speech: mostly short lines, broken up by action, without characters explaining their feelings or recapping what they both know.',
+  'Keep the narration concrete rather than clever: use similes sparingly, and avoid punchy sentence fragments for emphasis.',
   'Do not use asterisks for actions. Write everything as prose.',
-  'Character profiles may be written in another tense or perspective; take facts from them, not style.',
+  'Character profiles and memories may be written in another tense or perspective; take facts from them, not style.',
   'Write in the same language as the existing story.',
 ].join('\n');
 
@@ -34,7 +36,7 @@ const BRIEF_LENGTHS = {
 };
 
 const MEMORIES_PREFACE =
-  'What the characters remember from before this story. Let it shape what they do and bring up, without reciting it.';
+  'What the characters remember from before this story, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.';
 
 // PromptBuilder is story mode's, reused here only for its {{user}}/{{char}} replacement.
 const placeholders = new PromptBuilder();
@@ -147,7 +149,7 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
       const memories = brief.memories.map(
         (memory) => `- ${memory.content}${memory.reason ? ` (${memory.reason})` : ''}`,
       );
-      lines.push(`Keep in mind:\n${memories.join('\n')}`);
+      lines.push(`Stay consistent with:\n${memories.join('\n')}`);
     }
     if (brief.notes) lines.push(`Notes: ${brief.notes}`);
   }

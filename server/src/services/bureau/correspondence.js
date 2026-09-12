@@ -204,7 +204,7 @@ export function buildCorrespondenceMessages({
     system.push(
       section(
         'MEMORIES',
-        `What ${name} remembers. Let it shape what they say, without reciting it.\n\n${remembered}`,
+        `What ${name} remembers, as background for how they act. People seldom talk about the past, so bring it up only when the conversation calls for it, and never recite it.\n\n${remembered}`,
       ),
     );
   }
@@ -243,7 +243,7 @@ export function buildCorrespondenceMessages({
     instructions.push(`${personaName} hasn't answered yet. Write a short follow-up from ${name}.`);
   }
   instructions.push(
-    `Stay in character. Let the time of day, what ${name} is likely doing, and what ${name} remembers shape the messages without reciting any of it.`,
+    `Stay in character. Let the time of day and what ${name} is likely doing shape the messages, and bring up what ${name} remembers only when the conversation calls for it.`,
     `Write only what ${name} sends, never ${personaName}'s side, and don't label messages with names.`,
     `Write one to four messages, with a line containing only ${MESSAGE_SEPARATOR} between messages.`,
   );
