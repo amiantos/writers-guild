@@ -32,6 +32,8 @@ export const MAX_REPLY_MESSAGES = 6;
 // Messages read from the thread for a reply; the prompt keeps the latest that fit the budget.
 export const RECENT_MESSAGES = 200;
 export const CONVERSATION_CHARACTER_BUDGET = 60_000;
+// Reasoning counts against max_tokens, so thinking mode gets this much room beyond the reply.
+export const THINKING_TOKENS = 8000;
 // Recent messages scanned for lorebook keywords.
 const LORE_SCAN_MESSAGES = 10;
 
@@ -304,8 +306,9 @@ export async function generateReply({
     throw error;
   }
 
-  const { thinking, maxTokens } = bureau.settings.correspondence;
-  const { reasoningEffort, temperature } = bureau.settings.writer;
+  const { thinking, reasoningEffort, maxTokens: replyTokens } = bureau.settings.correspondence;
+  const { temperature } = bureau.settings.writer;
+  const maxTokens = thinking ? replyTokens + THINKING_TOKENS : replyTokens;
   const recordedRequest = {
     model: client.model,
     thinking,
@@ -407,7 +410,8 @@ export async function generateReply({
   });
 
   if (splitMessages(finalContent, name).length === 0) {
-    const error = new Error(`${name}'s reply came back empty`);
+    const cutOff = done?.finishReason === 'length' ? ' (it ran out of tokens)' : '';
+    const error = new Error(`${name}'s reply came back empty${cutOff}`);
     recorder.fail(error);
     throw error;
   }

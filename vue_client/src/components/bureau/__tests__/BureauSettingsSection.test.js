@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import BureauSettingsSection from '../BureauSettingsSection.vue';
 import { bureausAPI } from '../../../services/bureauApi';
@@ -29,10 +29,18 @@ function bureau(fields = {}) {
       },
       editor: { enabled: true },
       style: { bannedPhrases: ['a testament to'] },
-      correspondence: { style: '', thinking: false, maxTokens: 1000 },
+      correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
     },
     ...fields,
   };
+}
+
+async function saveSettings(wrapper) {
+  await wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('Save settings'))
+    .trigger('click');
+  await flushPromises();
 }
 
 describe('BureauSettingsSection', () => {
@@ -109,7 +117,43 @@ describe('BureauSettingsSection', () => {
       },
       editor: { enabled: false },
       style: { bannedPhrases: ['a testament to', 'sent shivers down'] },
-      correspondence: { style: '', thinking: false, maxTokens: 1000 },
+      correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
+    });
+  });
+
+  describe("the Bureau's present", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('sets the present from the date field', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 8, 12, 12, 0));
+      bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
+      const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
+      await flushPromises();
+
+      expect(wrapper.find('#bureau-settings-present').element.value).toBe('2026-09-12');
+      await wrapper.find('#bureau-settings-present').setValue('1996-07-31');
+      await saveSettings(wrapper);
+
+      expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(-11000);
+    });
+
+    it("keeps the present's offset when saving after midnight", async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 8, 12, 23, 59));
+      bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
+      const wrapper = mount(BureauSettingsSection, {
+        props: { bureau: bureau({ presentOffsetDays: -11000 }) },
+      });
+      await flushPromises();
+
+      vi.setSystemTime(new Date(2026, 8, 13, 0, 30));
+      await wrapper.find('#bureau-settings-correspondence-thinking').setValue(true);
+      await saveSettings(wrapper);
+
+      expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(-11000);
     });
   });
 });

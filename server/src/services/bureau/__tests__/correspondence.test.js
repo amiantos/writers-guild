@@ -195,6 +195,21 @@ describe('generateReply', () => {
     });
   }
 
+  it('gives thinking mode room to reason beyond the reply', async () => {
+    stores.bureaus.updateSettings(bureau.id, {
+      correspondence: { thinking: true, reasoningEffort: 'high' },
+    });
+    const client = streamingClient(['Hi.']);
+
+    await reply(client);
+
+    expect(client.calls[0]).toMatchObject({
+      thinking: true,
+      reasoningEffort: 'high',
+      maxTokens: 9000,
+    });
+  });
+
   it('saves the reply as messages at the present and moves Bureau time', async () => {
     const client = streamingClient(['Always *yawns*.', '\n---\n', 'Storm?']);
     const events = [];

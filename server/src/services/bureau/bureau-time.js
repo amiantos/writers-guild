@@ -149,15 +149,54 @@ function timestampOf(value) {
   return value instanceof Date ? value.getTime() : Date.parse(value);
 }
 
+/** A moment's date and time of day in a time zone, as milliseconds on a UTC clock. */
+function wallClock(date, timeZone) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hourCycle: 'h23',
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  return Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    date.getUTCMilliseconds(),
+  );
+}
+
 /**
- * A Bureau's present: real time with the date moved by the Bureau's whole-day
- * offset, so the time of day still follows the real clock.
- * @param {{ presentOffsetDays?: number }} bureau
+ * A Bureau's present: the real time of day, on the date the Bureau's whole-day
+ * offset away in its time zone. The offset counts calendar days, not 24-hour
+ * blocks, so a daylight saving change between the two dates moves neither the
+ * hour nor the date. The client's bureauPresent (composables/bureau/format.js)
+ * does the same.
+ * @param {{ presentOffsetDays?: number, timezone?: string|null }} bureau
  * @param {Date} [now]
  * @returns {Date}
  */
 export function bureauPresent(bureau, now = new Date()) {
-  return new Date(now.getTime() + (bureau.presentOffsetDays ?? 0) * DAY_MS);
+  const days = bureau.presentOffsetDays ?? 0;
+  if (!days) return new Date(now.getTime());
+  const timeZone = isValidTimeZone(bureau.timezone) ? bureau.timezone : undefined;
+  const target = wallClock(now, timeZone) + days * DAY_MS;
+  // Find the moment showing that wall clock; the second pass settles a daylight saving change.
+  let moment = target;
+  for (let pass = 0; pass < 2; pass += 1) {
+    moment += target - wallClock(new Date(moment), timeZone);
+  }
+  return new Date(moment);
 }
 
 /**

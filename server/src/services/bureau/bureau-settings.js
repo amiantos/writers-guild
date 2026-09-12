@@ -44,6 +44,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // How messages read. Empty uses the default: short first-person texts.
     style: '',
     thinking: false,
+    reasoningEffort: 'low',
+    // For the reply itself; thinking mode gets more room for reasoning on top.
     maxTokens: 1000,
   }),
 });
@@ -102,6 +104,7 @@ const CORRESPONDENCE_RULES = {
   style: (value) =>
     (typeof value === 'string' && value.length <= 4000) || 'must be text of up to 4000 characters',
   thinking: isBoolean,
+  reasoningEffort: WRITER_RULES.reasoningEffort,
   maxTokens: (value) =>
     (Number.isInteger(value) && value >= 100 && value <= 8000) ||
     'must be a whole number from 100 to 8000',

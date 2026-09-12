@@ -449,7 +449,9 @@ A Bureau's present is normally today, but it can be set to another date, such as
 stored as a whole-day offset from the real calendar:
 
 - Time of day always follows your real clock, so a message sent at 11pm is still late at night.
-- The date shifts by the offset, and the weekday and season follow the shifted date.
+- The date shifts by the offset, counted in calendar days in the Bureau's time zone (so a daylight
+  saving change between the two dates doesn't move the hour), and the weekday and season follow the
+  shifted date.
 - Everywhere this doc says "the present" (correspondence and both story dialogs), it means real time
   plus the offset.
 - When the offset isn't zero, or a story starts in a year other than the real one, the year goes into

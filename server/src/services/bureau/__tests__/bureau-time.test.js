@@ -25,6 +25,19 @@ describe('bureauPresent', () => {
       '2025-09-12T22:15:00.000Z',
     );
   });
+
+  it("counts calendar days in the Bureau's time zone, across daylight saving", () => {
+    // 00:30 PDT on September 12, with the present set to January 15, 1996 (PST).
+    const now = new Date('2026-09-12T07:30:00Z');
+    const days = Math.round((Date.UTC(1996, 0, 15) - Date.UTC(2026, 8, 12)) / 86_400_000);
+
+    const present = bureauPresent(
+      { presentOffsetDays: days, timezone: 'America/Los_Angeles' },
+      now,
+    );
+
+    expect(present.toISOString()).toBe('1996-01-15T08:30:00.000Z');
+  });
 });
 
 describe('describeGap', () => {

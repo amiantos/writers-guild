@@ -29,6 +29,18 @@ describe("the Bureau's present", () => {
     expect(present.getHours()).toBe(22);
     expect(present.getDate()).toBe(15);
   });
+
+  it("counts calendar days in the Bureau's time zone", () => {
+    // 00:30 PDT on September 12; January 15, 1996 is in PST.
+    const early = new Date('2026-09-12T07:30:00Z');
+    const days = offsetDaysTo('1996-01-15', early, 'America/Los_Angeles');
+    const bureau = { presentOffsetDays: days, timezone: 'America/Los_Angeles' };
+
+    expect(bureauPresent(bureau, early).toISOString()).toBe('1996-01-15T08:30:00.000Z');
+    expect(presentDateValue(bureau, early)).toBe('1996-01-15');
+    const tokyo = { presentOffsetDays: 0, timezone: 'Asia/Tokyo' };
+    expect(presentDateValue(tokyo, new Date('2026-09-12T20:00:00Z'))).toBe('2026-09-13');
+  });
 });
 
 describe('formatDateTime', () => {

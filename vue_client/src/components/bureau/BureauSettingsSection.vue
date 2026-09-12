@@ -197,6 +197,18 @@
           />
           Thinking mode for replies
         </label>
+        <div v-if="form.correspondence.thinking" class="form-group">
+          <label for="bureau-settings-correspondence-effort">Reasoning effort</label>
+          <select
+            id="bureau-settings-correspondence-effort"
+            v-model="form.correspondence.reasoningEffort"
+            class="select-input"
+          >
+            <option value="low">Low</option>
+            <option value="high">High</option>
+            <option value="max">Max</option>
+          </select>
+        </div>
         <div class="form-group">
           <label for="bureau-settings-correspondence-style">How messages read</label>
           <textarea
@@ -241,9 +253,10 @@
         <label for="bureau-settings-present">The Bureau's present</label>
         <input
           id="bureau-settings-present"
-          v-model="form.presentDate"
+          :value="presentDate"
           type="date"
           class="text-input"
+          @input="setPresentDate($event.target.value)"
         />
         <p class="help-text">
           Messages are sent on this date, with the time of day following your clock. Set another
@@ -304,7 +317,8 @@ function snapshot(bureau) {
     description: bureau.description,
     model: bureau.model,
     houseStyle: bureau.houseStyle,
-    presentDate: presentDateValue(bureau),
+    // The offset, not the date: a date turned back into an offset after midnight would be a day off.
+    presentOffsetDays: bureau.presentOffsetDays ?? 0,
     writer: { ...bureau.settings.writer },
     director: { ...bureau.settings.director },
     editor: { ...bureau.settings.editor },
@@ -348,6 +362,17 @@ const dirty = computed(() => {
 
 watch(() => props.bureau, syncForm, { immediate: true });
 
+const presentDate = computed(() =>
+  presentDateValue({
+    presentOffsetDays: form.presentOffsetDays,
+    timezone: props.bureau.timezone,
+  }),
+);
+
+function setPresentDate(value) {
+  form.presentOffsetDays = offsetDaysTo(value, new Date(), props.bureau.timezone) ?? 0;
+}
+
 async function update(updates, message) {
   saving.value = true;
   try {
@@ -369,7 +394,7 @@ async function save() {
     description: form.description.trim(),
     model: form.model.trim(),
     houseStyle: form.houseStyle,
-    presentOffsetDays: offsetDaysTo(form.presentDate) ?? 0,
+    presentOffsetDays: form.presentOffsetDays,
     settings: {
       writer: { ...form.writer },
       director: { ...form.director },
@@ -386,7 +411,6 @@ async function save() {
       name: updates.name,
       description: updates.description,
       model: updates.model,
-      presentDate: presentDateValue({ presentOffsetDays: updates.presentOffsetDays }),
       apiKey: '',
     });
   }
