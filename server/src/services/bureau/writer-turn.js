@@ -157,6 +157,8 @@ export async function generateWriterTurn({
     action: request.action,
     direction: request.direction,
     leadName: lead?.name,
+    // Centering a passage on the reader's character asks the Writer to write them.
+    leadIsReader: Boolean(lead?.isPersona),
   };
   const isCancellation = (error) => error?.name === 'AbortError' || Boolean(signal?.aborted);
 
@@ -336,8 +338,10 @@ export async function generateWriterTurn({
   // Lint runs and is recorded even with the Editor off, so runs can be compared.
   const houseStyle = bureau.houseStyle?.trim() || DEFAULT_HOUSE_STYLE;
   const persona = cast.find((member) => member.isPersona) ?? null;
-  // The reader's character speaks only when the author's direction has them speak.
-  const readerName = request.action !== 'direct' && persona ? nameOf(persona) : null;
+  // The reader's character speaks only when a direction has them speak, or the passage centers on
+  // them.
+  const readerName =
+    request.action !== 'direct' && !lead?.isPersona && persona ? nameOf(persona) : null;
   const findings = lintProse(finalContent, {
     names: cast.map((member) => ({ name: nameOf(member), pronoun: pronounOf(member) })),
     readerName,

@@ -170,6 +170,7 @@ describe('buildWriterMessages', () => {
       "=== NEXT ===\nContinue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective and refer to Theo by name.\nLeave Theo's words and choices to Theo.",
     );
     expect(user).not.toMatch(/Theo left off|Respond to what/);
+    expect(user).toContain('What Theo remembers is there for continuity, not for you to act on.');
   });
 
   it('writes for a reader with no character in the story without inventing a name', () => {
@@ -251,6 +252,17 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain('Center this passage on Mara');
+  });
+
+  it("writes the reader's character when the passage centers on them", () => {
+    const { user } = build({
+      turns: [prose('The lamp was lit.')],
+      request: { action: 'continue', leadName: 'Theo', leadIsReader: true },
+    });
+
+    expect(user).toContain('Center this passage on Theo');
+    expect(user).not.toContain("Leave Theo's words and choices to Theo");
+    expect(user).not.toContain('end the passage right there');
   });
 
   it("follows the Director's brief, including its length", () => {

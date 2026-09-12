@@ -649,6 +649,52 @@ describe('archiveThread', () => {
     });
   });
 
+  it("gives the reader's character memories from their messages, as whoever sent them", async () => {
+    const message = send('user', "I'm leaving the island.", '2026-10-01T06:00:00.000Z');
+    send('generated', 'Take the early ferry.', '2026-10-01T06:05:00.000Z');
+    // The reader picks someone else before the messages are committed.
+    const ines = stores.bureaus.addCastMember(bureau.id, {
+      seedCard: card('Ines'),
+      libraryCharacterId: 'c3',
+      isPersona: true,
+    });
+    const client = archivistClient([
+      record({
+        knowledge: [
+          {
+            character: 'Theo',
+            content: 'Theo told Mara he is leaving the island.',
+            importance: 4,
+            supersedes: 0,
+            passages: [message.position],
+          },
+        ],
+        episodes: [
+          { character: 'Theo', content: 'Theo texted Mara that he was leaving.' },
+          { character: 'Ines', content: 'Ines read the messages.' },
+        ],
+      }),
+    ]);
+
+    const result = await archive(client);
+
+    const theoMemories = stores.memories
+      .listMemories(bureau.id, theo.id)
+      .map((memory) => memory.content);
+    expect(theoMemories).toHaveLength(2);
+    expect(theoMemories).toEqual(
+      expect.arrayContaining([
+        'Theo told Mara he is leaving the island.',
+        'Theo texted Mara that he was leaving.',
+      ]),
+    );
+    expect(stores.memories.listMemories(bureau.id, ines.id)).toEqual([]);
+    expect(result.warnings).toEqual([expect.stringContaining('"Ines"')]);
+    const [system, user] = client.calls[0].messages;
+    expect(system.content).toContain('Characters who remember: Mara and Theo.');
+    expect(user.content).toContain(`[Message ${message.position}]\nTheo: I'm leaving the island.`);
+  });
+
   it('leaves a session that may still be going when only settled ones are read', async () => {
     const now = new Date('2026-10-01T07:00:00.000Z');
     const earlier = send('user', 'Up early?', '2026-09-30T08:00:00.000Z');

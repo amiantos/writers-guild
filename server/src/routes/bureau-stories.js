@@ -200,14 +200,19 @@ async function catchUpBeforeStory(req, stores, bureau, story) {
   if (!bureau.hasApiKey) return result;
 
   const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureau.id));
-  const members = story.castIds
+  const cast = story.castIds
     .map((castId) => stores.bureaus.getCastMember(bureau.id, castId))
-    .filter((member) => member && !member.isPersona);
+    .filter(Boolean);
+  const members = cast.filter((member) => !member.isPersona);
+  // Every thread is with the reader's character, so when they're in the story, all of them count.
+  const correspondents = cast.some((member) => member.isPersona)
+    ? stores.bureaus.listCast(bureau.id).filter((member) => !member.isPersona)
+    : members;
 
   if (bureau.settings.memory.autoArchive) {
     // One thread failing doesn't keep the others out of memory.
     const failures = [];
-    for (const member of members) {
+    for (const member of correspondents) {
       const thread = stores.threads.getThreadForCast(bureau.id, member.id);
       if (!thread) continue;
       try {

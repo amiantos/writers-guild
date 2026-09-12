@@ -524,6 +524,32 @@ describe('generateWriterTurn', () => {
       expect(run.steps[1].response.findings).toHaveLength(2);
     });
 
+    it("lets a direction, or a passage centered on the reader's character, have them speak", async () => {
+      stores.bureaus.updateSettings(bureau.id, { editor: { enabled: false } });
+      const rulesFor = async (request) => {
+        const client = withChat(
+          streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
+          [],
+        );
+        const turn = await generate(client, request);
+        const lint = stores.bureaus
+          .getRun(bureau.id, turn.runId)
+          .steps.find((step) => step.role === 'lint');
+        return lint.response.findings.map((finding) => finding.rule);
+      };
+
+      expect(await rulesFor({ action: 'direct', direction: 'Theo says no' })).toEqual([
+        'multiple_speakers',
+      ]);
+      expect(await rulesFor({ action: 'continue', leadCastId: theo.id })).toEqual([
+        'multiple_speakers',
+      ]);
+      expect(await rulesFor({ action: 'continue' })).toEqual([
+        'multiple_speakers',
+        'speaking_for_reader',
+      ]);
+    });
+
     it('keeps the unedited text when the Editor is off or fails', async () => {
       stores.bureaus.updateSettings(bureau.id, { editor: { enabled: false } });
       const off = withChat(

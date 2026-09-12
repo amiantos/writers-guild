@@ -174,9 +174,9 @@ actions:
   keeping whatever was already written.
 
 On Write and Continue, the reader's character's words and choices stay the reader's; only a
-direction can have them speak or act. Whatever the action, a passage ends once someone asks the
-reader's character something or waits for them to respond, even if that makes it shorter than
-asked (on Direct, once the direction is carried out).
+direction, or centering the passage on them with Focus, can have them speak or act. Otherwise, a
+passage ends once someone asks the reader's character something or waits for them to respond, even
+if that makes it shorter than asked (on Direct, once the direction is carried out).
 
 Editing a turn opens a textarea for just that turn, which recovers most of the feel of editing
 directly.
@@ -321,7 +321,8 @@ Direction turns are left out.
 - `story_summary`: the whole chapter so far, shown in the Bureau's chapter list
 
 A thread's memories are dated to the start of their session and cite its messages, and each session
-gets its own episode, rewritten if the session grows.
+gets its own episode, rewritten if the session grows. The reader's side of a session is whoever sent
+its messages, even if the reader has picked another character since.
 
 Memory operations apply automatically because they are visible, sourced, and reversible. The
 Archivist can supersede memories but can't retire or delete them, and it leaves alone pinned

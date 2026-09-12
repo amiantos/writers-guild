@@ -409,7 +409,11 @@ function threadSource(stores, bureau, { thread, member, persona, session }) {
   }
   const first = session[0];
   const last = session.at(-1);
-  const names = [member, persona].filter(Boolean).map(nameOf);
+  const people = [member, persona].filter(
+    (castMember, index, all) =>
+      castMember && all.findIndex((other) => other?.id === castMember.id) === index,
+  );
+  const names = people.map(nameOf);
   return {
     kind: 'correspondence',
     id: thread.id,
@@ -417,7 +421,7 @@ function threadSource(stores, bureau, { thread, member, persona, session }) {
     openingTime: describeBureauTime(first.bureauTime, bureau.timezone),
     summary: '',
     worldTime: first.bureauTime,
-    characters: [member, persona].filter(Boolean),
+    characters: people,
     persona,
     exists: () => Boolean(stores.threads.getThread(bureau.id, thread.id)),
     currentContent: (messageId) => stores.threads.getMessage(thread.id, messageId)?.content,
@@ -904,13 +908,21 @@ export function archiveThread({
     if (toRead.length === 0) return null;
 
     const member = stores.bureaus.getCastMember(bureauId, thread.castMemberId);
-    const persona = stores.bureaus.listCast(bureauId).find((cast) => cast.isPersona) ?? null;
-    const speakerOf = (message) =>
-      message.source === 'user'
-        ? persona
-          ? nameOf(persona)
-          : 'The reader'
-        : nameOf(member ?? { name: 'They' });
+    const currentPersona = stores.bureaus.listCast(bureauId).find((cast) => cast.isPersona) ?? null;
+    // The reader's side of a session is whoever sent its messages, which stays true if the reader
+    // picks another character later.
+    const senderOf = (message) =>
+      (message.senderCastId && stores.bureaus.getCastMember(bureauId, message.senderCastId)) ||
+      currentPersona;
+    const readerOf = (session) => {
+      const sent = session.find((message) => message.source === 'user');
+      return sent ? senderOf(sent) : currentPersona;
+    };
+    const speakerOf = (message) => {
+      if (message.source !== 'user') return nameOf(member ?? { name: 'They' });
+      const sender = senderOf(message);
+      return sender ? nameOf(sender) : 'The reader';
+    };
 
     const totals = emptyTotals(thread.archivedThrough);
     const recorder = new RunRecorder(stores.bureaus, {
@@ -932,7 +944,8 @@ export function archiveThread({
           const result = await readChunk({
             stores,
             bureau,
-            loadSource: () => threadSource(stores, bureau, { thread, member, persona, session }),
+            loadSource: () =>
+              threadSource(stores, bureau, { thread, member, persona: readerOf(session), session }),
             client,
             recorder,
             chunk,

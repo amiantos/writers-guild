@@ -119,14 +119,17 @@ function instructionFor({
         : "Some passages may be written in first or second person; write in the house style's perspective.",
     );
   }
-  if (request.action !== 'direct' && readerName) {
-    lines.push(`Leave ${readerName}'s words and choices to ${readerName}.`);
+  // The reader's character is written only when a direction asks, or the passage centers on them.
+  if (request.action !== 'direct' && !request.leadIsReader && readerName) {
+    lines.push(
+      `Leave ${readerName}'s words and choices to ${readerName}. What ${readerName} remembers is there for continuity, not for you to act on.`,
+    );
   }
 
   if (request.action === 'direct' && request.direction) {
     lines.push(
       `The author's direction for this passage (not part of the story yet): ${request.direction}`,
-      readerName
+      readerName && !request.leadIsReader
         ? `Carry it out in the passage itself: write what it describes as happening, including anything it has ${readerName} say or do. Beyond that, leave ${readerName}'s words and choices to ${readerName}.`
         : 'Carry it out in the passage itself: write what it describes as happening.',
     );
@@ -177,7 +180,7 @@ function instructionFor({
       "Keep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it.",
     );
   }
-  if (readerName) {
+  if (readerName && !request.leadIsReader) {
     lines.push(
       `${request.action === 'direct' ? 'Once the direction is carried out, if' : 'If'} someone asks ${readerName} something or waits for ${readerName} to respond, end the passage right there, even if it's shorter than asked.`,
     );

@@ -572,6 +572,17 @@ describe('buildDirectorMessages', () => {
       '=== NEXT ===\nContinue the story naturally from where it left off.',
     );
     expect(user.content).not.toContain('wrote the latest passage');
+
+    // Centering the passage on the reader's character lets the Director plan them.
+    const [centered] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast,
+      turns: [{ kind: 'prose', source: 'user', content: 'Theo knocked.' }],
+      request: { action: 'continue', leadName: 'Theo', leadIsReader: true },
+    });
+    expect(centered.content).toContain('so you may plan what Theo says and does');
+    expect(centered.content).not.toContain('belong to the reader');
+    expect(centered.content).not.toContain('waits on Theo');
     expect(system.content).toContain(
       "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have",
     );

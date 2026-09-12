@@ -177,6 +177,31 @@ describe('Bureau story routes', () => {
       });
     });
 
+    it("commits the reader's character's threads with anyone before a chapter starts", async () => {
+      const ines = stores.bureaus.addCastMember(bureau.id, {
+        seedCard: card('Ines'),
+        libraryCharacterId: 'c3',
+      });
+      const thread = stores.threads.getOrCreateThread(bureau.id, ines.id);
+      const message = stores.threads.addMessage(thread.id, {
+        source: 'user',
+        senderCastId: theo.id,
+        content: "I'm leaving the island.",
+        bureauTime: '2026-09-01T20:00:00.000Z',
+      });
+      stores.bureaus.setBureauTime(bureau.id, '2026-09-01T20:00:00.000Z');
+
+      await request(app)
+        .post(storiesUrl())
+        .send({
+          castIds: [mara.id, theo.id],
+          start: { choice: 'custom', customTime: '2026-09-08T20:00:00.000Z' },
+        })
+        .expect(201);
+
+      expect(stores.threads.getThread(bureau.id, thread.id).archivedThrough).toBe(message.position);
+    });
+
     it('commits messages and gives the cast offscreen life before a story starts', async () => {
       const thread = stores.threads.getOrCreateThread(bureau.id, mara.id);
       const message = stores.threads.addMessage(thread.id, {
