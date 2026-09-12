@@ -23,6 +23,8 @@ const LORE_LIMIT = 5;
 const LORE_ENTRY_CHARACTERS = 800;
 // Lookups per passage; after that, the Director is told to hand over its brief.
 const LOOKUP_LIMIT = 4;
+// New characters per passage. Creating one isn't a lookup, so it has its own limit.
+const CREATE_LIMIT = 2;
 const STOPWORDS = new Set(
   'the and for with that this from what who where when how are was were has have had not but his her its our their you she him they them into onto about'.split(
     ' ',
@@ -252,6 +254,8 @@ function toolHandlers({
   const found = new Map();
   const earlierTurnIds = new Set(turns.map((turn) => turn.id));
   let lookups = 0;
+  // Lowercased names of characters created for this passage, reserved before they're generated.
+  const createdNames = new Set();
 
   const lookUp = () => {
     lookups += 1;
@@ -427,7 +431,9 @@ function toolHandlers({
     // A new character joins the Bureau as a draft and this story's cast, and `cast` itself, so
     // the Writer gets their card too.
     handlers.create_character = async ({ name, role, notes }) => {
-      lookUp();
+      if (createdNames.size >= CREATE_LIMIT) {
+        throw new Error("That's enough new characters for one passage. Call submit_brief now.");
+      }
       const wanted = text(name);
       if (!wanted) {
         throw new Error('A new character needs a name');
@@ -435,11 +441,12 @@ function toolHandlers({
       const existing = stores.bureaus
         .listCast(bureau.id)
         .find((member) => member.name.toLowerCase() === wanted.toLowerCase());
-      if (existing) {
+      if (existing || createdNames.has(wanted.toLowerCase())) {
         throw new Error(
-          `${existing.name} is already in the cast; use get_character_file to learn about them`,
+          `${existing?.name ?? wanted} is already in the cast; use get_character_file to learn about them`,
         );
       }
+      createdNames.add(wanted.toLowerCase());
 
       const { card } = await generateCharacter({
         stores,

@@ -224,7 +224,8 @@ gather what the next turn needs.
 Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, point of view,
 tone, target length, memories (each with a one-line reason, and only ones the Director found), and
 notes for the Writer. The Director runs with thinking on at low effort by default and gets four
-lookups per passage, after which it's told to hand over its brief. A successful `submit_brief` call
+lookups per passage, after which it's told to hand over its brief. Creating a character isn't a
+lookup; it has its own limit of two per passage. A successful `submit_brief` call
 ends the tool loop without another model call. `recall` only finds what the story can see: memories
 from before its start, and this story's memories from passages before the one being written.
 Searching the raw turns a character witnessed is a later addition. When the reader brings in someone
@@ -484,16 +485,18 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
 
 One service, two ways in. Both make one forced strict tool call with thinking off, recorded as a run.
 The generator sees the Bureau's cast (names and short descriptions) and world (attached lorebooks and
-a few entry titles), so a new character fits in without repeating anyone.
+a few entry titles), so a new character fits in without repeating anyone. The card is about the new
+character alone: it never names or describes anyone already in the cast, and leaves how they meet
+to the stories.
 
 - **From a Bureau:** "Generate character" in the cast section takes a seed idea and produces a full
   V2 card (name, description, personality, scenario, first message, example dialogue, tags) and a
   structured **appearance block**. You review and edit it, then add it to the cast as a draft, or add
   it and save it to the library at once.
 - **Director tool:** when a new named character enters a story, `create_character(name, role, notes)`
-  generates a **draft cast member** and adds them to the story's cast. It counts as one of the
-  Director's lookups, refuses a name already in the cast, and can be turned off in the Bureau's
-  settings.
+  generates a **draft cast member** and adds them to the story's cast. It creates at most two
+  characters per passage, apart from the Director's lookups, refuses a name already in the cast, and
+  can be turned off in the Bureau's settings.
 - **Drafts** exist only in their Bureau, so new characters stay consistent without cluttering the
   library. The Director, Writer, and Archivist treat them like anyone else. "Save to library" on a
   draft's cast row saves its card as a new library character (without an image) and links the cast

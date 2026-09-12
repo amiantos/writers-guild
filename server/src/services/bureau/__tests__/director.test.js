@@ -322,6 +322,52 @@ describe('runDirector', () => {
     );
   });
 
+  it('creates characters after its lookups run out, up to two per passage', async () => {
+    const lookup = (id) => toolCall(id, 'lookup_lore', { query: 'lighthouse' });
+    const create = (id, name) => toolCall(id, 'create_character', { name, role: '', notes: '' });
+    const generated = (name) =>
+      modelTurn([
+        toolCall('g', 'create_character', {
+          name,
+          description: `${name} works the harbor.`,
+          personality: '',
+          scenario: '',
+          first_message: '',
+          example_dialogue: '',
+          tags: [],
+          appearance: {
+            age_range: '',
+            build: '',
+            hair: '',
+            eyes: '',
+            clothing: '',
+            distinguishing_marks: '',
+          },
+        }),
+      ]);
+    const client = scriptedClient(
+      modelTurn([lookup('c1'), lookup('c2'), lookup('c3'), lookup('c4')]),
+      modelTurn([create('c5', 'Ines')]),
+      generated('Ines'),
+      modelTurn([create('c6', 'Pell')]),
+      generated('Pell'),
+      modelTurn([create('c7', 'Quill')]),
+      modelTurn([], 'Done.'),
+    );
+
+    await direct(client);
+
+    const results = toolResults(client.calls[6]).slice(4);
+    expect(results.map((result) => result.name ?? result.error)).toEqual([
+      'Ines',
+      'Pell',
+      "That's enough new characters for one passage. Call submit_brief now.",
+    ]);
+    const names = stores.bureaus.listCast(bureau.id).map((member) => member.name);
+    expect(names).toEqual(expect.arrayContaining(['Ines', 'Pell']));
+    expect(names).not.toContain('Quill');
+  });
+
   it("recalls this story's memories only from passages before the one being written", async () => {
     const earlier = stores.stories.addTurn(story.id, {
       kind: 'prose',

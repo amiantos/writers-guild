@@ -102,6 +102,7 @@ describe('buildGeneratorMessages', () => {
     });
 
     expect(system.content).toContain('never copy or duplicate anyone already in it');
+    expect(system.content).toContain('never name or describe anyone from it');
     expect(user.content).toContain('=== IDEA ===\nA harbor pub owner who hears everything');
     expect(user.content).toContain('The character is named Ines.');
     expect(user.content).toContain('=== ROLE IN THE CURRENT STORY ===\nShe warns Theo');

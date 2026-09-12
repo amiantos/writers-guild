@@ -104,6 +104,7 @@ export function buildGeneratorMessages({ idea, name = '', role = '', cast, world
   const system = [
     'You create characters for an ongoing series of stories. Call create_character once with a complete card for the character described.',
     'Make them specific and alive: give them wants, habits, and contradictions of their own. Keep them consistent with the world and the existing cast, and never copy or duplicate anyone already in it. Write in the same language as the idea.',
+    "The card is about the new character alone. The existing cast is listed only so you don't duplicate anyone: never name or describe anyone from it in any field of the card, and don't give the new character opinions of them or history with them. The stories will decide how they meet.",
   ];
 
   const user = [section('IDEA', idea)];
