@@ -137,7 +137,9 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
       `Scene brief from the Director:\n${brief.beats.map((beat) => `- ${beat}`).join('\n')}`,
     );
     const details = [
-      brief.pov ? `Point of view: ${brief.pov}.` : '',
+      brief.pov
+        ? `Point of view: ${brief.pov}, narrated in the house style's person and tense.`
+        : '',
       brief.tone ? `Tone: ${brief.tone}.` : '',
     ].filter(Boolean);
     if (details.length > 0) lines.push(details.join(' '));

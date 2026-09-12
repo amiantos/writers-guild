@@ -168,6 +168,30 @@ describe('runDirector', () => {
     expect(client.calls[0]).toMatchObject({ strict: true, thinking: true, reasoningEffort: 'low' });
   });
 
+  it("keeps the brief's point of view to whose view, not first or second person", async () => {
+    const briefWithPov = (pov) =>
+      scriptedClient(
+        modelTurn([
+          toolCall('c1', 'submit_brief', {
+            beats: ['Mara comes in'],
+            pov,
+            tone: 'warm',
+            length: 'short',
+            memories: [],
+            notes: '',
+          }),
+        ]),
+      );
+
+    expect((await direct(briefWithPov('Mara, first person, close on her voice'))).pov).toBe(
+      'Mara, third person, close on her voice',
+    );
+    expect((await direct(briefWithPov('Mara (2nd-person)'))).pov).toBe('Mara (third person)');
+
+    stores.bureaus.updateBureau(bureau.id, { houseStyle: 'Write in first person, present tense.' });
+    expect((await direct(briefWithPov('Mara, first person'))).pov).toBe('Mara, first person');
+  });
+
   it('looks up lore and character files', async () => {
     stores.library = {
       close() {},

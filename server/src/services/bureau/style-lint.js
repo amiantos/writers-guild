@@ -393,6 +393,12 @@ export function lintProse(
 
   const findings = [];
   const { paragraphs } = splitParagraphs(text);
+  // Once one paragraph clearly narrates in first person, the passage has drifted, so any
+  // first-person narration in the others is flagged too.
+  const firstPersonCounts = paragraphs.map(
+    (paragraph) => (narrationOf(paragraph).replace(THOUGHT, ' ').match(FIRST_PERSON) ?? []).length,
+  );
+  const drifted = thirdPerson && firstPersonCounts.some((count) => count >= FIRST_PERSON_THRESHOLD);
   for (const [number, paragraph] of paragraphs.entries()) {
     if (!paragraph.trim() || SCENE_BREAK.test(paragraph) || IMAGE.test(paragraph)) continue;
     const flag = (rule, reason) => findings.push({ paragraph: number, rule, reason });
@@ -405,8 +411,7 @@ export function lintProse(
       flag('multiple_speakers', `${listSpeakers(speakers)} both speak in one paragraph`);
     }
 
-    const firstPerson = narration.replace(THOUGHT, ' ').match(FIRST_PERSON) ?? [];
-    if (thirdPerson && firstPerson.length >= FIRST_PERSON_THRESHOLD) {
+    if (drifted && firstPersonCounts[number] > 0) {
       flag('first_person_narration', 'The narration slips into first person');
     }
 

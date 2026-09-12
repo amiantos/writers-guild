@@ -131,6 +131,20 @@ describe('lintProse: other rules', () => {
     ).toEqual([]);
   });
 
+  it('flags every first-person paragraph once the passage has drifted into first person', () => {
+    const drifted = [
+      'I pushed the door open and my coat caught on the hook. I laughed at myself.',
+      'Mara looked up from the chart.',
+      'I sat down across from her.',
+    ].join('\n\n');
+
+    expect(rules(drifted)).toEqual([
+      [0, 'first_person_narration'],
+      [2, 'first_person_narration'],
+    ]);
+    expect(rules('Mara looked up. I suppose she was tired.')).toEqual([]);
+  });
+
   it("flags the reader's character speaking only when asked to", () => {
     expect(rules('"Fine," Theo said.', { readerName: 'Theo' })).toEqual([
       [0, 'speaking_for_reader'],

@@ -232,7 +232,7 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain(
-      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nPoint of view: Mara. Tone: uneasy.\nKeep in mind:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
+      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nPoint of view: Mara, narrated in the house style's person and tense. Tone: uneasy.\nKeep in mind:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
     );
     expect(user).not.toContain('Write the next 3 to 6 paragraphs');
   });
