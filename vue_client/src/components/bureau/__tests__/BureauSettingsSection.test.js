@@ -28,6 +28,12 @@ function bureau(fields = {}) {
         createCharacters: true,
       },
       editor: { enabled: true },
+      memory: {
+        autoArchive: true,
+        knowledgeCharacters: 4000,
+        recentEpisodes: 3,
+        offscreenLife: true,
+      },
       style: { bannedPhrases: ['a testament to'] },
       correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
     },
@@ -97,6 +103,7 @@ describe('BureauSettingsSection', () => {
     await wrapper.find('#bureau-settings-director-skip').setValue(false);
     await wrapper.find('#bureau-settings-director-create').setValue(false);
     await wrapper.find('#bureau-settings-editor-enabled').setValue(false);
+    await wrapper.find('#bureau-settings-offscreen-life').setValue(false);
     await wrapper
       .find('#bureau-settings-banned-phrases')
       .setValue('a testament to\n\n  sent shivers down  \n');
@@ -116,6 +123,12 @@ describe('BureauSettingsSection', () => {
         createCharacters: false,
       },
       editor: { enabled: false },
+      memory: {
+        autoArchive: true,
+        knowledgeCharacters: 4000,
+        recentEpisodes: 3,
+        offscreenLife: false,
+      },
       style: { bannedPhrases: ['a testament to', 'sent shivers down'] },
       correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
     });

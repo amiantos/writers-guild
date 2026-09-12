@@ -11,6 +11,7 @@ vi.mock('../../../services/bureauApi', () => ({
     reply: vi.fn(),
     editMessage: vi.fn(),
     deleteMessage: vi.fn(),
+    archive: vi.fn(),
   },
 }));
 
@@ -111,6 +112,29 @@ describe('BureauThread', () => {
     expect(wrapper.findAll('.pending-bubble')).toHaveLength(0);
     expect(wrapper.findAll('.bubble').map((bubble) => bubble.text())).toContain('You too.');
     expect(wrapper.findAll('.seam')).toHaveLength(2);
+  });
+
+  it('commits unread messages to memory', async () => {
+    bureauThreadsAPI.get.mockResolvedValue({
+      bureau: BUREAU,
+      castMember: MARA,
+      thread: { archivedThrough: 1 },
+      messages: EARLIER.map((item, position) => ({ ...item, position })),
+    });
+    bureauThreadsAPI.archive.mockResolvedValue({
+      thread: { archivedThrough: 3 },
+      archive: { passes: 1, added: 1, superseded: 0, episodes: 1, arcNotes: 0, warnings: [] },
+    });
+    const wrapper = mountThread();
+    await flushPromises();
+    const commitButton = () =>
+      wrapper.findAll('button').find((button) => button.text().includes('Commit to memory'));
+
+    await commitButton().trigger('click');
+    await flushPromises();
+
+    expect(bureauThreadsAPI.archive).toHaveBeenCalledWith('b1', 'c1');
+    expect(commitButton()).toBeUndefined();
   });
 
   it("can't write without a reader's character", async () => {

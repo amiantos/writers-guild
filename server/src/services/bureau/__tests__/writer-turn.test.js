@@ -273,7 +273,7 @@ describe('generateWriterTurn', () => {
 
     const system = client.calls[0].messages[0].content;
     expect(system).toContain(
-      "Mara knows:\n- Theo can't swim.\n\nMara remembers from earlier stories:\n- The Pier: Mara met Theo at the pier.",
+      "Mara knows:\n- Theo can't swim.\n\nMara remembers:\n- The Pier: Mara met Theo at the pier.",
     );
     expect(system).toContain('How Mara has changed:\n- Mara lets Theo take the oars now.');
     expect(system).not.toContain('waits to be asked');

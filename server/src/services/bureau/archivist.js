@@ -1,19 +1,29 @@
 /**
  * Archivist
  *
- * Reads a story's turns and records what its characters will remember (see
- * "Archivist" in docs/bureau-design.md). Each pass is one forced call to a
- * strict record_memories tool, which returns knowledge, an episode per
- * character, arc notes, and the story's running summary.
+ * Reads a story's turns, or a thread's messages, and records what the characters
+ * will remember (see "Archivist" in docs/bureau-design.md). Each pass is one
+ * forced call to a strict record_memories tool, which returns knowledge, an
+ * episode per character, arc notes, and a story's running summary.
  *
  * Memories apply without review, because every memory is visible, sourced, and
  * editable in the memory browser. Arc notes, which change how a character is
  * written, are only proposed: the reader accepts or rejects each one. The
  * reader's character gets neither: the reader remembers for them.
+ *
+ * A story and a thread differ only in their source: what a pass reads, how its
+ * memories are dated and cited, and which episode it rewrites. A thread is read
+ * one session at a time, and each session gets an episode of its own.
  */
 
-import { describeBureauTime } from './bureau-time.js';
-import { isBeforeStory, memoriesAsOf, selectForPrompt } from './memory.js';
+import { bureauPresent, describeBureauTime } from './bureau-time.js';
+import {
+  isBeforeStory,
+  memoriesAsOf,
+  memoriesAtTime,
+  notesAtTime,
+  selectForPrompt,
+} from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 
 // The latest turns may still be regenerated or edited, so automatic passes leave them.
@@ -24,6 +34,8 @@ export const MIN_SETTLED_PROSE = 6;
 export const ARCHIVE_CHUNK_CHARACTERS = 60_000;
 // Existing knowledge shown per character, so the Archivist updates rather than repeats.
 export const KNOWN_CHARACTERS_PER_CHARACTER = 12_000;
+// Messages further apart than this, in Bureau time, belong to different sessions.
+export const SESSION_GAP_MS = 3 * 60 * 60 * 1000;
 // Rejected arc notes shown per character, most recent first; all of them still block repeats.
 const REJECTED_NOTES_SHOWN = 30;
 
@@ -111,10 +123,10 @@ export const RECORD_MEMORIES_TOOL = {
   },
 };
 
-class StoryDeletedError extends Error {
-  constructor() {
-    super('The story was deleted while it was being archived');
-    this.name = 'StoryDeletedError';
+class SourceDeletedError extends Error {
+  constructor(kind) {
+    super(`The ${kind === 'story' ? 'story' : 'thread'} was deleted while it was being archived`);
+    this.name = 'SourceDeletedError';
   }
 }
 
@@ -153,7 +165,49 @@ export function chunkTurns(turns, budget = ARCHIVE_CHUNK_CHARACTERS) {
   return chunks;
 }
 
+/**
+ * A thread's messages split into sessions: runs with no gap longer than SESSION_GAP_MS.
+ * @param {Array<Object>} messages - Oldest first.
+ * @returns {Array<Array<Object>>}
+ */
+export function threadSessions(messages) {
+  const sessions = [];
+  for (const message of messages) {
+    const session = sessions.at(-1);
+    const previous = session?.at(-1);
+    if (
+      previous &&
+      Date.parse(message.bureauTime) - Date.parse(previous.bureauTime) <= SESSION_GAP_MS
+    ) {
+      session.push(message);
+    } else {
+      sessions.push([message]);
+    }
+  }
+  return sessions;
+}
+
 // ==================== Prompt ====================
+
+const WORDING = {
+  story: {
+    units: 'passages',
+    unit: 'Passage',
+    scope: 'this story',
+    episodes:
+      'Episodes: one for each character who remembers, telling what happened in this story so far from their point of view, in the past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
+    summary:
+      'story_summary: what has happened in the whole story so far, in at most 150 words, updating the previous summary.',
+  },
+  correspondence: {
+    units: 'messages',
+    unit: 'Message',
+    scope: 'this exchange',
+    episodes:
+      'Episodes: one for each character who remembers, telling what happened in this exchange of messages from their point of view, in the past tense, in at most 60 words, such as "Theo texted late one night about swimming out to the buoy, and Mara talked him out of it." When they already have an episode for this exchange, rewrite it to include the new messages.',
+    summary: 'story_summary: leave it empty.',
+  },
+};
 
 function nameOf(member) {
   return member.seedCard?.data?.name || member.name;
@@ -170,21 +224,22 @@ function section(title, body) {
 
 /**
  * @param {Object} params
- * @param {Object} params.story - Uses title and summary.
- * @param {string|null} params.openingTime - Loose description of the start time.
+ * @param {Object} params.source - What the pass reads (see storySource and threadSource): uses
+ *   kind, title, openingTime, and summary.
  * @param {Array<Object>} params.characters - Cast members who remember.
  * @param {Object|null} params.persona - The reader's character, if present.
  * @param {Map<string, Array<Object>>} params.knownByCast - Knowledge each character has now.
- * @param {Map<string, Object>} params.episodeByCast - Each character's episode for this story.
+ * @param {Map<string, Object>} params.episodeByCast - Each character's episode for this story, or
+ *   for this session of a thread.
  * @param {Map<string, {accepted: Array<Object>, proposed: Array<Object>, rejected: Array<Object>}>}
  *   [params.notesByCast] - Each character's accepted arc notes, the proposals waiting for review,
  *   and the changes the reader rejected.
- * @param {Array<Object>} params.turns - The turns to read, in order.
+ * @param {Array<Object>} params.turns - The turns or messages to read, in order. A message
+ *   carries its speaker.
  * @returns {Array<{role: string, content: string}>}
  */
 export function buildArchivistMessages({
-  story,
-  openingTime,
+  source,
   characters,
   persona,
   knownByCast,
@@ -192,12 +247,13 @@ export function buildArchivistMessages({
   notesByCast = new Map(),
   turns,
 }) {
+  const wording = WORDING[source.kind];
   const names = characters.map(nameOf);
   const personaName = persona ? nameOf(persona) : null;
   const about = personaName ? `the people around them (including ${personaName})` : 'each other';
 
   const system = [
-    'You are the Archivist for a series of connected stories. Read the new passages, then call record_memories once with what the characters will remember.',
+    `You are the Archivist for a series of connected stories. Read the new ${wording.units}, then call record_memories once with what the characters will remember.`,
     `Characters who remember: ${names.length > 0 ? listNames(names) : 'none'}.`,
   ];
   if (personaName) {
@@ -214,18 +270,15 @@ export function buildArchivistMessages({
       '- Skip passing actions, scenery, short-lived plans, and anything the character already knows.',
       "- When a fact updates or contradicts one of the character's numbered memories, set supersedes to that number and write the complete updated fact. Otherwise set supersedes to 0.",
       '- Importance: 1 trivia, 2 minor detail, 3 useful, 4 significant, 5 defining (a milestone in a relationship, a secret revealed).',
-      '- passages lists the numbers of the passages the fact comes from.',
+      `- passages lists the numbers of the ${wording.units} the fact comes from.`,
       '- Recording no knowledge is fine when nothing lasting happened.',
     ].join('\n'),
-    'Episodes: one for each character who remembers, telling what happened in this story so far from their point of view, in the past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
-    "Arc notes: only when the passages change who a character is, such as a new habit, a stance that softened or hardened, or a lasting decision about themselves or someone else. Not a fact they learned (that's knowledge), and not a passing mood. Write how they have changed in one or two sentences, with a rationale naming what in the passages shows it. Don't repeat a change they already have, one waiting for review, or one the reader turned down. Most passages call for none; the reader reviews every one.",
-    'story_summary: what has happened in the whole story so far, in at most 150 words, updating the previous summary.',
+    wording.episodes,
+    `Arc notes: only when the ${wording.units} change who a character is, such as a new habit, a stance that softened or hardened, or a lasting decision about themselves or someone else. Not a fact they learned (that's knowledge), and not a passing mood. Write how they have changed in one or two sentences, with a rationale naming what in the ${wording.units} shows it. Don't repeat a change they already have, one waiting for review, or one the reader turned down. Most ${wording.units} call for none; the reader reviews every one.`,
+    wording.summary,
   );
 
   const present = personaName ? [...names, `${personaName} (the reader's character)`] : names;
-  const storyLines = [`Title: ${story.title}`];
-  if (openingTime) storyLines.push(`Begins: ${openingTime}`);
-  storyLines.push(`Present: ${present.length > 0 ? listNames(present) : 'no one in the cast'}`);
 
   const known = characters.map((member) => {
     const lines = [`${nameOf(member)}:`];
@@ -237,7 +290,7 @@ export function buildArchivistMessages({
     );
     const episode = episodeByCast.get(member.id);
     if (episode) {
-      lines.push(`Episode for this story so far: ${episode.content}`);
+      lines.push(`Episode for ${wording.scope} so far: ${episode.content}`);
     }
     const notes = notesByCast.get(member.id);
     if (notes?.accepted.length > 0) {
@@ -264,25 +317,111 @@ export function buildArchivistMessages({
   const passages = turns
     .filter((turn) => turn.kind === 'prose' || turn.kind === 'scene_break')
     .map((turn) =>
-      turn.kind === 'scene_break' ? '---' : `[Passage ${turn.position}]\n${turn.content}`,
+      turn.kind === 'scene_break'
+        ? '---'
+        : `[${wording.unit} ${turn.position}]\n${turn.speaker ? `${turn.speaker}: ` : ''}${turn.content}`,
     );
 
-  const user = [section('STORY', storyLines.join('\n'))];
-  user.push(
-    section(
-      'SUMMARY SO FAR',
-      story.summary || 'Nothing has been summarized yet; these are the first passages.',
-    ),
-  );
+  let user;
+  if (source.kind === 'story') {
+    const storyLines = [`Title: ${source.title}`];
+    if (source.openingTime) storyLines.push(`Begins: ${source.openingTime}`);
+    storyLines.push(`Present: ${present.length > 0 ? listNames(present) : 'no one in the cast'}`);
+    user = [
+      section('STORY', storyLines.join('\n')),
+      section(
+        'SUMMARY SO FAR',
+        source.summary || 'Nothing has been summarized yet; these are the first passages.',
+      ),
+    ];
+  } else {
+    const lines = [`Between: ${present.length > 0 ? listNames(present) : 'no one in the cast'}`];
+    if (source.openingTime) lines.push(`Begins: ${source.openingTime}`);
+    user = [section('MESSAGES', lines.join('\n'))];
+  }
   if (known.length > 0) {
     user.push(section('WHAT THEY ALREADY KNOW', known.join('\n\n')));
   }
-  user.push(section('NEW PASSAGES', passages.join('\n\n')));
+  user.push(section(`NEW ${wording.units.toUpperCase()}`, passages.join('\n\n')));
 
   return [
     { role: 'system', content: system.join('\n\n') },
     { role: 'user', content: user.join('\n\n') },
   ];
+}
+
+// ==================== Sources ====================
+
+/**
+ * What a story pass reads, loaded fresh for each pass: the previous pass updated
+ * the story's summary.
+ */
+function storySource(stores, bureau, storyId) {
+  const story = stores.stories.getStory(bureau.id, storyId);
+  if (!story) {
+    throw new SourceDeletedError('story');
+  }
+  const cast = story.castIds
+    .map((castId) => stores.bureaus.getCastMember(bureau.id, castId))
+    .filter(Boolean);
+  const persona = cast.find((member) => member.isPersona) ?? null;
+  return {
+    kind: 'story',
+    id: story.id,
+    title: story.title,
+    openingTime: describeBureauTime(story.startTime, bureau.timezone),
+    summary: story.summary,
+    worldTime: story.startTime,
+    characters: cast.filter((member) => member !== persona),
+    persona,
+    exists: () => Boolean(stores.stories.getStory(bureau.id, storyId)),
+    currentContent: (turnId) => stores.stories.getTurn(storyId, turnId)?.content,
+    saveProgress: (archivedThrough, summary) =>
+      stores.stories.setArchiveProgress(storyId, { archivedThrough, summary }),
+    // A story's own memories count, since the Archivist updates them as the story goes on.
+    visibleMemories: (memories) => memoriesAsOf(memories, story, { includeOwnStory: true }),
+    acceptedNotes: (notes) =>
+      notes.filter(
+        (note) =>
+          note.status === 'accepted' &&
+          (isBeforeStory(note, story) ||
+            (note.sourceType === 'story' && note.sourceId === story.id)),
+      ),
+    isOwnEpisode: (memory) =>
+      memory.layer === 'episode' && memory.sourceType === 'story' && memory.sourceId === story.id,
+  };
+}
+
+/** What a thread pass reads: one session, dated to its first message. */
+function threadSource(stores, bureau, { thread, member, persona, session }) {
+  if (!stores.threads.getThread(bureau.id, thread.id)) {
+    throw new SourceDeletedError('thread');
+  }
+  const first = session[0];
+  const last = session.at(-1);
+  const names = [member, persona].filter(Boolean).map(nameOf);
+  return {
+    kind: 'correspondence',
+    id: thread.id,
+    title: `Messages between ${listNames(names)}`,
+    openingTime: describeBureauTime(first.bureauTime, bureau.timezone),
+    summary: '',
+    worldTime: first.bureauTime,
+    characters: member && !member.isPersona ? [member] : [],
+    persona,
+    exists: () => Boolean(stores.threads.getThread(bureau.id, thread.id)),
+    currentContent: (messageId) => stores.threads.getMessage(thread.id, messageId)?.content,
+    saveProgress: (archivedThrough) =>
+      stores.threads.setArchiveProgress(thread.id, archivedThrough),
+    visibleMemories: (memories) => memoriesAtTime(memories, last.bureauTime),
+    acceptedNotes: (notes) => notesAtTime(notes, last.bureauTime),
+    // A session's episode cites its first message, which stays put as the session grows.
+    isOwnEpisode: (memory) =>
+      memory.layer === 'episode' &&
+      memory.sourceType === 'correspondence' &&
+      memory.sourceId === thread.id &&
+      memory.sourceTurnIds.includes(first.id),
+  };
 }
 
 // ==================== Applying a record ====================
@@ -299,7 +438,7 @@ function text(value) {
 function applyRecord({
   stores,
   bureauId,
-  story,
+  source,
   record,
   characters,
   knownByCast,
@@ -309,7 +448,8 @@ function applyRecord({
   runId,
   archivedThrough,
 }) {
-  const { memories, stories } = stores;
+  const { memories } = stores;
+  const wording = WORDING[source.kind];
   const byName = new Map(characters.map((member) => [nameOf(member).toLowerCase(), member]));
   const turnIdByPosition = new Map(
     turns.filter((turn) => turn.kind === 'prose').map((turn) => [turn.position, turn.id]),
@@ -333,7 +473,12 @@ function applyRecord({
     return member;
   };
 
-  const base = { sourceType: 'story', sourceId: story.id, worldTime: story.startTime, runId };
+  const base = {
+    sourceType: source.kind,
+    sourceId: source.id,
+    worldTime: source.worldTime,
+    runId,
+  };
 
   // The model read memories as they were before its call, which can take a while. Replace one
   // only if it's still that memory: not pinned, edited, retired, or replaced since, including
@@ -354,13 +499,13 @@ function applyRecord({
   };
 
   stores.bureaus.db.transaction(() => {
-    if (!stories.getStory(bureauId, story.id)) {
-      throw new StoryDeletedError();
+    if (!source.exists()) {
+      throw new SourceDeletedError(source.kind);
     }
 
-    // Turns edited, regenerated, or deleted while the model was reading them.
+    // Turns or messages edited, regenerated, or deleted while the model was reading them.
     const changedTurnIds = turns
-      .filter((turn) => stories.getTurn(story.id, turn.id)?.content !== turn.content)
+      .filter((turn) => source.currentContent(turn.id) !== turn.content)
       .map((turn) => turn.id);
 
     for (const item of Array.isArray(record.knowledge) ? record.knowledge : []) {
@@ -395,7 +540,7 @@ function applyRecord({
       result.added += 1;
     }
 
-    // One episode per character per story; a later one in the same record wins.
+    // One episode per character per story or session; a later one in the same record wins.
     const episodes = new Map();
     for (const item of Array.isArray(record.episodes) ? record.episodes : []) {
       const member = memberFor(item?.character, 'an episode');
@@ -408,7 +553,7 @@ function applyRecord({
       if (previous && !canReplace(castId, previous)) {
         const name = nameOf(characters.find((member) => member.id === castId));
         result.warnings.push(
-          `Kept ${name}'s episode for this story: it was pinned or changed during the pass`,
+          `Kept ${name}'s episode for ${wording.scope}: it was pinned or changed during the pass`,
         );
         continue;
       }
@@ -416,7 +561,7 @@ function applyRecord({
         ...base,
         layer: 'episode',
         content,
-        // An episode covers every passage so far, so a change to any of them flags it.
+        // An episode covers everything read so far, so a change to any of it flags the episode.
         sourceTurnIds: [...new Set([...(previous?.sourceTurnIds ?? []), ...proseTurnIds])],
         supersedes: previous?.id ?? null,
       });
@@ -451,17 +596,15 @@ function applyRecord({
     }
 
     if (changedTurnIds.length > 0) {
-      memories.flagTurnsChanged(bureauId, story.id, changedTurnIds);
-      stores.arcNotes.flagTurnsChanged(bureauId, story.id, changedTurnIds);
+      memories.flagTurnsChanged(bureauId, source.id, changedTurnIds, source.kind);
+      stores.arcNotes.flagTurnsChanged(bureauId, source.id, changedTurnIds, source.kind);
+      const units = source.kind === 'story' ? 'passage(s)' : 'message(s)';
       result.warnings.push(
-        `Marked for review: ${changedTurnIds.length} passage(s) changed while the Archivist read them`,
+        `Marked for review: ${changedTurnIds.length} ${units} changed while the Archivist read them`,
       );
     }
 
-    stories.setArchiveProgress(story.id, {
-      archivedThrough,
-      summary: text(record.story_summary) || story.summary,
-    });
+    source.saveProgress(archivedThrough, text(record.story_summary) || source.summary);
   })();
 
   return result;
@@ -469,51 +612,45 @@ function applyRecord({
 
 // ==================== Running passes ====================
 
-const storyLocks = new Map();
+// One archive at a time per story (keyed by its id) and per thread ("thread:" and its id).
+const sourceLocks = new Map();
 
-/** Run `work` after any archive already running for the story. */
-function withStoryLock(storyId, work) {
-  const previous = storyLocks.get(storyId) ?? Promise.resolve();
+/** Run `work` after any archive already running for the same source. */
+function withLock(key, work) {
+  const previous = sourceLocks.get(key) ?? Promise.resolve();
   const run = previous.then(work);
   const tail = run.catch(() => {});
-  storyLocks.set(storyId, tail);
+  sourceLocks.set(key, tail);
   tail.finally(() => {
-    if (storyLocks.get(storyId) === tail) storyLocks.delete(storyId);
+    if (sourceLocks.get(key) === tail) sourceLocks.delete(key);
   });
   return run;
 }
 
 /** Whether an archive is running or queued for a story. */
 export function isArchiving(storyId) {
-  return storyLocks.has(storyId);
+  return sourceLocks.has(storyId);
 }
 
 /**
- * What each character remembering in this story knows now, their episode for it, and their
- * arc notes: accepted ones the story can see, every proposal still waiting, and every change
- * the reader rejected.
+ * What each character remembering in this pass knows now, their episode for this story or
+ * session, and their arc notes: accepted ones the source can see, every proposal still waiting,
+ * and every change the reader rejected.
  */
-function currentMemories(stores, bureauId, story, characters) {
+function currentMemories(stores, bureauId, source, characters) {
   const knownByCast = new Map();
   const episodeByCast = new Map();
   const notesByCast = new Map();
   for (const member of characters) {
     const notes = stores.arcNotes.listNotes(bureauId, member.id);
     notesByCast.set(member.id, {
-      accepted: notes.filter(
-        (note) =>
-          note.status === 'accepted' &&
-          (isBeforeStory(note, story) ||
-            (note.sourceType === 'story' && note.sourceId === story.id)),
-      ),
+      accepted: source.acceptedNotes(notes),
       proposed: notes.filter((note) => note.status === 'proposed'),
       rejected: notes.filter((note) => note.status === 'rejected'),
     });
 
-    const asOf = memoriesAsOf(
+    const asOf = source.visibleMemories(
       stores.memories.listMemories(bureauId, member.id, { status: 'all' }),
-      story,
-      { includeOwnStory: true },
     );
     knownByCast.set(
       member.id,
@@ -522,36 +659,24 @@ function currentMemories(stores, bureauId, story, characters) {
         recentEpisodes: 0,
       }).knowledge,
     );
-    const episode = asOf.find(
-      (memory) =>
-        memory.layer === 'episode' && memory.sourceType === 'story' && memory.sourceId === story.id,
-    );
+    const episode = asOf.find(source.isOwnEpisode);
     if (episode) episodeByCast.set(member.id, episode);
   }
   return { knownByCast, episodeByCast, notesByCast };
 }
 
-async function readChunk({ stores, bureau, storyId, client, recorder, chunk, signal }) {
-  // Re-read the story each pass: the previous pass updated its summary.
-  const story = stores.stories.getStory(bureau.id, storyId);
-  if (!story) {
-    throw new StoryDeletedError();
-  }
-  const cast = story.castIds
-    .map((castId) => stores.bureaus.getCastMember(bureau.id, castId))
-    .filter(Boolean);
-  const persona = cast.find((member) => member.isPersona) ?? null;
-  const characters = cast.filter((member) => member !== persona);
+async function readChunk({ stores, bureau, loadSource, client, recorder, chunk, signal }) {
+  const source = loadSource();
+  const { characters, persona } = source;
   const { knownByCast, episodeByCast, notesByCast } = currentMemories(
     stores,
     bureau.id,
-    story,
+    source,
     characters,
   );
 
   const messages = buildArchivistMessages({
-    story,
-    openingTime: describeBureauTime(story.startTime, bureau.timezone),
+    source,
     characters,
     persona,
     knownByCast,
@@ -611,7 +736,7 @@ async function readChunk({ stores, bureau, storyId, client, recorder, chunk, sig
   const result = applyRecord({
     stores,
     bureauId: bureau.id,
-    story,
+    source,
     record,
     characters,
     knownByCast,
@@ -630,6 +755,28 @@ async function readChunk({ stores, bureau, storyId, client, recorder, chunk, sig
   return result;
 }
 
+function emptyTotals(archivedThrough) {
+  return {
+    passes: 0,
+    added: 0,
+    superseded: 0,
+    episodes: 0,
+    arcNotes: 0,
+    warnings: [],
+    archivedThrough,
+    runId: null,
+  };
+}
+
+function addToTotals(totals, result) {
+  totals.passes += 1;
+  totals.added += result.added;
+  totals.superseded += result.superseded;
+  totals.episodes += result.episodes;
+  totals.arcNotes += result.arcNotes;
+  totals.warnings.push(...result.warnings);
+}
+
 /**
  * Read a story's unread turns through a position and record what the characters remember.
  *
@@ -644,7 +791,7 @@ async function readChunk({ stores, bureau, storyId, client, recorder, chunk, sig
  *   arcNotes, warnings, archivedThrough, runId }), or null when there was nothing to read.
  */
 export function archiveStory({ stores, bureauId, storyId, client, through = Infinity, signal }) {
-  return withStoryLock(storyId, async () => {
+  return withLock(storyId, async () => {
     const bureau = stores.bureaus.getBureau(bureauId);
     const story = bureau ? stores.stories.getStory(bureauId, storyId) : null;
     if (!story) return null;
@@ -654,16 +801,7 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
       .filter((turn) => turn.position > story.archivedThrough && turn.position <= through);
     if (unread.length === 0) return null;
 
-    const totals = {
-      passes: 0,
-      added: 0,
-      superseded: 0,
-      episodes: 0,
-      arcNotes: 0,
-      warnings: [],
-      archivedThrough: story.archivedThrough,
-      runId: null,
-    };
+    const totals = emptyTotals(story.archivedThrough);
     let recorder = null;
 
     try {
@@ -672,7 +810,7 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
         if (!chunk.some((turn) => turn.kind === 'prose')) {
           // Only directions and scene breaks: nothing to remember.
           const current = stores.stories.getStory(bureauId, storyId);
-          if (!current) throw new StoryDeletedError();
+          if (!current) throw new SourceDeletedError('story');
           stores.stories.setArchiveProgress(storyId, {
             archivedThrough: last,
             summary: current.summary,
@@ -688,18 +826,13 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
           const result = await readChunk({
             stores,
             bureau,
-            storyId,
+            loadSource: () => storySource(stores, bureau, storyId),
             client,
             recorder,
             chunk,
             signal,
           });
-          totals.passes += 1;
-          totals.added += result.added;
-          totals.superseded += result.superseded;
-          totals.episodes += result.episodes;
-          totals.arcNotes += result.arcNotes;
-          totals.warnings.push(...result.warnings);
+          addToTotals(totals, result);
         }
         totals.archivedThrough = last;
       }
@@ -713,7 +846,114 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
   });
 }
 
+/**
+ * Read a thread's unread messages, one session at a time, and record what the
+ * character remembers. Each session is dated to its first message and gets its
+ * own episode.
+ *
+ * @param {Object} params
+ * @param {ReturnType<import('./stores.js').getBureauStores>} params.stores
+ * @param {string} params.bureauId
+ * @param {string} params.threadId
+ * @param {import('./deepseek-client.js').DeepSeekClient} params.client
+ * @param {boolean} [params.settledOnly] - Leave the last session while it may still be going: until
+ *   it has been quiet for SESSION_GAP_MS of Bureau time.
+ * @param {Date} [params.now] - Real time, to tell whether the last session is over.
+ * @param {AbortSignal} [params.signal]
+ * @returns {Promise<Object|null>} Totals like archiveStory's, or null when there was nothing to
+ *   read.
+ */
+export function archiveThread({
+  stores,
+  bureauId,
+  threadId,
+  client,
+  settledOnly = false,
+  now = new Date(),
+  signal,
+}) {
+  return withLock(`thread:${threadId}`, async () => {
+    const bureau = stores.bureaus.getBureau(bureauId);
+    const thread = bureau ? stores.threads.getThread(bureauId, threadId) : null;
+    if (!thread) return null;
+
+    const sessions = threadSessions(stores.threads.listMessages(threadId));
+    const present = bureauPresent(bureau, now).getTime();
+    const toRead = sessions
+      .filter(
+        (session, index) =>
+          !settledOnly ||
+          index < sessions.length - 1 ||
+          present - Date.parse(session.at(-1).bureauTime) > SESSION_GAP_MS,
+      )
+      .map((session) => ({
+        session,
+        unread: session.filter((message) => message.position > thread.archivedThrough),
+      }))
+      .filter(({ unread }) => unread.length > 0);
+    if (toRead.length === 0) return null;
+
+    const member = stores.bureaus.getCastMember(bureauId, thread.castMemberId);
+    const persona = stores.bureaus.listCast(bureauId).find((cast) => cast.isPersona) ?? null;
+    const speakerOf = (message) =>
+      message.source === 'user'
+        ? persona
+          ? nameOf(persona)
+          : 'The reader'
+        : nameOf(member ?? { name: 'They' });
+
+    const totals = emptyTotals(thread.archivedThrough);
+    const recorder = new RunRecorder(stores.bureaus, {
+      bureauId,
+      purpose: 'archive',
+      targetType: 'thread',
+      targetId: threadId,
+    });
+    totals.runId = recorder.runId;
+
+    try {
+      for (const { session, unread } of toRead) {
+        const units = unread.map((message) => ({
+          ...message,
+          kind: 'prose',
+          speaker: speakerOf(message),
+        }));
+        for (const chunk of chunkTurns(units)) {
+          const result = await readChunk({
+            stores,
+            bureau,
+            loadSource: () => threadSource(stores, bureau, { thread, member, persona, session }),
+            client,
+            recorder,
+            chunk,
+            signal,
+          });
+          addToTotals(totals, result);
+          totals.archivedThrough = chunk.at(-1).position;
+        }
+      }
+    } catch (error) {
+      recorder.fail(error);
+      throw error;
+    }
+
+    recorder.complete();
+    return totals;
+  });
+}
+
 const backgroundArchives = new Set();
+
+function inBackground(task, description) {
+  const tracked = task
+    .catch((error) => {
+      console.error(`[Bureau] Automatic archive of ${description} failed:`, error.message);
+      return null;
+    })
+    .finally(() => backgroundArchives.delete(tracked));
+  backgroundArchives.add(tracked);
+  return tracked;
+}
 
 /**
  * Start an automatic pass over a story's settled turns, if enough have settled
@@ -729,14 +969,25 @@ export function archiveSettledTurns({ stores, bureauId, storyId, client }) {
   const through = autoArchiveThrough(stores.stories.listTurns(storyId), story);
   if (through === null) return null;
 
-  const task = archiveStory({ stores, bureauId, storyId, client, through })
-    .catch((error) => {
-      console.error(`[Bureau] Automatic archive of story ${storyId} failed:`, error.message);
-      return null;
-    })
-    .finally(() => backgroundArchives.delete(task));
-  backgroundArchives.add(task);
-  return task;
+  return inBackground(
+    archiveStory({ stores, bureauId, storyId, client, through }),
+    `story ${storyId}`,
+  );
+}
+
+/**
+ * Start an automatic pass over a thread's finished sessions, unless an archive
+ * of the thread is already running. Like archiveSettledTurns, it runs in the
+ * background.
+ *
+ * @returns {Promise<Object|null>|null} The pass, or null when none started.
+ */
+export function archiveSettledSessions({ stores, bureauId, threadId, client }) {
+  if (sourceLocks.has(`thread:${threadId}`)) return null;
+  return inBackground(
+    archiveThread({ stores, bureauId, threadId, client, settledOnly: true }),
+    `thread ${threadId}`,
+  );
 }
 
 /** Wait for automatic passes to finish. */

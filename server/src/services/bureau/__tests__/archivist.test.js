@@ -7,9 +7,11 @@ import {
   RECORD_MEMORIES_TOOL,
   archiveSettledTurns,
   archiveStory,
+  archiveThread,
   autoArchiveThrough,
   chunkTurns,
   settleBackgroundArchives,
+  threadSessions,
 } from '../archivist.js';
 import { getBureauStores } from '../stores.js';
 import { closeBureauDb } from '../bureau-db.js';
@@ -528,6 +530,194 @@ function direction(position) {
 function textTurn(length) {
   return { content: 'x'.repeat(length) };
 }
+
+describe('archiveThread', () => {
+  let tempDir;
+  let stores;
+  let bureau;
+  let mara;
+  let theo;
+  let thread;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'archivist-threads-'));
+    stores = getBureauStores(tempDir);
+    bureau = stores.bureaus.createBureau({ name: 'Harbor', apiKey: 'sk-test' });
+    mara = stores.bureaus.addCastMember(bureau.id, {
+      seedCard: card('Mara'),
+      libraryCharacterId: 'c1',
+    });
+    theo = stores.bureaus.addCastMember(bureau.id, {
+      seedCard: card('Theo'),
+      libraryCharacterId: 'c2',
+      isPersona: true,
+    });
+    thread = stores.threads.getOrCreateThread(bureau.id, mara.id);
+  });
+
+  afterEach(() => {
+    stores.library.close();
+    closeBureauDb(tempDir);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function send(source, content, bureauTime) {
+    return stores.threads.addMessage(thread.id, {
+      source,
+      content,
+      bureauTime,
+      senderCastId: source === 'user' ? theo.id : mara.id,
+    });
+  }
+
+  function archive(client, extra = {}) {
+    return archiveThread({ stores, bureauId: bureau.id, threadId: thread.id, client, ...extra });
+  }
+
+  it('reads each session into memories dated to its first message', async () => {
+    const question = send('user', "Can't sleep. Storm's loud.", '2026-10-01T06:00:00.000Z');
+    send('generated', 'Come up to the lamp room then.', '2026-10-01T06:05:00.000Z');
+    const later = send('user', 'Made it home.', '2026-10-03T19:00:00.000Z');
+    const client = archivistClient([
+      record({
+        knowledge: [
+          {
+            character: 'Mara',
+            content: 'Theo has trouble sleeping in storms.',
+            importance: 3,
+            supersedes: 0,
+            passages: [question.position],
+          },
+        ],
+        episodes: [{ character: 'Mara', content: 'Theo texted before dawn during the storm.' }],
+        story_summary: 'Ignored for threads.',
+      }),
+      record({ episodes: [{ character: 'Mara', content: 'Theo let her know he got home.' }] }),
+    ]);
+
+    const result = await archive(client);
+
+    expect(result).toMatchObject({
+      passes: 2,
+      added: 1,
+      episodes: 2,
+      archivedThrough: later.position,
+    });
+    expect(
+      stores.memories.listMemories(bureau.id, mara.id, { layer: 'knowledge' })[0],
+    ).toMatchObject({
+      sourceType: 'correspondence',
+      sourceId: thread.id,
+      worldTime: '2026-10-01T06:00:00.000Z',
+      sourceTurnIds: [question.id],
+    });
+    expect(
+      stores.memories
+        .listMemories(bureau.id, mara.id, { layer: 'episode' })
+        .map((memory) => [memory.content, memory.worldTime]),
+    ).toEqual([
+      ['Theo let her know he got home.', '2026-10-03T19:00:00.000Z'],
+      ['Theo texted before dawn during the storm.', '2026-10-01T06:00:00.000Z'],
+    ]);
+    expect(stores.threads.getThread(bureau.id, thread.id).archivedThrough).toBe(later.position);
+
+    const [first] = client.calls;
+    expect(first.messages[0].content).toContain('Read the new messages');
+    expect(first.messages[0].content).toContain('exchange of messages');
+    expect(first.messages[1].content).toContain(
+      "=== MESSAGES ===\nBetween: Mara and Theo (the reader's character)",
+    );
+    expect(first.messages[1].content).toContain(
+      `[Message ${question.position}]\nTheo: Can't sleep. Storm's loud.`,
+    );
+    expect(first.messages[1].content).not.toContain('Made it home.');
+    expect(stores.bureaus.getRun(bureau.id, result.runId)).toMatchObject({
+      purpose: 'archive',
+      targetId: thread.id,
+      status: 'completed',
+    });
+  });
+
+  it('leaves a session that may still be going when only settled ones are read', async () => {
+    const now = new Date('2026-10-01T07:00:00.000Z');
+    const earlier = send('user', 'Up early?', '2026-09-30T08:00:00.000Z');
+    send('user', 'Storm again.', '2026-10-01T06:30:00.000Z');
+    const client = archivistClient([record()]);
+
+    expect(await archive(client, { settledOnly: true, now })).toMatchObject({ passes: 1 });
+    expect(stores.threads.getThread(bureau.id, thread.id).archivedThrough).toBe(earlier.position);
+    expect(await archive(client, { settledOnly: true, now })).toBeNull();
+    expect(
+      await archive(client, { settledOnly: true, now: new Date('2026-10-01T10:00:00.000Z') }),
+    ).toMatchObject({ passes: 1 });
+  });
+
+  it("rewrites a session's episode when the session grows", async () => {
+    const opening = send('user', 'Lamp lit?', '2026-10-01T20:00:00.000Z');
+    const client = archivistClient([
+      record({ episodes: [{ character: 'Mara', content: 'Theo checked on the lamp.' }] }),
+      record({
+        episodes: [
+          { character: 'Mara', content: 'Theo checked on the lamp, then said goodnight.' },
+        ],
+      }),
+    ]);
+
+    await archive(client);
+    const goodnight = send('user', 'Goodnight.', '2026-10-01T20:30:00.000Z');
+    await archive(client);
+
+    const episodes = stores.memories.listMemories(bureau.id, mara.id, { layer: 'episode' });
+    expect(episodes.map((memory) => memory.content)).toEqual([
+      'Theo checked on the lamp, then said goodnight.',
+    ]);
+    expect(episodes[0].sourceTurnIds).toEqual([opening.id, goodnight.id]);
+    expect(client.calls[1].messages[1].content).toContain(
+      'Episode for this exchange so far: Theo checked on the lamp.',
+    );
+  });
+
+  it('flags what it recorded from a message that changed while it was reading', async () => {
+    const message = send('user', 'The ferry is late.', '2026-10-01T20:00:00.000Z');
+    const client = archivistClient([
+      record({
+        knowledge: [
+          {
+            character: 'Mara',
+            content: 'The ferry was late.',
+            importance: 2,
+            supersedes: 0,
+            passages: [message.position],
+          },
+        ],
+      }),
+    ]);
+    client.beforeAnswer = () =>
+      stores.threads.editMessage(thread.id, message.id, 'The ferry is cancelled.');
+
+    const result = await archive(client);
+
+    expect(result.warnings).toContain(
+      'Marked for review: 1 message(s) changed while the Archivist read them',
+    );
+    expect(stores.memories.listMemories(bureau.id, mara.id)[0].needsReview).toBe(true);
+  });
+});
+
+describe('threadSessions', () => {
+  it('splits messages at gaps over three hours', () => {
+    const sessions = threadSessions([
+      { id: 'a', bureauTime: '2026-10-01T06:00:00Z' },
+      { id: 'b', bureauTime: '2026-10-01T09:00:00Z' },
+      { id: 'c', bureauTime: '2026-10-01T12:01:00Z' },
+    ]);
+
+    expect(sessions.map((session) => session.map((message) => message.id))).toEqual([
+      ['a', 'b'],
+      ['c'],
+    ]);
+  });
+});
 
 describe('autoArchiveThrough', () => {
   it('waits until enough prose has settled behind the latest turns', () => {

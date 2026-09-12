@@ -38,7 +38,10 @@
           Edited
         </span>
         <RouterLink v-if="sourceLink" class="source" :to="sourceLink">
-          <i class="fas fa-book-open"></i> {{ note.sourceTitle }}
+          <template v-if="note.sourceType === 'correspondence'">
+            <i class="fas fa-comments"></i> Messages · {{ formatDate(note.worldTime) }}
+          </template>
+          <template v-else><i class="fas fa-book-open"></i> {{ note.sourceTitle }}</template>
         </RouterLink>
         <span v-else-if="note.sourceType === 'manual'" class="source">
           <i class="fas fa-pen-nib"></i> Written by you
@@ -107,6 +110,7 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue';
+import { formatDate } from '../../composables/bureau/format';
 
 const props = defineProps({
   note: { type: Object, required: true },
@@ -121,11 +125,18 @@ const draft = ref('');
 const editorRef = ref(null);
 
 const edited = computed(
-  () => props.note.sourceType === 'story' && props.note.content !== props.note.proposedContent,
+  () => props.note.sourceType !== 'manual' && props.note.content !== props.note.proposedContent,
 );
 
+// Notes from a story link to the first passage they came from, and notes from messages to the thread.
 const sourceLink = computed(() => {
   const { note } = props;
+  if (note.sourceType === 'correspondence') {
+    return {
+      name: 'bureau-thread',
+      params: { bureauId: props.bureauId, castId: note.castMemberId },
+    };
+  }
   if (note.sourceType !== 'story' || !note.sourceTitle) return null;
   return {
     name: 'bureau-story',

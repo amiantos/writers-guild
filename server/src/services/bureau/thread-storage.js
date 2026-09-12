@@ -87,6 +87,7 @@ export class ThreadStorage {
         VALUES (@id, @bureauId, @castId, @created, @modified)
       `),
       touchThread: this.db.prepare('UPDATE threads SET modified = ? WHERE id = ?'),
+      setArchiveProgress: this.db.prepare('UPDATE threads SET archived_through = ? WHERE id = ?'),
       deleteThread: this.db.prepare('DELETE FROM threads WHERE bureau_id = ? AND id = ?'),
 
       // Messages; a negative limit means no limit.
@@ -143,6 +144,11 @@ export class ThreadStorage {
     const now = timestamp();
     this.stmts.insertThread.run({ id: uuidv4(), bureauId, castId, created: now, modified: now });
     return this.getThreadForCast(bureauId, castId);
+  }
+
+  /** Record the position of the last message the Archivist has read. */
+  setArchiveProgress(threadId, archivedThrough) {
+    this.stmts.setArchiveProgress.run(archivedThrough, threadId);
   }
 
   /** Deletes a thread with its messages. */

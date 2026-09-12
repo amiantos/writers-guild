@@ -12,6 +12,7 @@ import express from 'express';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { sseChannel } from '../utils/sse.js';
 import { DeepSeekError } from '../services/bureau/deepseek-client.js';
+import { archiveSettledSessions, archiveThread } from '../services/bureau/archivist.js';
 import { bureauPresent } from '../services/bureau/bureau-time.js';
 import { generateReply } from '../services/bureau/correspondence.js';
 import {
@@ -108,6 +109,11 @@ async function respondWithReply(req, res, { bureau, thread, member, persona, mes
       statusCode: 201,
       body: { message, replies, bureau: stores.bureaus.getBureau(bureau.id) },
     });
+
+    // Finished sessions go into memory. Tests turn this off with app.locals.bureauAutoArchive.
+    if (bureau.settings.memory.autoArchive && (req.app.locals.bureauAutoArchive ?? true)) {
+      archiveSettledSessions({ stores, bureauId: bureau.id, threadId: thread.id, client });
+    }
   } catch (error) {
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
@@ -226,11 +232,35 @@ router.post(
   }),
 );
 
-// Edit a message; memories citing it are marked for review
+// Commit the thread to memory now: the Archivist reads every message it hasn't read yet
+router.post(
+  '/:castId/archive',
+  asyncHandler(async (req, res) => {
+    const { stores } = res.locals;
+    const { bureauId, castId } = req.params;
+    const bureau = requireBureau(stores.bureaus, bureauId);
+    requireApiKey(bureau);
+    const thread = requireThread(stores.threads, bureauId, castId);
+
+    const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureauId));
+    let archive;
+    try {
+      archive = await archiveThread({ stores, bureauId, threadId: thread.id, client });
+    } catch (error) {
+      if (error instanceof DeepSeekError) {
+        throw new AppError(error.message, 502);
+      }
+      throw error;
+    }
+    res.json({ thread: stores.threads.getThread(bureauId, thread.id), archive });
+  }),
+);
+
+// Edit a message; memories and arc notes citing it are marked for review
 router.put(
   '/:castId/messages/:messageId',
   asyncHandler(async (req, res) => {
-    const { bureaus, threads, memories } = res.locals.stores;
+    const { bureaus, threads, memories, arcNotes } = res.locals.stores;
     const { bureauId, castId, messageId } = req.params;
     requireBureau(bureaus, bureauId);
     const thread = requireThread(threads, bureauId, castId);
@@ -241,15 +271,16 @@ router.put(
       throw new AppError('Message not found', 404);
     }
     memories.flagTurnsChanged(bureauId, thread.id, [messageId], 'correspondence');
+    arcNotes.flagTurnsChanged(bureauId, thread.id, [messageId], 'correspondence');
     res.json({ message });
   }),
 );
 
-// Delete a message; memories citing it are marked for review
+// Delete a message; memories and arc notes citing it are marked for review
 router.delete(
   '/:castId/messages/:messageId',
   asyncHandler(async (req, res) => {
-    const { bureaus, threads, memories } = res.locals.stores;
+    const { bureaus, threads, memories, arcNotes } = res.locals.stores;
     const { bureauId, castId, messageId } = req.params;
     requireBureau(bureaus, bureauId);
     const thread = requireThread(threads, bureauId, castId);
@@ -258,6 +289,7 @@ router.delete(
       throw new AppError('Message not found', 404);
     }
     memories.flagTurnsChanged(bureauId, thread.id, [messageId], 'correspondence');
+    arcNotes.flagTurnsChanged(bureauId, thread.id, [messageId], 'correspondence');
     res.json({ success: true });
   }),
 );

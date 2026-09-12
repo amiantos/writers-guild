@@ -107,7 +107,7 @@ async function start() {
   if (!canStart.value || starting.value) return;
   starting.value = true;
   try {
-    const { story } = await bureauStoriesAPI.start(props.bureau.id, {
+    const { story, archiveError, offscreenError } = await bureauStoriesAPI.start(props.bureau.id, {
       title: title.value.trim() || undefined,
       castIds: castIds.value,
       start: {
@@ -116,6 +116,14 @@ async function start() {
       },
       timeZone: browserTimeZone(),
     });
+    if (archiveError) {
+      toast.error(`The story started, but committing messages to memory failed: ${archiveError}`);
+    }
+    if (offscreenError) {
+      toast.error(
+        `The story started, but catching the cast up on time away failed: ${offscreenError}`,
+      );
+    }
     emit('started', story);
   } catch (error) {
     console.error('Failed to start story:', error);

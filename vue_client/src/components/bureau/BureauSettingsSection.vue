@@ -188,6 +188,23 @@
       </fieldset>
 
       <fieldset class="writer-settings">
+        <legend>Between stories</legend>
+        <label class="checkbox-label">
+          <input
+            id="bureau-settings-offscreen-life"
+            v-model="form.memory.offscreenLife"
+            type="checkbox"
+          />
+          Give characters offscreen life when time jumps forward
+        </label>
+        <p class="help-text">
+          When a story starts well after the last one, or someone writes after a quiet stretch, the
+          characters get a short, mostly ordinary account of what they did meanwhile. It shows in
+          their memories under "What happened".
+        </p>
+      </fieldset>
+
+      <fieldset class="writer-settings">
         <legend>Messages</legend>
         <label class="checkbox-label">
           <input
@@ -322,6 +339,7 @@ function snapshot(bureau) {
     writer: { ...bureau.settings.writer },
     director: { ...bureau.settings.director },
     editor: { ...bureau.settings.editor },
+    memory: { ...bureau.settings.memory },
     correspondence: { ...bureau.settings.correspondence },
     bannedPhrases: bureau.settings.style.bannedPhrases.join('\n'),
   };
@@ -399,6 +417,7 @@ async function save() {
       writer: { ...form.writer },
       director: { ...form.director },
       editor: { ...form.editor },
+      memory: { ...form.memory },
       style: { bannedPhrases: phrasesFrom(form.bannedPhrases) },
       correspondence: { ...form.correspondence },
     },

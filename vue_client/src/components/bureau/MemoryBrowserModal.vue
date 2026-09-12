@@ -152,7 +152,10 @@ const draftImportance = ref(DEFAULT_IMPORTANCE);
 const adding = ref(false);
 
 const knowledge = computed(() => current.value.filter((memory) => memory.layer === 'knowledge'));
-const episodes = computed(() => current.value.filter((memory) => memory.layer === 'episode'));
+// Accounts of stories and messages, and of time away.
+const episodes = computed(() =>
+  current.value.filter((memory) => memory.layer === 'episode' || memory.layer === 'offscreen'),
+);
 const searching = computed(() => query.value.trim().length > 0);
 
 const tabs = computed(() => [

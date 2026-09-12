@@ -188,6 +188,10 @@ export class BureauStorage {
         UPDATE cast_members SET is_persona = 0, modified = @modified
         WHERE bureau_id = @bureauId AND is_persona = 1 AND id != @id
       `),
+      updateCastRoutine: this.db.prepare(`
+        UPDATE cast_members SET routine = @routine, modified = @modified
+        WHERE bureau_id = @bureauId AND id = @id
+      `),
       deleteCastMember: this.db.prepare('DELETE FROM cast_members WHERE bureau_id = ? AND id = ?'),
 
       // Run records
@@ -384,11 +388,21 @@ export class BureauStorage {
    * @param {Object} updates
    * @param {boolean} [updates.isPersona] - Marking a member unmarks the previous reader's
    *   character.
+   * @param {string} [updates.routine] - How they usually spend their days, for replies and
+   *   offscreen life.
    * @returns {Object|null} The updated member, or null if it doesn't exist.
    */
-  updateCastMember(bureauId, castId, { isPersona }) {
+  updateCastMember(bureauId, castId, { isPersona, routine }) {
     if (!this.stmts.getCastMember.get(bureauId, castId)) return null;
 
+    if (routine !== undefined) {
+      this.stmts.updateCastRoutine.run({
+        bureauId,
+        id: castId,
+        routine: JSON.stringify({ text: routine }),
+        modified: new Date().toISOString(),
+      });
+    }
     if (isPersona !== undefined) {
       const modified = new Date().toISOString();
       this.db.transaction(() => {

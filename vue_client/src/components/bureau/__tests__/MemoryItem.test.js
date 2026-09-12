@@ -43,6 +43,32 @@ describe('MemoryItem', () => {
     expect(link.text()).toContain('Lamplight');
   });
 
+  it('links a memory from messages to the thread, and labels time away', () => {
+    const fromMessages = mountItem({
+      sourceType: 'correspondence',
+      sourceId: 'thread-1',
+      sourceTitle: null,
+      castMemberId: 'c1',
+      worldTime: '2026-10-27T19:00:00.000Z',
+    }).findComponent(RouterLinkStub);
+
+    expect(fromMessages.props('to')).toEqual({
+      name: 'bureau-thread',
+      params: { bureauId: 'b1', castId: 'c1' },
+    });
+    expect(fromMessages.text()).toContain('Messages ·');
+
+    const away = mountItem({
+      layer: 'offscreen',
+      sourceType: 'offscreen',
+      sourceId: null,
+      sourceTitle: null,
+      worldTime: '2026-10-27T19:00:00.000Z',
+    });
+    expect(away.findComponent(RouterLinkStub).exists()).toBe(false);
+    expect(away.text()).toContain('Offscreen ·');
+  });
+
   it("flags a memory whose source changed, and clears the flag when it's still right", async () => {
     const wrapper = mountItem({ needsReview: true });
 

@@ -22,7 +22,8 @@ import {
   resolveStoryEndTime,
   resolveStoryStartTime,
 } from '../services/bureau/bureau-time.js';
-import { archiveSettledTurns, archiveStory } from '../services/bureau/archivist.js';
+import { archiveSettledTurns, archiveStory, archiveThread } from '../services/bureau/archivist.js';
+import { generateOffscreenLife } from '../services/bureau/offscreen.js';
 import { generateWriterTurn, requestForRegeneration } from '../services/bureau/writer-turn.js';
 import {
   createBureauClient,
@@ -189,13 +190,63 @@ router.get(
   }),
 );
 
+/**
+ * Before a story begins: commit what its characters said in messages to memory,
+ * then give them an account of any jump forward in Bureau time. Neither stops
+ * the story; a failure comes back as its message.
+ * @param {Object} bureau - The Bureau as it was before its clock moved to the start.
+ */
+async function catchUpBeforeStory(req, stores, bureau, { castIds, startTime }) {
+  const result = { archiveError: null, offscreenError: null };
+  if (!bureau.hasApiKey) return result;
+
+  const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureau.id));
+  const members = castIds
+    .map((castId) => stores.bureaus.getCastMember(bureau.id, castId))
+    .filter((member) => member && !member.isPersona);
+
+  if (bureau.settings.memory.autoArchive) {
+    try {
+      for (const member of members) {
+        const thread = stores.threads.getThreadForCast(bureau.id, member.id);
+        if (thread) {
+          await archiveThread({ stores, bureauId: bureau.id, threadId: thread.id, client });
+        }
+      }
+    } catch (error) {
+      console.error('[Bureau] Committing messages before the story failed:', error.message);
+      result.archiveError = error.message;
+    }
+  }
+
+  if (bureau.settings.memory.offscreenLife) {
+    try {
+      await generateOffscreenLife({
+        stores,
+        bureau,
+        members,
+        from: bureau.bureauTime,
+        to: startTime,
+        client,
+      });
+    } catch (error) {
+      console.error('[Bureau] Offscreen life before the story failed:', error.message);
+      result.offscreenError = error.message;
+    }
+  }
+  return result;
+}
+
 // Start a story. start.choice is 'present', 'bureau' (the Bureau's current
 // time), or 'custom' with start.customTime. The Bureau's clock moves to the
-// start time. The browser's timeZone is saved if the Bureau has none yet.
+// start time. The browser's timeZone is saved if the Bureau has none yet. Messages
+// its characters exchanged are committed to memory first, and a jump forward in
+// time gives them offscreen life; archiveError and offscreenError say if either failed.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories } = res.locals.stores;
+    const { stores } = res.locals;
+    const { bureaus, stories } = stores;
     const { bureauId } = req.params;
     const bureau = requireBureau(bureaus, bureauId);
     const body = req.body ?? {};
@@ -223,7 +274,13 @@ router.post(
       }
     })();
 
-    res.status(201).json({ story, bureau: bureaus.getBureau(bureauId) });
+    const { archiveError, offscreenError } = await catchUpBeforeStory(req, stores, bureau, {
+      castIds,
+      startTime,
+    });
+    res
+      .status(201)
+      .json({ story, bureau: bureaus.getBureau(bureauId), archiveError, offscreenError });
   }),
 );
 

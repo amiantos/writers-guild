@@ -47,6 +47,12 @@ function stripAsterisks(text) {
   return text.replace(/\*/g, '');
 }
 
+/** Where an episode happened: a story's title, or messages. */
+function episodeLabel(memory) {
+  if (memory.sourceTitle) return `${memory.sourceTitle}: `;
+  return memory.sourceType === 'correspondence' ? 'In messages: ' : '';
+}
+
 /** One character's memories, or '' when they have none. */
 function memoryBlock(name, memories) {
   if (!memories) return '';
@@ -60,12 +66,15 @@ function memoryBlock(name, memories) {
   if (memories.episodes.length > 0) {
     if (lines.length > 0) lines.push('');
     lines.push(
-      `${name} remembers from earlier stories:`,
+      `${name} remembers:`,
       ...memories.episodes.map(
-        (memory) =>
-          `- ${memory.sourceTitle ? `${memory.sourceTitle}: ` : ''}${stripAsterisks(memory.content)}`,
+        (memory) => `- ${episodeLabel(memory)}${stripAsterisks(memory.content)}`,
       ),
     );
+  }
+  if (memories.offscreen) {
+    if (lines.length > 0) lines.push('');
+    lines.push(`${name} lately: ${stripAsterisks(memories.offscreen.content)}`);
   }
   return lines.join('\n');
 }

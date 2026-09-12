@@ -14,7 +14,9 @@
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
 import { bureauPresent, describeBureauTime, describeGap, settingYear } from './bureau-time.js';
+import { DeepSeekError } from './deepseek-client.js';
 import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
+import { generateOffscreenLife, isOffscreenGap } from './offscreen.js';
 import { RunRecorder } from './run-recorder.js';
 import { activatedLore } from './writer-turn.js';
 
@@ -81,7 +83,7 @@ export function splitMessages(text, name = '') {
 }
 
 /** One character's memories, or '' when they have none. */
-function memoryBlock(name, { knowledge, episodes }) {
+function memoryBlock(name, { knowledge, episodes, offscreen = null }) {
   const lines = [];
   if (knowledge.length > 0) {
     lines.push(
@@ -99,7 +101,25 @@ function memoryBlock(name, { knowledge, episodes }) {
       ),
     );
   }
+  if (offscreen) {
+    if (lines.length > 0) lines.push('');
+    lines.push(`${name} lately: ${stripAsterisks(offscreen.content)}`);
+  }
   return lines.join('\n');
+}
+
+/**
+ * When a character was last seen before the present: their latest message, or
+ * their latest dated memory. Null when there's nothing to go on.
+ */
+function lastSeen(history, memories, present) {
+  const times = [
+    ...history
+      .filter((message) => message.source === 'generated')
+      .map((message) => Date.parse(message.bureauTime)),
+    ...memories.filter((memory) => memory.worldTime).map((memory) => Date.parse(memory.worldTime)),
+  ].filter((time) => time <= present.getTime());
+  return times.length > 0 ? new Date(Math.max(...times)) : null;
 }
 
 /** The latest messages that fit the budget, always keeping at least the last one. */
@@ -162,6 +182,8 @@ export function buildCorrespondenceMessages({
     if (description) lines.push(`Description: ${description}`);
     const personality = cardText(data.personality, card);
     if (personality) lines.push(`Personality: ${personality}`);
+    const routine = castMember.routine?.text?.trim();
+    if (routine) lines.push(`Usual routine: ${routine}`);
     if (notes.length > 0) {
       const changes = notes.map((note) => `- ${stripAsterisks(note.content)}`);
       lines.push(`How ${nameOf(castMember)} has changed:\n${changes.join('\n')}`);
@@ -268,14 +290,8 @@ export async function generateReply({
   const name = nameOf(member);
   const present = bureauPresent(bureau);
   const history = stores.threads.listMessages(thread.id, { limit: RECENT_MESSAGES });
-  const memories = selectForPrompt(
-    memoriesAtTime(stores.memories.listMemories(bureau.id, member.id, { status: 'all' }), present),
-    bureau.settings.memory,
-  );
-  const arcNotes = notesAtTime(
-    stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }),
-    present,
-  );
+  const allMemories = () => stores.memories.listMemories(bureau.id, member.id, { status: 'all' });
+  const isCancellation = (error) => error?.name === 'AbortError' || Boolean(signal?.aborted);
 
   const recorder = new RunRecorder(stores.bureaus, {
     bureauId: bureau.id,
@@ -287,6 +303,41 @@ export async function generateReply({
 
   let messages;
   try {
+    // After a quiet stretch, the character first gets an account of what they did meanwhile.
+    const since = bureau.settings.memory.offscreenLife
+      ? lastSeen(history, allMemories(), present)
+      : null;
+    if (since && isOffscreenGap(since, present)) {
+      onEvent({ type: 'stage', stage: 'catching-up' });
+      try {
+        await generateOffscreenLife({
+          stores,
+          bureau,
+          members: [member],
+          from: since.toISOString(),
+          to: present.toISOString(),
+          client,
+          recorder,
+          signal,
+        });
+      } catch (error) {
+        if (isCancellation(error)) throw error;
+        // The reply goes on without it. Failed model calls are already recorded; note anything else.
+        if (!(error instanceof DeepSeekError)) {
+          recorder.recordStep({ role: 'offscreen', kind: 'model', error: error.message });
+        }
+      }
+      onEvent({ type: 'stage', stage: 'writing' });
+    }
+
+    const memories = selectForPrompt(
+      memoriesAtTime(allMemories(), present),
+      bureau.settings.memory,
+    );
+    const arcNotes = notesAtTime(
+      stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }),
+      present,
+    );
     const scanText = history
       .slice(-LORE_SCAN_MESSAGES)
       .map((message) => message.content)
@@ -302,6 +353,10 @@ export async function generateReply({
       loreEntries: await activatedLore(stores, bureau.id, scanText),
     });
   } catch (error) {
+    if (isCancellation(error)) {
+      recorder.finish('cancelled', 'Cancelled');
+      return [];
+    }
     recorder.fail(error);
     throw error;
   }

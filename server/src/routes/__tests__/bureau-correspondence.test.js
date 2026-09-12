@@ -20,6 +20,24 @@ function fakeClient(text = 'Always.\n---\nStorm?', { failWith = null } = {}) {
   const client = {
     model: 'deepseek-flash',
     calls: [],
+    archiveRecord: { knowledge: [], episodes: [], arc_notes: [], story_summary: '' },
+    async chat(options) {
+      client.calls.push(options);
+      return {
+        content: '',
+        reasoning: '',
+        finishReason: 'tool_calls',
+        model: 'deepseek-flash',
+        usage: null,
+        toolCalls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'record_memories', arguments: JSON.stringify(client.archiveRecord) },
+          },
+        ],
+      };
+    },
     async *chatStream(options) {
       client.calls.push(options);
       if (failWith) throw failWith;
@@ -82,6 +100,7 @@ describe('Bureau correspondence routes', () => {
     app.use(express.json());
     app.locals.dataRoot = tempDir;
     app.locals.createBureauClient = () => client;
+    app.locals.bureauAutoArchive = false;
     app.use('/api/bureaus', bureausRouter);
     app.use(errorHandler);
   });
@@ -180,6 +199,39 @@ describe('Bureau correspondence routes', () => {
 
     stores.bureaus.updateCastMember(bureau.id, theo.id, { isPersona: false });
     await request(app).post(url).send({ text: 'Hi', reply: false }).expect(400);
+  });
+
+  it('commits the thread to memory on request', async () => {
+    const { body: sent } = await request(app)
+      .post(`${threadsUrl()}/${mara.id}/messages`)
+      .send({ text: 'The ferry is late again.', reply: false })
+      .expect(201);
+    client.archiveRecord = {
+      knowledge: [
+        {
+          character: 'Mara',
+          content: 'The ferry runs late.',
+          importance: 2,
+          supersedes: 0,
+          passages: [sent.message.position],
+        },
+      ],
+      episodes: [{ character: 'Mara', content: 'Theo grumbled about the ferry.' }],
+      arc_notes: [],
+      story_summary: '',
+    };
+
+    const { body } = await request(app)
+      .post(`${threadsUrl()}/${mara.id}/archive`)
+      .send({})
+      .expect(200);
+
+    expect(body.archive).toMatchObject({ passes: 1, added: 1, episodes: 1 });
+    expect(body.thread.archivedThrough).toBe(sent.message.position);
+    expect(
+      stores.memories.listMemories(bureau.id, mara.id, { layer: 'knowledge' })[0],
+    ).toMatchObject({ sourceType: 'correspondence', content: 'The ferry runs late.' });
+    await request(app).post(`${threadsUrl()}/${theo.id}/archive`).send({}).expect(404);
   });
 
   it('keeps the message when the reply fails', async () => {

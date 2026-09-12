@@ -121,7 +121,9 @@ export function notesAtTime(notes, time) {
  * @param {Object} limits
  * @param {number} limits.knowledgeCharacters
  * @param {number} limits.recentEpisodes
- * @returns {{ knowledge: Array<Object>, episodes: Array<Object> }} Both oldest first.
+ * @returns {{ knowledge: Array<Object>, episodes: Array<Object>, offscreen: Object|null }}
+ *   Knowledge and episodes oldest first; offscreen is what they did the last time Bureau time
+ *   jumped forward, if no episode has happened since.
  */
 export function selectForPrompt(memories, { knowledgeCharacters, recentEpisodes }) {
   const ranked = memories
@@ -146,8 +148,17 @@ export function selectForPrompt(memories, { knowledgeCharacters, recentEpisodes 
     .filter((memory) => memory.layer === 'episode')
     .toSorted(compareChronological);
 
+  // The latest account of time away, unless an episode has happened since.
+  const since = episodes.length > 0 ? timeOf(episodes.at(-1)) : -Infinity;
+  const offscreen =
+    memories
+      .filter((memory) => memory.layer === 'offscreen' && timeOf(memory) >= since)
+      .toSorted(compareChronological)
+      .at(-1) ?? null;
+
   return {
     knowledge: knowledge.toSorted(compareChronological),
     episodes: recentEpisodes > 0 ? episodes.slice(-recentEpisodes) : [],
+    offscreen,
   };
 }

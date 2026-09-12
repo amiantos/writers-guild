@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
     knowledgeCharacters: 4000,
     // Episodes from earlier stories per character in the Writer prompt.
     recentEpisodes: 3,
+    // When Bureau time jumps forward, give the characters involved an account of the gap.
+    offscreenLife: true,
   }),
   director: Object.freeze({
     // Plan each passage with tools before the Writer writes it.
@@ -71,6 +73,7 @@ const WRITER_RULES = {
 
 const MEMORY_RULES = {
   autoArchive: (value) => typeof value === 'boolean' || 'must be true or false',
+  offscreenLife: (value) => typeof value === 'boolean' || 'must be true or false',
   knowledgeCharacters: (value) =>
     (Number.isInteger(value) && value >= 0 && value <= 40000) ||
     'must be a whole number from 0 to 40000',

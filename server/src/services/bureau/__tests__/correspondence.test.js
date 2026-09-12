@@ -235,7 +235,52 @@ describe('generateReply', () => {
     expect(run.steps.map((step) => step.role)).toEqual(['writer']);
   });
 
+  it('first writes what the character did during a long silence', async () => {
+    stores.bureaus.updateCastMember(bureau.id, mara.id, { routine: 'Nights at the light.' });
+    stores.threads.addMessage(thread.id, {
+      source: 'generated',
+      senderCastId: mara.id,
+      content: 'Night.',
+      bureauTime: new Date(Date.now() - 9 * 24 * 3_600_000).toISOString(),
+    });
+    const client = streamingClient(['Back from the mainland.']);
+    client.chat = async (options) => {
+      client.calls.push(options);
+      const entries = [{ character: 'Mara', content: 'Took the ferry to the mainland for parts.' }];
+      return {
+        content: '',
+        reasoning: '',
+        finishReason: 'tool_calls',
+        model: 'deepseek-flash',
+        usage: null,
+        toolCalls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'record_offscreen', arguments: JSON.stringify({ entries }) },
+          },
+        ],
+      };
+    };
+    const events = [];
+
+    const saved = await reply(client, { onEvent: (event) => events.push(event) });
+
+    expect(client.calls[0].tools[0].name).toBe('record_offscreen');
+    expect(client.calls[1].messages[0].content).toContain(
+      'Mara lately: Took the ferry to the mainland for parts.',
+    );
+    expect(client.calls[1].messages[0].content).toContain('Usual routine: Nights at the light.');
+    expect(events.filter((event) => event.type === 'stage').map((event) => event.stage)).toEqual([
+      'catching-up',
+      'writing',
+    ]);
+    const run = stores.bureaus.getRun(bureau.id, saved[0].runId);
+    expect(run.steps.map((step) => step.role)).toEqual(['offscreen', 'offscreen', 'writer']);
+  });
+
   it("uses the character's memories as they stand at the present", async () => {
+    stores.bureaus.updateSettings(bureau.id, { memory: { offscreenLife: false } });
     const remember = (content, worldTime) =>
       stores.memories.addMemory(bureau.id, mara.id, { layer: 'knowledge', content, worldTime });
     remember("Theo can't swim.", '2026-01-01T00:00:00.000Z');

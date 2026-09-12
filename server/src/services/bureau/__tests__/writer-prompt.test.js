@@ -78,6 +78,19 @@ describe('buildWriterMessages', () => {
     expect(build().system).not.toContain('The year is');
   });
 
+  it('adds what a character did the last time they were away', () => {
+    const { system } = build({
+      memoriesByCast: new Map([
+        [
+          'mara',
+          { knowledge: [], episodes: [], offscreen: { content: 'Repainted the *boathouse*.' } },
+        ],
+      ]),
+    });
+
+    expect(system).toContain('Mara lately: Repainted the boathouse.');
+  });
+
   it('adds what each character remembers from earlier stories', () => {
     const { system } = build({
       memoriesByCast: new Map([
@@ -85,7 +98,10 @@ describe('buildWriterMessages', () => {
           'mara',
           {
             knowledge: [{ content: "Theo *can't* swim." }, { content: 'Theo hates boats.' }],
-            episodes: [{ content: 'They met at the pier.', sourceTitle: 'Story 1' }],
+            episodes: [
+              { content: 'They met at the pier.', sourceTitle: 'Story 1' },
+              { content: 'Theo texted about the storm.', sourceType: 'correspondence' },
+            ],
           },
         ],
         ['theo', { knowledge: [{ content: 'The reader remembers this.' }], episodes: [] }],
@@ -93,7 +109,7 @@ describe('buildWriterMessages', () => {
     });
 
     expect(system).toContain(
-      "=== MEMORIES ===\nWhat the characters remember from before this story. Let it shape what they do and bring up, without reciting it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers from earlier stories:\n- Story 1: They met at the pier.",
+      "=== MEMORIES ===\nWhat the characters remember from before this story. Let it shape what they do and bring up, without reciting it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
     );
     expect(system).not.toContain('The reader remembers this.');
   });

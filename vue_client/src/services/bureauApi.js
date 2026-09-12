@@ -323,6 +323,11 @@ export const bureauThreadsAPI = {
     return streamEvents(`/${bureauId}/threads/${castId}/reply`, {}, signal);
   },
 
+  /** Commit the thread to memory: the Archivist reads every message it hasn't read yet. */
+  archive(bureauId, castId) {
+    return request(`/${bureauId}/threads/${castId}/archive`, { method: 'POST', body: {} });
+  },
+
   editMessage(bureauId, castId, messageId, content) {
     return request(`/${bureauId}/threads/${castId}/messages/${messageId}`, {
       method: 'PUT',

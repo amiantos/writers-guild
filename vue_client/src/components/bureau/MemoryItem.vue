@@ -48,8 +48,14 @@
         </select>
 
         <RouterLink v-if="sourceLink" class="source" :to="sourceLink">
-          <i class="fas fa-book-open"></i> {{ memory.sourceTitle }}
+          <template v-if="memory.sourceType === 'correspondence'">
+            <i class="fas fa-comments"></i> Messages · {{ formatDate(memory.worldTime) }}
+          </template>
+          <template v-else><i class="fas fa-book-open"></i> {{ memory.sourceTitle }}</template>
         </RouterLink>
+        <span v-else-if="memory.sourceType === 'offscreen'" class="source">
+          <i class="fas fa-mug-hot"></i> Offscreen · {{ formatDate(memory.worldTime) }}
+        </span>
         <span v-else-if="memory.sourceType === 'manual'" class="source">
           <i class="fas fa-pen-nib"></i> Written by you
         </span>
@@ -112,6 +118,7 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue';
 import { IMPORTANCE_LEVELS } from '../../composables/bureau/memories';
+import { formatDate } from '../../composables/bureau/format';
 
 const props = defineProps({
   memory: { type: Object, required: true },
@@ -127,9 +134,15 @@ const editorRef = ref(null);
 
 const isCurrent = computed(() => !props.memory.retired && props.memory.supersededBy === null);
 
-// Story memories link to the first passage they came from.
+// Story memories link to the first passage they came from, and memories from messages to the thread.
 const sourceLink = computed(() => {
   const { memory } = props;
+  if (memory.sourceType === 'correspondence') {
+    return {
+      name: 'bureau-thread',
+      params: { bureauId: props.bureauId, castId: memory.castMemberId },
+    };
+  }
   if (memory.sourceType !== 'story' || !memory.sourceTitle) return null;
   return {
     name: 'bureau-story',

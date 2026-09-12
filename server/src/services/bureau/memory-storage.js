@@ -12,12 +12,13 @@
 import { openBureauDb } from './bureau-db.js';
 
 /** knowledge: lasting facts. episode: what happened in one story, from one character's view. */
-export const MEMORY_LAYERS = ['knowledge', 'episode'];
+export const MEMORY_LAYERS = ['knowledge', 'episode', 'offscreen'];
 /**
- * story and correspondence: recorded by the Archivist from a story or a thread. manual: written
- * in the memory browser, such as backstory.
+ * story and correspondence: recorded by the Archivist from a story or a thread. offscreen: what a
+ * character did while Bureau time jumped forward. manual: written in the memory browser, such as
+ * backstory.
  */
-export const MEMORY_SOURCES = ['story', 'correspondence', 'manual'];
+export const MEMORY_SOURCES = ['story', 'correspondence', 'offscreen', 'manual'];
 /** retired includes memories replaced by newer ones. */
 export const MEMORY_STATUSES = ['current', 'retired'];
 

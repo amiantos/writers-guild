@@ -12,7 +12,7 @@ import { openBureauDb } from './bureau-db.js';
 
 export const ARC_NOTE_STATUSES = ['proposed', 'accepted', 'rejected'];
 /** story: proposed by the Archivist. manual: written by the reader. */
-export const ARC_NOTE_SOURCES = ['story', 'manual'];
+export const ARC_NOTE_SOURCES = ['story', 'correspondence', 'manual'];
 
 function parseIds(text) {
   try {
@@ -84,7 +84,7 @@ export class ArcNoteStorage {
       ),
       flagTurns: this.db.prepare(`
         UPDATE arc_notes SET needs_review = 1, modified = @modified
-        WHERE bureau_id = @bureauId AND source_type = 'story' AND source_id = @storyId
+        WHERE bureau_id = @bureauId AND source_type = @sourceType AND source_id = @sourceId
           AND needs_review = 0
           AND EXISTS (
             SELECT 1 FROM json_each(arc_notes.source_turn_ids) cited
@@ -130,7 +130,7 @@ export class ArcNoteStorage {
    * @param {'proposed'|'accepted'|'rejected'} [note.status] - A note the reader writes is
    *   accepted as it's written.
    * @param {string|null} [note.worldTime] - Bureau time it dates from.
-   * @param {'story'|'manual'} [note.sourceType]
+   * @param {'story'|'correspondence'|'manual'} [note.sourceType]
    * @param {string|null} [note.sourceId]
    * @param {string[]} [note.sourceTurnIds]
    * @param {string|null} [note.runId]
@@ -214,12 +214,20 @@ export class ArcNoteStorage {
     return this.stmts.deleteForStory.run(bureauId, storyId).changes;
   }
 
-  /** Mark notes that cite changed or deleted turns for review. Returns how many were marked. */
-  flagTurnsChanged(bureauId, storyId, turnIds) {
+  /**
+   * Mark notes that cite changed or deleted turns, or messages, for review.
+   * @param {string} bureauId
+   * @param {string} sourceId - The story, or the thread for correspondence.
+   * @param {string[]} turnIds - Turn or message ids.
+   * @param {'story'|'correspondence'} [sourceType]
+   * @returns {number} How many were marked.
+   */
+  flagTurnsChanged(bureauId, sourceId, turnIds, sourceType = 'story') {
     if (turnIds.length === 0) return 0;
     return this.stmts.flagTurns.run({
       bureauId,
-      storyId,
+      sourceId,
+      sourceType,
       turnIds: JSON.stringify(turnIds),
       modified: new Date().toISOString(),
     }).changes;

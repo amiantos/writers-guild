@@ -265,7 +265,9 @@ router.get(
   }),
 );
 
-// Update a cast member
+const MAX_ROUTINE_CHARACTERS = 2000;
+
+// Update a cast member: whether they're the reader's character, and their usual routine
 router.put(
   '/:bureauId/cast/:castId',
   asyncHandler(async (req, res) => {
@@ -273,12 +275,24 @@ router.put(
     const { bureauId, castId } = req.params;
     requireBureau(bureaus, bureauId);
 
-    const { isPersona } = req.body ?? {};
-    if (typeof isPersona !== 'boolean') {
+    const { isPersona, routine } = req.body ?? {};
+    if (isPersona === undefined && routine === undefined) {
+      throw new AppError('No updates provided', 400);
+    }
+    if (isPersona !== undefined && typeof isPersona !== 'boolean') {
       throw new AppError('isPersona must be a boolean', 400);
     }
+    if (
+      routine !== undefined &&
+      (typeof routine !== 'string' || routine.length > MAX_ROUTINE_CHARACTERS)
+    ) {
+      throw new AppError(`routine must be text of up to ${MAX_ROUTINE_CHARACTERS} characters`, 400);
+    }
 
-    const castMember = bureaus.updateCastMember(bureauId, castId, { isPersona });
+    const castMember = bureaus.updateCastMember(bureauId, castId, {
+      isPersona,
+      routine: routine?.trim(),
+    });
     if (!castMember) {
       throw new AppError('Cast member not found', 404);
     }

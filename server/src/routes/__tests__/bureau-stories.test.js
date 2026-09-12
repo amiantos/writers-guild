@@ -26,6 +26,7 @@ function fakeClient(text = 'The lamp was lit.', { failWith = null } = {}) {
     calls: [],
     archiveCalls: [],
     archiveRecord: { knowledge: [], episodes: [], story_summary: 'Summary.' },
+    offscreenRecord: { entries: [] },
     archiveFailure: null,
     async chat(options) {
       client.archiveCalls.push(options);
@@ -40,7 +41,10 @@ function fakeClient(text = 'The lamp was lit.', { failWith = null } = {}) {
           {
             id: 'call-1',
             type: 'function',
-            function: { name: 'record_memories', arguments: JSON.stringify(client.archiveRecord) },
+            function:
+              options.tools[0].name === 'record_offscreen'
+                ? { name: 'record_offscreen', arguments: JSON.stringify(client.offscreenRecord) }
+                : { name: 'record_memories', arguments: JSON.stringify(client.archiveRecord) },
           },
         ],
       };
@@ -171,6 +175,49 @@ describe('Bureau story routes', () => {
         castIds: [mara.id],
         startTime: '1996-06-04T04:00:00.000Z',
       });
+    });
+
+    it('commits messages and gives the cast offscreen life before a story starts', async () => {
+      const thread = stores.threads.getOrCreateThread(bureau.id, mara.id);
+      const message = stores.threads.addMessage(thread.id, {
+        source: 'user',
+        senderCastId: theo.id,
+        content: 'See you at the light next week.',
+        bureauTime: '2026-09-01T20:00:00.000Z',
+      });
+      stores.bureaus.setBureauTime(bureau.id, '2026-09-01T20:00:00.000Z');
+      client.archiveRecord = {
+        knowledge: [],
+        episodes: [{ character: 'Mara', content: 'Theo said he would visit the light.' }],
+        arc_notes: [],
+        story_summary: '',
+      };
+      client.offscreenRecord = {
+        entries: [{ character: 'Mara', content: 'Scraped the rust off the railings.' }],
+      };
+
+      const { body } = await request(app)
+        .post(storiesUrl())
+        .send({ start: { choice: 'custom', customTime: '2026-09-08T20:00:00.000Z' } })
+        .expect(201);
+
+      expect(body).toMatchObject({ archiveError: null, offscreenError: null });
+      expect(stores.threads.getThread(bureau.id, thread.id).archivedThrough).toBe(message.position);
+      expect(
+        stores.memories
+          .listMemories(bureau.id, mara.id, { layer: 'episode' })
+          .map((memory) => memory.content),
+      ).toEqual(['Theo said he would visit the light.']);
+      expect(stores.memories.listMemories(bureau.id, mara.id, { layer: 'offscreen' })).toEqual([
+        expect.objectContaining({
+          content: 'Scraped the rust off the railings.',
+          worldTime: '2026-09-08T19:59:59.999Z',
+        }),
+      ]);
+      expect(client.archiveCalls.map((call) => call.tools[0].name)).toEqual([
+        'record_memories',
+        'record_offscreen',
+      ]);
     });
 
     it("starts at the Bureau's present when its date is moved", async () => {

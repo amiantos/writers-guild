@@ -180,4 +180,18 @@ describe('selectForPrompt', () => {
       selectForPrompt(episodes, { knowledgeCharacters: 0, recentEpisodes: 0 }).episodes,
     ).toEqual([]);
   });
+
+  it('includes the latest time away, unless an episode has happened since', () => {
+    const limits = { knowledgeCharacters: 0, recentEpisodes: 3 };
+    const away = memory({ layer: 'offscreen', worldTime: '2026-10-07T19:59:59.999Z' });
+    const earlierAway = memory({ layer: 'offscreen', worldTime: '2026-09-30T19:59:59.999Z' });
+
+    expect(
+      selectForPrompt([away, earlierAway, fromStory(first, { layer: 'episode' })], limits),
+    ).toMatchObject({ offscreen: away });
+    expect(selectForPrompt([away, fromStory(second, { layer: 'episode' })], limits).offscreen).toBe(
+      null,
+    );
+    expect(selectForPrompt([], limits).offscreen).toBeNull();
+  });
 });

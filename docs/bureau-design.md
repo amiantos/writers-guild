@@ -283,7 +283,9 @@ paragraphs.
 **When it runs:** on demand ("Commit to memory"), when a story ends, and in the background once turns
 have settled. A turn is settled when six newer turns follow it; after each generated turn, a pass
 starts if at least six settled prose turns are waiting. A Bureau can turn automatic archiving off,
-and then the Archivist runs only on demand. Correspondence sessions join in phase 7.
+and then the Archivist runs only on demand. Threads are read the same way, one session of messages
+at a time: in the background once a session is over (a newer one started, or three hours passed),
+from "Commit to memory" in the thread, and for a story's cast before the story starts.
 
 **Input:** the turns it hasn't read, in passes of about 60,000 characters; the story's running
 summary; who was present; and what each present character already knows, as numbered memories.
@@ -296,6 +298,9 @@ Direction turns are left out.
 - `episodes`: one per character, rewritten each pass to tell the whole story so far from their point
   of view
 - `story_summary`: the whole story so far, shown in the Bureau's story list
+
+A thread's memories are dated to the start of their session and cite its messages, and each session
+gets its own episode, rewritten if the session grows.
 
 Memory operations apply automatically because they are visible, sourced, and reversible. The
 Archivist can supersede memories but can't retire or delete them, and it leaves alone pinned
@@ -345,7 +350,7 @@ Memory belongs to characters, not to the Bureau.
 | Knowledge      | Facts about other cast members (persona included), preferences, milestones, running jokes | Always, within a budget ranked by importance and recency |
 | Episodes       | Dated summaries of stories and correspondence sessions the character took part in         | Recent ones in full                                      |
 | Eras           | Summaries rolled up from older episodes                                                   | Always, compact                                          |
-| Offscreen life | Routine, plus what the character did while nobody was watching                            | In correspondence and story openings                     |
+| Offscreen life | Routine, plus what the character did while nobody was watching                            | The latest account, until an episode comes after it      |
 | Archive        | Raw turns and messages the character witnessed                                            | Only through `recall`                                    |
 
 ### Who remembers what
@@ -424,9 +429,11 @@ members. It's saved as knowledge with no story and no time, so every story can s
 - The thread view groups messages into sessions (no gap over three hours), shows how each reply was
   written in a seam, and lets you edit or delete any message; changing one marks memories that cite
   it for review. "Let them write" asks for messages without a new one from you.
-- **Next (phase 7b):** sessions become episodes, so the next story knows you texted that afternoon;
-  each character's routine shapes replies; **offscreen life** fills the gap whenever Bureau time
-  jumps forward (see [Offscreen life](#offscreen-life)).
+- Sessions go into memory the way stories do (see [Archivist](#archivist)), so the next story knows
+  you texted that afternoon. Each cast member has a **routine**, written from their cast row, which
+  replies take into account for the time of day.
+- After a quiet stretch, a reply first gets the character an account of what they did meanwhile (see
+  [Offscreen life](#offscreen-life)); the reply's seam shows it as part of the run.
 - **Later:** the Director for replies that need tools, characters message first, and other delivery
   channels such as an IRC bridge.
 
@@ -477,8 +484,8 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
 - **A story only remembers what happened before its start time.** Messages exchanged while a story is
   still unfinished don't leak into it, because they come after its start. Starting a story at an
   earlier time works as a flashback: characters don't know what happens later.
-- Memories from a story are dated to its start time. Memories from correspondence are dated to when
-  the messages were sent.
+- Memories from a story are dated to its start time. Memories from correspondence are dated to the
+  start of the session they came from.
 - When two stories start at the same time (say, one ended without moving the clock and the next
   started at Bureau time), the one earlier in the Bureau's order comes first.
 - A story sees each memory as it stood when the story starts. A memory replaced by a later story
@@ -487,13 +494,22 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
 
 ### Offscreen life
 
-- When Bureau time moves forward across a gap (a message after a quiet stretch, or a story starting
-  later than the current Bureau time), one capped call generates what the characters involved did
-  during that gap and stores it as offscreen life.
+- When time moves forward at least 12 hours for the characters involved, one forced call to a strict
+  `record_offscreen` tool writes each of them two to four sentences about how they spent the gap,
+  saved as an offscreen memory dated just before the new time:
+  - A story starting later than the Bureau's clock: its cast, after their unread messages are
+    committed to memory. If either step fails, the story still starts, with a notice.
+  - A reply after a quiet stretch: that character, measured from their latest message or dated
+    memory. A failure there doesn't stop the reply.
+- The call sees each character's routine, what they know, recent episodes, how they have changed,
+  and their last time away. It leaves out the reader's character, whose doings belong to the reader.
 - Moving time forward when a story **ends** doesn't generate offscreen life. That span counts as time
   the story covered.
 - Nothing runs in the background: a month away produces one summary, not thirty days of invented
   drama. Prompts ask for mostly mundane events and cap the notable ones.
+- The Writer and reply prompts include the latest account ("Mara lately: ..."), until an episode
+  happens after it. The memory browser lists accounts under "What happened", and a Bureau setting
+  turns offscreen life off.
 
 ## Character generator
 
@@ -546,7 +562,8 @@ bureaus        (id, name, description, api_key, model, bureau_time, present_offs
 cast_members   (id, bureau_id, library_character_id NULL, name, is_persona, is_draft,
                 seed_card JSON, routine JSON, created, modified)
 arc_notes      (id, bureau_id, cast_member_id, content, proposed_content, rationale,
-                status [proposed|accepted|rejected], world_time NULL, source_type [story|manual],
+                status [proposed|accepted|rejected], world_time NULL,
+                source_type [story|correspondence|manual],
                 source_id NULL, source_turn_ids JSON, run_id NULL, needs_review, created,
                 decided NULL, modified)
 bureau_lorebooks (bureau_id, lorebook_id)
@@ -564,7 +581,8 @@ messages       (id, thread_id, position, source [user|generated], sender_cast_id
                 bureau_time, run_id NULL, edited, created, modified)
 
 memories       (id, bureau_id, cast_member_id, layer [knowledge|episode|era|offscreen],
-                content, importance, world_time NULL, source_type [story|manual],
+                content, importance, world_time NULL,
+                source_type [story|correspondence|offscreen|manual],
                 source_id NULL, source_turn_ids JSON, run_id NULL, superseded_by NULL,
                 pinned, retired, needs_review, created, modified)
 memories_fts   -- FTS5 over memories.content
@@ -601,7 +619,7 @@ server/src/services/bureau/
   bureau-time.js                         # Bureau time changes, loose time descriptions
   thread-storage.js                      # correspondence threads and messages
   correspondence.js                      # replies
-  offscreen.js
+  offscreen.js                           # what characters did while time jumped forward
   character-generator.js
   run-recorder.js                        # agent_runs and agent_steps
 server/scripts/bureau-smoke.js           # tool-loop smoke test against the real API

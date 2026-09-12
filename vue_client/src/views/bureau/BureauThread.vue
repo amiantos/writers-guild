@@ -15,9 +15,21 @@
         />
         <h1 class="thread-title">{{ castMember?.name || 'Messages' }}</h1>
       </div>
-      <span v-if="bureau" class="thread-clock" title="The Bureau's present">
-        <i class="fas fa-clock"></i> {{ formatDateTime(present, bureau.timezone) }}
-      </span>
+      <div class="header-right">
+        <button
+          v-if="bureau?.hasApiKey && hasUnarchived"
+          class="btn btn-secondary btn-small"
+          :disabled="archiving || sending"
+          title="The Archivist reads the messages it hasn't read yet into memory"
+          @click="commitToMemory"
+        >
+          <i class="fas fa-brain"></i>
+          <span class="action-label">{{ archiving ? 'Committing...' : 'Commit to memory' }}</span>
+        </button>
+        <span v-if="bureau" class="thread-clock" title="The Bureau's present">
+          <i class="fas fa-clock"></i> {{ formatDateTime(present, bureau.timezone) }}
+        </span>
+      </div>
     </header>
 
     <div v-if="loading" class="loading-container">
@@ -124,6 +136,7 @@ import { useToast } from '../../composables/useToast';
 import { useConfirm } from '../../composables/useConfirm';
 import { setPageTitle } from '../../router';
 import { bureauPresent, formatDateTime } from '../../composables/bureau/format';
+import { describeArchive } from '../../composables/bureau/memories';
 import { groupSessions, splitReply } from '../../composables/bureau/messages';
 import TurnSeam from '../../components/bureau/TurnSeam.vue';
 import MessageBubble from '../../components/bureau/MessageBubble.vue';
@@ -139,7 +152,9 @@ const { confirm } = useConfirm();
 
 const bureau = ref(null);
 const castMember = ref(null);
+const thread = ref(null);
 const messages = ref([]);
+const archiving = ref(false);
 const hasPersona = ref(false);
 const loading = ref(true);
 const loadError = ref('');
@@ -163,6 +178,10 @@ const present = computed(() => bureauPresent(bureau.value, now.value));
 const sessions = computed(() => groupSessions(messages.value));
 const pendingParts = computed(() => (pending.value ? splitReply(pending.value.content) : []));
 const canWrite = computed(() => hasPersona.value && Boolean(bureau.value?.hasApiKey));
+// Messages the Archivist hasn't read yet.
+const hasUnarchived = computed(() =>
+  messages.value.some((message) => message.position > (thread.value?.archivedThrough ?? -1)),
+);
 
 /** Whether a message starts a reply, so its seam shows how the reply was written. */
 function startsReply(sessionMessages, index) {
@@ -184,6 +203,7 @@ async function load() {
     ]);
     bureau.value = threadData.bureau;
     castMember.value = threadData.castMember;
+    thread.value = threadData.thread;
     messages.value = threadData.messages;
     hasPersona.value = castData.cast.some((member) => member.isPersona);
     setPageTitle(`Messages with ${castMember.value.name}`);
@@ -203,9 +223,27 @@ async function refreshThread() {
   try {
     const data = await bureauThreadsAPI.get(props.bureauId, props.castId);
     bureau.value = data.bureau;
+    thread.value = data.thread;
     messages.value = data.messages;
   } catch (error) {
     toast.error('Failed to refresh messages: ' + error.message);
+  }
+}
+
+async function commitToMemory() {
+  if (archiving.value) return;
+  archiving.value = true;
+  try {
+    const { thread: updated, archive } = await bureauThreadsAPI.archive(
+      props.bureauId,
+      props.castId,
+    );
+    thread.value = updated;
+    toast.success(describeArchive(archive));
+  } catch (error) {
+    toast.error('Failed to commit to memory: ' + error.message);
+  } finally {
+    archiving.value = false;
   }
 }
 
@@ -238,6 +276,11 @@ async function runReply(start, { composerText = '' } = {}) {
         messages.value = [...messages.value, event.message];
       } else if (event.type === 'run') {
         pending.value.runId = event.runId;
+      } else if (event.type === 'stage') {
+        pending.value.status =
+          event.stage === 'catching-up'
+            ? `Catching up with ${castMember.value.name}...`
+            : 'Writing...';
       } else if (event.type === 'reasoning') {
         pending.value.reasoning += event.text;
         pending.value.status = 'Thinking...';
@@ -384,6 +427,12 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .thread-clock {
