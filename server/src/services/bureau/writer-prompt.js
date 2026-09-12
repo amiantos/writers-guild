@@ -62,6 +62,9 @@ function instructionFor({ request, userName, openingTime, hasProse, hasGenerated
     lines.push(
       `Continue the story from where ${userName} left off. Respond to what ${userName} just did, and leave ${userName}'s next words and choices to ${userName}.`,
     );
+    lines.push(
+      `${userName}'s passages may be written in first or second person; write yours in the house style's perspective and refer to ${userName} by name.`,
+    );
   } else {
     lines.push('Continue the story naturally from where it left off.');
   }

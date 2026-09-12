@@ -91,6 +91,9 @@ describe('buildWriterMessages', () => {
 
     expect(user).toContain('=== STORY SO FAR ===\nThe lamp was lit.\n\nTheo climbed the stairs.');
     expect(user).toContain("leave Theo's next words and choices to Theo");
+    expect(user).toContain(
+      "write yours in the house style's perspective and refer to Theo by name",
+    );
   });
 
   it('keeps directions out of the story text and passes the current one as an instruction', () => {
