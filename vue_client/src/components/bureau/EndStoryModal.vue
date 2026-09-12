@@ -2,7 +2,11 @@
   <Modal title="End this story" max-width="520px" @close="$emit('close')">
     <div class="form">
       <p class="help-text">
-        An ended story takes no new turns. What should the Bureau's clock say afterward?
+        An ended story takes no new turns.
+        <template v-if="commitsToMemory">
+          The Archivist then commits the rest of it to the characters' memories.
+        </template>
+        What should the Bureau's clock say afterward?
       </p>
 
       <div class="form-group">
@@ -36,7 +40,7 @@
     <template #footer>
       <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
       <button class="btn btn-primary" :disabled="!canEnd || ending" @click="end">
-        <i class="fas fa-flag-checkered"></i> {{ ending ? 'Ending...' : 'End story' }}
+        <i class="fas fa-flag-checkered"></i> {{ endingLabel }}
       </button>
     </template>
   </Modal>
@@ -72,6 +76,13 @@ const customTime = ref(toDatetimeLocal(new Date(Date.parse(props.story.startTime
 const ending = ref(false);
 
 const canEnd = computed(() => choice.value !== 'custom' || fromDatetimeLocal(customTime.value));
+const commitsToMemory = computed(
+  () => props.bureau.hasApiKey && props.bureau.settings?.memory?.autoArchive !== false,
+);
+const endingLabel = computed(() => {
+  if (!ending.value) return 'End story';
+  return commitsToMemory.value ? 'Committing to memory...' : 'Ending...';
+});
 
 watch(choice, (value) => rememberChoice(CHOICE_KEY, value));
 

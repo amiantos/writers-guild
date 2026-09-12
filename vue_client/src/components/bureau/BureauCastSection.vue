@@ -29,6 +29,22 @@
             <span v-if="member.isPersona" class="persona-tag">Reader's character</span>
           </div>
 
+          <button
+            v-if="!member.isPersona"
+            class="btn btn-secondary btn-small memories-button"
+            :title="`Browse and correct what ${member.name} remembers`"
+            @click="memoryMember = member"
+          >
+            <i class="fas fa-brain"></i> Memories
+            <span v-if="memoryCounts[member.id]?.current" class="memory-count">
+              {{ memoryCounts[member.id].current }}
+            </span>
+            <span
+              v-if="memoryCounts[member.id]?.needsReview"
+              class="review-dot"
+              :title="`${memoryCounts[member.id].needsReview} to check`"
+            ></span>
+          </button>
           <label class="checkbox-label reader-toggle" :title="readerToggleTitle">
             <input
               type="checkbox"
@@ -57,6 +73,13 @@
       @close="showAdd = false"
       @added="handleAdded"
     />
+    <MemoryBrowserModal
+      v-if="memoryMember"
+      :bureau-id="bureauId"
+      :member="memoryMember"
+      @close="memoryMember = null"
+      @changed="emit('changed')"
+    />
   </section>
 </template>
 
@@ -66,10 +89,13 @@ import { bureausAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import { useConfirm } from '../../composables/useConfirm';
 import AddCastModal from './AddCastModal.vue';
+import MemoryBrowserModal from './MemoryBrowserModal.vue';
 
 const props = defineProps({
   bureauId: { type: String, required: true },
   cast: { type: Array, required: true },
+  /** Current memories per cast member id: { current, needsReview }. */
+  memoryCounts: { type: Object, default: () => ({}) },
 });
 
 const emit = defineEmits(['changed', 'lorebook-attached']);
@@ -78,6 +104,7 @@ const { confirm } = useConfirm();
 
 const readerToggleTitle = "The reader's character is the one you write for in stories";
 const showAdd = ref(false);
+const memoryMember = ref(null);
 const busyId = ref(null);
 const brokenImages = reactive({});
 
@@ -160,5 +187,23 @@ function handleAdded({ castMember, attachedLorebookId }) {
 .reader-toggle {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.memories-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.memory-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.review-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: var(--warning-color, #d49b2a);
 }
 </style>

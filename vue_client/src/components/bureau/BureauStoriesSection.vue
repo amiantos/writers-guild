@@ -33,6 +33,7 @@
               {{ formatDateTime(story.startTime, bureau.timezone) }} · {{ story.turnCount }}
               {{ story.turnCount === 1 ? 'turn' : 'turns' }}
             </span>
+            <span v-if="story.summary" class="story-summary">{{ story.summary }}</span>
           </button>
         </li>
       </ul>
@@ -159,5 +160,16 @@ onMounted(loadStories);
   grid-column: 1 / -1;
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.story-summary {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>

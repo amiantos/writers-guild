@@ -46,6 +46,20 @@ describe('bureauApi', () => {
     });
   });
 
+  it('lists memories by status, or searches them', async () => {
+    fetch.mockResolvedValue({ ok: true, json: async () => ({ memories: [] }) });
+
+    await bureausAPI.listMemories('b1', 'c1');
+    await bureausAPI.listMemories('b1', 'c1', { status: 'retired' });
+    await bureausAPI.listMemories('b1', 'c1', { status: 'retired', q: 'deep water' });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      '/api/bureaus/b1/cast/c1/memories',
+      '/api/bureaus/b1/cast/c1/memories?status=retired',
+      '/api/bureaus/b1/cast/c1/memories?q=deep+water',
+    ]);
+  });
+
   it('throws errors carrying the status and extra fields', async () => {
     fetch.mockResolvedValue({
       ok: false,

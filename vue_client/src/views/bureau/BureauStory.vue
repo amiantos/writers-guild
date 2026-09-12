@@ -35,6 +35,16 @@
           <i class="fas fa-users"></i>
         </button>
         <button
+          v-if="bureau?.hasApiKey && hasUnarchived"
+          class="btn btn-secondary btn-small header-action"
+          :disabled="archiving"
+          title="The Archivist reads the passages it hasn't read yet into the characters' memories"
+          @click="commitToMemory"
+        >
+          <i class="fas fa-brain"></i>
+          <span class="action-label">{{ archiving ? 'Committing...' : 'Commit to memory' }}</span>
+        </button>
+        <button
           v-if="story?.status === 'active'"
           class="btn btn-secondary btn-small"
           :disabled="generating"
@@ -71,6 +81,8 @@
               :live="pending?.regenerateTurnId === turn.id ? pending : null"
             />
             <TurnBlock
+              :data-turn-id="turn.id"
+              :class="{ 'is-highlighted': highlightTurnId === turn.id }"
               :turn="turn"
               :override-content="pending?.regenerateTurnId === turn.id ? pending.content : null"
               :busy="generating"
@@ -129,8 +141,9 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { bureausAPI, bureauStoriesAPI } from '../../services/bureauApi';
+import { describeArchive } from '../../composables/bureau/memories';
 import { useToast } from '../../composables/useToast';
 import { useConfirm } from '../../composables/useConfirm';
 import { setPageTitle } from '../../router';
@@ -147,6 +160,9 @@ const props = defineProps({
   storyId: { type: String, required: true },
 });
 
+const HIGHLIGHT_DURATION = 2500;
+
+const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const { confirm } = useConfirm();
@@ -169,6 +185,17 @@ const titleDraft = ref('');
 const titleInput = ref(null);
 const readingRef = ref(null);
 const composerRef = ref(null);
+const archiving = ref(false);
+const highlightTurnId = ref(null);
+
+// Prose the Archivist hasn't read yet.
+const hasUnarchived = computed(
+  () =>
+    Boolean(story.value) &&
+    turns.value.some(
+      (turn) => turn.kind === 'prose' && turn.position > story.value.archivedThrough,
+    ),
+);
 
 const castById = computed(() =>
   Object.fromEntries(cast.value.map((member) => [member.id, member])),
@@ -200,7 +227,10 @@ async function load() {
   } finally {
     loading.value = false;
   }
-  scrollToEnd();
+  // Memory sources link to the passage they came from.
+  if (!(await revealTurn(route.query.turn))) {
+    scrollToEnd();
+  }
 }
 
 async function refreshStory() {
@@ -225,6 +255,23 @@ async function scrollToEnd() {
   if (readingRef.value) {
     readingRef.value.scrollTop = readingRef.value.scrollHeight;
   }
+}
+
+/** Scroll a turn into view and highlight it briefly. Returns whether the turn was found. */
+async function revealTurn(turnId) {
+  if (typeof turnId !== 'string' || !turns.value.some((turn) => turn.id === turnId)) {
+    return false;
+  }
+  await nextTick();
+  const element = readingRef.value?.querySelector(`[data-turn-id="${turnId}"]`);
+  if (!element) return false;
+
+  element.scrollIntoView({ block: 'center' });
+  highlightTurnId.value = turnId;
+  setTimeout(() => {
+    if (highlightTurnId.value === turnId) highlightTurnId.value = null;
+  }, HIGHLIGHT_DURATION);
+  return true;
 }
 
 // ==================== Generation ====================
@@ -404,11 +451,32 @@ async function saveTitle() {
   }
 }
 
-function handleEnded({ story: endedStory, bureau: updatedBureau }) {
+async function commitToMemory() {
+  if (archiving.value) return;
+  archiving.value = true;
+  try {
+    const { story: updated, archive } = await bureauStoriesAPI.archive(
+      props.bureauId,
+      props.storyId,
+    );
+    story.value = updated;
+    toast.success(describeArchive(archive));
+  } catch (error) {
+    toast.error('Failed to commit to memory: ' + error.message);
+  } finally {
+    archiving.value = false;
+  }
+}
+
+function handleEnded({ story: endedStory, bureau: updatedBureau, archive, archiveError }) {
   showEnd.value = false;
   story.value = endedStory;
   bureau.value = updatedBureau;
-  toast.success('Story ended');
+  if (archiveError) {
+    toast.error(`The story ended, but committing it to memory failed: ${archiveError}`);
+  } else {
+    toast.success(archive ? `Story ended. ${describeArchive(archive)}` : 'Story ended');
+  }
 }
 
 function handleStoryUpdated(updated) {
@@ -548,6 +616,26 @@ onBeforeUnmount(() => abortController?.abort());
   margin: 3rem 0;
 }
 
+.header-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.is-highlighted {
+  animation: turn-highlight 2.5s ease-out;
+  border-radius: 6px;
+}
+
+@keyframes turn-highlight {
+  from {
+    background-color: rgba(212, 155, 42, 0.2);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
 .pending-turn .prose :deep(p) {
   margin: 0 0 1em;
 }
@@ -583,7 +671,8 @@ onBeforeUnmount(() => abortController?.abort());
   }
 
   .back-label,
-  .story-time {
+  .story-time,
+  .action-label {
     display: none;
   }
 

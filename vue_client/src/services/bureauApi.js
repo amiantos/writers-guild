@@ -137,6 +137,35 @@ export const bureausAPI = {
   getRun(bureauId, runId) {
     return request(`/${bureauId}/runs/${runId}`);
   },
+
+  /**
+   * A character's memories, newest first. With q, searches all of them, best match first.
+   * @param {{ status?: 'current'|'retired', q?: string }} [options]
+   */
+  listMemories(bureauId, castId, { status, q } = {}) {
+    const params = new URLSearchParams();
+    if (q) {
+      params.set('q', q);
+    } else if (status) {
+      params.set('status', status);
+    }
+    const query = params.toString();
+    return request(`/${bureauId}/cast/${castId}/memories${query ? `?${query}` : ''}`);
+  },
+
+  /** Write something a character knows, such as backstory. @param {{ content: string, importance?: number }} memory */
+  addMemory(bureauId, castId, memory) {
+    return request(`/${bureauId}/cast/${castId}/memories`, { method: 'POST', body: memory });
+  },
+
+  /** Partial update: content, importance, pinned, retired (false restores), needsReview. */
+  updateMemory(bureauId, memoryId, updates) {
+    return request(`/${bureauId}/memories/${memoryId}`, { method: 'PUT', body: updates });
+  },
+
+  removeMemory(bureauId, memoryId) {
+    return request(`/${bureauId}/memories/${memoryId}`, { method: 'DELETE' });
+  },
 };
 
 export const bureauStoriesAPI = {
@@ -164,9 +193,18 @@ export const bureauStoriesAPI = {
     return request(`/${bureauId}/stories/${storyId}`, { method: 'PUT', body: updates });
   },
 
-  /** @param {{ choice: 'present'|'custom'|'unchanged', customTime?: string }} end */
+  /**
+   * End a story. Answers with the story and Bureau, plus `archive` (what was committed to
+   * memory, or null) and `archiveError` (why committing failed, or null).
+   * @param {{ choice: 'present'|'custom'|'unchanged', customTime?: string }} end
+   */
   end(bureauId, storyId, end) {
     return request(`/${bureauId}/stories/${storyId}/end`, { method: 'POST', body: { end } });
+  },
+
+  /** Commit the story to memory: the Archivist reads every turn it hasn't read yet. */
+  archive(bureauId, storyId) {
+    return request(`/${bureauId}/stories/${storyId}/archive`, { method: 'POST', body: {} });
   },
 
   remove(bureauId, storyId) {
