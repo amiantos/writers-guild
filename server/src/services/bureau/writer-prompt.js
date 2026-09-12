@@ -272,7 +272,8 @@ export function buildWriterMessages({
   if (persona) {
     system.push(section(`${userName.toUpperCase()} (THE READER'S CHARACTER)`, profile(persona)));
   }
-  const remembered = characters
+  // The reader's character remembers too; only what they say and do is left to the reader.
+  const remembered = [...characters, ...(persona ? [persona] : [])]
     .map((member) =>
       memoryBlock(member.seedCard?.data?.name || member.name, memoriesByCast.get(member.id)),
     )

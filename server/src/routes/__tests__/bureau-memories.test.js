@@ -86,7 +86,7 @@ describe('Bureau memory routes', () => {
     await request(app).get(castMemoriesUrl('missing')).expect(404);
   });
 
-  it("writes backstory for a character, but not for the reader's character", async () => {
+  it("writes backstory for a character, the reader's character included", async () => {
     const { body } = await request(app)
       .post(castMemoriesUrl())
       .send({ content: ' Mara grew up on the island. ', importance: 4 })
@@ -101,7 +101,10 @@ describe('Bureau memory routes', () => {
       worldTime: null,
     });
 
-    await request(app).post(castMemoriesUrl(theo.id)).send({ content: 'Nope.' }).expect(400);
+    await request(app)
+      .post(castMemoriesUrl(theo.id))
+      .send({ content: 'Theo grew up inland.' })
+      .expect(201);
     await request(app).post(castMemoriesUrl()).send({ content: ' ' }).expect(400);
     await request(app).post(castMemoriesUrl()).send({ content: 'Hm.', importance: 7 }).expect(400);
   });
@@ -208,7 +211,7 @@ describe('Bureau memory routes', () => {
       await request(app).put(noteUrl('abc')).send({ status: 'accepted' }).expect(404);
     });
 
-    it("writes a note as accepted, but not for the reader's character", async () => {
+    it("writes a note as accepted, the reader's character included", async () => {
       const { body } = await request(app)
         .post(notesUrl())
         .send({ content: ' Mara keeps the lamp lit for no one now. ' })
@@ -219,7 +222,10 @@ describe('Bureau memory routes', () => {
         status: 'accepted',
         sourceType: 'manual',
       });
-      await request(app).post(notesUrl(theo.id)).send({ content: 'Nope.' }).expect(400);
+      await request(app)
+        .post(notesUrl(theo.id))
+        .send({ content: 'Theo trusts Mara now.' })
+        .expect(201);
       await request(app).post(notesUrl()).send({ content: '' }).expect(400);
     });
   });

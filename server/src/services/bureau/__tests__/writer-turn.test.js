@@ -278,7 +278,8 @@ describe('generateWriterTurn', () => {
     expect(system).toContain('How Mara has changed:\n- Mara lets Theo take the oars now.');
     expect(system).not.toContain('waits to be asked');
     expect(system).not.toContain('waded in');
-    expect(system).not.toContain('Theo remembers the pier.');
+    // The reader's character remembers too.
+    expect(system).toContain('Theo knows:\n- Theo remembers the pier.');
   });
 
   it('sets the opening at the story start time, in the Bureau time zone', async () => {

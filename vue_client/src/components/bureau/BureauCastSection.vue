@@ -47,7 +47,6 @@
           </div>
 
           <button
-            v-if="!member.isPersona"
             class="btn btn-secondary btn-small memories-button"
             :title="`Browse and correct what ${member.name} remembers`"
             @click="memoryMember = member"
@@ -59,7 +58,6 @@
             <span v-if="reviewTitle(member)" class="review-dot" :title="reviewTitle(member)"></span>
           </button>
           <button
-            v-if="!member.isPersona"
             class="icon-btn"
             :class="{ active: member.routine?.text }"
             :title="
@@ -90,7 +88,7 @@
             <i class="fas fa-floppy-disk"></i>
           </button>
           <button
-            v-else-if="!member.isPersona"
+            v-else
             class="icon-btn"
             title="Export to your library as a new character"
             :disabled="busy[member.id]"

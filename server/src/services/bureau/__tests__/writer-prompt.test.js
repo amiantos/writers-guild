@@ -104,14 +104,17 @@ describe('buildWriterMessages', () => {
             ],
           },
         ],
-        ['theo', { knowledge: [{ content: 'The reader remembers this.' }], episodes: [] }],
+        ['theo', { knowledge: [{ content: 'Mara keeps the light.' }], episodes: [] }],
       ]),
     });
 
     expect(system).toContain(
       "=== MEMORIES ===\nWhat the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
     );
-    expect(system).not.toContain('The reader remembers this.');
+    // The reader's character remembers too.
+    expect(system).toContain(
+      '- In messages: Theo texted about the storm.\n\nTheo knows:\n- Mara keeps the light.',
+    );
   });
 
   it('adds how a character has changed to their profile', () => {

@@ -133,30 +133,23 @@ export async function generateWriterTurn({
     .filter(Boolean);
   const lead = request.leadCastId ? cast.find((member) => member.id === request.leadCastId) : null;
 
-  // What each character remembers from before this story; the reader remembers for the persona.
+  // What each character, the reader's included, remembers from before this chapter.
   const memoriesByCast = new Map(
-    cast
-      .filter((member) => !member.isPersona)
-      .map((member) => [
-        member.id,
-        selectForPrompt(
-          memoriesAsOf(
-            stores.memories.listMemories(bureau.id, member.id, { status: 'all' }),
-            story,
-          ),
-          bureau.settings.memory,
-        ),
-      ]),
+    cast.map((member) => [
+      member.id,
+      selectForPrompt(
+        memoriesAsOf(stores.memories.listMemories(bureau.id, member.id, { status: 'all' }), story),
+        bureau.settings.memory,
+      ),
+    ]),
   );
 
   // How each character has changed before this story, from accepted arc notes.
   const arcNotesByCast = new Map(
-    cast
-      .filter((member) => !member.isPersona)
-      .map((member) => [
-        member.id,
-        notesAsOf(stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }), story),
-      ]),
+    cast.map((member) => [
+      member.id,
+      notesAsOf(stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }), story),
+    ]),
   );
 
   const openingTime = describeBureauTime(story.startTime, bureau.timezone);

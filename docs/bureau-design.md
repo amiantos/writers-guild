@@ -380,8 +380,9 @@ Start simple: cast members in a chapter remember it, and correspondence is priva
 participants. Offscreen life belongs to the character who lived it until they share it. Presence is
 tracked per chapter at first; per-turn presence (someone leaving mid-scene) can come later.
 
-The reader's character keeps no memories: the reader remembers for them. A Bureau has one reader's
-character, so this never leaves a second persona without a memory.
+The reader's character remembers like everyone else: the Archivist records what the passages show
+them saying, doing, or learning, and the Writer and Director see it. Only the prompts that keep
+their words and choices the reader's treat them differently, and offscreen life leaves them out.
 
 Phase 3 built seed cards, knowledge, and episodes. In the Writer prompt, each character gets their
 pinned knowledge, then the most important knowledge that fits a budget (4,000 characters by default),
@@ -737,8 +738,8 @@ Each phase ends with something usable.
 6. Whose "now" does correspondence use: the browser's timezone, or a timezone saved on the Bureau
    (needed if characters ever message first)?
 7. Should chapters support branching, or only per-turn variants?
-8. Does the persona keep memories of its own? _No. A Bureau has one reader's character, and the
-   reader remembers for them._
+8. Does the persona keep memories of its own? _Yes, since 2026-09-12: they remember like everyone
+   else. Only writing as them is restricted, and offscreen life leaves them out._
 9. Can a Bureau have more than one unfinished chapter at a time?
 
 ## References

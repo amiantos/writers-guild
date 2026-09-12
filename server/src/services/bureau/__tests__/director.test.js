@@ -249,7 +249,8 @@ describe('runDirector', () => {
       entries: [{ keys: ['lighthouse'], content: 'The Greywater light went dark in 1971.' }],
     });
     expect(theoFile).toMatchObject({ name: 'Theo', readersCharacter: true });
-    expect(theoFile).not.toHaveProperty('knows');
+    // The reader's character's file has their memories too.
+    expect(theoFile).toMatchObject({ knows: [], recentEpisodes: [], hasChanged: [] });
     expect(maraFile).toMatchObject({
       name: 'Mara',
       description: 'She keeps the Greywater light.',
@@ -258,7 +259,7 @@ describe('runDirector', () => {
     });
   });
 
-  it('reports lookups for anyone who keeps no memories back to the model', async () => {
+  it("reports lookups for anyone who isn't in the chapter, and recalls the reader's character too", async () => {
     const client = scriptedClient(
       modelTurn([
         toolCall('c1', 'recall', { query: 'boats', character: 'Nobody' }),
@@ -270,11 +271,11 @@ describe('runDirector', () => {
 
     await direct(client);
 
-    expect(toolResults(client.calls[1]).map((result) => result.error)).toEqual([
-      'No one named "Nobody" in this chapter keeps memories',
-      "Theo is the reader's character and keeps no memories. To find what the others remember about Theo, search with an empty character.",
-      'No one named "Nobody" is in this chapter',
-    ]);
+    const [nobody, theoRecall, nobodyFile] = toolResults(client.calls[1]);
+    expect(nobody.error).toBe('No one named "Nobody" is in this chapter');
+    // The reader's character remembers too, so their memories can be searched.
+    expect(theoRecall).toEqual({ memories: [] });
+    expect(nobodyFile.error).toBe('No one named "Nobody" is in this chapter');
   });
 
   it('creates a draft cast member for a new named character and adds them to the story', async () => {

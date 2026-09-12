@@ -9,7 +9,7 @@
  * Memories apply without review, because every memory is visible, sourced, and
  * editable in the memory browser. Arc notes, which change how a character is
  * written, are only proposed: the reader accepts or rejects each one. The
- * reader's character gets neither: the reader remembers for them.
+ * reader's character remembers like everyone else.
  *
  * A story and a thread differ only in their source: what a pass reads, how its
  * memories are dated and cited, and which episode it rewrites. A thread is read
@@ -262,7 +262,7 @@ export function buildArchivistMessages({
   ];
   if (personaName) {
     system.push(
-      `${personaName} is the reader's character. Record what the other characters learn about ${personaName}, but never ${personaName}'s own memories.`,
+      `${personaName} is the reader's character and remembers like everyone else. Record ${personaName}'s memories and changes only from what the ${wording.units} show ${personaName} saying, doing, or learning, never from guesses at their thoughts.`,
     );
   }
   system.push(
@@ -282,7 +282,12 @@ export function buildArchivistMessages({
     wording.summary,
   );
 
-  const present = personaName ? [...names, `${personaName} (the reader's character)`] : names;
+  const present = characters.map((member) =>
+    member.id === persona?.id ? `${nameOf(member)} (the reader's character)` : nameOf(member),
+  );
+  if (persona && !characters.some((member) => member.id === persona.id)) {
+    present.push(`${personaName} (the reader's character)`);
+  }
 
   const known = characters.map((member) => {
     const lines = [`${nameOf(member)}:`];
@@ -376,7 +381,8 @@ function storySource(stores, bureau, storyId) {
     openingTime: describeBureauTime(story.startTime, bureau.timezone),
     summary: story.summary,
     worldTime: story.startTime,
-    characters: cast.filter((member) => member !== persona),
+    // The reader's character remembers too.
+    characters: cast,
     persona,
     exists: () => Boolean(stores.stories.getStory(bureau.id, storyId)),
     currentContent: (turnId) => stores.stories.getTurn(storyId, turnId)?.content,
@@ -411,7 +417,7 @@ function threadSource(stores, bureau, { thread, member, persona, session }) {
     openingTime: describeBureauTime(first.bureauTime, bureau.timezone),
     summary: '',
     worldTime: first.bureauTime,
-    characters: member && !member.isPersona ? [member] : [],
+    characters: [member, persona].filter(Boolean),
     persona,
     exists: () => Boolean(stores.threads.getThread(bureau.id, thread.id)),
     currentContent: (messageId) => stores.threads.getMessage(thread.id, messageId)?.content,

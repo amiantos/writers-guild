@@ -185,8 +185,10 @@ describe('archiveStory', () => {
       toolChoice: { name: 'record_memories' },
       thinking: false,
     });
-    expect(call.messages[0].content).toContain('Characters who remember: Mara.');
-    expect(call.messages[0].content).toContain("Theo is the reader's character.");
+    expect(call.messages[0].content).toContain('Characters who remember: Mara and Theo.');
+    expect(call.messages[0].content).toContain(
+      "Theo is the reader's character and remembers like everyone else.",
+    );
     expect(call.messages[1].content).toContain(`[Passage 0]\nTheo admitted he couldn't swim.`);
     expect(call.messages[1].content).not.toContain('Make it rain');
 
@@ -386,7 +388,13 @@ describe('archiveStory', () => {
 
     const result = await archive(client);
 
-    expect(result.arcNotes).toBe(1);
+    expect(result.arcNotes).toBe(2);
+    // The reader's character changes too, and the reader reviews it like any other note.
+    expect(
+      stores.arcNotes
+        .listNotes(bureau.id, theo.id, { status: 'proposed' })
+        .map((item) => item.content),
+    ).toEqual(['Theo is braver.']);
     const proposed = stores.arcNotes.listNotes(bureau.id, mara.id, { status: 'proposed' });
     expect(proposed.map((item) => item.content)).toEqual([
       'Mara laughs more easily.',
@@ -409,10 +417,11 @@ describe('archiveStory', () => {
     expect(user.content).toContain(
       'Changes the reader turned down (never propose these again):\n- Mara has softened toward Theo.',
     );
-    expect(result.warnings).toEqual([expect.stringContaining('"Theo"')]);
+    // Theo's note is kept: the reader's character changes like anyone else.
+    expect(result.warnings).toEqual([]);
   });
 
-  it("skips memories for anyone who isn't a character that remembers", async () => {
+  it("skips memories for anyone who isn't in the chapter, but keeps the reader's character's", async () => {
     addProse('Theo waved from the dock.');
     const client = archivistClient([
       record({
@@ -426,9 +435,11 @@ describe('archiveStory', () => {
 
     const result = await archive(client);
 
-    expect(result.added).toBe(0);
-    expect(result.warnings).toHaveLength(2);
-    expect(stores.memories.listMemories(bureau.id, theo.id)).toEqual([]);
+    expect(result.added).toBe(1);
+    expect(result.warnings).toHaveLength(1);
+    expect(
+      stores.memories.listMemories(bureau.id, theo.id).map((memory) => memory.content),
+    ).toEqual(['Theo waved.']);
   });
 
   it('reads long stretches in several passes', async () => {

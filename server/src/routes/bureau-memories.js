@@ -85,10 +85,7 @@ router.post(
     const { bureaus, memories } = res.locals.stores;
     const { bureauId, castId } = req.params;
     requireBureau(bureaus, bureauId);
-    const member = requireCastMember(bureaus, bureauId, castId);
-    if (member.isPersona) {
-      throw new AppError("The reader's character doesn't keep memories", 400);
-    }
+    requireCastMember(bureaus, bureauId, castId);
 
     const body = req.body ?? {};
     const content = optionalString(body, 'content');
@@ -180,10 +177,7 @@ router.post(
     const { bureaus, arcNotes } = res.locals.stores;
     const { bureauId, castId } = req.params;
     requireBureau(bureaus, bureauId);
-    const member = requireCastMember(bureaus, bureauId, castId);
-    if (member.isPersona) {
-      throw new AppError("The reader's character doesn't keep arc notes", 400);
-    }
+    requireCastMember(bureaus, bureauId, castId);
 
     const content = optionalString(req.body ?? {}, 'content');
     if (!content) {

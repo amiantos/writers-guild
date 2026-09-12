@@ -293,7 +293,8 @@ function toolHandlers({
   signal,
   createCharacters,
 }) {
-  const characters = cast.filter((member) => !member.isPersona);
+  // Everyone in the chapter remembers, the reader's character included.
+  const characters = cast;
   const found = new Map();
   const earlierTurnIds = new Set(turns.map((turn) => turn.id));
   let lookups = 0;
@@ -342,15 +343,7 @@ function toolHandlers({
       if (text(character)) {
         const member = findMember(characters, character);
         if (!member) {
-          const persona = findMember(
-            cast.filter((castMember) => castMember.isPersona),
-            character,
-          );
-          throw new Error(
-            persona
-              ? `${nameOf(persona)} is the reader's character and keeps no memories. To find what the others remember about ${nameOf(persona)}, search with an empty character.`
-              : `No one named "${character}" in this chapter keeps memories`,
-          );
+          throw new Error(`No one named "${character}" is in this chapter`);
         }
         members = [member];
       }
@@ -427,25 +420,23 @@ function toolHandlers({
         personality: text(data.personality),
         scenario: text(data.scenario),
       };
-      if (!member.isPersona) {
-        const { knowledge, episodes } = selectForPrompt(visibleMemories(member), {
-          knowledgeCharacters: bureau.settings.memory.knowledgeCharacters,
-          recentEpisodes: bureau.settings.memory.recentEpisodes,
-        });
-        file.knows = knowledge.map((memory) => ({
-          id: remember(member, memory),
-          content: memory.content,
-        }));
-        file.recentEpisodes = episodes.map((memory) => ({
-          id: remember(member, memory),
-          from: labelOf(memory),
-          content: memory.content,
-        }));
-        file.hasChanged = notesAsOf(
-          stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }),
-          story,
-        ).map((note) => note.content);
-      }
+      const { knowledge, episodes } = selectForPrompt(visibleMemories(member), {
+        knowledgeCharacters: bureau.settings.memory.knowledgeCharacters,
+        recentEpisodes: bureau.settings.memory.recentEpisodes,
+      });
+      file.knows = knowledge.map((memory) => ({
+        id: remember(member, memory),
+        content: memory.content,
+      }));
+      file.recentEpisodes = episodes.map((memory) => ({
+        id: remember(member, memory),
+        from: labelOf(memory),
+        content: memory.content,
+      }));
+      file.hasChanged = notesAsOf(
+        stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }),
+        story,
+      ).map((note) => note.content);
       return file;
     },
 
