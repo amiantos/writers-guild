@@ -12,12 +12,18 @@ import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { CastConflictError } from '../services/bureau/bureau-storage.js';
 import { BureauSettingsError, DEFAULT_SETTINGS } from '../services/bureau/bureau-settings.js';
 import { isValidTimeZone } from '../services/bureau/bureau-time.js';
-import { DEFAULT_MODEL } from '../services/bureau/deepseek-client.js';
+import { DEFAULT_MODEL, DeepSeekError } from '../services/bureau/deepseek-client.js';
 import { exportedCard } from '../services/bureau/character-export.js';
+import { generateCharacter } from '../services/bureau/character-generator.js';
 import { DEFAULT_HOUSE_STYLE } from '../services/bureau/writer-prompt.js';
 import bureauMemoriesRouter from './bureau-memories.js';
 import bureauStoriesRouter from './bureau-stories.js';
-import { attachBureauStores, optionalString, requireBureau } from './bureau-route-helpers.js';
+import {
+  attachBureauStores,
+  createBureauClient,
+  optionalString,
+  requireBureau,
+} from './bureau-route-helpers.js';
 
 const router = express.Router();
 
@@ -162,7 +168,17 @@ router.post(
     const { bureauId } = req.params;
     requireBureau(bureaus, bureauId);
 
-    const { characterId, isPersona = false } = req.body ?? {};
+    const { characterId, card: draftCard, isPersona = false } = req.body ?? {};
+    if (draftCard !== undefined) {
+      // A generated card joins as a draft, kept in this Bureau until it's saved to the library.
+      const name = draftCard?.data?.name;
+      if (typeof name !== 'string' || !name.trim()) {
+        throw new AppError('card must be a character card with a name', 400);
+      }
+      const castMember = bureaus.addCastMember(bureauId, { seedCard: draftCard, isDraft: true });
+      res.status(201).json({ castMember, attachedLorebookId: null });
+      return;
+    }
     if (!characterId || typeof characterId !== 'string') {
       throw new AppError('characterId is required', 400);
     }
@@ -246,6 +262,56 @@ router.put(
       throw new AppError('Cast member not found', 404);
     }
     res.json({ castMember });
+  }),
+);
+
+// Generate a character card from an idea, without saving it
+router.post(
+  '/:bureauId/characters/generate',
+  asyncHandler(async (req, res) => {
+    const { stores } = res.locals;
+    const { bureauId } = req.params;
+    const bureau = requireBureau(stores.bureaus, bureauId);
+    if (!bureau.hasApiKey) {
+      throw new AppError('This Bureau has no API key. Add one in its settings.', 400);
+    }
+    const idea = optionalString(req.body ?? {}, 'idea');
+    if (!idea) {
+      throw new AppError('idea is required', 400);
+    }
+
+    const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureauId));
+    try {
+      const { card, runId } = await generateCharacter({ stores, bureau, client, idea });
+      res.json({ card, runId });
+    } catch (error) {
+      if (error instanceof DeepSeekError) {
+        throw new AppError(error.message, 502);
+      }
+      throw error;
+    }
+  }),
+);
+
+// Save a draft cast member to the library as a new character, and link the two
+router.post(
+  '/:bureauId/cast/:castId/promote',
+  asyncHandler(async (req, res) => {
+    const { bureaus, library } = res.locals.stores;
+    const { bureauId, castId } = req.params;
+    requireBureau(bureaus, bureauId);
+    const member = bureaus.getCastMember(bureauId, castId);
+    if (!member) {
+      throw new AppError('Cast member not found', 404);
+    }
+    if (!member.isDraft) {
+      throw new AppError('Only a draft character can be saved to the library this way', 400);
+    }
+
+    const characterId = uuidv4();
+    await library.saveCharacter(characterId, structuredClone(member.seedCard), null);
+    const castMember = bureaus.promoteDraft(bureauId, castId, characterId);
+    res.status(201).json({ castMember, characterId });
   }),
 );
 

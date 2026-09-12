@@ -213,13 +213,13 @@ without one, and if the Editor fails, the unedited text stands.
 Reads a compact view of the Bureau (cast files, recent turns, composer input) and uses tools to
 gather what the next turn needs.
 
-| Tool                            | Purpose                                                                                 |
-| ------------------------------- | --------------------------------------------------------------------------------------- |
-| `recall(query, character)`      | Full-text search over what the characters remember, as of the story's start             |
-| `lookup_lore(query)`            | Search attached lorebooks beyond what keyword activation already selected               |
-| `get_character_file(name)`      | The full card for one cast member, with their knowledge and recent episodes             |
-| `submit_brief(...)`             | Hand the Writer the scene brief, which ends the Director's turn                         |
-| `create_character(role, notes)` | Generate a draft cast member (phase 6; see [Character generator](#character-generator)) |
+| Tool                                  | Purpose                                                                                                  |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `recall(query, character)`            | Full-text search over what the characters remember, as of the story's start                              |
+| `lookup_lore(query)`                  | Search attached lorebooks beyond what keyword activation already selected                                |
+| `get_character_file(name)`            | The full card for one cast member, with their knowledge and recent episodes                              |
+| `submit_brief(...)`                   | Hand the Writer the scene brief, which ends the Director's turn                                          |
+| `create_character(name, role, notes)` | Generate a draft cast member and add them to the story (see [Character generator](#character-generator)) |
 
 Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, point of view,
 tone, target length, memories (each with a one-line reason, and only ones the Director found), and
@@ -227,7 +227,8 @@ notes for the Writer. The Director runs with thinking on at low effort by defaul
 lookups per passage, after which it's told to hand over its brief. A successful `submit_brief` call
 ends the tool loop without another model call. `recall` only finds what the story can see: memories
 from before its start, and this story's memories from passages before the one being written.
-Searching the raw turns a character witnessed is a later addition.
+Searching the raw turns a character witnessed is a later addition. When the reader brings in someone
+new by name, `create_character` generates them as a draft cast member before the brief is written.
 
 ### Writer
 
@@ -481,18 +482,27 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
 
 ## Character generator
 
-One service, two ways in:
+One service, two ways in. Both make one forced strict tool call with thinking off, recorded as a run.
+The generator sees the Bureau's cast (names and short descriptions) and world (attached lorebooks and
+a few entry titles), so a new character fits in without repeating anyone.
 
-- **Standalone** (from a Bureau or the library): a seed idea, plus an optional world and cast for
-  consistency, produces a full V2 card (name, description, personality, scenario, first message,
-  example dialogue, tags) and a structured **appearance block**. You review and edit it, then it saves
-  as a new library character through existing storage.
-- **Director tool:** when a new named character enters a story, `create_character` makes a **draft
-  cast member** that exists only in that Bureau. Drafts keep new characters consistent without
-  cluttering the library; promote one if you like them.
+- **From a Bureau:** "Generate character" in the cast section takes a seed idea and produces a full
+  V2 card (name, description, personality, scenario, first message, example dialogue, tags) and a
+  structured **appearance block**. You review and edit it, then add it to the cast as a draft, or add
+  it and save it to the library at once.
+- **Director tool:** when a new named character enters a story, `create_character(name, role, notes)`
+  generates a **draft cast member** and adds them to the story's cast. It counts as one of the
+  Director's lookups, refuses a name already in the cast, and can be turned off in the Bureau's
+  settings.
+- **Drafts** exist only in their Bureau, so new characters stay consistent without cluttering the
+  library. The Director, Writer, and Archivist treat them like anyone else. "Save to library" on a
+  draft's cast row saves its card as a new library character (without an image) and links the cast
+  member to it.
 - **Appearance block:** hair, eyes, build, age range, clothing style, and distinguishing marks,
-  stored under the card's `extensions`. It gives portrait generation a stable description to work
-  from.
+  stored under the card's `extensions.bureau_appearance`. It gives portrait generation a stable
+  description to work from.
+- **From the library (later):** the same generator without a Bureau's world, saving straight to the
+  library.
 - **Portraits (later):** a pluggable image provider (AI Horde's image API, a local
   ComfyUI/Automatic1111, or a hosted API). Images are stored with `AssetManager` under a `bureaus`
   entity type, served by a Bureau route, and can appear inline in turns.

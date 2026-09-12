@@ -130,6 +130,14 @@
             Skip planning for a plain Continue
           </label>
           <label class="checkbox-label">
+            <input
+              id="bureau-settings-director-create"
+              v-model="form.director.createCharacters"
+              type="checkbox"
+            />
+            Let the Director create new characters as drafts
+          </label>
+          <label class="checkbox-label">
             <input v-model="form.director.thinking" type="checkbox" />
             Thinking mode
           </label>

@@ -7,6 +7,7 @@
  * and in the run record, so the Writer's prompt stays prose.
  */
 
+import { generateCharacter } from './character-generator.js';
 import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { runToolLoop } from './tool-loop.js';
 
@@ -63,6 +64,24 @@ export const DIRECTOR_TOOLS = [
       type: 'object',
       properties: { name: { type: 'string', description: "The character's name." } },
       required: ['name'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'create_character',
+    description:
+      'Give a new named character a card and add them to the cast as a draft, when they will matter beyond this scene.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'The name they go by in the story.' },
+        role: { type: 'string', description: 'Their part in this story, in a sentence.' },
+        notes: {
+          type: 'string',
+          description: 'Who they are: anything the story or the request establishes.',
+        },
+      },
+      required: ['name', 'role', 'notes'],
       additionalProperties: false,
     },
   },
@@ -138,8 +157,16 @@ function findMember(members, name) {
  * @param {Array<Object>} params.turns - Turns before the one being written.
  * @param {Object} params.request - { action, direction, leadName }.
  * @param {string|null} [params.openingTime] - Loose start time, for an opening.
+ * @param {boolean} [params.canCreateCharacters] - Whether create_character is offered.
  */
-export function buildDirectorMessages({ story, cast, turns, request, openingTime = null }) {
+export function buildDirectorMessages({
+  story,
+  cast,
+  turns,
+  request,
+  openingTime = null,
+  canCreateCharacters = false,
+}) {
   const persona = cast.find((member) => member.isPersona) ?? null;
   const personaName = persona ? nameOf(persona) : null;
 
@@ -148,6 +175,9 @@ export function buildDirectorMessages({ story, cast, turns, request, openingTime
     [
       '- Use recall when the passage touches earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for more about someone. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
       '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
+      canCreateCharacters
+        ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in the cast.'
+        : null,
       personaName
         ? `- ${personaName}'s words and choices belong to the reader. Don't plan what ${personaName} says or decides.`
         : null,
@@ -207,7 +237,17 @@ export function buildDirectorMessages({ story, cast, turns, request, openingTime
 }
 
 /** The tools' handlers. They share what the Director has found, so a brief can cite only that. */
-function toolHandlers({ stores, bureau, story, cast, turns }) {
+function toolHandlers({
+  stores,
+  bureau,
+  story,
+  cast,
+  turns,
+  client,
+  recorder,
+  signal,
+  createCharacters,
+}) {
   const characters = cast.filter((member) => !member.isPersona);
   const found = new Map();
   const earlierTurnIds = new Set(turns.map((turn) => turn.id));
@@ -242,7 +282,7 @@ function toolHandlers({ stores, bureau, story, cast, turns }) {
     return memory.id;
   };
 
-  return {
+  const handlers = {
     recall({ query, character }) {
       lookUp();
       let members = characters;
@@ -382,6 +422,49 @@ function toolHandlers({ stores, bureau, story, cast, turns }) {
       };
     },
   };
+
+  if (createCharacters) {
+    // A new character joins the Bureau as a draft and this story's cast, and `cast` itself, so
+    // the Writer gets their card too.
+    handlers.create_character = async ({ name, role, notes }) => {
+      lookUp();
+      const wanted = text(name);
+      if (!wanted) {
+        throw new Error('A new character needs a name');
+      }
+      const existing = stores.bureaus
+        .listCast(bureau.id)
+        .find((member) => member.name.toLowerCase() === wanted.toLowerCase());
+      if (existing) {
+        throw new Error(
+          `${existing.name} is already in the cast; use get_character_file to learn about them`,
+        );
+      }
+
+      const { card } = await generateCharacter({
+        stores,
+        bureau,
+        client,
+        idea: text(notes) || `${wanted}, a new character in the story`,
+        name: wanted,
+        role: text(role),
+        recorder,
+        signal,
+      });
+      const member = stores.bureaus.addCastMember(bureau.id, { seedCard: card, isDraft: true });
+      const current = stores.stories.getStory(bureau.id, story.id);
+      stores.stories.updateStory(bureau.id, story.id, {
+        castIds: [...(current?.castIds ?? story.castIds), member.id],
+      });
+      cast.push(member);
+      return {
+        name: card.data.name,
+        description: truncate(card.data.description, PROFILE_CHARACTERS),
+        addedToStory: true,
+      };
+    };
+  }
+  return handlers;
 }
 
 /**
@@ -391,7 +474,8 @@ function toolHandlers({ stores, bureau, story, cast, turns }) {
  * @param {ReturnType<import('./stores.js').getBureauStores>} params.stores
  * @param {Object} params.bureau - With settings.director and settings.memory.
  * @param {Object} params.story
- * @param {Array<Object>} params.cast - The story's cast members, with seed cards.
+ * @param {Array<Object>} params.cast - The story's cast members, with seed cards. A character the
+ *   Director creates is added to it.
  * @param {Array<Object>} params.turns - Turns before the one being written.
  * @param {Object} params.request - { action, direction, leadName }.
  * @param {string|null} [params.openingTime]
@@ -413,14 +497,34 @@ export async function runDirector({
   recorder,
   signal,
 }) {
-  const { thinking, reasoningEffort } = bureau.settings.director;
+  const { thinking, reasoningEffort, createCharacters } = bureau.settings.director;
+  const tools = createCharacters
+    ? DIRECTOR_TOOLS
+    : DIRECTOR_TOOLS.filter((tool) => tool.name !== 'create_character');
 
   const result = await runToolLoop({
     client,
     role: 'director',
-    messages: buildDirectorMessages({ story, cast, turns, request, openingTime }),
-    tools: DIRECTOR_TOOLS,
-    handlers: toolHandlers({ stores, bureau, story, cast, turns }),
+    messages: buildDirectorMessages({
+      story,
+      cast,
+      turns,
+      request,
+      openingTime,
+      canCreateCharacters: createCharacters,
+    }),
+    tools,
+    handlers: toolHandlers({
+      stores,
+      bureau,
+      story,
+      cast,
+      turns,
+      client,
+      recorder,
+      signal,
+      createCharacters,
+    }),
     options: { thinking, reasoningEffort, strict: true, maxTokens: DIRECTOR_MAX_TOKENS },
     recorder,
     maxIterations: DIRECTOR_MAX_ITERATIONS,

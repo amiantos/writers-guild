@@ -275,6 +275,87 @@ describe('Bureau routes', () => {
       expect(await library.getCharacter('char-1')).toEqual(before);
       await request(app).post(`/api/bureaus/${bureau.id}/cast/missing/export`).send({}).expect(404);
     });
+
+    it('adds a generated card as a draft, then saves it to the library', async () => {
+      const bureau = await createBureau();
+      const card = {
+        spec: 'chara_card_v2',
+        spec_version: '2.0',
+        data: { name: 'Ines Varga', description: 'Runs the harbor pub.' },
+      };
+
+      const { body: added } = await request(app)
+        .post(`/api/bureaus/${bureau.id}/cast`)
+        .send({ card })
+        .expect(201);
+      expect(added.castMember).toMatchObject({
+        name: 'Ines Varga',
+        isDraft: true,
+        libraryCharacterId: null,
+      });
+      await request(app)
+        .post(`/api/bureaus/${bureau.id}/cast`)
+        .send({ card: { data: {} } })
+        .expect(400);
+
+      const promoteUrl = `/api/bureaus/${bureau.id}/cast/${added.castMember.id}/promote`;
+      const { body: promoted } = await request(app).post(promoteUrl).send({}).expect(201);
+      expect(promoted.castMember).toMatchObject({
+        isDraft: false,
+        libraryCharacterId: promoted.characterId,
+      });
+      expect((await library.getCharacter(promoted.characterId)).data.name).toBe('Ines Varga');
+      await request(app).post(promoteUrl).send({}).expect(400);
+    });
+
+    it('generates a character card without saving it', async () => {
+      const bureau = await createBureau();
+      const generated = {
+        name: 'Ines Varga',
+        description: 'Runs the harbor pub.',
+        personality: 'Nosy.',
+        scenario: '',
+        first_message: 'Ines waved.',
+        example_dialogue: '"Well?"',
+        tags: ['pub'],
+        appearance: {
+          age_range: '',
+          build: '',
+          hair: '',
+          eyes: '',
+          clothing: '',
+          distinguishing_marks: '',
+        },
+      };
+      app.locals.createBureauClient = () => ({
+        model: 'deepseek-flash',
+        chat: async () => ({
+          content: '',
+          reasoning: '',
+          finishReason: 'tool_calls',
+          model: 'deepseek-flash',
+          usage: null,
+          toolCalls: [
+            {
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'create_character', arguments: JSON.stringify(generated) },
+            },
+          ],
+        }),
+      });
+      const generateUrl = `/api/bureaus/${bureau.id}/characters/generate`;
+
+      const { body } = await request(app)
+        .post(generateUrl)
+        .send({ idea: 'A harbor pub owner' })
+        .expect(200);
+
+      expect(body.card.data).toMatchObject({ name: 'Ines Varga', first_mes: 'Ines waved.' });
+      const { body: cast } = await request(app).get(`/api/bureaus/${bureau.id}/cast`).expect(200);
+      expect(cast.cast).toEqual([]);
+      await request(app).post(generateUrl).send({}).expect(400);
+    });
   });
 
   describe('runs', () => {

@@ -194,6 +194,21 @@ export const bureausAPI = {
   exportCast(bureauId, castId) {
     return request(`/${bureauId}/cast/${castId}/export`, { method: 'POST', body: {} });
   },
+
+  /** Generate a character card from an idea, without saving it. */
+  generateCharacter(bureauId, idea) {
+    return request(`/${bureauId}/characters/generate`, { method: 'POST', body: { idea } });
+  },
+
+  /** Add a generated card to the cast as a draft, kept only in this Bureau. */
+  addDraft(bureauId, card) {
+    return request(`/${bureauId}/cast`, { method: 'POST', body: { card } });
+  },
+
+  /** Save a draft cast member to the library as a new character. */
+  promoteCast(bureauId, castId) {
+    return request(`/${bureauId}/cast/${castId}/promote`, { method: 'POST', body: {} });
+  },
 };
 
 export const bureauStoriesAPI = {

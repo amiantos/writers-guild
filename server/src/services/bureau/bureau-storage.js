@@ -172,8 +172,13 @@ export class BureauStorage {
       insertCastMember: this.db.prepare(`
         INSERT INTO cast_members (id, bureau_id, library_character_id, name, is_persona, is_draft,
                                   seed_card, created, modified)
-        VALUES (@id, @bureauId, @libraryCharacterId, @name, @isPersona, 0, @seedCard,
+        VALUES (@id, @bureauId, @libraryCharacterId, @name, @isPersona, @isDraft, @seedCard,
                 @created, @modified)
+      `),
+      promoteDraft: this.db.prepare(`
+        UPDATE cast_members SET is_draft = 0, library_character_id = @libraryCharacterId,
+                                modified = @modified
+        WHERE bureau_id = @bureauId AND id = @id AND is_draft = 1
       `),
       updateCastPersona: this.db.prepare(`
         UPDATE cast_members SET is_persona = @isPersona, modified = @modified
@@ -335,10 +340,15 @@ export class BureauStorage {
    * @param {string|null} [member.libraryCharacterId]
    * @param {boolean} [member.isPersona] - A Bureau has one reader's character, so this
    *   unmarks whoever had the role.
+   * @param {boolean} [member.isDraft] - A generated character that exists only in this Bureau
+   *   until it's saved to the library.
    * @returns {Object} The new cast member.
    * @throws {CastConflictError} When the library character is already in the cast.
    */
-  addCastMember(bureauId, { seedCard, libraryCharacterId = null, isPersona = false }) {
+  addCastMember(
+    bureauId,
+    { seedCard, libraryCharacterId = null, isPersona = false, isDraft = false },
+  ) {
     if (libraryCharacterId) {
       const existing = this.stmts.findCastByLibraryCharacter.get(bureauId, libraryCharacterId);
       if (existing) throw new CastConflictError(existing.id);
@@ -353,6 +363,7 @@ export class BureauStorage {
         libraryCharacterId,
         name: seedCard?.data?.name || 'Unnamed',
         isPersona: isPersona ? 1 : 0,
+        isDraft: isDraft ? 1 : 0,
         seedCard: JSON.stringify(seedCard),
         created: now,
         modified: now,
@@ -390,6 +401,27 @@ export class BureauStorage {
         });
       })();
     }
+    return this.getCastMember(bureauId, castId);
+  }
+
+  /**
+   * Link a draft cast member to the library character it was saved as.
+   * @returns {Object|null} The member, or null if it isn't a draft in this Bureau.
+   * @throws {CastConflictError} When that library character is already in the cast.
+   */
+  promoteDraft(bureauId, castId, libraryCharacterId) {
+    const existing = this.stmts.findCastByLibraryCharacter.get(bureauId, libraryCharacterId);
+    if (existing) throw new CastConflictError(existing.id);
+
+    const now = new Date().toISOString();
+    const promoted = this.stmts.promoteDraft.run({
+      bureauId,
+      id: castId,
+      libraryCharacterId,
+      modified: now,
+    });
+    if (promoted.changes === 0) return null;
+    this.stmts.touchBureau.run(now, bureauId);
     return this.getCastMember(bureauId, castId);
   }
 

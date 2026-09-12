@@ -2,9 +2,19 @@
   <section class="edit-section">
     <div class="section-header">
       <h2><i class="fas fa-users"></i> Cast</h2>
-      <button class="btn btn-secondary btn-small" @click="showAdd = true">
-        <i class="fas fa-user-plus"></i> Add character
-      </button>
+      <div class="header-actions">
+        <button
+          class="btn btn-secondary btn-small"
+          :disabled="!hasApiKey"
+          :title="hasApiKey ? '' : 'Add a DeepSeek API key in Settings to generate characters'"
+          @click="showGenerate = true"
+        >
+          <i class="fas fa-wand-magic-sparkles"></i> Generate character
+        </button>
+        <button class="btn btn-secondary btn-small" @click="showAdd = true">
+          <i class="fas fa-user-plus"></i> Add character
+        </button>
+      </div>
     </div>
 
     <div class="section-content">
@@ -27,6 +37,13 @@
           <div class="cast-info">
             <span class="cast-name">{{ member.name }}</span>
             <span v-if="member.isPersona" class="persona-tag">Reader's character</span>
+            <span
+              v-if="member.isDraft"
+              class="persona-tag"
+              title="Generated in this Bureau and not in your library yet"
+            >
+              Draft
+            </span>
           </div>
 
           <button
@@ -51,7 +68,16 @@
             Reader
           </label>
           <button
-            v-if="!member.isPersona"
+            v-if="member.isDraft"
+            class="icon-btn"
+            title="Save to your library"
+            :disabled="busyId === member.id"
+            @click="saveDraft(member)"
+          >
+            <i class="fas fa-floppy-disk"></i>
+          </button>
+          <button
+            v-else-if="!member.isPersona"
             class="icon-btn"
             title="Export to your library as a new character"
             :disabled="busyId === member.id"
@@ -78,6 +104,12 @@
       @close="showAdd = false"
       @added="handleAdded"
     />
+    <GenerateCharacterModal
+      v-if="showGenerate"
+      :bureau-id="bureauId"
+      @close="showGenerate = false"
+      @added="handleGenerated"
+    />
     <MemoryBrowserModal
       v-if="memoryMember"
       :bureau-id="bureauId"
@@ -94,6 +126,7 @@ import { bureausAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import { useConfirm } from '../../composables/useConfirm';
 import AddCastModal from './AddCastModal.vue';
+import GenerateCharacterModal from './GenerateCharacterModal.vue';
 import MemoryBrowserModal from './MemoryBrowserModal.vue';
 
 const props = defineProps({
@@ -103,6 +136,8 @@ const props = defineProps({
   memoryCounts: { type: Object, default: () => ({}) },
   /** Arc notes that wait for the reader per cast member id: { proposed, needsReview }. */
   arcNoteCounts: { type: Object, default: () => ({}) },
+  /** Generating characters needs the Bureau's API key. */
+  hasApiKey: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['changed', 'lorebook-attached']);
@@ -111,6 +146,7 @@ const { confirm } = useConfirm();
 
 const readerToggleTitle = "The reader's character is the one you write for in stories";
 const showAdd = ref(false);
+const showGenerate = ref(false);
 const memoryMember = ref(null);
 const busyId = ref(null);
 const brokenImages = reactive({});
@@ -145,6 +181,29 @@ async function exportMember(member) {
   } finally {
     busyId.value = null;
   }
+}
+
+async function saveDraft(member) {
+  busyId.value = member.id;
+  try {
+    await bureausAPI.promoteCast(props.bureauId, member.id);
+    toast.success(`Saved ${member.name} to your library`);
+    emit('changed');
+  } catch (error) {
+    toast.error('Failed to save to your library: ' + error.message);
+  } finally {
+    busyId.value = null;
+  }
+}
+
+function handleGenerated({ castMember, savedToLibrary }) {
+  showGenerate.value = false;
+  toast.success(
+    savedToLibrary
+      ? `${castMember.name} joined the cast and your library`
+      : `${castMember.name} joined the cast as a draft`,
+  );
+  emit('changed');
 }
 
 async function setPersona(member, isPersona) {
@@ -226,6 +285,12 @@ function handleAdded({ castMember, attachedLorebookId }) {
 .reader-toggle {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .memories-button {

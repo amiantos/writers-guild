@@ -237,6 +237,77 @@ describe('runDirector', () => {
     ]);
   });
 
+  it('creates a draft cast member for a new named character and adds them to the story', async () => {
+    const generated = {
+      name: 'Someone Else',
+      description: 'Runs the harbor pub and hears everything.',
+      personality: 'Nosy.',
+      scenario: '',
+      first_message: '',
+      example_dialogue: '',
+      tags: [],
+      appearance: {
+        age_range: '',
+        build: '',
+        hair: '',
+        eyes: '',
+        clothing: '',
+        distinguishing_marks: '',
+      },
+    };
+    const client = scriptedClient(
+      modelTurn([
+        toolCall('c1', 'create_character', {
+          name: 'Ines',
+          role: 'She warns Theo about the storm.',
+          notes: 'Owns the harbor pub.',
+        }),
+      ]),
+      modelTurn([toolCall('g1', 'create_character', generated)]),
+      modelTurn([toolCall('c2', 'create_character', { name: 'mara', role: '', notes: '' })]),
+      modelTurn([], 'Done.'),
+    );
+    const cast = [
+      stores.bureaus.getCastMember(bureau.id, mara.id),
+      stores.bureaus.getCastMember(bureau.id, theo.id),
+    ];
+
+    await runDirector({
+      stores,
+      bureau: stores.bureaus.getBureau(bureau.id),
+      story: stores.stories.getStory(bureau.id, story.id),
+      cast,
+      turns: [],
+      request: { action: 'direct', direction: 'Ines arrives with news' },
+      client,
+      recorder: { runId: 'run-1', recordStep() {} },
+    });
+
+    expect(client.calls[0].messages[0].content).toContain('call create_character first');
+    expect(client.calls[1].messages[1].content).toContain('The character is named Ines.');
+    const ines = stores.bureaus.listCast(bureau.id).find((member) => member.name === 'Ines');
+    expect(ines).toMatchObject({ isDraft: true, libraryCharacterId: null });
+    expect(stores.stories.getStory(bureau.id, story.id).castIds).toContain(ines.id);
+    expect(cast.map((member) => member.name)).toEqual(['Mara', 'Theo', 'Ines']);
+    const [created, duplicate] = toolResults(client.calls[3]);
+    expect(created).toEqual({
+      name: 'Ines',
+      description: 'Runs the harbor pub and hears everything.',
+      addedToStory: true,
+    });
+    expect(duplicate.error).toMatch(/Mara is already in the cast/);
+  });
+
+  it("doesn't offer create_character when the Bureau turns it off", async () => {
+    stores.bureaus.updateSettings(bureau.id, { director: { createCharacters: false } });
+    const client = scriptedClient(modelTurn([], 'Done.'));
+
+    await direct(client);
+
+    expect(client.calls[0].tools.map((tool) => tool.name)).not.toContain('create_character');
+    expect(client.calls[0].messages[0].content).not.toContain('create_character');
+  });
+
   it('stops looking things up after four lookups', async () => {
     const lookup = (id) => toolCall(id, 'lookup_lore', { query: 'lighthouse' });
     const client = scriptedClient(

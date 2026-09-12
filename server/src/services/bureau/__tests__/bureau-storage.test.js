@@ -258,6 +258,23 @@ describe('BureauStorage', () => {
       expect(storage.removeCastMember(bureau.id, member.id)).toBe(false);
     });
 
+    it('adds a draft with no library character, and links it once saved to the library', () => {
+      const draft = storage.addCastMember(bureau.id, { seedCard: card('Ines'), isDraft: true });
+      storage.addCastMember(bureau.id, { seedCard: card('Mara'), libraryCharacterId: 'char-1' });
+
+      expect(draft).toMatchObject({ isDraft: true, libraryCharacterId: null });
+      expect(storage.promoteDraft(bureau.id, draft.id, 'char-9')).toMatchObject({
+        isDraft: false,
+        libraryCharacterId: 'char-9',
+      });
+      expect(storage.promoteDraft(bureau.id, draft.id, 'char-10')).toBeNull();
+
+      const another = storage.addCastMember(bureau.id, { seedCard: card('Jonas'), isDraft: true });
+      expect(() => storage.promoteDraft(bureau.id, another.id, 'char-1')).toThrow(
+        CastConflictError,
+      );
+    });
+
     it('keeps cast members inside their own Bureau', () => {
       const other = storage.createBureau({ name: 'Other' });
       const member = storage.addCastMember(bureau.id, {

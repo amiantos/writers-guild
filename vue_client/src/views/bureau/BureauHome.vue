@@ -33,6 +33,7 @@
           :cast="cast"
           :memory-counts="memoryCounts"
           :arc-note-counts="arcNoteCounts"
+          :has-api-key="bureau.hasApiKey"
           @changed="loadCast"
           @lorebook-attached="worldVersion++"
         />

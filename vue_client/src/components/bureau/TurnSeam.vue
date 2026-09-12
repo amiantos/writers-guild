@@ -148,6 +148,7 @@ const TOOL_LABELS = {
   recall: 'recall',
   lookup_lore: 'lore lookup',
   get_character_file: 'character file',
+  create_character: 'new character',
   submit_brief: 'scene brief',
   edit_paragraphs: 'fixes',
 };

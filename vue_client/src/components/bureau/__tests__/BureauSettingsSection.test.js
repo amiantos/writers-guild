@@ -19,7 +19,13 @@ function bureau(fields = {}) {
     timezone: null,
     settings: {
       writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
-      director: { enabled: true, thinking: true, reasoningEffort: 'low', skipOnContinue: true },
+      director: {
+        enabled: true,
+        thinking: true,
+        reasoningEffort: 'low',
+        skipOnContinue: true,
+        createCharacters: true,
+      },
       editor: { enabled: true },
       style: { bannedPhrases: ['a testament to'] },
     },
@@ -79,6 +85,7 @@ describe('BureauSettingsSection', () => {
     await flushPromises();
 
     await wrapper.find('#bureau-settings-director-skip').setValue(false);
+    await wrapper.find('#bureau-settings-director-create').setValue(false);
     await wrapper.find('#bureau-settings-editor-enabled').setValue(false);
     await wrapper
       .find('#bureau-settings-banned-phrases')
@@ -91,7 +98,13 @@ describe('BureauSettingsSection', () => {
 
     expect(bureausAPI.update.mock.calls[0][1].settings).toEqual({
       writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
-      director: { enabled: true, thinking: true, reasoningEffort: 'low', skipOnContinue: false },
+      director: {
+        enabled: true,
+        thinking: true,
+        reasoningEffort: 'low',
+        skipOnContinue: false,
+        createCharacters: false,
+      },
       editor: { enabled: false },
       style: { bannedPhrases: ['a testament to', 'sent shivers down'] },
     });

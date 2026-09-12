@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
     reasoningEffort: 'low',
     // A plain Continue goes straight to the Writer.
     skipOnContinue: true,
+    // Give a new named character a card and a place in the cast as a draft.
+    createCharacters: true,
   }),
   editor: Object.freeze({
     // Rewrite paragraphs that style lint flags. Lint runs, and is recorded, either way.
@@ -75,6 +77,7 @@ const DIRECTOR_RULES = {
   thinking: isBoolean,
   reasoningEffort: WRITER_RULES.reasoningEffort,
   skipOnContinue: isBoolean,
+  createCharacters: isBoolean,
 };
 
 const EDITOR_RULES = { enabled: isBoolean };
