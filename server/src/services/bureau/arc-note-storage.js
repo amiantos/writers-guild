@@ -91,10 +91,15 @@ export class ArcNoteStorage {
             WHERE cited.value IN (SELECT value FROM json_each(@turnIds))
           )
       `),
-      proposedCounts: this.db.prepare(`
-        SELECT cast_member_id, COUNT(*) AS proposed FROM arc_notes
-        WHERE bureau_id = ? AND status = 'proposed'
+      // Rejected notes shape nothing, so only proposals and flagged accepted notes need the reader.
+      reviewCounts: this.db.prepare(`
+        SELECT cast_member_id,
+               SUM(status = 'proposed') AS proposed,
+               SUM(status = 'accepted' AND needs_review = 1) AS needs_review
+        FROM arc_notes
+        WHERE bureau_id = ?
         GROUP BY cast_member_id
+        HAVING proposed > 0 OR needs_review > 0
       `),
     };
   }
@@ -220,10 +225,18 @@ export class ArcNoteStorage {
     }).changes;
   }
 
-  /** Proposals waiting for review per cast member: { [castId]: count }. */
-  proposedCountsByCast(bureauId) {
+  /**
+   * What waits for the reader per cast member: proposals, and accepted notes whose passages
+   * changed. { [castId]: { proposed, needsReview } }
+   */
+  reviewCountsByCast(bureauId) {
     return Object.fromEntries(
-      this.stmts.proposedCounts.all(bureauId).map((row) => [row.cast_member_id, row.proposed]),
+      this.stmts.reviewCounts
+        .all(bureauId)
+        .map((row) => [
+          row.cast_member_id,
+          { proposed: row.proposed, needsReview: row.needs_review },
+        ]),
     );
   }
 }

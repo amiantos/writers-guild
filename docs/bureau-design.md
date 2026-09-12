@@ -387,8 +387,8 @@ members. It's saved as knowledge with no story and no time, so every story can s
 - The seed card never changes. Accepted arc notes layer on top of it.
 - The Archivist proposes arc notes during its usual pass, with a rationale and the passages that show
   the change, and only when a story changes who a character is: a new habit, a stance that softened
-  or hardened, a lasting decision. It skips changes the character already has or that are already
-  waiting. Proposals never apply on their own.
+  or hardened, a lasting decision. It skips changes the character already has, that are already
+  waiting, or that you rejected. Proposals never apply on their own.
 - You accept, edit then accept, or reject each one in the character's memory browser ("How they've
   changed"), and can write one yourself, which is accepted as written. Rejected notes stay as
   history, and an accepted note that was edited shows what was first proposed.

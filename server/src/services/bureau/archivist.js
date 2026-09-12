@@ -24,6 +24,8 @@ export const MIN_SETTLED_PROSE = 6;
 export const ARCHIVE_CHUNK_CHARACTERS = 60_000;
 // Existing knowledge shown per character, so the Archivist updates rather than repeats.
 export const KNOWN_CHARACTERS_PER_CHARACTER = 12_000;
+// Rejected arc notes shown per character, most recent first; all of them still block repeats.
+const REJECTED_NOTES_SHOWN = 30;
 
 export const RECORD_MEMORIES_TOOL = {
   name: 'record_memories',
@@ -174,8 +176,9 @@ function section(title, body) {
  * @param {Object|null} params.persona - The reader's character, if present.
  * @param {Map<string, Array<Object>>} params.knownByCast - Knowledge each character has now.
  * @param {Map<string, Object>} params.episodeByCast - Each character's episode for this story.
- * @param {Map<string, {accepted: Array<Object>, proposed: Array<Object>}>} [params.notesByCast] -
- *   Each character's accepted arc notes and the proposals waiting for review.
+ * @param {Map<string, {accepted: Array<Object>, proposed: Array<Object>, rejected: Array<Object>}>}
+ *   [params.notesByCast] - Each character's accepted arc notes, the proposals waiting for review,
+ *   and the changes the reader rejected.
  * @param {Array<Object>} params.turns - The turns to read, in order.
  * @returns {Array<{role: string, content: string}>}
  */
@@ -215,7 +218,7 @@ export function buildArchivistMessages({
       '- Recording no knowledge is fine when nothing lasting happened.',
     ].join('\n'),
     'Episodes: one for each character who remembers, telling what happened in this story so far from their point of view, in the past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
-    "Arc notes: only when the passages change who a character is, such as a new habit, a stance that softened or hardened, or a lasting decision about themselves or someone else. Not a fact they learned (that's knowledge), and not a passing mood. Write how they have changed in one or two sentences, with a rationale naming what in the passages shows it. Don't repeat a change they already have or one waiting for review. Most passages call for none; the reader reviews every one.",
+    "Arc notes: only when the passages change who a character is, such as a new habit, a stance that softened or hardened, or a lasting decision about themselves or someone else. Not a fact they learned (that's knowledge), and not a passing mood. Write how they have changed in one or two sentences, with a rationale naming what in the passages shows it. Don't repeat a change they already have, one waiting for review, or one the reader turned down. Most passages call for none; the reader reviews every one.",
     'story_summary: what has happened in the whole story so far, in at most 150 words, updating the previous summary.',
   );
 
@@ -247,6 +250,12 @@ export function buildArchivistMessages({
       lines.push(
         'Changes already waiting for review:',
         ...notes.proposed.map((note) => `- ${note.content}`),
+      );
+    }
+    if (notes?.rejected.length > 0) {
+      lines.push(
+        'Changes the reader turned down (never propose these again):',
+        ...notes.rejected.slice(-REJECTED_NOTES_SHOWN).map((note) => `- ${note.content}`),
       );
     }
     return lines.join('\n');
@@ -414,11 +423,11 @@ function applyRecord({
       result.episodes += 1;
     }
 
-    // Arc notes are proposals for the reader, skipping changes the character already has or
-    // that are already waiting.
+    // Arc notes are proposals for the reader, skipping changes the character already has, that
+    // are already waiting, or that the reader rejected.
     const seenNotes = new Set(
       [...notesByCast.entries()].flatMap(([castId, notes]) =>
-        [...notes.accepted, ...notes.proposed].map(
+        [...notes.accepted, ...notes.proposed, ...notes.rejected].map(
           (note) => `${castId}:${note.content.toLowerCase()}`,
         ),
       ),
@@ -481,7 +490,8 @@ export function isArchiving(storyId) {
 
 /**
  * What each character remembering in this story knows now, their episode for it, and their
- * arc notes: accepted ones the story can see, and every proposal still waiting.
+ * arc notes: accepted ones the story can see, every proposal still waiting, and every change
+ * the reader rejected.
  */
 function currentMemories(stores, bureauId, story, characters) {
   const knownByCast = new Map();
@@ -497,6 +507,7 @@ function currentMemories(stores, bureauId, story, characters) {
             (note.sourceType === 'story' && note.sourceId === story.id)),
       ),
       proposed: notes.filter((note) => note.status === 'proposed'),
+      rejected: notes.filter((note) => note.status === 'rejected'),
     });
 
     const asOf = memoriesAsOf(

@@ -101,7 +101,7 @@ const props = defineProps({
   cast: { type: Array, required: true },
   /** Current memories per cast member id: { current, needsReview }. */
   memoryCounts: { type: Object, default: () => ({}) },
-  /** Arc notes waiting for review per cast member id. */
+  /** Arc notes that wait for the reader per cast member id: { proposed, needsReview }. */
   arcNoteCounts: { type: Object, default: () => ({}) },
 });
 
@@ -118,10 +118,14 @@ const brokenImages = reactive({});
 /** What waits for the reader in a member's memory browser, or '' when nothing does. */
 function reviewTitle(member) {
   const check = props.memoryCounts[member.id]?.needsReview ?? 0;
-  const changes = props.arcNoteCounts[member.id] ?? 0;
+  const proposed = props.arcNoteCounts[member.id]?.proposed ?? 0;
+  const changesToCheck = props.arcNoteCounts[member.id]?.needsReview ?? 0;
   const parts = [];
   if (check) parts.push(`${check} ${check === 1 ? 'memory' : 'memories'} to check`);
-  if (changes) parts.push(`${changes} ${changes === 1 ? 'change' : 'changes'} to review`);
+  if (proposed) parts.push(`${proposed} ${proposed === 1 ? 'change' : 'changes'} to review`);
+  if (changesToCheck) {
+    parts.push(`${changesToCheck} ${changesToCheck === 1 ? 'change' : 'changes'} to check`);
+  }
   return parts.join(', ');
 }
 

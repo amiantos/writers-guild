@@ -136,8 +136,8 @@ router.delete(
 
 // ==================== Cast ====================
 
-// List cast members (without seed cards), with how many current memories each has,
-// how many of those need review, and how many arc notes are waiting for review
+// List cast members (without seed cards), with how many current memories each has and
+// how many of those need review, and how many arc notes are proposed or need review
 router.get(
   '/:bureauId/cast',
   asyncHandler(async (req, res) => {
@@ -147,7 +147,7 @@ router.get(
     res.json({
       cast: bureaus.listCast(bureauId),
       memoryCounts: memories.countsByCast(bureauId),
-      arcNoteCounts: arcNotes.proposedCountsByCast(bureauId),
+      arcNoteCounts: arcNotes.reviewCountsByCast(bureauId),
     });
   }),
 );

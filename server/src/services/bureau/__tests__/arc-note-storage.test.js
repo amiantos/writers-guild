@@ -119,7 +119,7 @@ describe('ArcNoteStorage', () => {
     ]);
   });
 
-  it('flags notes citing changed turns and counts waiting proposals', () => {
+  it('flags notes citing changed turns and counts what waits for review', () => {
     const cited = stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Row.' });
     const note = propose('Mara lets Theo row.', { sourceTurnIds: [cited.id] });
     propose('Another proposal.');
@@ -127,7 +127,15 @@ describe('ArcNoteStorage', () => {
 
     expect(arcNotes.flagTurnsChanged(bureau.id, story.id, [cited.id])).toBe(1);
     expect(arcNotes.getNote(bureau.id, note.id).needsReview).toBe(true);
-    expect(arcNotes.proposedCountsByCast(bureau.id)).toEqual({ [mara.id]: 1 });
+    expect(arcNotes.reviewCountsByCast(bureau.id)).toEqual({
+      [mara.id]: { proposed: 1, needsReview: 1 },
+    });
+
+    arcNotes.updateNote(bureau.id, note.id, { needsReview: false });
+    arcNotes.updateNote(bureau.id, propose('Rejected.').id, { status: 'rejected' });
+    expect(arcNotes.reviewCountsByCast(bureau.id)).toEqual({
+      [mara.id]: { proposed: 1, needsReview: 0 },
+    });
   });
 
   it("deletes a story's notes, and all notes with their cast member", () => {

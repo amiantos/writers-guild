@@ -186,7 +186,7 @@ describe('Bureau memory routes', () => {
         .expect(200);
       expect(waiting.arcNotes.map((note) => note.id)).toEqual([proposal.id]);
       const { body: cast } = await request(app).get(`/api/bureaus/${bureau.id}/cast`).expect(200);
-      expect(cast.arcNoteCounts).toEqual({ [mara.id]: 1 });
+      expect(cast.arcNoteCounts).toEqual({ [mara.id]: { proposed: 1, needsReview: 0 } });
 
       const { body: accepted } = await request(app)
         .put(noteUrl(proposal.id))

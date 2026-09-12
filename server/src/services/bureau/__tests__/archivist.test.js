@@ -348,10 +348,14 @@ describe('archiveStory', () => {
     expect(maraMemories('episode').map((memory) => memory.content)).toEqual(['Second.']);
   });
 
-  it('proposes arc notes for review, skipping changes the character already has', async () => {
+  it('proposes arc notes for review, skipping changes already had, waiting, or rejected', async () => {
     stores.arcNotes.addNote(bureau.id, mara.id, {
       content: 'Mara trusts Theo with the boat.',
       status: 'accepted',
+    });
+    stores.arcNotes.addNote(bureau.id, mara.id, {
+      content: 'Mara has softened toward Theo.',
+      status: 'rejected',
     });
     stores.arcNotes.addNote(bureau.id, mara.id, {
       content: 'Mara laughs more easily.',
@@ -372,6 +376,7 @@ describe('archiveStory', () => {
           note('Mara lets Theo steer now.'),
           note('mara trusts theo with the boat.'),
           note('Mara laughs more easily.'),
+          note('Mara has softened toward Theo.'),
           note('Theo is braver.', 'Theo'),
         ],
       }),
@@ -398,6 +403,9 @@ describe('archiveStory', () => {
     );
     expect(user.content).toContain(
       'Changes already waiting for review:\n- Mara laughs more easily.',
+    );
+    expect(user.content).toContain(
+      'Changes the reader turned down (never propose these again):\n- Mara has softened toward Theo.',
     );
     expect(result.warnings).toEqual([expect.stringContaining('"Theo"')]);
   });
