@@ -141,6 +141,52 @@ const MIGRATIONS = [
     UPDATE turn_variants SET edited = 1
       WHERE id IN (SELECT active_variant_id FROM turns WHERE edited = 1);
   `,
+
+  // 4: Character memories with full-text search, and how far each story has been archived
+  `
+    CREATE TABLE memories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bureau_id TEXT NOT NULL REFERENCES bureaus(id) ON DELETE CASCADE,
+      cast_member_id TEXT NOT NULL REFERENCES cast_members(id) ON DELETE CASCADE,
+      layer TEXT NOT NULL,
+      content TEXT NOT NULL,
+      importance INTEGER NOT NULL DEFAULT 3,
+      world_time TEXT,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      source_turn_ids TEXT NOT NULL DEFAULT '[]',
+      run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+      superseded_by INTEGER REFERENCES memories(id) ON DELETE SET NULL,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      retired INTEGER NOT NULL DEFAULT 0,
+      needs_review INTEGER NOT NULL DEFAULT 0,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+    CREATE INDEX idx_memories_cast ON memories(cast_member_id, layer);
+    CREATE INDEX idx_memories_source ON memories(source_type, source_id);
+    CREATE INDEX idx_memories_superseded_by ON memories(superseded_by);
+
+    CREATE VIRTUAL TABLE memories_fts USING fts5(
+      content, content = 'memories', content_rowid = 'id', tokenize = 'porter unicode61'
+    );
+    CREATE TRIGGER memories_fts_insert AFTER INSERT ON memories BEGIN
+      INSERT INTO memories_fts (rowid, content) VALUES (new.id, new.content);
+    END;
+    CREATE TRIGGER memories_fts_delete AFTER DELETE ON memories BEGIN
+      INSERT INTO memories_fts (memories_fts, rowid, content)
+        VALUES ('delete', old.id, old.content);
+    END;
+    CREATE TRIGGER memories_fts_update AFTER UPDATE OF content ON memories BEGIN
+      INSERT INTO memories_fts (memories_fts, rowid, content)
+        VALUES ('delete', old.id, old.content);
+      INSERT INTO memories_fts (rowid, content) VALUES (new.id, new.content);
+    END;
+
+    -- Position of the last turn the Archivist has read (-1 for none), and its running summary.
+    ALTER TABLE stories ADD COLUMN archived_through INTEGER NOT NULL DEFAULT -1;
+    ALTER TABLE stories ADD COLUMN summary TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

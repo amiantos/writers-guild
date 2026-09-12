@@ -15,6 +15,14 @@ export const DEFAULT_SETTINGS = Object.freeze({
     temperature: 1,
     maxTokens: 4000,
   }),
+  memory: Object.freeze({
+    // Archive settled turns after each generated turn, not only on demand and at the end.
+    autoArchive: true,
+    // Characters of knowledge per character in the Writer prompt; the rest waits for recall.
+    knowledgeCharacters: 4000,
+    // Episodes from earlier stories per character in the Writer prompt.
+    recentEpisodes: 3,
+  }),
 });
 
 export class BureauSettingsError extends Error {
@@ -36,6 +44,17 @@ const WRITER_RULES = {
     'must be a whole number from 256 to 32000',
 };
 
+const MEMORY_RULES = {
+  autoArchive: (value) => typeof value === 'boolean' || 'must be true or false',
+  knowledgeCharacters: (value) =>
+    (Number.isInteger(value) && value >= 0 && value <= 40000) ||
+    'must be a whole number from 0 to 40000',
+  recentEpisodes: (value) =>
+    (Number.isInteger(value) && value >= 0 && value <= 20) || 'must be a whole number from 0 to 20',
+};
+
+const RULES = { writer: WRITER_RULES, memory: MEMORY_RULES };
+
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -43,10 +62,13 @@ function isPlainObject(value) {
 /**
  * Stored settings merged over the defaults.
  * @param {Object} [stored]
- * @returns {{ writer: Object }}
+ * @returns {{ writer: Object, memory: Object }}
  */
 export function resolveSettings(stored = {}) {
-  return { writer: { ...DEFAULT_SETTINGS.writer, ...stored.writer } };
+  return {
+    writer: { ...DEFAULT_SETTINGS.writer, ...stored.writer },
+    memory: { ...DEFAULT_SETTINGS.memory, ...stored.memory },
+  };
 }
 
 /**
@@ -54,7 +76,8 @@ export function resolveSettings(stored = {}) {
  *
  * @param {Object} stored - The Bureau's stored settings (not the resolved ones,
  *   so defaults stay defaults).
- * @param {Object} update - For example { writer: { thinking: true } }.
+ * @param {Object} update - For example { writer: { thinking: true } } or
+ *   { memory: { autoArchive: false } }.
  * @returns {Object} The settings to store.
  * @throws {BureauSettingsError} For unknown groups or keys, or invalid values.
  */
@@ -65,26 +88,27 @@ export function applySettingsUpdate(stored, update) {
 
   const next = { ...stored };
   for (const [group, values] of Object.entries(update)) {
-    if (group !== 'writer') {
+    const rules = RULES[group];
+    if (!rules) {
       throw new BureauSettingsError(`Unknown settings group: ${group}`);
     }
     if (!isPlainObject(values)) {
-      throw new BureauSettingsError('settings.writer must be an object');
+      throw new BureauSettingsError(`settings.${group} must be an object`);
     }
 
-    const writer = { ...stored.writer };
+    const merged = { ...stored[group] };
     for (const [key, value] of Object.entries(values)) {
-      const rule = WRITER_RULES[key];
+      const rule = rules[key];
       if (!rule) {
-        throw new BureauSettingsError(`Unknown writer setting: ${key}`);
+        throw new BureauSettingsError(`Unknown ${group} setting: ${key}`);
       }
       const verdict = rule(value);
       if (verdict !== true) {
-        throw new BureauSettingsError(`writer.${key} ${verdict}`);
+        throw new BureauSettingsError(`${group}.${key} ${verdict}`);
       }
-      writer[key] = value;
+      merged[key] = value;
     }
-    next.writer = writer;
+    next[group] = merged;
   }
   return next;
 }

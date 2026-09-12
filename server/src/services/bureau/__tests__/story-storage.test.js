@@ -86,6 +86,28 @@ describe('StoryStorage', () => {
       expect(ended).toMatchObject({ status: 'ended', endTime: '2026-10-28T02:00:00.000Z' });
     });
 
+    it('records archive progress and keeps new turns past it', () => {
+      const story = stories.createStory(bureau.id, { startTime: START, castIds: [] });
+      expect(story).toMatchObject({ archivedThrough: -1, summary: '' });
+      const turns = ['A', 'B', 'C'].map((content) =>
+        stories.addTurn(story.id, { kind: 'prose', source: 'generated', content }),
+      );
+      stories.setArchiveProgress(story.id, {
+        archivedThrough: 2,
+        summary: 'Three things happened.',
+      });
+      stories.deleteTurn(story.id, turns[2].id);
+      stories.deleteTurn(story.id, turns[1].id);
+
+      const next = stories.addTurn(story.id, { kind: 'prose', source: 'generated', content: 'D' });
+
+      expect(next.position).toBe(3);
+      expect(stories.getStory(bureau.id, story.id)).toMatchObject({
+        archivedThrough: 2,
+        summary: 'Three things happened.',
+      });
+    });
+
     it('keeps stories inside their own Bureau', () => {
       const other = bureaus.createBureau({ name: 'Other' });
       const story = stories.createStory(bureau.id, { startTime: START, castIds: [] });

@@ -8,10 +8,17 @@ import {
 
 describe('resolveSettings', () => {
   it('fills in defaults for anything not stored', () => {
-    expect(resolveSettings({})).toEqual({ writer: { ...DEFAULT_SETTINGS.writer } });
+    expect(resolveSettings({})).toEqual({
+      writer: { ...DEFAULT_SETTINGS.writer },
+      memory: { ...DEFAULT_SETTINGS.memory },
+    });
     expect(resolveSettings({ writer: { thinking: true } }).writer).toEqual({
       ...DEFAULT_SETTINGS.writer,
       thinking: true,
+    });
+    expect(resolveSettings({ memory: { autoArchive: false } }).memory).toEqual({
+      ...DEFAULT_SETTINGS.memory,
+      autoArchive: false,
     });
   });
 });
@@ -32,6 +39,15 @@ describe('applySettingsUpdate', () => {
     });
   });
 
+  it('updates memory settings alongside writer settings', () => {
+    expect(
+      applySettingsUpdate(
+        { writer: { thinking: true } },
+        { memory: { autoArchive: false, recentEpisodes: 5 } },
+      ),
+    ).toEqual({ writer: { thinking: true }, memory: { autoArchive: false, recentEpisodes: 5 } });
+  });
+
   it.each([
     [{ writer: { thinking: 'yes' } }, /writer.thinking must be true or false/],
     [{ writer: { reasoningEffort: 'medium' } }, /writer.reasoningEffort must be one of/],
@@ -39,6 +55,10 @@ describe('applySettingsUpdate', () => {
     [{ writer: { maxTokens: 100 } }, /writer.maxTokens must be a whole number/],
     [{ writer: { maxTokens: 4000.5 } }, /writer.maxTokens must be a whole number/],
     [{ writer: { mood: 'sunny' } }, /Unknown writer setting: mood/],
+    [{ memory: { autoArchive: 1 } }, /memory.autoArchive must be true or false/],
+    [{ memory: { knowledgeCharacters: -1 } }, /memory.knowledgeCharacters must be a whole number/],
+    [{ memory: { recentEpisodes: 2.5 } }, /memory.recentEpisodes must be a whole number/],
+    [{ memory: 'on' }, /settings.memory must be an object/],
     [{ director: {} }, /Unknown settings group: director/],
     [{ writer: [] }, /settings.writer must be an object/],
     [null, /settings must be an object/],

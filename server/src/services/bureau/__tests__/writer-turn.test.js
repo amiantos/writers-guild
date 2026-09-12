@@ -197,6 +197,36 @@ describe('generateWriterTurn', () => {
     );
   });
 
+  it('reminds characters of earlier stories, but not of this one', async () => {
+    const earlier = stores.stories.createStory(bureau.id, {
+      startTime: '2026-10-01T20:00:00.000Z',
+      castIds: [mara.id, theo.id],
+      title: 'The Pier',
+    });
+    const fromStory = (castId, target, layer, content) =>
+      stores.memories.addMemory(bureau.id, castId, {
+        layer,
+        content,
+        sourceType: 'story',
+        sourceId: target.id,
+        worldTime: target.startTime,
+      });
+    fromStory(mara.id, earlier, 'knowledge', "Theo can't swim.");
+    fromStory(mara.id, earlier, 'episode', 'Mara met Theo at the pier.');
+    fromStory(mara.id, story, 'knowledge', 'Theo waded in up to his knees.');
+    fromStory(theo.id, earlier, 'knowledge', 'Theo remembers the pier.');
+    const client = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
+
+    await generate(client, { action: 'continue' });
+
+    const system = client.calls[0].messages[0].content;
+    expect(system).toContain(
+      "Mara knows:\n- Theo can't swim.\n\nMara remembers from earlier stories:\n- The Pier: Mara met Theo at the pier.",
+    );
+    expect(system).not.toContain('waded in');
+    expect(system).not.toContain('Theo remembers the pier.');
+  });
+
   it('sets the opening at the story start time, in the Bureau time zone', async () => {
     stores.bureaus.updateBureau(bureau.id, { timezone: 'America/Los_Angeles' });
     const client = streamingClient([{ type: 'content', text: 'Midnight.' }, done('Midnight.')]);

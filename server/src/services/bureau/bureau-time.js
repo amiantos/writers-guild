@@ -110,6 +110,22 @@ export function describeTime(value, { timeZone, includeYear = false } = {}) {
   return `a ${weekday}, ${describeDayPart(hour)}, ${monthPart}${includeYear ? ` ${year}` : ''}`;
 }
 
+/**
+ * describeTime in a Bureau's time zone. A stored zone this server doesn't know
+ * falls back to the server's.
+ * @param {Date|string} value
+ * @param {string|null} timeZone - The Bureau's timezone.
+ * @returns {string}
+ */
+export function describeBureauTime(value, timeZone) {
+  try {
+    return describeTime(value, { timeZone: timeZone ?? undefined });
+  } catch (error) {
+    if (!(error instanceof BureauTimeError) || !timeZone) throw error;
+    return describeTime(value);
+  }
+}
+
 function parseCustomTime(customTime) {
   const date = typeof customTime === 'string' ? new Date(customTime) : null;
   if (!date || Number.isNaN(date.getTime())) {

@@ -10,16 +10,41 @@ import { errorHandler } from '../../middleware/error-handler.js';
 import { getBureauStores } from '../../services/bureau/stores.js';
 import { closeBureauDb } from '../../services/bureau/bureau-db.js';
 import { DeepSeekError } from '../../services/bureau/deepseek-client.js';
+import { settleBackgroundArchives } from '../../services/bureau/archivist.js';
 
 function card(name) {
   return { spec: 'chara_card_v2', spec_version: '2.0', data: { name } };
 }
 
-/** A fake DeepSeek client that streams `text` as two content events. */
+/**
+ * A fake DeepSeek client. The Writer's stream sends `text` as two content
+ * events; the Archivist's call records `client.archiveRecord`.
+ */
 function fakeClient(text = 'The lamp was lit.', { failWith = null } = {}) {
   const client = {
     model: 'deepseek-flash',
     calls: [],
+    archiveCalls: [],
+    archiveRecord: { knowledge: [], episodes: [], story_summary: 'Summary.' },
+    archiveFailure: null,
+    async chat(options) {
+      client.archiveCalls.push(options);
+      if (client.archiveFailure) throw client.archiveFailure;
+      return {
+        content: '',
+        reasoning: '',
+        finishReason: 'tool_calls',
+        model: 'deepseek-flash',
+        usage: { prompt_tokens: 400, completion_tokens: 60 },
+        toolCalls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'record_memories', arguments: JSON.stringify(client.archiveRecord) },
+          },
+        ],
+      };
+    },
     async *chatStream(options) {
       client.calls.push(options);
       if (failWith) throw failWith;
@@ -39,6 +64,15 @@ function fakeClient(text = 'The lamp was lit.', { failWith = null } = {}) {
     },
   };
   return client;
+}
+
+/** An Archivist record in which Mara learns `content` from the first passage. */
+function maraKnows(content) {
+  return {
+    knowledge: [{ character: 'Mara', content, importance: 4, supersedes: 0, passages: [0] }],
+    episodes: [{ character: 'Mara', content: 'Theo confided in Mara.' }],
+    story_summary: 'Theo confesses.',
+  };
 }
 
 function parseEvents(text) {
@@ -87,6 +121,7 @@ describe('Bureau story routes', () => {
     app.use(express.json());
     app.locals.dataRoot = tempDir;
     app.locals.createBureauClient = () => client;
+    app.locals.bureauAutoArchive = false;
     app.use('/api/bureaus', bureausRouter);
     app.use(errorHandler);
   });
@@ -346,6 +381,141 @@ describe('Bureau story routes', () => {
         .send({})
         .expect(400);
       await request(app).put(`${turnUrl}/variant`).send({ variantId: 'missing' }).expect(404);
+    });
+  });
+
+  describe('memory', () => {
+    async function storyWithConfession() {
+      const story = await startStory();
+      await request(app)
+        .post(`${storiesUrl()}/${story.id}/turns`)
+        .send({ kind: 'prose', content: "Theo admitted he couldn't swim." })
+        .expect(201);
+      client.archiveRecord = maraKnows("Theo can't swim.");
+      return story;
+    }
+
+    async function maraMemories(query = {}) {
+      const { body } = await request(app)
+        .get(`/api/bureaus/${bureau.id}/cast/${mara.id}/memories`)
+        .query(query)
+        .expect(200);
+      return body.memories;
+    }
+
+    it('commits a story to memory on request', async () => {
+      const story = await storyWithConfession();
+
+      const { body } = await request(app)
+        .post(`${storiesUrl()}/${story.id}/archive`)
+        .send({})
+        .expect(200);
+
+      expect(body.archive).toMatchObject({ passes: 1, added: 1, episodes: 1 });
+      expect(body.story).toMatchObject({ archivedThrough: 0, summary: 'Theo confesses.' });
+      expect((await maraMemories()).map((memory) => memory.content)).toEqual([
+        'Theo confided in Mara.',
+        "Theo can't swim.",
+      ]);
+
+      stores.bureaus.updateBureau(bureau.id, { apiKey: '' });
+      await request(app).post(`${storiesUrl()}/${story.id}/archive`).send({}).expect(400);
+    });
+
+    it('reports a model failure while committing', async () => {
+      const story = await storyWithConfession();
+      client.archiveFailure = new DeepSeekError('DeepSeek API error 429 (rate limited): Slow down');
+
+      const { body } = await request(app)
+        .post(`${storiesUrl()}/${story.id}/archive`)
+        .send({})
+        .expect(502);
+
+      expect(body.error).toMatch(/rate limited/);
+    });
+
+    it('reads the rest of a story into memory when it ends', async () => {
+      const story = await storyWithConfession();
+
+      const { body } = await request(app)
+        .post(`${storiesUrl()}/${story.id}/end`)
+        .send({ end: { choice: 'unchanged' } })
+        .expect(200);
+
+      expect(body).toMatchObject({ archive: { added: 1 }, archiveError: null });
+      expect(body.story).toMatchObject({ status: 'ended', archivedThrough: 0 });
+    });
+
+    it("doesn't archive an ending story when the Bureau archives only on request", async () => {
+      stores.bureaus.updateSettings(bureau.id, { memory: { autoArchive: false } });
+      const story = await storyWithConfession();
+
+      const { body } = await request(app)
+        .post(`${storiesUrl()}/${story.id}/end`)
+        .send({})
+        .expect(200);
+
+      expect(body).toMatchObject({ archive: null, archiveError: null });
+      expect(client.archiveCalls).toHaveLength(0);
+    });
+
+    it('still ends the story when archiving fails', async () => {
+      const story = await storyWithConfession();
+      client.archiveFailure = new DeepSeekError('DeepSeek API error 402 (insufficient balance)');
+
+      const { body } = await request(app)
+        .post(`${storiesUrl()}/${story.id}/end`)
+        .send({})
+        .expect(200);
+
+      expect(body.story.status).toBe('ended');
+      expect(body.archiveError).toMatch(/insufficient balance/);
+    });
+
+    it('marks memories for review when a turn they cite changes', async () => {
+      const story = await storyWithConfession();
+      await request(app).post(`${storiesUrl()}/${story.id}/archive`).send({}).expect(200);
+      const [turn] = stores.stories.listTurns(story.id);
+
+      await request(app)
+        .put(`${storiesUrl()}/${story.id}/turns/${turn.id}`)
+        .send({ content: 'Theo admitted he could barely swim.' })
+        .expect(200);
+
+      const knowledge = (await maraMemories()).find((memory) => memory.layer === 'knowledge');
+      expect(knowledge.needsReview).toBe(true);
+      const { body } = await request(app).get(`/api/bureaus/${bureau.id}/cast`).expect(200);
+      expect(body.memoryCounts[mara.id]).toEqual({ current: 2, needsReview: 1 });
+    });
+
+    it('deletes the memories recorded from a deleted story', async () => {
+      const story = await storyWithConfession();
+      await request(app).post(`${storiesUrl()}/${story.id}/archive`).send({}).expect(200);
+
+      await request(app).delete(`${storiesUrl()}/${story.id}`).expect(200);
+
+      expect(await maraMemories()).toEqual([]);
+    });
+
+    it('archives settled turns in the background after generating', async () => {
+      app.locals.bureauAutoArchive = true;
+      const story = await startStory();
+      for (let index = 0; index < 11; index += 1) {
+        stores.stories.addTurn(story.id, {
+          kind: 'prose',
+          source: 'user',
+          content: `Passage ${index}.`,
+        });
+      }
+
+      await request(app)
+        .post(`${storiesUrl()}/${story.id}/generate`)
+        .send({ action: 'continue' })
+        .expect(201);
+      await settleBackgroundArchives();
+
+      expect(client.archiveCalls).toHaveLength(1);
+      expect(stores.stories.getStory(bureau.id, story.id).archivedThrough).toBe(5);
     });
   });
 });

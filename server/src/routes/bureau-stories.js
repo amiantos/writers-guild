@@ -5,6 +5,10 @@
  * turns. The generate and regenerate endpoints stream the Writer's output as
  * server-sent events when the client asks for text/event-stream, and answer
  * with JSON otherwise.
+ *
+ * The Archivist reads a story into memory when asked, when the story ends, and
+ * in the background as turns settle. Changing a turn it has read marks the
+ * memories that cite it for review.
  */
 
 import express from 'express';
@@ -17,6 +21,7 @@ import {
   resolveStoryEndTime,
   resolveStoryStartTime,
 } from '../services/bureau/bureau-time.js';
+import { archiveSettledTurns, archiveStory } from '../services/bureau/archivist.js';
 import { generateWriterTurn, requestForRegeneration } from '../services/bureau/writer-turn.js';
 import {
   createBureauClient,
@@ -73,6 +78,20 @@ function requireTurn(stories, storyId, turnId) {
   return turn;
 }
 
+/** Read the story's unread turns into memory, reporting model failures as 502s. */
+async function archiveNow(req, res, bureauId, storyId) {
+  const { stores } = res.locals;
+  const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureauId));
+  try {
+    return await archiveStory({ stores, bureauId, storyId, client });
+  } catch (error) {
+    if (error instanceof DeepSeekError) {
+      throw new AppError(error.message, 502);
+    }
+    throw error;
+  }
+}
+
 function personaIn(bureaus, bureauId, story) {
   const persona = story.castIds
     .map((castId) => bureaus.getCastMember(bureauId, castId))
@@ -113,12 +132,24 @@ async function respondWithWriterTurn(
       signal: controller.signal,
       onEvent: (event) => channel.send(event),
     });
+    if (regenerateTurnId && turn) {
+      stores.memories.flagTurnsChanged(bureau.id, story.id, [regenerateTurnId]);
+    }
     if (controller.signal.aborted) {
       // The client left; any text written so far was saved with the turn.
       if (!res.writableEnded) res.end();
       return;
     }
     channel.finish({ statusCode: regenerateTurnId ? 200 : 201, body: { userTurn, turn } });
+
+    // Tests turn background archiving off with app.locals.bureauAutoArchive.
+    if (
+      !regenerateTurnId &&
+      bureau.settings.memory.autoArchive &&
+      (req.app.locals.bureauAutoArchive ?? true)
+    ) {
+      archiveSettledTurns({ stores, bureauId: bureau.id, storyId: story.id, client });
+    }
   } catch (error) {
     if (controller.signal.aborted) {
       if (!res.writableEnded) res.end();
@@ -218,7 +249,9 @@ router.put(
 );
 
 // End a story. end.choice is 'present', 'custom' with end.customTime, or
-// 'unchanged'; the Bureau's clock moves to the chosen time.
+// 'unchanged'; the Bureau's clock moves to the chosen time. Unless the Bureau
+// archives only on request, the rest of the story is then read into memory;
+// if that fails, the story still ends and archiveError says why.
 router.post(
   '/:storyId/end',
   asyncHandler(async (req, res) => {
@@ -237,25 +270,60 @@ router.post(
       }),
     );
 
-    let story;
     bureaus.db.transaction(() => {
-      story = stories.endStory(bureauId, storyId, { endTime });
+      stories.endStory(bureauId, storyId, { endTime });
       bureaus.setBureauTime(bureauId, endTime);
     })();
 
-    res.json({ story, bureau: bureaus.getBureau(bureauId) });
+    let archive = null;
+    let archiveError = null;
+    if (bureau.hasApiKey && bureau.settings.memory.autoArchive) {
+      try {
+        archive = await archiveNow(req, res, bureauId, storyId);
+      } catch (error) {
+        console.error('[Bureau] Archiving the ended story failed:', error.message);
+        archiveError = error.message;
+      }
+    }
+
+    res.json({
+      story: stories.getStory(bureauId, storyId),
+      bureau: bureaus.getBureau(bureauId),
+      archive,
+      archiveError,
+    });
   }),
 );
 
-// Delete a story with its turns
-router.delete(
-  '/:storyId',
+// Commit the story to memory now: the Archivist reads every turn it hasn't read yet
+router.post(
+  '/:storyId/archive',
   asyncHandler(async (req, res) => {
     const { bureaus, stories } = res.locals.stores;
     const { bureauId, storyId } = req.params;
+    const bureau = requireBureau(bureaus, bureauId);
+    requireStory(stories, bureauId, storyId);
+    requireApiKey(bureau);
+
+    const archive = await archiveNow(req, res, bureauId, storyId);
+    res.json({ story: stories.getStory(bureauId, storyId), archive });
+  }),
+);
+
+// Delete a story with its turns and the memories recorded from it
+router.delete(
+  '/:storyId',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories, memories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
     requireBureau(bureaus, bureauId);
 
-    if (!stories.deleteStory(bureauId, storyId)) {
+    let deleted = false;
+    bureaus.db.transaction(() => {
+      memories.deleteStoryMemories(bureauId, storyId);
+      deleted = stories.deleteStory(bureauId, storyId);
+    })();
+    if (!deleted) {
       throw new AppError('Story not found', 404);
     }
     res.json({ success: true });
@@ -298,7 +366,7 @@ router.post(
 router.put(
   '/:storyId/turns/:turnId',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories } = res.locals.stores;
+    const { bureaus, stories, memories } = res.locals.stores;
     const { bureauId, storyId, turnId } = req.params;
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
@@ -308,7 +376,9 @@ router.put(
     if (content === undefined || (!content && turn.kind !== 'scene_break')) {
       throw new AppError('content is required', 400);
     }
-    res.json({ turn: stories.editTurn(storyId, turnId, content) });
+    const edited = stories.editTurn(storyId, turnId, content);
+    memories.flagTurnsChanged(bureauId, storyId, [turnId]);
+    res.json({ turn: edited });
   }),
 );
 
@@ -316,7 +386,7 @@ router.put(
 router.delete(
   '/:storyId/turns/:turnId',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories } = res.locals.stores;
+    const { bureaus, stories, memories } = res.locals.stores;
     const { bureauId, storyId, turnId } = req.params;
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
@@ -324,6 +394,7 @@ router.delete(
     if (!stories.deleteTurn(storyId, turnId)) {
       throw new AppError('Turn not found', 404);
     }
+    memories.flagTurnsChanged(bureauId, storyId, [turnId]);
     res.json({ success: true });
   }),
 );
@@ -332,11 +403,11 @@ router.delete(
 router.put(
   '/:storyId/turns/:turnId/variant',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories } = res.locals.stores;
+    const { bureaus, stories, memories } = res.locals.stores;
     const { bureauId, storyId, turnId } = req.params;
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
-    requireTurn(stories, storyId, turnId);
+    const current = requireTurn(stories, storyId, turnId);
 
     const { variantId } = req.body ?? {};
     if (!variantId || typeof variantId !== 'string') {
@@ -345,6 +416,9 @@ router.put(
     const turn = stories.selectVariant(storyId, turnId, variantId);
     if (!turn) {
       throw new AppError('Variant not found', 404);
+    }
+    if (variantId !== current.activeVariantId) {
+      memories.flagTurnsChanged(bureauId, storyId, [turnId]);
     }
     res.json({ turn });
   }),

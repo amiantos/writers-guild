@@ -257,22 +257,31 @@ the turn's seam shows the original text and each fix, so reverting a bad edit ta
 
 ### Archivist
 
-**When it runs:** when a story ends, when turns have settled (enough newer turns exist, or the story
-has been idle for a while), when a correspondence session goes quiet, or on demand ("Commit to
-memory").
+**When it runs:** on demand ("Commit to memory"), when a story ends, and in the background once turns
+have settled. A turn is settled when six newer turns follow it; after each generated turn, a pass
+starts if at least six settled prose turns are waiting. A Bureau can turn automatic archiving off,
+and then the Archivist runs only on demand. Correspondence sessions join in phase 7.
 
-**Input:** unprocessed turns or messages, who was present, and each present character's current
-file.
+**Input:** the turns it hasn't read, in passes of about 60,000 characters; the story's running
+summary; who was present; and what each present character already knows, as numbered memories.
+Direction turns are left out.
 
-**Output:** a strict-schema list of operations:
+**Output:** one forced call to a strict `record_memories` tool, with thinking off:
 
-- `add_memory`, `update_memory` (supersedes an older memory), `retire_memory`
-- `add_episode`: a dated summary of the story or session, per present character
-- `propose_arc_note`: character development, which waits for approval
-- `update_world`: ongoing threads and timeline events
+- `knowledge`: facts per character, each with an importance, the passages it came from, and the
+  number of any memory it `supersedes`
+- `episodes`: one per character, rewritten each pass to tell the whole story so far from their point
+  of view
+- `story_summary`: the whole story so far, shown in the Bureau's story list
 
-Memory operations apply automatically because they are visible, sourced, and reversible. Arc notes
-wait for review. Editing or deleting a turn that memories cite marks those memories for review.
+Memory operations apply automatically because they are visible, sourced, and reversible. The
+Archivist can supersede memories but can't retire or delete them, and it can't replace pinned ones.
+Changing a turn it has read (editing, deleting, switching versions, or regenerating) marks the
+memories that cite the turn for review. Deleting a story deletes its memories, which brings back
+anything they had replaced.
+
+**Later:** `propose_arc_note` for character development, which waits for approval (phase 5), and
+`update_world` for ongoing threads and timeline events.
 
 ### API key and model
 
@@ -320,6 +329,13 @@ Start simple: cast members in a story remember it, and correspondence is private
 participants. Offscreen life belongs to the character who lived it until they share it. Presence is
 tracked per story at first; per-turn presence (someone leaving mid-scene) can come later.
 
+The reader's character keeps no memories: the reader remembers for them. A Bureau has one reader's
+character, so this never leaves a second persona without a memory.
+
+Phase 3 built seed cards, knowledge, and episodes. In the Writer prompt, each character gets their
+pinned knowledge, then the most important knowledge that fits a budget (4,000 characters by default),
+and their last three episodes from earlier stories. Both limits are Bureau settings.
+
 A story also only remembers what happened before its start time (see
 [Time and memory](#time-and-memory)).
 
@@ -327,7 +343,8 @@ A story also only remembers what happened before its start time (see
 
 Every memory links to the turns or messages it came from. Each character has a memory browser:
 search, edit, pin, retire, and jump to the source. A wrong memory breaks the illusion faster than no
-memory, so memories must be visible and easy to correct.
+memory, so memories must be visible and easy to correct. Retired memories, and memories replaced by
+newer versions, stay in the browser and can be restored.
 
 ### Retrieval
 
@@ -338,8 +355,8 @@ DeepSeek embeddings endpoint; we couldn't confirm one exists.
 
 ### Backstory
 
-When a character joins, an optional backstory step lets you write what they already know or share
-with other cast members. It's saved as knowledge memories with `backstory` as the source.
+A character's memory browser also takes backstory: what they already know or share with other cast
+members. It's saved as knowledge with no story and no time, so every story can see it.
 
 ## Character development
 
@@ -413,6 +430,11 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
   earlier time works as a flashback: characters don't know what happens later.
 - Memories from a story are dated to its start time. Memories from correspondence are dated to when
   the messages were sent.
+- When two stories start at the same time (say, one ended without moving the clock and the next
+  started at Bureau time), the one earlier in the Bureau's order comes first.
+- A story sees each memory as it stood when the story starts. A memory replaced by a later story
+  still counts in a flashback set before the change.
+- A story's own memories stay out of its Writer prompt, because its text is already there.
 
 ### Offscreen life
 
@@ -468,7 +490,7 @@ bureau_lorebooks (bureau_id, lorebook_id)
 world_threads  (id, bureau_id, title, summary, status, modified)
 
 stories        (id, bureau_id, position, title, status [active|ended], start_time,
-                end_time NULL, created, modified)
+                end_time NULL, archived_through, summary, created, modified)
 story_cast     (story_id, cast_member_id)
 turns          (id, story_id, position, kind, source [user|generated], author_cast_id NULL,
                 content, run_id NULL, edited, created, modified)
@@ -477,9 +499,10 @@ turn_variants  (id, turn_id, content, run_id, created)
 threads        (id, bureau_id, cast_member_id, created)
 messages       (id, thread_id, sender_cast_id, content, bureau_time, run_id NULL, created)
 
-memories       (id, cast_member_id, layer [knowledge|episode|era|offscreen|backstory],
-                content, importance, world_time, source_refs JSON, superseded_by NULL,
-                pinned, needs_review, created, modified)
+memories       (id, bureau_id, cast_member_id, layer [knowledge|episode|era|offscreen],
+                content, importance, world_time NULL, source_type [story|manual],
+                source_id NULL, source_turn_ids JSON, run_id NULL, superseded_by NULL,
+                pinned, retired, needs_review, created, modified)
 memories_fts   -- FTS5 over memories.content
 archive_fts    -- FTS5 over turn and message text
 
@@ -509,7 +532,8 @@ server/src/services/bureau/
   style-lint.js
   editor.js
   archivist.js
-  memory.js                              # budgets, retrieval, FTS
+  memory-storage.js                      # memory queries and FTS
+  memory.js                              # what a story can see, prompt budgets
   bureau-time.js                         # Bureau time changes, loose time descriptions
   offscreen.js
   character-generator.js
@@ -597,12 +621,14 @@ Each phase ends with something usable.
 2. Should direction turns show as notes in the story, or fold into the seam of the turn they
    produced?
 3. Should Editor fixes apply automatically with revert (proposed), or wait for approval?
-4. When is a turn settled enough for the Archivist?
+4. When is a turn settled enough for the Archivist? _For now, once six newer turns follow it; revisit
+   with use._
 5. Is per-story presence enough, or is per-turn presence needed early?
 6. Whose "now" does correspondence use: the browser's timezone, or a timezone saved on the Bureau
    (needed if characters ever message first)?
 7. Should stories support branching, or only per-turn variants?
-8. Does the persona keep memories of its own (useful for Bureaus with more than one persona)?
+8. Does the persona keep memories of its own? _No. A Bureau has one reader's character, and the
+   reader remembers for them._
 9. Can a Bureau have more than one unfinished story at a time?
 
 ## References

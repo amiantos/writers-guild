@@ -13,6 +13,7 @@ import { BureauSettingsError, DEFAULT_SETTINGS } from '../services/bureau/bureau
 import { isValidTimeZone } from '../services/bureau/bureau-time.js';
 import { DEFAULT_MODEL } from '../services/bureau/deepseek-client.js';
 import { DEFAULT_HOUSE_STYLE } from '../services/bureau/writer-prompt.js';
+import bureauMemoriesRouter from './bureau-memories.js';
 import bureauStoriesRouter from './bureau-stories.js';
 import { attachBureauStores, optionalString, requireBureau } from './bureau-route-helpers.js';
 
@@ -133,13 +134,15 @@ router.delete(
 
 // ==================== Cast ====================
 
-// List cast members (without seed cards)
+// List cast members (without seed cards), with how many current memories each has
+// and how many of those need review
 router.get(
   '/:bureauId/cast',
   asyncHandler(async (req, res) => {
-    const { bureaus } = res.locals.stores;
-    requireBureau(bureaus, req.params.bureauId);
-    res.json({ cast: bureaus.listCast(req.params.bureauId) });
+    const { bureaus, memories } = res.locals.stores;
+    const { bureauId } = req.params;
+    requireBureau(bureaus, bureauId);
+    res.json({ cast: bureaus.listCast(bureauId), memoryCounts: memories.countsByCast(bureauId) });
   }),
 );
 
@@ -355,6 +358,7 @@ router.get(
 
 // ==================== Stories ====================
 
+router.use('/:bureauId', bureauMemoriesRouter);
 router.use('/:bureauId/stories', bureauStoriesRouter);
 
 export default router;

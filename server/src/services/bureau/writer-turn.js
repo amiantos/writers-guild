@@ -10,7 +10,8 @@
 
 import { ImagePreserver } from '../image-preserver.js';
 import { LorebookActivator } from '../lorebook-activator.js';
-import { BureauTimeError, describeTime } from './bureau-time.js';
+import { describeBureauTime } from './bureau-time.js';
+import { memoriesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 import { buildWriterMessages } from './writer-prompt.js';
 
@@ -70,16 +71,6 @@ async function activatedLore(stores, bureauId, scanText) {
   return new LorebookActivator(LOREBOOK_SETTINGS).activate(lorebooks, scanText);
 }
 
-function openingTimeFor(story, bureau) {
-  try {
-    return describeTime(story.startTime, { timeZone: bureau.timezone ?? undefined });
-  } catch (error) {
-    // A stored time zone this server doesn't know: fall back to the server's.
-    if (!(error instanceof BureauTimeError)) throw error;
-    return describeTime(story.startTime);
-  }
-}
-
 /**
  * @param {Object} params
  * @param {ReturnType<import('./stores.js').getBureauStores>} params.stores
@@ -125,15 +116,32 @@ export async function generateWriterTurn({
     .filter(Boolean);
   const lead = request.leadCastId ? cast.find((member) => member.id === request.leadCastId) : null;
 
+  // What each character remembers from before this story; the reader remembers for the persona.
+  const memoriesByCast = new Map(
+    cast
+      .filter((member) => !member.isPersona)
+      .map((member) => [
+        member.id,
+        selectForPrompt(
+          memoriesAsOf(
+            stores.memories.listMemories(bureau.id, member.id, { status: 'all' }),
+            story,
+          ),
+          bureau.settings.memory,
+        ),
+      ]),
+  );
+
   const scanText = [...turns.map((turn) => turn.content), request.direction ?? ''].join('\n\n');
   const imagePreserver = new ImagePreserver();
   const { messages, storySection } = buildWriterMessages({
     bureau,
     cast,
     loreEntries: await activatedLore(stores, bureau.id, scanText),
+    memoriesByCast,
     turns,
     request: { action: request.action, direction: request.direction, leadName: lead?.name },
-    openingTime: openingTimeFor(story, bureau),
+    openingTime: describeBureauTime(story.startTime, bureau.timezone),
     imagePreserver,
   });
 

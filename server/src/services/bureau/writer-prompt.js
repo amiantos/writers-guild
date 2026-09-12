@@ -27,6 +27,9 @@ export const STORY_CHARACTER_BUDGET = 300_000;
 
 const SCENE_BREAK = '---';
 
+const MEMORIES_PREFACE =
+  'What the characters remember from before this story. Let it shape what they do and bring up, without reciting it.';
+
 // PromptBuilder is story mode's, reused here only for its {{user}}/{{char}} replacement.
 const placeholders = new PromptBuilder();
 
@@ -36,6 +39,29 @@ function section(title, body) {
 
 function stripAsterisks(text) {
   return text.replace(/\*/g, '');
+}
+
+/** One character's memories, or '' when they have none. */
+function memoryBlock(name, memories) {
+  if (!memories) return '';
+  const lines = [];
+  if (memories.knowledge.length > 0) {
+    lines.push(
+      `${name} knows:`,
+      ...memories.knowledge.map((memory) => `- ${stripAsterisks(memory.content)}`),
+    );
+  }
+  if (memories.episodes.length > 0) {
+    if (lines.length > 0) lines.push('');
+    lines.push(
+      `${name} remembers from earlier stories:`,
+      ...memories.episodes.map(
+        (memory) =>
+          `- ${memory.sourceTitle ? `${memory.sourceTitle}: ` : ''}${stripAsterisks(memory.content)}`,
+      ),
+    );
+  }
+  return lines.join('\n');
 }
 
 /** Keep the most recent parts that fit the budget, always keeping at least the last one. */
@@ -105,6 +131,8 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
  * @param {Object} params.bureau - Uses houseStyle.
  * @param {Array<Object>} params.cast - Cast members, each with seedCard and isPersona.
  * @param {Array<{content: string}>} [params.loreEntries] - Lorebook entries already activated.
+ * @param {Map<string, {knowledge: Array<Object>, episodes: Array<Object>}>} [params.memoriesByCast] -
+ *   What each character remembers from before this story, by cast member id (see memory.js).
  * @param {Array<Object>} params.turns - The story's turns in order, including any turn just
  *   added from the composer. Uses kind, source, and content.
  * @param {Object} params.request
@@ -123,6 +151,7 @@ export function buildWriterMessages({
   bureau,
   cast,
   loreEntries = [],
+  memoriesByCast = new Map(),
   turns,
   request,
   openingTime = null,
@@ -169,6 +198,14 @@ export function buildWriterMessages({
   }
   if (persona) {
     system.push(section(`${userName.toUpperCase()} (THE READER'S CHARACTER)`, profile(persona)));
+  }
+  const remembered = characters
+    .map((member) =>
+      memoryBlock(member.seedCard?.data?.name || member.name, memoriesByCast.get(member.id)),
+    )
+    .filter(Boolean);
+  if (remembered.length > 0) {
+    system.push(section('MEMORIES', [MEMORIES_PREFACE, ...remembered].join('\n\n')));
   }
   const lore = loreEntries
     .map((entry) =>

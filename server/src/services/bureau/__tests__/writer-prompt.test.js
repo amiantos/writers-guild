@@ -3,6 +3,7 @@ import { buildWriterMessages, DEFAULT_HOUSE_STYLE } from '../writer-prompt.js';
 
 function member(name, fields = {}, { isPersona = false } = {}) {
   return {
+    id: name.toLowerCase(),
     name,
     isPersona,
     seedCard: { spec: 'chara_card_v2', spec_version: '2.0', data: { name, ...fields } },
@@ -63,6 +64,34 @@ describe('buildWriterMessages', () => {
     });
 
     expect(system).toContain('=== WORLD ===\nThe lighthouse went dark in 1971.');
+  });
+
+  it('adds what each character remembers from earlier stories', () => {
+    const { system } = build({
+      memoriesByCast: new Map([
+        [
+          'mara',
+          {
+            knowledge: [{ content: "Theo *can't* swim." }, { content: 'Theo hates boats.' }],
+            episodes: [{ content: 'They met at the pier.', sourceTitle: 'Story 1' }],
+          },
+        ],
+        ['theo', { knowledge: [{ content: 'The reader remembers this.' }], episodes: [] }],
+      ]),
+    });
+
+    expect(system).toContain(
+      "=== MEMORIES ===\nWhat the characters remember from before this story. Let it shape what they do and bring up, without reciting it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers from earlier stories:\n- Story 1: They met at the pier.",
+    );
+    expect(system).not.toContain('The reader remembers this.');
+  });
+
+  it('leaves out the memories section when no one remembers anything', () => {
+    const { system } = build({
+      memoriesByCast: new Map([['mara', { knowledge: [], episodes: [] }]]),
+    });
+
+    expect(system).not.toContain('MEMORIES');
   });
 
   it('writes an opening, set at the story start time, when nothing has been written', () => {

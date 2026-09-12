@@ -31,6 +31,8 @@ function storyFromRow(row, castIds) {
     endTime: row.end_time,
     castIds,
     turnCount: row.turn_count,
+    archivedThrough: row.archived_through,
+    summary: row.summary,
     created: row.created,
     modified: row.modified,
   };
@@ -87,6 +89,9 @@ export class StoryStorage {
         "UPDATE stories SET status = 'ended', end_time = ?, modified = ? WHERE id = ?",
       ),
       touchStory: this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?'),
+      setArchiveProgress: this.db.prepare(
+        'UPDATE stories SET archived_through = @archivedThrough, summary = @summary WHERE id = @storyId',
+      ),
       deleteStory: this.db.prepare('DELETE FROM stories WHERE bureau_id = ? AND id = ?'),
       listStoryCast: this.db.prepare(
         'SELECT cast_member_id FROM story_cast WHERE story_id = ? ORDER BY rowid',
@@ -99,9 +104,14 @@ export class StoryStorage {
       // Turns
       listTurns: this.db.prepare('SELECT * FROM turns WHERE story_id = ? ORDER BY position'),
       getTurn: this.db.prepare('SELECT * FROM turns WHERE story_id = ? AND id = ?'),
-      nextTurnPosition: this.db.prepare(
-        'SELECT COALESCE(MAX(position), -1) + 1 AS next FROM turns WHERE story_id = ?',
-      ),
+      // Past the archived positions too, so a turn added after the last turns were deleted
+      // isn't mistaken for one the Archivist has already read.
+      nextTurnPosition: this.db.prepare(`
+        SELECT MAX(
+          COALESCE((SELECT MAX(position) FROM turns WHERE story_id = @storyId), -1),
+          COALESCE((SELECT archived_through FROM stories WHERE id = @storyId), -1)
+        ) + 1 AS next
+      `),
       insertTurn: this.db.prepare(`
         INSERT INTO turns (id, story_id, position, kind, source, author_cast_id, content, run_id,
                            edited, active_variant_id, created, modified)
@@ -226,6 +236,16 @@ export class StoryStorage {
     return this.getStory(bureauId, storyId);
   }
 
+  /**
+   * Record how far the Archivist has read a story, and its summary so far.
+   * @param {string} storyId
+   * @param {{ archivedThrough: number, summary: string }} progress - archivedThrough is the
+   *   position of the last turn read.
+   */
+  setArchiveProgress(storyId, { archivedThrough, summary }) {
+    this.stmts.setArchiveProgress.run({ storyId, archivedThrough, summary });
+  }
+
   /** Deletes the story with its turns. */
   deleteStory(bureauId, storyId) {
     return this.stmts.deleteStory.run(bureauId, storyId).changes > 0;
@@ -275,7 +295,7 @@ export class StoryStorage {
     const created = timestamp();
     const variantId = source === 'generated' ? uuidv4() : null;
     this.db.transaction(() => {
-      const position = this.stmts.nextTurnPosition.get(storyId).next;
+      const position = this.stmts.nextTurnPosition.get({ storyId }).next;
       this.stmts.insertTurn.run({
         id,
         storyId,
