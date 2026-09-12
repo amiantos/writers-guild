@@ -13,8 +13,11 @@ import { openBureauDb } from './bureau-db.js';
 
 /** knowledge: lasting facts. episode: what happened in one story, from one character's view. */
 export const MEMORY_LAYERS = ['knowledge', 'episode'];
-/** story: recorded by the Archivist. manual: written in the memory browser, such as backstory. */
-export const MEMORY_SOURCES = ['story', 'manual'];
+/**
+ * story and correspondence: recorded by the Archivist from a story or a thread. manual: written
+ * in the memory browser, such as backstory.
+ */
+export const MEMORY_SOURCES = ['story', 'correspondence', 'manual'];
 /** retired includes memories replaced by newer ones. */
 export const MEMORY_STATUSES = ['current', 'retired'];
 
@@ -133,7 +136,7 @@ export class MemoryStorage {
       ),
       flagTurns: this.db.prepare(`
         UPDATE memories SET needs_review = 1, modified = @modified
-        WHERE bureau_id = @bureauId AND source_type = 'story' AND source_id = @storyId
+        WHERE bureau_id = @bureauId AND source_type = @sourceType AND source_id = @sourceId
           AND needs_review = 0
           AND EXISTS (
             SELECT 1 FROM json_each(memories.source_turn_ids) cited
@@ -191,8 +194,8 @@ export class MemoryStorage {
    * @param {string} memory.content
    * @param {number} [memory.importance]
    * @param {string|null} [memory.worldTime] - Bureau time it dates from; null for backstory.
-   * @param {'story'|'manual'} [memory.sourceType]
-   * @param {string|null} [memory.sourceId] - The story, for story memories.
+   * @param {'story'|'correspondence'|'manual'} [memory.sourceType]
+   * @param {string|null} [memory.sourceId] - The story or thread it came from.
    * @param {string[]} [memory.sourceTurnIds]
    * @param {string|null} [memory.runId] - The Archivist run that recorded it.
    * @param {boolean} [memory.pinned]
@@ -307,14 +310,19 @@ export class MemoryStorage {
   }
 
   /**
-   * Mark memories that cite changed or deleted turns for review.
+   * Mark memories that cite changed or deleted turns, or messages, for review.
+   * @param {string} bureauId
+   * @param {string} sourceId - The story, or the thread for correspondence.
+   * @param {string[]} turnIds - Turn or message ids.
+   * @param {'story'|'correspondence'} [sourceType]
    * @returns {number} How many memories were newly marked.
    */
-  flagTurnsChanged(bureauId, storyId, turnIds) {
+  flagTurnsChanged(bureauId, sourceId, turnIds, sourceType = 'story') {
     if (turnIds.length === 0) return 0;
     return this.stmts.flagTurns.run({
       bureauId,
-      storyId,
+      sourceId,
+      sourceType,
       turnIds: JSON.stringify(turnIds),
       modified: new Date().toISOString(),
     }).changes;

@@ -69,6 +69,7 @@ import { bureauStoriesAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import {
   browserTimeZone,
+  bureauPresent,
   formatDateTime,
   fromDatetimeLocal,
   rememberChoice,
@@ -87,7 +88,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'started']);
 const toast = useToast();
 
-const now = new Date();
+// The Bureau's present, which can be set to another date.
+const now = bureauPresent(props.bureau);
 const title = ref('');
 const castIds = ref(props.cast.map((member) => member.id));
 const choice = ref(rememberedChoice(CHOICE_KEY, ['present', 'bureau', 'custom'], 'present'));

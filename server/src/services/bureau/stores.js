@@ -11,13 +11,14 @@ import { ArcNoteStorage } from './arc-note-storage.js';
 import { BureauStorage } from './bureau-storage.js';
 import { MemoryStorage } from './memory-storage.js';
 import { StoryStorage } from './story-storage.js';
+import { ThreadStorage } from './thread-storage.js';
 
 const storesByRoot = new Map();
 
 /**
  * @param {string} dataRoot
- * @returns {{ bureaus: BureauStorage, stories: StoryStorage, memories: MemoryStorage,
- *   arcNotes: ArcNoteStorage, library: SqliteStorageService }}
+ * @returns {{ bureaus: BureauStorage, stories: StoryStorage, threads: ThreadStorage,
+ *   memories: MemoryStorage, arcNotes: ArcNoteStorage, library: SqliteStorageService }}
  *   `library` is story mode's storage, used read-only for library characters and
  *   lorebooks (and to save new library characters).
  */
@@ -26,6 +27,7 @@ export function getBureauStores(dataRoot) {
     storesByRoot.set(dataRoot, {
       bureaus: new BureauStorage(dataRoot),
       stories: new StoryStorage(dataRoot),
+      threads: new ThreadStorage(dataRoot),
       memories: new MemoryStorage(dataRoot),
       arcNotes: new ArcNoteStorage(dataRoot),
       library: new SqliteStorageService(dataRoot),

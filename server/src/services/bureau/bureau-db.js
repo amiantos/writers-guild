@@ -212,6 +212,37 @@ const MIGRATIONS = [
     CREATE INDEX idx_arc_notes_cast ON arc_notes(cast_member_id, status);
     CREATE INDEX idx_arc_notes_source ON arc_notes(source_type, source_id);
   `,
+
+  // 6: Correspondence, one thread per cast member with the reader's character
+  `
+    CREATE TABLE threads (
+      id TEXT PRIMARY KEY,
+      bureau_id TEXT NOT NULL REFERENCES bureaus(id) ON DELETE CASCADE,
+      cast_member_id TEXT NOT NULL REFERENCES cast_members(id) ON DELETE CASCADE,
+      -- Position of the last message the Archivist has read (-1 for none).
+      archived_through INTEGER NOT NULL DEFAULT -1,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX idx_threads_cast ON threads(bureau_id, cast_member_id);
+
+    CREATE TABLE messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      source TEXT NOT NULL,
+      -- The reader's character or the cast member who sent it; null once they leave the cast.
+      sender_cast_id TEXT REFERENCES cast_members(id) ON DELETE SET NULL,
+      content TEXT NOT NULL,
+      -- Bureau time when it was sent, kept because the present offset can change later.
+      bureau_time TEXT NOT NULL,
+      run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+      edited INTEGER NOT NULL DEFAULT 0,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX idx_messages_thread_position ON messages(thread_id, position);
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

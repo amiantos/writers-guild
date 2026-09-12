@@ -173,6 +173,17 @@ describe('Bureau story routes', () => {
       });
     });
 
+    it("starts at the Bureau's present when its date is moved", async () => {
+      stores.bureaus.updateBureau(bureau.id, { presentOffsetDays: -365 });
+      const before = Date.now();
+
+      const story = await startStory({ start: { choice: 'present' } });
+
+      const started = Date.parse(story.startTime);
+      expect(started).toBeGreaterThanOrEqual(before - 365 * 86_400_000 - 1000);
+      expect(started).toBeLessThan(before - 364 * 86_400_000);
+    });
+
     it('rejects an unknown time choice or cast member', async () => {
       await request(app)
         .post(storiesUrl())

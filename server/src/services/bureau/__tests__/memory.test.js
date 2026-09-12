@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isBeforeStory, memoriesAsOf, selectForPrompt } from '../memory.js';
+import {
+  isBeforeStory,
+  memoriesAsOf,
+  memoriesAtTime,
+  notesAtTime,
+  selectForPrompt,
+} from '../memory.js';
 
 let nextId = 1;
 
@@ -52,6 +58,51 @@ describe('isBeforeStory', () => {
 
   it("leaves out the story's own memories", () => {
     expect(isBeforeStory(fromStory(second), second)).toBe(false);
+  });
+});
+
+describe('memoriesAtTime', () => {
+  const between = '2026-10-05T12:00:00.000Z';
+
+  it('sees backstory and everything dated up to the moment', () => {
+    const backstory = memory({ content: 'Mara keeps the light.' });
+    const early = fromStory(first, { content: "Theo can't swim." });
+    const later = fromStory(second, { content: 'Theo went to the fair.' });
+
+    expect(memoriesAtTime([backstory, early, later], between)).toEqual([backstory, early]);
+    expect(memoriesAtTime([backstory, early, later], new Date(second.startTime))).toEqual([
+      backstory,
+      early,
+      later,
+    ]);
+  });
+
+  it('keeps a memory whose replacement comes after the moment', () => {
+    const replacement = fromStory(second, { content: 'Theo swims now.' });
+    const original = fromStory(first, {
+      content: "Theo can't swim.",
+      supersededBy: replacement.id,
+    });
+
+    expect(memoriesAtTime([replacement, original], between)).toEqual([original]);
+    expect(memoriesAtTime([replacement, original], '2026-10-09T12:00:00.000Z')).toEqual([
+      replacement,
+    ]);
+    expect(memoriesAtTime([memory({ retired: true })], between)).toEqual([]);
+  });
+});
+
+describe('notesAtTime', () => {
+  it('sees accepted notes dated up to the moment', () => {
+    const written = { id: 1, status: 'accepted', worldTime: null };
+    const early = { id: 2, status: 'accepted', worldTime: first.startTime };
+    const later = { id: 3, status: 'accepted', worldTime: second.startTime };
+    const proposed = { id: 4, status: 'proposed', worldTime: first.startTime };
+
+    expect(notesAtTime([written, early, later, proposed], '2026-10-05T12:00:00.000Z')).toEqual([
+      written,
+      early,
+    ]);
   });
 });
 

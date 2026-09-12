@@ -66,6 +66,18 @@ describe('buildWriterMessages', () => {
     expect(system).toContain('=== WORLD ===\nThe lighthouse went dark in 1971.');
   });
 
+  it('names the year as setting for a story set in another year', () => {
+    const { system } = build({
+      settingYear: 1996,
+      loreEntries: [{ content: 'The lighthouse went dark in 1971.' }],
+    });
+
+    expect(system).toContain(
+      '=== WORLD ===\nThe year is 1996.\n\nThe lighthouse went dark in 1971.',
+    );
+    expect(build().system).not.toContain('The year is');
+  });
+
   it('adds what each character remembers from earlier stories', () => {
     const { system } = build({
       memoriesByCast: new Map([

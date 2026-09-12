@@ -140,7 +140,7 @@ export class BureauStorage {
       updateBureau: this.db.prepare(`
         UPDATE bureaus SET name = @name, description = @description, api_key = @apiKey,
                            model = @model, house_style = @houseStyle, timezone = @timezone,
-                           modified = @modified
+                           present_offset_days = @presentOffsetDays, modified = @modified
         WHERE id = @id
       `),
       updateSettings: this.db.prepare('UPDATE bureaus SET settings = ?, modified = ? WHERE id = ?'),
@@ -263,7 +263,8 @@ export class BureauStorage {
 
   /**
    * @param {string} bureauId
-   * @param {Object} updates - Any of name, description, apiKey, model, houseStyle, timezone.
+   * @param {Object} updates - Any of name, description, apiKey, model, houseStyle, timezone, and
+   *   presentOffsetDays (the Bureau's present, in whole days from the real date).
    *   Undefined fields are left alone. An apiKey of '' removes the key, and a
    *   timezone of null clears it.
    * @returns {Object|null} The updated Bureau, or null if it doesn't exist.
@@ -280,6 +281,7 @@ export class BureauStorage {
       model: updates.model ?? row.model,
       houseStyle: updates.houseStyle ?? row.house_style,
       timezone: updates.timezone !== undefined ? updates.timezone : row.timezone,
+      presentOffsetDays: updates.presentOffsetDays ?? row.present_offset_days,
       modified: new Date().toISOString(),
     });
     return this.getBureau(bureauId);

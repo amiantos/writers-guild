@@ -1,12 +1,76 @@
 import { describe, it, expect } from 'vitest';
 import {
   BureauTimeError,
+  bureauPresent,
   describeDayPart,
+  describeGap,
   describeTime,
   isValidTimeZone,
   resolveStoryEndTime,
   resolveStoryStartTime,
+  settingYear,
 } from '../bureau-time.js';
+
+describe('bureauPresent', () => {
+  it('moves the date by whole days and keeps the time of day', () => {
+    const now = new Date('2026-09-12T22:15:00Z');
+
+    expect(bureauPresent({ presentOffsetDays: 0 }, now).toISOString()).toBe(
+      '2026-09-12T22:15:00.000Z',
+    );
+    expect(bureauPresent({ presentOffsetDays: 3 }, now).toISOString()).toBe(
+      '2026-09-15T22:15:00.000Z',
+    );
+    expect(bureauPresent({ presentOffsetDays: -365 }, now).toISOString()).toBe(
+      '2025-09-12T22:15:00.000Z',
+    );
+  });
+});
+
+describe('describeGap', () => {
+  const from = '2026-09-01T12:00:00Z';
+  const after = (hours) => new Date(Date.parse(from) + hours * 3_600_000);
+
+  it("says nothing about short gaps or times it can't read", () => {
+    expect(describeGap(from, after(2))).toBeNull();
+    expect(describeGap(from, after(-30))).toBeNull();
+    expect(describeGap('not a date', after(50))).toBeNull();
+  });
+
+  it('describes longer gaps loosely', () => {
+    const hours = [5, 20, 72, 192, 432, 840, 2880, 9600, 21600];
+
+    expect(hours.map((gap) => describeGap(from, after(gap)))).toEqual([
+      'a few hours',
+      'about a day',
+      'a few days',
+      'about a week',
+      'a few weeks',
+      'about a month',
+      'a few months',
+      'about a year',
+      'more than a year',
+    ]);
+  });
+});
+
+describe('settingYear', () => {
+  const now = new Date('2026-09-12T22:15:00Z');
+
+  it('names the year when the present is moved or a moment is in another year', () => {
+    const bureau = { presentOffsetDays: -11_000, timezone: 'UTC' };
+
+    expect(settingYear(bureau, bureauPresent(bureau, now), now)).toBe(1996);
+    expect(
+      settingYear({ presentOffsetDays: 0, timezone: 'UTC' }, '1996-06-01T12:00:00Z', now),
+    ).toBe(1996);
+  });
+
+  it('leaves the year out for the real present', () => {
+    expect(settingYear({ presentOffsetDays: 0, timezone: null }, now, now)).toBeNull();
+    expect(settingYear({ presentOffsetDays: 0, timezone: 'UTC' }, 'not a date', now)).toBeNull();
+  });
+});
 
 describe('describeTime', () => {
   it('describes a moment loosely, in the given time zone', () => {

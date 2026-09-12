@@ -137,6 +137,20 @@ describe('Bureau routes', () => {
       await request(app).put(`/api/bureaus/${bureau.id}`).send({ model: ' ' }).expect(400);
     });
 
+    it("sets the Bureau's present as a whole number of days from today", async () => {
+      const bureau = await createBureau();
+
+      const { body } = await request(app)
+        .put(`/api/bureaus/${bureau.id}`)
+        .send({ presentOffsetDays: -11000 })
+        .expect(200);
+
+      expect(body.bureau.presentOffsetDays).toBe(-11000);
+      for (const presentOffsetDays of [1.5, '3', 80000]) {
+        await request(app).put(`/api/bureaus/${bureau.id}`).send({ presentOffsetDays }).expect(400);
+      }
+    });
+
     it('returns 404 for a Bureau that does not exist', async () => {
       await request(app).get('/api/bureaus/missing').expect(404);
       await request(app).put('/api/bureaus/missing').send({ name: 'Nope' }).expect(404);

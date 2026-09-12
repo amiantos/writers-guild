@@ -200,6 +200,21 @@ describe('MemoryStorage', () => {
     });
   });
 
+  it('flags memories citing changed messages in a thread', () => {
+    const fromThread = remember('Theo texted about the storm.', {
+      sourceType: 'correspondence',
+      sourceId: 'thread-1',
+      sourceTurnIds: ['message-1'],
+    });
+    const fromStory = remember('Theo knocked twice.', { sourceTurnIds: ['message-1'] });
+
+    expect(memories.flagTurnsChanged(bureau.id, 'thread-1', ['message-1'], 'correspondence')).toBe(
+      1,
+    );
+    expect(memories.getMemory(bureau.id, fromThread.id).needsReview).toBe(true);
+    expect(memories.getMemory(bureau.id, fromStory.id).needsReview).toBe(false);
+  });
+
   it('flags memories citing changed turns until they are reviewed', () => {
     const cited = stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Knock.' });
     const other = stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Lamp.' });

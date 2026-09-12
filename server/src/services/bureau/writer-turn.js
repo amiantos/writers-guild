@@ -13,7 +13,7 @@
 
 import { ImagePreserver } from '../image-preserver.js';
 import { LorebookActivator } from '../lorebook-activator.js';
-import { describeBureauTime } from './bureau-time.js';
+import { describeBureauTime, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { runDirector } from './director.js';
 import { runEditor } from './editor.js';
@@ -65,7 +65,8 @@ function recordableMessages(messages, storySection) {
   );
 }
 
-async function activatedLore(stores, bureauId, scanText) {
+/** Entries from the Bureau's attached lorebooks that the text activates. */
+export async function activatedLore(stores, bureauId, scanText) {
   const lorebooks = [];
   for (const lorebookId of stores.bureaus.listLorebookIds(bureauId)) {
     try {
@@ -221,6 +222,7 @@ export async function generateWriterTurn({
       turns,
       request: { ...promptRequest, brief },
       openingTime,
+      settingYear: settingYear(bureau, story.startTime),
       imagePreserver,
     }));
   } catch (error) {

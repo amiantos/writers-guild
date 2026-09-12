@@ -16,6 +16,7 @@ import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { sseChannel } from '../utils/sse.js';
 import { DeepSeekError } from '../services/bureau/deepseek-client.js';
 import {
+  bureauPresent,
   BureauTimeError,
   isValidTimeZone,
   resolveStoryEndTime,
@@ -26,6 +27,7 @@ import { generateWriterTurn, requestForRegeneration } from '../services/bureau/w
 import {
   createBureauClient,
   optionalString,
+  requireApiKey,
   requireBureau,
   requireStory,
 } from './bureau-route-helpers.js';
@@ -61,12 +63,6 @@ function validateCastIds(bureaus, bureauId, castIds) {
 function requireActive(story) {
   if (story.status !== 'active') {
     throw new AppError('This story has ended', 409);
-  }
-}
-
-function requireApiKey(bureau) {
-  if (!bureau.hasApiKey) {
-    throw new AppError('This Bureau has no API key. Add one in its settings.', 400);
   }
 }
 
@@ -213,7 +209,7 @@ router.post(
       resolveStoryStartTime({
         choice: body.start?.choice ?? 'present',
         bureauTime: bureau.bureauTime,
-        present: new Date(),
+        present: bureauPresent(bureau),
         customTime: body.start?.customTime,
       }),
     );
@@ -284,7 +280,7 @@ router.post(
       resolveStoryEndTime({
         choice: end?.choice ?? 'unchanged',
         bureauTime: bureau.bureauTime,
-        present: new Date(),
+        present: bureauPresent(bureau),
         customTime: end?.customTime,
       }),
     );

@@ -10,6 +10,21 @@ function timeOf(memory) {
   return memory.worldTime ? Date.parse(memory.worldTime) : -Infinity;
 }
 
+function timestampOf(time) {
+  return time instanceof Date ? time.getTime() : Date.parse(time);
+}
+
+/** Unretired visible memories, leaving out any replaced by another visible memory. */
+function currentAmong(memories, isVisible) {
+  const visibleIds = new Set(memories.filter(isVisible).map((memory) => memory.id));
+  return memories.filter(
+    (memory) =>
+      !memory.retired &&
+      visibleIds.has(memory.id) &&
+      (memory.supersededBy === null || !visibleIds.has(memory.supersededBy)),
+  );
+}
+
 /** Oldest first: by Bureau time (backstory first), then story order, then when recorded. */
 export function compareChronological(a, b) {
   return (
@@ -50,20 +65,28 @@ export function isBeforeStory(memory, story) {
  * @returns {Array<Object>} Unretired memories, in the order given.
  */
 export function memoriesAsOf(memories, story, { includeOwnStory = false } = {}) {
-  const visibleIds = new Set(
-    memories
-      .filter(
-        (memory) =>
-          isBeforeStory(memory, story) ||
-          (includeOwnStory && memory.sourceType === 'story' && memory.sourceId === story.id),
-      )
-      .map((memory) => memory.id),
-  );
-  return memories.filter(
+  return currentAmong(
+    memories,
     (memory) =>
-      !memory.retired &&
-      visibleIds.has(memory.id) &&
-      (memory.supersededBy === null || !visibleIds.has(memory.supersededBy)),
+      isBeforeStory(memory, story) ||
+      (includeOwnStory && memory.sourceType === 'story' && memory.sourceId === story.id),
+  );
+}
+
+/**
+ * A character's memories as they stand at a moment, for correspondence:
+ * backstory and everything dated at or before it, including stories that
+ * started earlier and haven't ended.
+ *
+ * @param {Array<Object>} memories - All of the character's memories (status 'all').
+ * @param {Date|string} time
+ * @returns {Array<Object>} Unretired memories, in the order given.
+ */
+export function memoriesAtTime(memories, time) {
+  const moment = timestampOf(time);
+  return currentAmong(
+    memories,
+    (memory) => !memory.worldTime || Date.parse(memory.worldTime) <= moment,
   );
 }
 
@@ -75,6 +98,19 @@ export function memoriesAsOf(memories, story, { includeOwnStory = false } = {}) 
  */
 export function notesAsOf(notes, story) {
   return notes.filter((note) => note.status === 'accepted' && isBeforeStory(note, story));
+}
+
+/**
+ * Accepted arc notes as they stand at a moment, for correspondence.
+ * @param {Array<Object>} notes - A character's arc notes.
+ * @param {Date|string} time
+ */
+export function notesAtTime(notes, time) {
+  const moment = timestampOf(time);
+  return notes.filter(
+    (note) =>
+      note.status === 'accepted' && (!note.worldTime || Date.parse(note.worldTime) <= moment),
+  );
 }
 
 /**

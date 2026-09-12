@@ -298,3 +298,39 @@ export const bureauStoriesAPI = {
     return streamEvents(`/${bureauId}/stories/${storyId}/turns/${turnId}/regenerate`, {}, signal);
   },
 };
+
+export const bureauThreadsAPI = {
+  /** Everyone the reader can write to, each with their thread (null before the first message). */
+  list(bureauId) {
+    return request(`/${bureauId}/threads`);
+  },
+
+  /** A cast member's thread and messages, with the Bureau and the cast member. */
+  get(bureauId, castId) {
+    return request(`/${bureauId}/threads/${castId}`);
+  },
+
+  /**
+   * Send a message and stream the reply. Events: message (the reader's saved message), run,
+   * reasoning, content, and done (with message, replies, and bureau).
+   */
+  send(bureauId, castId, text, signal) {
+    return streamEvents(`/${bureauId}/threads/${castId}/messages`, { text }, signal);
+  },
+
+  /** Stream a reply without a new message from the reader. */
+  reply(bureauId, castId, signal) {
+    return streamEvents(`/${bureauId}/threads/${castId}/reply`, {}, signal);
+  },
+
+  editMessage(bureauId, castId, messageId, content) {
+    return request(`/${bureauId}/threads/${castId}/messages/${messageId}`, {
+      method: 'PUT',
+      body: { content },
+    });
+  },
+
+  deleteMessage(bureauId, castId, messageId) {
+    return request(`/${bureauId}/threads/${castId}/messages/${messageId}`, { method: 'DELETE' });
+  },
+};

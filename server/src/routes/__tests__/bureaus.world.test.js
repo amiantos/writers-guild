@@ -48,6 +48,7 @@ describe('Bureau settings and world routes', () => {
 
     expect(body).toEqual({
       houseStyle: DEFAULT_HOUSE_STYLE,
+      correspondenceStyle: expect.stringContaining('text messages'),
       settings: DEFAULT_SETTINGS,
       model: 'deepseek-flash',
     });

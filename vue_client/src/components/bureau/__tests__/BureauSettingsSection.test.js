@@ -17,6 +17,7 @@ function bureau(fields = {}) {
     hasApiKey: true,
     apiKeyPreview: 'sk-…1234',
     timezone: null,
+    presentOffsetDays: 0,
     settings: {
       writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
       director: {
@@ -28,6 +29,7 @@ function bureau(fields = {}) {
       },
       editor: { enabled: true },
       style: { bannedPhrases: ['a testament to'] },
+      correspondence: { style: '', thinking: false, maxTokens: 1000 },
     },
     ...fields,
   };
@@ -107,6 +109,7 @@ describe('BureauSettingsSection', () => {
       },
       editor: { enabled: false },
       style: { bannedPhrases: ['a testament to', 'sent shivers down'] },
+      correspondence: { style: '', thinking: false, maxTokens: 1000 },
     });
   });
 });

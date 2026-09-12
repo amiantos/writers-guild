@@ -187,6 +187,32 @@
         </p>
       </fieldset>
 
+      <fieldset class="writer-settings">
+        <legend>Messages</legend>
+        <label class="checkbox-label">
+          <input
+            id="bureau-settings-correspondence-thinking"
+            v-model="form.correspondence.thinking"
+            type="checkbox"
+          />
+          Thinking mode for replies
+        </label>
+        <div class="form-group">
+          <label for="bureau-settings-correspondence-style">How messages read</label>
+          <textarea
+            id="bureau-settings-correspondence-style"
+            v-model="form.correspondence.style"
+            class="textarea-input"
+            rows="4"
+            :placeholder="defaults?.correspondenceStyle"
+          ></textarea>
+        </div>
+        <p class="help-text">
+          Replies follow these rules instead of the house style. While this is empty, the default
+          shown in the box applies. For a Bureau set before phones, describe letters or telegrams.
+        </p>
+      </fieldset>
+
       <div class="form-group">
         <div class="label-row">
           <label for="bureau-settings-house-style">House style</label>
@@ -208,6 +234,20 @@
         <p class="help-text">
           Rules the Writer follows on every turn. While this is empty, the default shown in the box
           applies.
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label for="bureau-settings-present">The Bureau's present</label>
+        <input
+          id="bureau-settings-present"
+          v-model="form.presentDate"
+          type="date"
+          class="text-input"
+        />
+        <p class="help-text">
+          Messages are sent on this date, with the time of day following your clock. Set another
+          year, such as 1996, and stories and replies take it as the setting. Clear it for today.
         </p>
       </div>
 
@@ -243,7 +283,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { bureausAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import { useConfirm } from '../../composables/useConfirm';
-import { browserTimeZone } from '../../composables/bureau/format';
+import { browserTimeZone, offsetDaysTo, presentDateValue } from '../../composables/bureau/format';
 
 const props = defineProps({
   bureau: { type: Object, required: true },
@@ -264,9 +304,11 @@ function snapshot(bureau) {
     description: bureau.description,
     model: bureau.model,
     houseStyle: bureau.houseStyle,
+    presentDate: presentDateValue(bureau),
     writer: { ...bureau.settings.writer },
     director: { ...bureau.settings.director },
     editor: { ...bureau.settings.editor },
+    correspondence: { ...bureau.settings.correspondence },
     bannedPhrases: bureau.settings.style.bannedPhrases.join('\n'),
   };
 }
@@ -327,11 +369,13 @@ async function save() {
     description: form.description.trim(),
     model: form.model.trim(),
     houseStyle: form.houseStyle,
+    presentOffsetDays: offsetDaysTo(form.presentDate) ?? 0,
     settings: {
       writer: { ...form.writer },
       director: { ...form.director },
       editor: { ...form.editor },
       style: { bannedPhrases: phrasesFrom(form.bannedPhrases) },
+      correspondence: { ...form.correspondence },
     },
   };
   if (form.apiKey.trim()) {
@@ -342,6 +386,7 @@ async function save() {
       name: updates.name,
       description: updates.description,
       model: updates.model,
+      presentDate: presentDateValue({ presentOffsetDays: updates.presentOffsetDays }),
       apiKey: '',
     });
   }

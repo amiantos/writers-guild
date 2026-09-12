@@ -11,11 +11,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { CastConflictError } from '../services/bureau/bureau-storage.js';
 import { BureauSettingsError, DEFAULT_SETTINGS } from '../services/bureau/bureau-settings.js';
-import { isValidTimeZone } from '../services/bureau/bureau-time.js';
+import { isValidTimeZone, MAX_PRESENT_OFFSET_DAYS } from '../services/bureau/bureau-time.js';
 import { DEFAULT_MODEL, DeepSeekError } from '../services/bureau/deepseek-client.js';
 import { exportedCard } from '../services/bureau/character-export.js';
 import { generateCharacter } from '../services/bureau/character-generator.js';
+import { DEFAULT_CORRESPONDENCE_STYLE } from '../services/bureau/correspondence.js';
 import { DEFAULT_HOUSE_STYLE } from '../services/bureau/writer-prompt.js';
+import bureauCorrespondenceRouter from './bureau-correspondence.js';
 import bureauMemoriesRouter from './bureau-memories.js';
 import bureauStoriesRouter from './bureau-stories.js';
 import {
@@ -64,7 +66,12 @@ router.post(
 router.get(
   '/defaults',
   asyncHandler(async (req, res) => {
-    res.json({ houseStyle: DEFAULT_HOUSE_STYLE, settings: DEFAULT_SETTINGS, model: DEFAULT_MODEL });
+    res.json({
+      houseStyle: DEFAULT_HOUSE_STYLE,
+      correspondenceStyle: DEFAULT_CORRESPONDENCE_STYLE,
+      settings: DEFAULT_SETTINGS,
+      model: DEFAULT_MODEL,
+    });
   }),
 );
 
@@ -77,6 +84,7 @@ router.get(
 );
 
 // Update a Bureau. An apiKey of '' removes the key; a timezone of null clears it.
+// presentOffsetDays moves the Bureau's present by whole days from the real date.
 // `settings` is a partial update, such as { writer: { thinking: true } }.
 router.put(
   '/:bureauId',
@@ -93,6 +101,7 @@ router.put(
       model: optionalString(body, 'model'),
       houseStyle: optionalString(body, 'houseStyle'),
       timezone: body.timezone,
+      presentOffsetDays: body.presentOffsetDays,
     };
 
     if (Object.values(updates).every((value) => value === undefined) && !body.settings) {
@@ -108,6 +117,18 @@ router.put(
       if (!isValidTimeZone(updates.timezone)) {
         throw new AppError('timezone must be an IANA time zone name, or null', 400);
       }
+    }
+    if (
+      updates.presentOffsetDays !== undefined &&
+      !(
+        Number.isInteger(updates.presentOffsetDays) &&
+        Math.abs(updates.presentOffsetDays) <= MAX_PRESENT_OFFSET_DAYS
+      )
+    ) {
+      throw new AppError(
+        `presentOffsetDays must be a whole number from -${MAX_PRESENT_OFFSET_DAYS} to ${MAX_PRESENT_OFFSET_DAYS}`,
+        400,
+      );
     }
 
     let bureau;
@@ -479,5 +500,6 @@ router.get(
 
 router.use('/:bureauId', bureauMemoriesRouter);
 router.use('/:bureauId/stories', bureauStoriesRouter);
+router.use('/:bureauId/threads', bureauCorrespondenceRouter);
 
 export default router;

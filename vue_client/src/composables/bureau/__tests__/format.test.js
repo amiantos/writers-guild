@@ -1,13 +1,35 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
+  bureauPresent,
   formatDateTime,
   formatDuration,
   formatUsage,
   fromDatetimeLocal,
+  offsetDaysTo,
+  presentDateValue,
   rememberChoice,
   rememberedChoice,
   toDatetimeLocal,
 } from '../format.js';
+
+describe("the Bureau's present", () => {
+  const now = new Date(2026, 8, 12, 22, 15);
+
+  it('turns a day offset into a date and back', () => {
+    expect(presentDateValue({ presentOffsetDays: 0 }, now)).toBe('2026-09-12');
+    expect(presentDateValue({ presentOffsetDays: -11000 }, now)).toBe('1996-07-31');
+    expect(offsetDaysTo('1996-07-31', now)).toBe(-11000);
+    expect(offsetDaysTo('2026-09-15', now)).toBe(3);
+    expect(offsetDaysTo('', now)).toBeNull();
+  });
+
+  it('keeps the time of day', () => {
+    const present = bureauPresent({ presentOffsetDays: 3 }, now);
+
+    expect(present.getHours()).toBe(22);
+    expect(present.getDate()).toBe(15);
+  });
+});
 
 describe('formatDateTime', () => {
   it('formats in the given time zone', () => {

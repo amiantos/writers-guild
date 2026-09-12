@@ -28,6 +28,12 @@ export function requireStory(stories, bureauId, storyId) {
   return story;
 }
 
+export function requireApiKey(bureau) {
+  if (!bureau.hasApiKey) {
+    throw new AppError('This Bureau has no API key. Add one in its settings.', 400);
+  }
+}
+
 /** A trimmed string field from the body, or undefined when it's absent. */
 export function optionalString(body, field) {
   const value = body[field];

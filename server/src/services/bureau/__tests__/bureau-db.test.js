@@ -63,6 +63,8 @@ describe('bureau-db', () => {
   it('upgrades an older database to the current schema', () => {
     const db = openBureauDb(tempDir);
     db.exec(`
+      DROP TABLE messages;
+      DROP TABLE threads;
       DROP TABLE arc_notes;
       DROP TABLE memories_fts;
       DROP TABLE memories;
@@ -92,6 +94,8 @@ describe('bureau-db', () => {
         'memories',
         'memories_fts',
         'arc_notes',
+        'threads',
+        'messages',
       ]),
     );
     expect(upgraded.prepare('SELECT archived_through, summary FROM stories').all()).toEqual([]);

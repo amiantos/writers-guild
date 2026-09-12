@@ -40,6 +40,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
   style: Object.freeze({
     bannedPhrases: Object.freeze([]),
   }),
+  correspondence: Object.freeze({
+    // How messages read. Empty uses the default: short first-person texts.
+    style: '',
+    thinking: false,
+    maxTokens: 1000,
+  }),
 });
 
 export class BureauSettingsError extends Error {
@@ -92,12 +98,22 @@ const STYLE_RULES = {
     'must be a list of up to 100 phrases, each 1 to 200 characters',
 };
 
+const CORRESPONDENCE_RULES = {
+  style: (value) =>
+    (typeof value === 'string' && value.length <= 4000) || 'must be text of up to 4000 characters',
+  thinking: isBoolean,
+  maxTokens: (value) =>
+    (Number.isInteger(value) && value >= 100 && value <= 8000) ||
+    'must be a whole number from 100 to 8000',
+};
+
 const RULES = {
   writer: WRITER_RULES,
   memory: MEMORY_RULES,
   director: DIRECTOR_RULES,
   editor: EDITOR_RULES,
   style: STYLE_RULES,
+  correspondence: CORRESPONDENCE_RULES,
 };
 
 function isPlainObject(value) {
@@ -107,7 +123,8 @@ function isPlainObject(value) {
 /**
  * Stored settings merged over the defaults.
  * @param {Object} [stored]
- * @returns {{ writer: Object, memory: Object, director: Object, editor: Object, style: Object }}
+ * @returns {{ writer: Object, memory: Object, director: Object, editor: Object, style: Object,
+ *   correspondence: Object }}
  */
 export function resolveSettings(stored = {}) {
   return Object.fromEntries(

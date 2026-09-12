@@ -407,18 +407,28 @@ members. It's saved as knowledge with no story and no time, so every story can s
 
 ## Correspondence
 
-- One thread per persona and cast member pair. Short first-person messages (texts by default), with
-  their own section of the house style.
-- Correspondence is always real time: sending or receiving a message moves Bureau time to the
-  Bureau's present (see [The Bureau's present](#the-bureaus-present)).
-- Every prompt includes a loose time of day, the character's routine for right now, and recent
-  episodes. The time since the last message is included only when the gap is long enough to matter.
-- Replies use a lighter pipeline: Writer-style generation with memory, calling the Director only when
-  tools are needed.
-- Sessions become episodes, so the next story knows you texted that afternoon.
-- **Offscreen life** fills the gap whenever Bureau time jumps forward (see
-  [Offscreen life](#offscreen-life)).
-- **Later:** characters message first, and other delivery channels such as an IRC bridge.
+- One thread per cast member, written with the Bureau's reader's character, so choosing a reader's
+  character in the cast is what opens messages.
+- Replies are short first-person messages, texts by default. The Bureau's settings have a **message
+  style** used in place of the house style; for a Bureau set before phones, it can describe letters
+  or telegrams.
+- Correspondence is always real time: sending a message and every reply move Bureau time to the
+  Bureau's present (see [The Bureau's present](#the-bureaus-present)). Each message keeps the Bureau
+  time it was sent at, because the present offset can change later.
+- A reply is one streamed call with the character's profile and arc notes, their memories as they
+  stand at the present (a story that started earlier counts even if it hasn't ended), lore activated
+  by recent messages, and the conversation as a labeled transcript, since this is a chat. The
+  transcript marks a loose time at its start and after each long gap. The prompt ends with the loose
+  time now, and how long it's been since the last message when that matters. Messages in a reply are
+  separated by a line holding only `---`, and a reply saves as up to six messages.
+- The thread view groups messages into sessions (no gap over three hours), shows how each reply was
+  written in a seam, and lets you edit or delete any message; changing one marks memories that cite
+  it for review. "Let them write" asks for messages without a new one from you.
+- **Next (phase 7b):** sessions become episodes, so the next story knows you texted that afternoon;
+  each character's routine shapes replies; **offscreen life** fills the gap whenever Bureau time
+  jumps forward (see [Offscreen life](#offscreen-life)).
+- **Later:** the Director for replies that need tools, characters message first, and other delivery
+  channels such as an IRC bridge.
 
 ## Bureau time
 
@@ -442,10 +452,12 @@ stored as a whole-day offset from the real calendar:
 - The date shifts by the offset, and the weekday and season follow the shifted date.
 - Everywhere this doc says "the present" (correspondence and both story dialogs), it means real time
   plus the offset.
-- When the offset isn't zero, the Bureau's year goes into the world section of prompts as setting,
-  not as a timestamp, so the Writer avoids anachronisms.
-- Correspondence doesn't have to be texting. The house style can set a medium that fits the era,
+- When the offset isn't zero, or a story starts in a year other than the real one, the year goes into
+  the world section of prompts as setting ("The year is 1996."), not as a timestamp, so the Writer
+  avoids anachronisms.
+- Correspondence doesn't have to be texting. The message style can set a medium that fits the era,
   such as letters or email.
+- The present is set in the Bureau's settings as a date; clearing it means today.
 
 ### Time in prompts
 
@@ -545,8 +557,9 @@ turns          (id, story_id, position, kind, source [user|generated], author_ca
                 content, run_id NULL, edited, created, modified)
 turn_variants  (id, turn_id, content, run_id, created)
 
-threads        (id, bureau_id, cast_member_id, created)
-messages       (id, thread_id, sender_cast_id, content, bureau_time, run_id NULL, created)
+threads        (id, bureau_id, cast_member_id, archived_through, created, modified)
+messages       (id, thread_id, position, source [user|generated], sender_cast_id NULL, content,
+                bureau_time, run_id NULL, edited, created, modified)
 
 memories       (id, bureau_id, cast_member_id, layer [knowledge|episode|era|offscreen],
                 content, importance, world_time NULL, source_type [story|manual],
@@ -584,6 +597,8 @@ server/src/services/bureau/
   memory-storage.js                      # memory queries and FTS
   memory.js                              # what a story can see, prompt budgets
   bureau-time.js                         # Bureau time changes, loose time descriptions
+  thread-storage.js                      # correspondence threads and messages
+  correspondence.js                      # replies
   offscreen.js
   character-generator.js
   run-recorder.js                        # agent_runs and agent_steps

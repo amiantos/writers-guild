@@ -15,6 +15,7 @@ describe('resolveSettings', () => {
       'director',
       'editor',
       'style',
+      'correspondence',
     ]);
     expect(resolveSettings({ writer: { thinking: true } }).writer).toEqual({
       ...DEFAULT_SETTINGS.writer,
@@ -41,6 +42,18 @@ describe('applySettingsUpdate', () => {
     expect(applySettingsUpdate({}, { writer: { maxTokens: 6000 } })).toEqual({
       writer: { maxTokens: 6000 },
     });
+  });
+
+  it('validates correspondence settings', () => {
+    const update = { correspondence: { style: 'Letters.', thinking: true, maxTokens: 600 } };
+
+    expect(applySettingsUpdate({}, update)).toEqual(update);
+    expect(() => applySettingsUpdate({}, { correspondence: { maxTokens: 50 } })).toThrow(
+      BureauSettingsError,
+    );
+    expect(() => applySettingsUpdate({}, { correspondence: { style: 'x'.repeat(4001) } })).toThrow(
+      /up to 4000 characters/,
+    );
   });
 
   it('updates memory settings alongside writer settings', () => {

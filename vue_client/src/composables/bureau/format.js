@@ -58,6 +58,32 @@ export function fromDatetimeLocal(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The Bureau's present: now, with the date moved by its whole-day offset. */
+export function bureauPresent(bureau, now = new Date()) {
+  return new Date(now.getTime() + (bureau?.presentOffsetDays ?? 0) * DAY_MS);
+}
+
+/**
+ * The value for <input type="date"> (YYYY-MM-DD) showing a Bureau's present: today in the
+ * browser's zone, moved by the Bureau's whole-day offset.
+ */
+export function presentDateValue(bureau, now = new Date()) {
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const date = new Date(today + (bureau?.presentOffsetDays ?? 0) * DAY_MS);
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+/** Whole days from today (in the browser's zone) to a date input value, or null if invalid. */
+export function offsetDaysTo(dateValue, now = new Date()) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue ?? '');
+  if (!match) return null;
+  const target = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target - today) / DAY_MS);
+}
+
 /** A duration such as "850ms" or "2.4s". */
 export function formatDuration(ms) {
   if (ms === null || ms === undefined) return '';

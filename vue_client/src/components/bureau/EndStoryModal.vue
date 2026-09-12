@@ -52,6 +52,7 @@ import Modal from '../Modal.vue';
 import { bureauStoriesAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import {
+  bureauPresent,
   formatDateTime,
   fromDatetimeLocal,
   rememberChoice,
@@ -70,7 +71,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'ended']);
 const toast = useToast();
 
-const now = new Date();
+// The Bureau's present, which can be set to another date.
+const now = bureauPresent(props.bureau);
 const choice = ref(rememberedChoice(CHOICE_KEY, ['present', 'custom', 'unchanged'], 'present'));
 const customTime = ref(toDatetimeLocal(new Date(Date.parse(props.story.startTime) + TWO_HOURS)));
 const ending = ref(false);

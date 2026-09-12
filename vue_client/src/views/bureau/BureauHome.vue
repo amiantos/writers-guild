@@ -28,6 +28,7 @@
         </div>
 
         <BureauStoriesSection :bureau="bureau" :cast="cast" @open="openStory" />
+        <BureauMessagesSection :bureau="bureau" :cast="cast" @open="openThread" />
         <BureauCastSection
           :bureau-id="bureauId"
           :cast="cast"
@@ -51,6 +52,7 @@ import { bureausAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import { setPageTitle } from '../../router';
 import BureauStoriesSection from '../../components/bureau/BureauStoriesSection.vue';
+import BureauMessagesSection from '../../components/bureau/BureauMessagesSection.vue';
 import BureauCastSection from '../../components/bureau/BureauCastSection.vue';
 import BureauWorldSection from '../../components/bureau/BureauWorldSection.vue';
 import BureauSettingsSection from '../../components/bureau/BureauSettingsSection.vue';
@@ -116,6 +118,13 @@ function openStory(story) {
   router.push({
     name: 'bureau-story',
     params: { bureauId: props.bureauId, storyId: story.id },
+  });
+}
+
+function openThread(member) {
+  router.push({
+    name: 'bureau-thread',
+    params: { bureauId: props.bureauId, castId: member.id },
   });
 }
 

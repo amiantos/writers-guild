@@ -173,6 +173,8 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
  * @param {Object|null} [params.request.brief] - The Director's scene brief (see director.js).
  * @param {string|null} [params.openingTime] - Loose start-time description; used until the
  *   story has generated prose.
+ * @param {number|null} [params.settingYear] - The year to name as setting, for a story set in
+ *   another year (see settingYear in bureau-time.js).
  * @param {import('../image-preserver.js').ImagePreserver|null} [params.imagePreserver] - Swaps
  *   image markup for placeholders the model can reproduce.
  * @param {number} [params.storyCharacterBudget]
@@ -188,6 +190,7 @@ export function buildWriterMessages({
   turns,
   request,
   openingTime = null,
+  settingYear = null,
   imagePreserver = null,
   storyCharacterBudget = STORY_CHARACTER_BUDGET,
 }) {
@@ -250,6 +253,9 @@ export function buildWriterMessages({
       entry.content ? preserve(stripAsterisks(macros.process(entry.content)), 'lore') : '',
     )
     .filter(Boolean);
+  if (settingYear) {
+    lore.unshift(`The year is ${settingYear}.`);
+  }
   if (lore.length > 0) {
     system.push(section('WORLD', lore.join('\n\n')));
   }

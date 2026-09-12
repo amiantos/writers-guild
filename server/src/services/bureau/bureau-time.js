@@ -126,6 +126,70 @@ export function describeBureauTime(value, timeZone) {
   }
 }
 
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
+// About two centuries either way.
+export const MAX_PRESENT_OFFSET_DAYS = 73_000;
+// Shorter gaps between messages aren't worth mentioning in a prompt.
+export const NOTABLE_GAP_HOURS = 3;
+
+// The longest gap, in hours, each loose description covers, in order.
+const GAPS = [
+  [12, 'a few hours'],
+  [36, 'about a day'],
+  [6 * 24, 'a few days'],
+  [11 * 24, 'about a week'],
+  [25 * 24, 'a few weeks'],
+  [45 * 24, 'about a month'],
+  [300 * 24, 'a few months'],
+  [548 * 24, 'about a year'],
+];
+
+function timestampOf(value) {
+  return value instanceof Date ? value.getTime() : Date.parse(value);
+}
+
+/**
+ * A Bureau's present: real time with the date moved by the Bureau's whole-day
+ * offset, so the time of day still follows the real clock.
+ * @param {{ presentOffsetDays?: number }} bureau
+ * @param {Date} [now]
+ * @returns {Date}
+ */
+export function bureauPresent(bureau, now = new Date()) {
+  return new Date(now.getTime() + (bureau.presentOffsetDays ?? 0) * DAY_MS);
+}
+
+/**
+ * How long it's been between two moments, loosely, or null when it's too short
+ * to matter (or either time can't be read).
+ * @param {Date|string} from
+ * @param {Date|string} to
+ * @returns {string|null} For example "a few days".
+ */
+export function describeGap(from, to) {
+  const hours = (timestampOf(to) - timestampOf(from)) / HOUR_MS;
+  if (!Number.isFinite(hours) || hours < NOTABLE_GAP_HOURS) return null;
+  return GAPS.find(([limit]) => hours < limit)?.[1] ?? 'more than a year';
+}
+
+/**
+ * The year to give prompts as setting ("The year is 1996."), so the Writer
+ * avoids anachronisms: when the Bureau's present is moved, or a moment falls in
+ * a year other than the real one. Null otherwise.
+ * @param {{ presentOffsetDays?: number, timezone?: string|null }} bureau
+ * @param {Date|string} value
+ * @param {Date} [now]
+ * @returns {number|null}
+ */
+export function settingYear(bureau, value, now = new Date()) {
+  const time = timestampOf(value);
+  if (!Number.isFinite(time)) return null;
+  const timeZone = isValidTimeZone(bureau.timezone) ? bureau.timezone : undefined;
+  const { year } = zonedParts(new Date(time), timeZone);
+  return bureau.presentOffsetDays || year !== zonedParts(now, timeZone).year ? year : null;
+}
+
 function parseCustomTime(customTime) {
   const date = typeof customTime === 'string' ? new Date(customTime) : null;
   if (!date || Number.isNaN(date.getTime())) {
