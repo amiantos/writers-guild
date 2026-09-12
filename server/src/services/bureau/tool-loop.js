@@ -37,7 +37,7 @@ function assistantMessage(result) {
 }
 
 function toolFailure(message) {
-  return { content: JSON.stringify({ error: message }), error: message };
+  return { content: JSON.stringify({ error: message }), error: message, args: null, value: null };
 }
 
 async function executeToolCall(call, handlers, signal) {
@@ -57,6 +57,8 @@ async function executeToolCall(call, handlers, signal) {
     return {
       content: typeof value === 'string' ? value : JSON.stringify(value ?? null),
       error: null,
+      args,
+      value,
     };
   } catch (error) {
     // A cancelled run should stop, not hand the model an error to work around.
@@ -78,9 +80,12 @@ async function executeToolCall(call, handlers, signal) {
  * @param {Object} [params.options] - More chat options: thinking, strict, maxTokens, ...
  * @param {import('./run-recorder.js').RunRecorder|null} [params.recorder]
  * @param {number} [params.maxIterations] - Model calls allowed before giving up.
+ * @param {string|null} [params.finalTool] - A tool that ends the loop: once a call to it
+ *   succeeds, the loop returns without calling the model again.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<{ content: string, reasoning: string, messages: Array<Object>,
- *   iterations: number, finishReason: string|null }>}
+ *   iterations: number, finishReason: string|null,
+ *   finalCall: { arguments: Object, result: * }|null }>}
  * @throws {ToolLoopError} When the model is still calling tools after maxIterations calls.
  */
 export async function runToolLoop({
@@ -92,6 +97,7 @@ export async function runToolLoop({
   options = {},
   recorder = null,
   maxIterations = DEFAULT_MAX_ITERATIONS,
+  finalTool = null,
   signal,
 }) {
   const history = [...messages];
@@ -137,21 +143,30 @@ export async function runToolLoop({
 
     history.push(assistantMessage(result));
 
+    const finished = (finalCall) => ({
+      content: result.content,
+      reasoning: result.reasoning,
+      messages: history,
+      iterations: iteration,
+      finishReason: result.finishReason,
+      finalCall,
+    });
+
     if (result.toolCalls.length === 0) {
-      return {
-        content: result.content,
-        reasoning: result.reasoning,
-        messages: history,
-        iterations: iteration,
-        finishReason: result.finishReason,
-      };
+      return finished(null);
     }
 
     // Run tools only when the model will get to see their results. Tools that
     // write (memories, draft characters) must not act on a run about to fail.
-    if (iteration === maxIterations) break;
+    // The final tool is the exception, since nothing needs to see its result.
+    const lastCall = iteration === maxIterations;
+    const calls = lastCall
+      ? result.toolCalls.filter((call) => finalTool && call.function?.name === finalTool)
+      : result.toolCalls;
+    if (calls.length === 0) break;
 
-    for (const call of result.toolCalls) {
+    let finalCall = null;
+    for (const call of calls) {
       const toolStarted = Date.now();
       const outcome = await executeToolCall(call, handlers, signal);
       recorder?.recordStep({
@@ -163,7 +178,14 @@ export async function runToolLoop({
         durationMs: Date.now() - toolStarted,
       });
       history.push({ role: 'tool', tool_call_id: call.id, content: outcome.content });
+      if (finalTool && call.function?.name === finalTool && !outcome.error) {
+        finalCall = { arguments: outcome.args, result: outcome.value };
+      }
     }
+    if (finalCall) {
+      return finished(finalCall);
+    }
+    if (lastCall) break;
   }
 
   throw new ToolLoopError(`The model was still calling tools after ${maxIterations} calls`, {

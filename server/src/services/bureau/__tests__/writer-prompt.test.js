@@ -171,6 +171,30 @@ describe('buildWriterMessages', () => {
     expect(user).toContain('Center this passage on Mara');
   });
 
+  it("follows the Director's brief, including its length", () => {
+    const { user } = build({
+      turns: [prose('The lamp was lit.')],
+      request: {
+        action: 'continue',
+        brief: {
+          beats: ['Mara hears the boat', 'She goes down to the dock'],
+          pov: 'Mara',
+          tone: 'uneasy',
+          length: 'short',
+          memories: [
+            { id: 1, character: 'Mara', content: "Theo can't swim.", reason: 'The boat is his' },
+          ],
+          notes: 'Keep the storm offstage.',
+        },
+      },
+    });
+
+    expect(user).toContain(
+      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nPoint of view: Mara. Tone: uneasy.\nKeep in mind:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
+    );
+    expect(user).not.toContain('Write the next 3 to 6 paragraphs');
+  });
+
   it('drops the oldest turns when the story is over budget', () => {
     const { user, storyTruncated } = build({
       turns: [prose('A'.repeat(50)), prose('B'.repeat(50)), prose('C'.repeat(50))],

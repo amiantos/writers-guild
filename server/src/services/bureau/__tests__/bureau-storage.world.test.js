@@ -24,10 +24,7 @@ describe('BureauStorage settings, clock, and world', () => {
 
   describe('settings', () => {
     it('starts with the default settings', () => {
-      expect(bureau.settings).toEqual({
-        writer: { ...DEFAULT_SETTINGS.writer },
-        memory: { ...DEFAULT_SETTINGS.memory },
-      });
+      expect(bureau.settings).toEqual(DEFAULT_SETTINGS);
     });
 
     it('applies updates on top of earlier ones', () => {

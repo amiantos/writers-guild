@@ -26,6 +26,43 @@ function done(content, extra = {}) {
   };
 }
 
+function toolTurn(name, args) {
+  return {
+    content: '',
+    reasoning: '',
+    toolCalls: [
+      { id: `call-${name}`, type: 'function', function: { name, arguments: JSON.stringify(args) } },
+    ],
+    finishReason: 'tool_calls',
+    usage: { prompt_tokens: 80, completion_tokens: 20 },
+    model: 'deepseek-flash',
+  };
+}
+
+/** Give a streaming client a chat() for the Director and Editor, answering in order. */
+function withChat(client, answers) {
+  client.chatCalls = [];
+  client.chat = async (options) => {
+    client.chatCalls.push(options);
+    const answer = answers[client.chatCalls.length - 1];
+    if (answer instanceof Error) throw answer;
+    return answer;
+  };
+  return client;
+}
+
+const BRIEF = {
+  beats: ['Mara answers the door'],
+  pov: 'Mara',
+  tone: 'warm',
+  length: 'short',
+  memories: [],
+  notes: '',
+};
+
+const TWO_SPEAKERS = '"Coming?" Mara asked. "No," Theo said.';
+const SPLIT_SPEAKERS = '"Coming?" Mara asked.\n\n"No," Theo said.';
+
 /** A client that streams the given events, stopping with AbortError once aborted. */
 function streamingClient(events, { failWith = null } = {}) {
   const client = {
@@ -68,6 +105,8 @@ describe('generateWriterTurn', () => {
       libraryCharacterId: 'c2',
       isPersona: true,
     });
+    // Tests turn the Director on where they need it.
+    stores.bureaus.updateSettings(created.id, { director: { enabled: false } });
     bureau = stores.bureaus.getBureau(created.id);
     story = stores.stories.createStory(bureau.id, {
       startTime: START,
@@ -117,6 +156,7 @@ describe('generateWriterTurn', () => {
     });
     expect(events).toEqual([
       { type: 'run', runId: turn.runId },
+      { type: 'stage', stage: 'writing' },
       { type: 'reasoning', text: 'Mara answers.' },
       { type: 'content', text: 'Mara opened ' },
       { type: 'content', text: 'the door.' },
@@ -129,7 +169,11 @@ describe('generateWriterTurn', () => {
       targetId: story.id,
       status: 'completed',
     });
-    expect(run.steps).toHaveLength(1);
+    expect(run.steps.map((step) => [step.role, step.kind])).toEqual([
+      ['writer', 'model'],
+      ['lint', 'tool'],
+    ]);
+    expect(run.steps[1].response).toEqual({ findings: [] });
     expect(run.steps[0]).toMatchObject({
       role: 'writer',
       kind: 'model',
@@ -377,6 +421,115 @@ describe('generateWriterTurn', () => {
     expect(stores.bureaus.getRun(bureau.id, runId)).toMatchObject({
       status: 'failed',
       error: 'FOREIGN KEY constraint failed',
+    });
+  });
+
+  describe('with the Director and Editor', () => {
+    it('plans with the Director, then writes from its brief', async () => {
+      stores.bureaus.updateSettings(bureau.id, { director: { enabled: true } });
+      stores.stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Theo knocked.' });
+      const client = withChat(
+        streamingClient([
+          { type: 'content', text: 'Mara opened the door.' },
+          done('Mara opened the door.'),
+        ]),
+        [toolTurn('submit_brief', BRIEF)],
+      );
+      const events = [];
+
+      const turn = await generate(
+        client,
+        { action: 'write' },
+        { onEvent: (event) => events.push(event) },
+      );
+
+      expect(events.filter((event) => ['stage', 'brief'].includes(event.type))).toEqual([
+        { type: 'stage', stage: 'directing' },
+        { type: 'brief', brief: BRIEF },
+        { type: 'stage', stage: 'writing' },
+      ]);
+      expect(client.chatCalls[0]).toMatchObject({ thinking: true, strict: true });
+      expect(client.calls[0].messages[1].content).toContain(
+        'Scene brief from the Director:\n- Mara answers the door',
+      );
+      const steps = stores.bureaus.getRun(bureau.id, turn.runId).steps;
+      expect(steps.map((step) => [step.role, step.kind])).toEqual([
+        ['director', 'model'],
+        ['director', 'tool'],
+        ['writer', 'model'],
+        ['lint', 'tool'],
+      ]);
+    });
+
+    it('skips the Director on a plain Continue, and writes without a brief if it fails', async () => {
+      stores.bureaus.updateSettings(bureau.id, { director: { enabled: true } });
+      const client = withChat(
+        streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]),
+        [new DeepSeekError('DeepSeek API error 503')],
+      );
+
+      await generate(client, { action: 'continue' });
+      expect(client.chatCalls).toHaveLength(0);
+
+      const turn = await generate(client, { action: 'direct', direction: 'Rain starts' });
+
+      expect(turn.content).toBe('Dusk.');
+      expect(client.calls[1].messages[1].content).not.toContain('Scene brief');
+      const run = stores.bureaus.getRun(bureau.id, turn.runId);
+      expect(run.status).toBe('completed');
+      expect(run.steps[0]).toMatchObject({ role: 'director', error: 'DeepSeek API error 503' });
+    });
+
+    it('fixes flagged paragraphs with the Editor and records each fix', async () => {
+      const client = withChat(
+        streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
+        [toolTurn('edit_paragraphs', { edits: [{ paragraph: 0, replacement: SPLIT_SPEAKERS }] })],
+      );
+      const events = [];
+
+      const turn = await generate(
+        client,
+        { action: 'continue' },
+        { onEvent: (event) => events.push(event) },
+      );
+
+      expect(turn.content).toBe(SPLIT_SPEAKERS);
+      expect(events.find((event) => event.type === 'edits').edits).toMatchObject([
+        {
+          paragraph: 0,
+          rules: ['multiple_speakers'],
+          original: TWO_SPEAKERS,
+          replacement: SPLIT_SPEAKERS,
+        },
+      ]);
+      const run = stores.bureaus.getRun(bureau.id, turn.runId);
+      expect(run.steps.map((step) => [step.role, step.kind])).toEqual([
+        ['writer', 'model'],
+        ['lint', 'tool'],
+        ['editor', 'model'],
+        ['editor', 'tool'],
+      ]);
+      expect(run.steps[1].response.findings).toHaveLength(1);
+    });
+
+    it('keeps the unedited text when the Editor is off or fails', async () => {
+      stores.bureaus.updateSettings(bureau.id, { editor: { enabled: false } });
+      const off = withChat(
+        streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
+        [],
+      );
+      expect((await generate(off, { action: 'continue' })).content).toBe(TWO_SPEAKERS);
+      expect(off.chatCalls).toHaveLength(0);
+
+      stores.bureaus.updateSettings(bureau.id, { editor: { enabled: true } });
+      const failing = withChat(
+        streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
+        [new DeepSeekError('DeepSeek API error 500')],
+      );
+      const turn = await generate(failing, { action: 'continue' });
+
+      expect(turn.content).toBe(TWO_SPEAKERS);
+      expect(stores.bureaus.getRun(bureau.id, turn.runId).status).toBe('completed');
     });
   });
 });

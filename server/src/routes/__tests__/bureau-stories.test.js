@@ -114,6 +114,7 @@ describe('Bureau story routes', () => {
       libraryCharacterId: 'c2',
       isPersona: true,
     });
+    stores.bureaus.updateSettings(bureau.id, { director: { enabled: false } });
     bureau = stores.bureaus.getBureau(bureau.id);
 
     client = fakeClient();
@@ -219,6 +220,47 @@ describe('Bureau story routes', () => {
       await request(app).get(`${storiesUrl()}/${story.id}`).expect(404);
     });
 
+    it("reverts one of the Editor's fixes", async () => {
+      const story = await startStory();
+      const original = '"Coming?" Mara asked. "No," Theo said.';
+      const replacement = '"Coming?" Mara asked.\n\n"No," Theo said.';
+      const runId = stores.bureaus.createRun({
+        bureauId: bureau.id,
+        purpose: 'turn',
+        targetType: 'story',
+        targetId: story.id,
+      });
+      stores.bureaus.addStep(runId, {
+        position: 0,
+        role: 'editor',
+        kind: 'tool',
+        request: { name: 'edit_paragraphs' },
+        response: {
+          edits: [
+            { paragraph: 1, rules: ['multiple_speakers'], reason: '', original, replacement },
+          ],
+        },
+      });
+      const turn = stores.stories.addTurn(story.id, {
+        kind: 'prose',
+        source: 'generated',
+        content: `The lamp was lit.\n\n${replacement}`,
+        runId,
+      });
+      const url = `${storiesUrl()}/${story.id}/turns/${turn.id}/revert-edit`;
+
+      const { body } = await request(app).post(url).send({ runId, index: 0 }).expect(200);
+
+      expect(body.turn).toMatchObject({
+        content: `The lamp was lit.\n\n${original}`,
+        edited: true,
+      });
+      await request(app).post(url).send({ runId, index: 0 }).expect(409);
+      await request(app).post(url).send({ runId, index: 3 }).expect(404);
+      await request(app).post(url).send({ runId: 'another-run', index: 0 }).expect(409);
+      await request(app).post(url).send({}).expect(400);
+    });
+
     it('adds, edits, and deletes turns from the reader', async () => {
       const story = await startStory();
       const turnsUrl = `${storiesUrl()}/${story.id}/turns`;
@@ -308,6 +350,7 @@ describe('Bureau story routes', () => {
       expect(events.map((event) => event.type)).toEqual([
         'turn',
         'run',
+        'stage',
         'reasoning',
         'content',
         'content',

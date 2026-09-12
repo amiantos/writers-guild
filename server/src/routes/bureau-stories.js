@@ -424,6 +424,46 @@ router.put(
   }),
 );
 
+// Undo one of the Editor's fixes to a turn, putting back the paragraph it replaced.
+// index is the fix's place in the run's list of fixes.
+router.post(
+  '/:storyId/turns/:turnId/revert-edit',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories, memories } = res.locals.stores;
+    const { bureauId, storyId, turnId } = req.params;
+    requireBureau(bureaus, bureauId);
+    requireStory(stories, bureauId, storyId);
+    const turn = requireTurn(stories, storyId, turnId);
+
+    const { runId, index } = req.body ?? {};
+    if (typeof runId !== 'string' || !Number.isInteger(index) || index < 0) {
+      throw new AppError('runId and index are required', 400);
+    }
+    if (runId !== turn.runId) {
+      throw new AppError("That run didn't write the version of this turn being shown", 409);
+    }
+    const fix = bureaus
+      .getRun(bureauId, runId)
+      ?.steps.find((step) => step.role === 'editor' && step.kind === 'tool')?.response?.edits?.[
+      index
+    ];
+    if (!fix) {
+      throw new AppError('Fix not found', 404);
+    }
+    if (!turn.content.includes(fix.replacement)) {
+      throw new AppError('This fix was already reverted or edited over', 409);
+    }
+
+    const updated = stories.editTurn(
+      storyId,
+      turnId,
+      turn.content.replace(fix.replacement, () => fix.original),
+    );
+    memories.flagTurnsChanged(bureauId, storyId, [turnId]);
+    res.json({ turn: updated });
+  }),
+);
+
 // ==================== Generation ====================
 
 // Generate the next turn. action 'write' adds the reader's text as prose first,

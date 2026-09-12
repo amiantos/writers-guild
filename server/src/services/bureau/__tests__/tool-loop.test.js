@@ -50,6 +50,12 @@ function fakeRecorder() {
   return { steps, recordStep: (step) => steps.push(step) };
 }
 
+/** A submit_brief handler that rejects a brief with no beats. */
+function requireBeats({ beats }) {
+  if (beats.length === 0) throw new Error('A brief needs at least one beat');
+  return { beats };
+}
+
 describe('runToolLoop', () => {
   it('returns the answer when the model needs no tools', async () => {
     const client = fakeClient(modelTurn({ content: 'She remembers the blue door.' }));
@@ -290,6 +296,97 @@ describe('runToolLoop', () => {
     expect(recorder.steps).toEqual([
       expect.objectContaining({ kind: 'model', error: 'DeepSeek API error 503' }),
     ]);
+  });
+
+  describe('with a final tool', () => {
+    const submit = (id, args) => toolCall(id, 'submit_brief', args);
+
+    it('returns once the final tool succeeds, without another model call', async () => {
+      const client = fakeClient(
+        modelTurn({
+          toolCalls: [
+            toolCall('call_1', 'recall', { query: 'x' }),
+            submit('call_2', { beats: ['Rain'] }),
+          ],
+        }),
+      );
+      const recall = vi.fn(() => 'found');
+
+      const result = await runToolLoop({
+        client,
+        role: 'director',
+        messages: MESSAGES,
+        tools: TOOLS,
+        handlers: { recall, submit_brief: (args) => ({ ...args, checked: true }) },
+        finalTool: 'submit_brief',
+      });
+
+      expect(client.chat).toHaveBeenCalledTimes(1);
+      expect(recall).toHaveBeenCalledTimes(1);
+      expect(result.finalCall).toEqual({
+        arguments: { beats: ['Rain'] },
+        result: { beats: ['Rain'], checked: true },
+      });
+    });
+
+    it('sends a failed final call back to the model to try again', async () => {
+      const client = fakeClient(
+        modelTurn({ toolCalls: [submit('call_1', { beats: [] })] }),
+        modelTurn({ toolCalls: [submit('call_2', { beats: ['Rain'] })] }),
+      );
+      const result = await runToolLoop({
+        client,
+        role: 'director',
+        messages: MESSAGES,
+        tools: TOOLS,
+        handlers: { submit_brief: requireBeats },
+        finalTool: 'submit_brief',
+      });
+
+      expect(client.chat).toHaveBeenCalledTimes(2);
+      expect(client.chat.mock.calls[1][0].messages.at(-1).content).toContain('at least one beat');
+      expect(result.finalCall.result).toEqual({ beats: ['Rain'] });
+    });
+
+    it('runs only the final tool on the last allowed call', async () => {
+      const client = fakeClient(
+        modelTurn({
+          toolCalls: [
+            toolCall('call_1', 'recall', { query: 'x' }),
+            submit('call_2', { beats: ['Rain'] }),
+          ],
+        }),
+      );
+      const recall = vi.fn(() => 'found');
+
+      const result = await runToolLoop({
+        client,
+        role: 'director',
+        messages: MESSAGES,
+        tools: TOOLS,
+        handlers: { recall, submit_brief: (args) => args },
+        finalTool: 'submit_brief',
+        maxIterations: 1,
+      });
+
+      expect(recall).not.toHaveBeenCalled();
+      expect(result.finalCall.result).toEqual({ beats: ['Rain'] });
+    });
+
+    it('returns no final call when the model answers in text', async () => {
+      const client = fakeClient(modelTurn({ content: 'No brief today.' }));
+
+      const result = await runToolLoop({
+        client,
+        role: 'director',
+        messages: MESSAGES,
+        tools: TOOLS,
+        handlers: {},
+        finalTool: 'submit_brief',
+      });
+
+      expect(result).toMatchObject({ content: 'No brief today.', finalCall: null });
+    });
   });
 
   it('does not change the messages it was given', async () => {

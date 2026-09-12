@@ -8,10 +8,14 @@ import {
 
 describe('resolveSettings', () => {
   it('fills in defaults for anything not stored', () => {
-    expect(resolveSettings({})).toEqual({
-      writer: { ...DEFAULT_SETTINGS.writer },
-      memory: { ...DEFAULT_SETTINGS.memory },
-    });
+    expect(resolveSettings({})).toEqual(DEFAULT_SETTINGS);
+    expect(Object.keys(resolveSettings({}))).toEqual([
+      'writer',
+      'memory',
+      'director',
+      'editor',
+      'style',
+    ]);
     expect(resolveSettings({ writer: { thinking: true } }).writer).toEqual({
       ...DEFAULT_SETTINGS.writer,
       thinking: true,
@@ -59,7 +63,12 @@ describe('applySettingsUpdate', () => {
     [{ memory: { knowledgeCharacters: -1 } }, /memory.knowledgeCharacters must be a whole number/],
     [{ memory: { recentEpisodes: 2.5 } }, /memory.recentEpisodes must be a whole number/],
     [{ memory: 'on' }, /settings.memory must be an object/],
-    [{ director: {} }, /Unknown settings group: director/],
+    [{ director: { enabled: 'yes' } }, /director.enabled must be true or false/],
+    [{ director: { reasoningEffort: 'medium' } }, /director.reasoningEffort must be one of/],
+    [{ editor: { enabled: null } }, /editor.enabled must be true or false/],
+    [{ style: { bannedPhrases: 'a testament to' } }, /style.bannedPhrases must be a list/],
+    [{ style: { bannedPhrases: [' '] } }, /style.bannedPhrases must be a list/],
+    [{ narrator: {} }, /Unknown settings group: narrator/],
     [{ writer: [] }, /settings.writer must be an object/],
     [null, /settings must be an object/],
   ])('rejects %j', (update, message) => {

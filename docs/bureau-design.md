@@ -204,23 +204,28 @@ Writer's prompt clean, keeps streaming simple, and lets each role be tuned on it
 hypothesis. Because every run is recorded, it should be cheap to A/B against a single agent that
 calls tools and writes in one conversation.
 
-**Fast path:** a plain Continue with nothing new to look up can skip the Director (or run it without
-thinking) to keep latency down.
+**Fast path:** a plain Continue skips the Director by default, to keep latency down. The Director and
+Editor only improve a turn: if the Director fails or answers without a brief, the Writer writes
+without one, and if the Editor fails, the unedited text stands.
 
 ### Director
 
 Reads a compact view of the Bureau (cast files, recent turns, composer input) and uses tools to
 gather what the next turn needs.
 
-| Tool                            | Purpose                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------ |
-| `recall(query, character?)`     | Full-text search over a character's memories and the turns they witnessed      |
-| `lookup_lore(query)`            | Search attached lorebooks beyond what keyword activation already selected      |
-| `get_character_file(id)`        | The full file for one cast member                                              |
-| `create_character(role, notes)` | Generate a draft cast member (see [Character generator](#character-generator)) |
+| Tool                            | Purpose                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------- |
+| `recall(query, character)`      | Full-text search over what the characters remember, as of the story's start             |
+| `lookup_lore(query)`            | Search attached lorebooks beyond what keyword activation already selected               |
+| `get_character_file(name)`      | The full card for one cast member, with their knowledge and recent episodes             |
+| `submit_brief(...)`             | Hand the Writer the scene brief, which ends the Director's turn                         |
+| `create_character(role, notes)` | Generate a draft cast member (phase 6; see [Character generator](#character-generator)) |
 
-Output is a **scene brief**, returned through a strict schema: beats, cast present, point of view,
-relevant memory ids (each with a one-line reason), tone, target length, and notes for the Writer.
+Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, point of view,
+tone, target length, memories (each with a one-line reason, and only ones the Director found), and
+notes for the Writer. The Director runs with thinking on at low effort by default. A successful
+`submit_brief` call ends the tool loop without another model call. Searching the raw turns a
+character witnessed is a later addition to `recall`.
 
 ### Writer
 
@@ -230,7 +235,7 @@ context caching:
 1. House style and perspective rules
 2. Cast: seed cards plus accepted arc notes
 3. World: lorebook entries (selected by `LorebookActivator` over recent turns) and world state
-4. Always-on memories plus the memories named in the brief
+4. Always-on memories (memories the brief names travel with the brief, in step 6)
 5. Short summaries of earlier stories in the Bureau, then this story's prose so far (oldest turns
    truncated first)
 6. The scene brief and composer input, plus, for a story's opening turn only, a loose description of
@@ -240,20 +245,27 @@ Output streams into the active turn. Images pass through `ImagePreserver` exactl
 
 ### Style lint and Editor
 
-`style-lint.js` is a set of pure, unit-tested checks:
+`style-lint.js` is a set of pure, unit-tested checks. They run on every generated passage and are
+recorded in its run even with the Editor off, so Writer-only runs can be compared:
 
-- **Multiple speakers in one paragraph:** find quoted dialogue, attribute speakers from dialogue tags
-  and names, and flag paragraphs with two or more speakers.
-- **Perspective and tense drift:** first-person or present-tense narration outside quotes, when the
-  Bureau uses third-person past.
-- **Asterisk actions.**
-- **Repeated phrasing:** n-grams repeated from recent turns, plus a per-Bureau list of banned phrases.
-- **Writing for the persona** (optional): dialogue or actions attributed to the persona in a
-  generated turn.
+- **Multiple speakers in one paragraph:** attribute each quote from a dialogue tag ("Mara said",
+  "said Mara", "she asked") or, failing that, from an action beat that starts with a cast member's
+  name just before it, and flag paragraphs with two or more speakers. A pronoun tag counts as
+  someone new only when no named speaker could be them, using pronouns inferred from seed cards.
+- **First-person narration:** "I", "me", or "my" outside quotes when the house style asks for third
+  person.
+- **Speaking for the reader's character:** on Write turns, dialogue tagged to the persona.
+- **Repeated phrasing:** seven-word stretches of narration repeated from the last three generated
+  turns or earlier in the passage, plus a per-Bureau list of banned phrases.
 
-The Editor receives only the flagged paragraphs, the reasons they were flagged, and the house style.
-It returns strict JSON: a list of `{ paragraph, replacement, rule }` edits. Fixes apply automatically;
-the turn's seam shows the original text and each fix, so reverting a bad edit takes one click.
+The checks would rather miss a problem than invent one. Paragraphs with images are skipped, and the
+Writer's output already has asterisks stripped. Tense drift is left for later, since present-tense
+checks are noisy.
+
+The Editor receives the numbered passage, the flagged paragraphs with the reasons they were flagged,
+and the house style. It answers with a forced, strict `edit_paragraphs` call: a list of
+`{ paragraph, replacement }` edits, applied only to flagged paragraphs. Fixes apply automatically;
+the turn's seam shows each fix's before and after, and one click reverts it.
 
 ### Archivist
 
@@ -529,7 +541,7 @@ server/src/services/bureau/
   bureau-storage.js                      # queries
   deepseek-client.js                     # messages, tools, strict schemas, streaming
   tool-loop.js                           # runs tool calls until the model answers
-  pipeline.js                            # Director → Writer → lint → Editor
+  writer-turn.js                         # Director → Writer → lint → Editor, one run per turn
   director.js
   writer-prompt.js
   style-lint.js

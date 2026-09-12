@@ -1,19 +1,26 @@
 /**
  * Writer Turn
  *
- * Generates one Writer turn for a Bureau story: build the prompt, stream the
- * prose, and save it as a new turn or a new variant of an existing one. The
- * exchange is recorded as a run, which the turn's seam displays.
+ * Generates one turn for a Bureau story and saves it as a new turn or a new
+ * variant of an existing one. The Director plans the passage, the Writer
+ * streams it, style lint checks it, and the Editor fixes what lint flags (see
+ * "Generation pipeline" in docs/bureau-design.md). Every step is recorded in
+ * one run, which the turn's seam displays.
  *
- * Phase 2 runs the Writer alone; the Director and Editor join in phase 4.
+ * The Director and Editor only improve a turn: if either fails, the Writer
+ * writes without a brief, or the unedited text is kept.
  */
 
 import { ImagePreserver } from '../image-preserver.js';
 import { LorebookActivator } from '../lorebook-activator.js';
 import { describeBureauTime } from './bureau-time.js';
+import { DeepSeekError } from './deepseek-client.js';
+import { runDirector } from './director.js';
+import { runEditor } from './editor.js';
 import { memoriesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
-import { buildWriterMessages } from './writer-prompt.js';
+import { inferPronoun, lintProse, usesThirdPerson } from './style-lint.js';
+import { DEFAULT_HOUSE_STYLE, buildWriterMessages } from './writer-prompt.js';
 
 // Story mode's default scan depth, budget, and recursion.
 const LOREBOOK_SETTINGS = {
@@ -71,6 +78,15 @@ async function activatedLore(stores, bureauId, scanText) {
   return new LorebookActivator(LOREBOOK_SETTINGS).activate(lorebooks, scanText);
 }
 
+function nameOf(member) {
+  return member.seedCard?.data?.name || member.name;
+}
+
+function pronounOf(member) {
+  const data = member.seedCard?.data ?? {};
+  return inferPronoun(`${data.description ?? ''}\n${data.personality ?? ''}`);
+}
+
 /**
  * @param {Object} params
  * @param {ReturnType<import('./stores.js').getBureauStores>} params.stores
@@ -83,8 +99,8 @@ async function activatedLore(stores, bureauId, scanText) {
  * @param {string|null} [params.request.leadCastId] - Cast member to center the passage on.
  * @param {string|null} [params.regenerateTurnId] - Add a variant to this turn, writing from
  *   the turns before it, instead of appending a new turn.
- * @param {(event: Object) => void} [params.onEvent] - Receives `run`, `reasoning`, and
- *   `content` events as they happen.
+ * @param {(event: Object) => void} [params.onEvent] - Receives events as they happen: `run`,
+ *   `stage` (directing, writing, or editing), `brief`, `reasoning`, `content`, and `edits`.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} The saved turn. When cancelled, the text written so far is
  *   saved, or null is returned if nothing was written yet.
@@ -132,18 +148,74 @@ export async function generateWriterTurn({
       ]),
   );
 
+  const openingTime = describeBureauTime(story.startTime, bureau.timezone);
+  const promptRequest = {
+    action: request.action,
+    direction: request.direction,
+    leadName: lead?.name,
+  };
+  const isCancellation = (error) => error?.name === 'AbortError' || Boolean(signal?.aborted);
+
+  const recorder = new RunRecorder(bureaus, {
+    bureauId: bureau.id,
+    purpose: 'turn',
+    targetType: 'story',
+    targetId: story.id,
+  });
+  onEvent({ type: 'run', runId: recorder.runId });
+
+  // The Director plans the passage, unless it's off or this is a plain Continue.
+  let brief = null;
+  const director = bureau.settings.director;
+  if (director.enabled && !(director.skipOnContinue && request.action === 'continue')) {
+    onEvent({ type: 'stage', stage: 'directing' });
+    try {
+      brief = await runDirector({
+        stores,
+        bureau,
+        story,
+        cast,
+        turns,
+        request: promptRequest,
+        openingTime,
+        client,
+        recorder,
+        signal,
+      });
+    } catch (error) {
+      if (isCancellation(error)) {
+        recorder.finish('cancelled', 'Cancelled');
+        return null;
+      }
+      // Failed model calls are already recorded; note anything else. Either way the Writer
+      // goes on without a brief.
+      if (!(error instanceof DeepSeekError)) {
+        recorder.recordStep({ role: 'director', kind: 'model', error: error.message });
+      }
+    }
+    if (brief) onEvent({ type: 'brief', brief });
+  }
+
+  onEvent({ type: 'stage', stage: 'writing' });
   const scanText = [...turns.map((turn) => turn.content), request.direction ?? ''].join('\n\n');
   const imagePreserver = new ImagePreserver();
-  const { messages, storySection } = buildWriterMessages({
-    bureau,
-    cast,
-    loreEntries: await activatedLore(stores, bureau.id, scanText),
-    memoriesByCast,
-    turns,
-    request: { action: request.action, direction: request.direction, leadName: lead?.name },
-    openingTime: describeBureauTime(story.startTime, bureau.timezone),
-    imagePreserver,
-  });
+  let messages;
+  let storySection;
+  try {
+    ({ messages, storySection } = buildWriterMessages({
+      bureau,
+      cast,
+      loreEntries: await activatedLore(stores, bureau.id, scanText),
+      memoriesByCast,
+      turns,
+      request: { ...promptRequest, brief },
+      openingTime,
+      imagePreserver,
+    }));
+  } catch (error) {
+    recorder.fail(error);
+    throw error;
+  }
 
   const { thinking, reasoningEffort, temperature, maxTokens } = bureau.settings.writer;
   const recordedRequest = {
@@ -154,14 +226,6 @@ export async function generateWriterTurn({
     maxTokens,
     messages: recordableMessages(messages, storySection),
   };
-
-  const recorder = new RunRecorder(bureaus, {
-    bureauId: bureau.id,
-    purpose: 'turn',
-    targetType: 'story',
-    targetId: story.id,
-  });
-  onEvent({ type: 'run', runId: recorder.runId });
 
   const restore = (text) =>
     imagePreserver.restoreImages(text, { appendMissing: false }).finalContent.trim();
@@ -263,5 +327,53 @@ export async function generateWriterTurn({
     throw error;
   }
 
-  return saveAndFinish(finalContent, () => recorder.complete());
+  // Lint runs and is recorded even with the Editor off, so runs can be compared.
+  const houseStyle = bureau.houseStyle?.trim() || DEFAULT_HOUSE_STYLE;
+  const persona = cast.find((member) => member.isPersona) ?? null;
+  const readerName = request.action === 'write' && persona ? nameOf(persona) : null;
+  const findings = lintProse(finalContent, {
+    names: cast.map((member) => ({ name: nameOf(member), pronoun: pronounOf(member) })),
+    readerName,
+    thirdPerson: usesThirdPerson(houseStyle),
+    recentText: turns
+      .filter((turn) => turn.kind === 'prose' && turn.source === 'generated')
+      .slice(-3)
+      .map((turn) => turn.content)
+      .join('\n\n'),
+    bannedPhrases: bureau.settings.style.bannedPhrases,
+  });
+  recorder.recordStep({
+    role: 'lint',
+    kind: 'tool',
+    request: { name: 'style_lint' },
+    response: { findings },
+  });
+
+  let savedContent = finalContent;
+  if (findings.length > 0 && bureau.settings.editor.enabled) {
+    onEvent({ type: 'stage', stage: 'editing' });
+    try {
+      const edited = await runEditor({
+        client,
+        recorder,
+        houseStyle,
+        text: finalContent,
+        findings,
+        readerName,
+        signal,
+      });
+      savedContent = edited.text;
+      if (edited.edits.length > 0) onEvent({ type: 'edits', edits: edited.edits });
+    } catch (error) {
+      if (isCancellation(error)) {
+        return saveAndFinish(finalContent, () => recorder.finish('cancelled', 'Cancelled'));
+      }
+      // The unedited text stands. Failed model calls are already recorded; note anything else.
+      if (!(error instanceof DeepSeekError)) {
+        recorder.recordStep({ role: 'editor', kind: 'model', error: error.message });
+      }
+    }
+  }
+
+  return saveAndFinish(savedContent, () => recorder.complete());
 }

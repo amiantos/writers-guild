@@ -27,6 +27,12 @@ export const STORY_CHARACTER_BUDGET = 300_000;
 
 const SCENE_BREAK = '---';
 
+const BRIEF_LENGTHS = {
+  short: 'Write 1 to 3 paragraphs.',
+  medium: 'Write 3 to 5 paragraphs.',
+  long: 'Write 5 to 8 paragraphs.',
+};
+
 const MEMORIES_PREFACE =
   'What the characters remember from before this story. Let it shape what they do and bring up, without reciting it.';
 
@@ -116,11 +122,34 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
     );
   }
 
-  lines.push(
-    hasProse
-      ? 'Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response.'
-      : 'Write 3 to 5 paragraphs.',
-  );
+  const { brief } = request;
+  if (brief) {
+    lines.push(
+      `Scene brief from the Director:\n${brief.beats.map((beat) => `- ${beat}`).join('\n')}`,
+    );
+    const details = [
+      brief.pov ? `Point of view: ${brief.pov}.` : '',
+      brief.tone ? `Tone: ${brief.tone}.` : '',
+    ].filter(Boolean);
+    if (details.length > 0) lines.push(details.join(' '));
+    if (brief.memories?.length > 0) {
+      const memories = brief.memories.map(
+        (memory) => `- ${memory.content}${memory.reason ? ` (${memory.reason})` : ''}`,
+      );
+      lines.push(`Keep in mind:\n${memories.join('\n')}`);
+    }
+    if (brief.notes) lines.push(`Notes: ${brief.notes}`);
+  }
+
+  if (brief && BRIEF_LENGTHS[brief.length]) {
+    lines.push(BRIEF_LENGTHS[brief.length]);
+  } else {
+    lines.push(
+      hasProse
+        ? 'Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response.'
+        : 'Write 3 to 5 paragraphs.',
+    );
+  }
   return lines.join('\n');
 }
 
@@ -139,6 +168,7 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
  * @param {'write'|'direct'|'continue'} params.request.action
  * @param {string} [params.request.direction] - The direction text, for 'direct'.
  * @param {string} [params.request.leadName] - Cast member to center the passage on.
+ * @param {Object|null} [params.request.brief] - The Director's scene brief (see director.js).
  * @param {string|null} [params.openingTime] - Loose start-time description; used until the
  *   story has generated prose.
  * @param {import('../image-preserver.js').ImagePreserver|null} [params.imagePreserver] - Swaps

@@ -23,6 +23,21 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // Episodes from earlier stories per character in the Writer prompt.
     recentEpisodes: 3,
   }),
+  director: Object.freeze({
+    // Plan each passage with tools before the Writer writes it.
+    enabled: true,
+    thinking: true,
+    reasoningEffort: 'low',
+    // A plain Continue goes straight to the Writer.
+    skipOnContinue: true,
+  }),
+  editor: Object.freeze({
+    // Rewrite paragraphs that style lint flags. Lint runs, and is recorded, either way.
+    enabled: true,
+  }),
+  style: Object.freeze({
+    bannedPhrases: Object.freeze([]),
+  }),
 });
 
 export class BureauSettingsError extends Error {
@@ -53,7 +68,34 @@ const MEMORY_RULES = {
     (Number.isInteger(value) && value >= 0 && value <= 20) || 'must be a whole number from 0 to 20',
 };
 
-const RULES = { writer: WRITER_RULES, memory: MEMORY_RULES };
+const isBoolean = (value) => typeof value === 'boolean' || 'must be true or false';
+
+const DIRECTOR_RULES = {
+  enabled: isBoolean,
+  thinking: isBoolean,
+  reasoningEffort: WRITER_RULES.reasoningEffort,
+  skipOnContinue: isBoolean,
+};
+
+const EDITOR_RULES = { enabled: isBoolean };
+
+const STYLE_RULES = {
+  bannedPhrases: (value) =>
+    (Array.isArray(value) &&
+      value.length <= 100 &&
+      value.every(
+        (phrase) => typeof phrase === 'string' && phrase.trim() && phrase.length <= 200,
+      )) ||
+    'must be a list of up to 100 phrases, each 1 to 200 characters',
+};
+
+const RULES = {
+  writer: WRITER_RULES,
+  memory: MEMORY_RULES,
+  director: DIRECTOR_RULES,
+  editor: EDITOR_RULES,
+  style: STYLE_RULES,
+};
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -62,13 +104,15 @@ function isPlainObject(value) {
 /**
  * Stored settings merged over the defaults.
  * @param {Object} [stored]
- * @returns {{ writer: Object, memory: Object }}
+ * @returns {{ writer: Object, memory: Object, director: Object, editor: Object, style: Object }}
  */
 export function resolveSettings(stored = {}) {
-  return {
-    writer: { ...DEFAULT_SETTINGS.writer, ...stored.writer },
-    memory: { ...DEFAULT_SETTINGS.memory, ...stored.memory },
-  };
+  return Object.fromEntries(
+    Object.entries(DEFAULT_SETTINGS).map(([group, defaults]) => [
+      group,
+      { ...defaults, ...stored[group] },
+    ]),
+  );
 }
 
 /**
