@@ -8,44 +8,15 @@
 
 import express from 'express';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
-import { BureauStorage, CastConflictError } from '../services/bureau/bureau-storage.js';
-import { SqliteStorageService } from '../services/sqliteStorage.js';
+import { CastConflictError } from '../services/bureau/bureau-storage.js';
+import { BureauSettingsError } from '../services/bureau/bureau-settings.js';
+import { isValidTimeZone } from '../services/bureau/bureau-time.js';
+import bureauStoriesRouter from './bureau-stories.js';
+import { attachBureauStores, optionalString, requireBureau } from './bureau-route-helpers.js';
 
 const router = express.Router();
 
-// Stores are cached per data root: production mounts this router once, but
-// each test suite mounts it against its own temporary directory.
-const storesByRoot = new Map();
-
-router.use((req, res, next) => {
-  const { dataRoot } = req.app.locals;
-  if (!storesByRoot.has(dataRoot)) {
-    storesByRoot.set(dataRoot, {
-      bureaus: new BureauStorage(dataRoot),
-      library: new SqliteStorageService(dataRoot),
-    });
-  }
-  res.locals.stores = storesByRoot.get(dataRoot);
-  next();
-});
-
-function requireBureau(bureaus, bureauId) {
-  const bureau = bureaus.getBureau(bureauId);
-  if (!bureau) {
-    throw new AppError('Bureau not found', 404);
-  }
-  return bureau;
-}
-
-/** A trimmed string field from the body, or undefined when it's absent. */
-function optionalString(body, field) {
-  const value = body[field];
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string') {
-    throw new AppError(`${field} must be a string`, 400);
-  }
-  return value.trim();
-}
+router.use(attachBureauStores);
 
 // ==================== Bureaus ====================
 
@@ -86,7 +57,8 @@ router.get(
   }),
 );
 
-// Update a Bureau. An apiKey of '' removes the key.
+// Update a Bureau. An apiKey of '' removes the key; a timezone of null clears it.
+// `settings` is a partial update, such as { writer: { thinking: true } }.
 router.put(
   '/:bureauId',
   asyncHandler(async (req, res) => {
@@ -101,9 +73,10 @@ router.put(
       apiKey: optionalString(body, 'apiKey'),
       model: optionalString(body, 'model'),
       houseStyle: optionalString(body, 'houseStyle'),
+      timezone: body.timezone,
     };
 
-    if (Object.values(updates).every((value) => value === undefined)) {
+    if (Object.values(updates).every((value) => value === undefined) && !body.settings) {
       throw new AppError('No updates provided', 400);
     }
     if (updates.name === '') {
@@ -112,12 +85,32 @@ router.put(
     if (updates.model === '') {
       throw new AppError('Model cannot be empty', 400);
     }
+    if (updates.timezone !== undefined && updates.timezone !== null) {
+      if (!isValidTimeZone(updates.timezone)) {
+        throw new AppError('timezone must be an IANA time zone name, or null', 400);
+      }
+    }
 
-    res.json({ bureau: bureaus.updateBureau(bureauId, updates) });
+    let bureau;
+    try {
+      // One transaction, so invalid settings don't leave the other fields half-saved.
+      bureaus.db.transaction(() => {
+        bureau = bureaus.updateBureau(bureauId, updates);
+        if (body.settings !== undefined) {
+          bureau = bureaus.updateSettings(bureauId, body.settings);
+        }
+      })();
+    } catch (error) {
+      if (error instanceof BureauSettingsError) {
+        throw new AppError(error.message, 400);
+      }
+      throw error;
+    }
+    res.json({ bureau });
   }),
 );
 
-// Delete a Bureau, with its cast and run records
+// Delete a Bureau, with everything in it
 router.delete(
   '/:bureauId',
   asyncHandler(async (req, res) => {
@@ -141,7 +134,8 @@ router.get(
 );
 
 // Add a library character to the cast. The Bureau keeps its own copy of the
-// card; the library character is never modified.
+// card; the library character is never modified. A lorebook linked to the card
+// is attached to the Bureau, as story mode does for stories.
 router.post(
   '/:bureauId/cast',
   asyncHandler(async (req, res) => {
@@ -167,19 +161,35 @@ router.post(
       throw error;
     }
 
+    let castMember;
     try {
-      const castMember = bureaus.addCastMember(bureauId, {
+      castMember = bureaus.addCastMember(bureauId, {
         seedCard: card,
         libraryCharacterId: characterId,
         isPersona,
       });
-      res.status(201).json({ castMember });
     } catch (error) {
       if (!(error instanceof CastConflictError)) throw error;
       // Answered here rather than through AppError details: server.js's error
       // handler drops details, and the client needs the existing member's id.
       res.status(409).json({ error: error.message, castMemberId: error.castMemberId });
+      return;
     }
+
+    let attachedLorebookId = null;
+    const linkedLorebookId = card.data?.extensions?.ursceal_lorebook_id;
+    if (linkedLorebookId) {
+      try {
+        await library.getLorebook(linkedLorebookId);
+        if (bureaus.attachLorebook(bureauId, linkedLorebookId)) {
+          attachedLorebookId = linkedLorebookId;
+        }
+      } catch {
+        // The card links a lorebook that is no longer in the library.
+      }
+    }
+
+    res.status(201).json({ castMember, attachedLorebookId });
   }),
 );
 
@@ -235,6 +245,73 @@ router.delete(
   }),
 );
 
+// ==================== World ====================
+
+/** Attached lorebooks with their library details; ones deleted from the library are marked missing. */
+async function attachedLorebooks({ bureaus, library }, bureauId) {
+  const available = new Map(
+    (await library.listAllLorebooks()).map((lorebook) => [lorebook.id, lorebook]),
+  );
+  return bureaus
+    .listLorebookIds(bureauId)
+    .map((id) =>
+      available.has(id)
+        ? { ...available.get(id), missing: false }
+        : { id, name: null, description: '', entryCount: 0, missing: true },
+    );
+}
+
+// List attached lorebooks
+router.get(
+  '/:bureauId/lorebooks',
+  asyncHandler(async (req, res) => {
+    const { stores } = res.locals;
+    requireBureau(stores.bureaus, req.params.bureauId);
+    res.json({ lorebooks: await attachedLorebooks(stores, req.params.bureauId) });
+  }),
+);
+
+// Attach a library lorebook
+router.post(
+  '/:bureauId/lorebooks',
+  asyncHandler(async (req, res) => {
+    const { stores } = res.locals;
+    const { bureauId } = req.params;
+    requireBureau(stores.bureaus, bureauId);
+
+    const { lorebookId } = req.body ?? {};
+    if (!lorebookId || typeof lorebookId !== 'string') {
+      throw new AppError('lorebookId is required', 400);
+    }
+    try {
+      await stores.library.getLorebook(lorebookId);
+    } catch (error) {
+      if (error.message.startsWith('Lorebook not found')) {
+        throw new AppError('Lorebook not found', 404);
+      }
+      throw error;
+    }
+
+    stores.bureaus.attachLorebook(bureauId, lorebookId);
+    res.status(201).json({ lorebooks: await attachedLorebooks(stores, bureauId) });
+  }),
+);
+
+// Detach a lorebook (the library lorebook is unaffected)
+router.delete(
+  '/:bureauId/lorebooks/:lorebookId',
+  asyncHandler(async (req, res) => {
+    const { stores } = res.locals;
+    const { bureauId, lorebookId } = req.params;
+    requireBureau(stores.bureaus, bureauId);
+
+    if (!stores.bureaus.detachLorebook(bureauId, lorebookId)) {
+      throw new AppError('Lorebook is not attached', 404);
+    }
+    res.json({ lorebooks: await attachedLorebooks(stores, bureauId) });
+  }),
+);
+
 // ==================== Run records ====================
 
 // List runs, newest first
@@ -265,5 +342,9 @@ router.get(
     res.json({ run });
   }),
 );
+
+// ==================== Stories ====================
+
+router.use('/:bureauId/stories', bureauStoriesRouter);
 
 export default router;

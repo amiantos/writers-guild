@@ -81,6 +81,59 @@ const MIGRATIONS = [
     );
     CREATE INDEX idx_agent_steps_run ON agent_steps(run_id, position);
   `,
+
+  // 2: World lorebooks, stories, and turns
+  `
+    CREATE TABLE bureau_lorebooks (
+      bureau_id TEXT NOT NULL REFERENCES bureaus(id) ON DELETE CASCADE,
+      lorebook_id TEXT NOT NULL,
+      PRIMARY KEY (bureau_id, lorebook_id)
+    );
+
+    CREATE TABLE stories (
+      id TEXT PRIMARY KEY,
+      bureau_id TEXT NOT NULL REFERENCES bureaus(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      start_time TEXT NOT NULL,
+      end_time TEXT,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+    CREATE INDEX idx_stories_bureau ON stories(bureau_id, position);
+
+    CREATE TABLE story_cast (
+      story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+      cast_member_id TEXT NOT NULL REFERENCES cast_members(id) ON DELETE CASCADE,
+      PRIMARY KEY (story_id, cast_member_id)
+    );
+
+    CREATE TABLE turns (
+      id TEXT PRIMARY KEY,
+      story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      source TEXT NOT NULL,
+      author_cast_id TEXT REFERENCES cast_members(id) ON DELETE SET NULL,
+      content TEXT NOT NULL DEFAULT '',
+      run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+      edited INTEGER NOT NULL DEFAULT 0,
+      active_variant_id TEXT,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+    CREATE INDEX idx_turns_story ON turns(story_id, position);
+
+    CREATE TABLE turn_variants (
+      id TEXT PRIMARY KEY,
+      turn_id TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+      created TEXT NOT NULL
+    );
+    CREATE INDEX idx_turn_variants_turn ON turn_variants(turn_id, created);
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

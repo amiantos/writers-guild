@@ -10,6 +10,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { openBureauDb } from './bureau-db.js';
 import { DEFAULT_MODEL } from './deepseek-client.js';
+import { applySettingsUpdate, resolveSettings } from './bureau-settings.js';
 
 export class CastConflictError extends Error {
   /**
@@ -58,7 +59,7 @@ function bureauFromRow(row) {
     presentOffsetDays: row.present_offset_days,
     timezone: row.timezone,
     houseStyle: row.house_style,
-    settings: parseJson(row.settings, {}),
+    settings: resolveSettings(parseJson(row.settings, {})),
     castCount: row.cast_count,
     created: row.created,
     modified: row.modified,
@@ -138,10 +139,26 @@ export class BureauStorage {
       `),
       updateBureau: this.db.prepare(`
         UPDATE bureaus SET name = @name, description = @description, api_key = @apiKey,
-                           model = @model, house_style = @houseStyle, modified = @modified
+                           model = @model, house_style = @houseStyle, timezone = @timezone,
+                           modified = @modified
         WHERE id = @id
       `),
+      updateSettings: this.db.prepare('UPDATE bureaus SET settings = ?, modified = ? WHERE id = ?'),
+      setBureauTime: this.db.prepare(
+        'UPDATE bureaus SET bureau_time = ?, modified = ? WHERE id = ?',
+      ),
       touchBureau: this.db.prepare('UPDATE bureaus SET modified = ? WHERE id = ?'),
+
+      // World
+      listLorebookIds: this.db.prepare(
+        'SELECT lorebook_id FROM bureau_lorebooks WHERE bureau_id = ? ORDER BY rowid',
+      ),
+      attachLorebook: this.db.prepare(
+        'INSERT OR IGNORE INTO bureau_lorebooks (bureau_id, lorebook_id) VALUES (?, ?)',
+      ),
+      detachLorebook: this.db.prepare(
+        'DELETE FROM bureau_lorebooks WHERE bureau_id = ? AND lorebook_id = ?',
+      ),
       deleteBureau: this.db.prepare('DELETE FROM bureaus WHERE id = ?'),
 
       // Cast
@@ -237,8 +254,9 @@ export class BureauStorage {
 
   /**
    * @param {string} bureauId
-   * @param {Object} updates - Any of name, description, apiKey, model, houseStyle.
-   *   Undefined fields are left alone; an apiKey of '' removes the key.
+   * @param {Object} updates - Any of name, description, apiKey, model, houseStyle, timezone.
+   *   Undefined fields are left alone. An apiKey of '' removes the key, and a
+   *   timezone of null clears it.
    * @returns {Object|null} The updated Bureau, or null if it doesn't exist.
    */
   updateBureau(bureauId, updates) {
@@ -252,9 +270,35 @@ export class BureauStorage {
       apiKey: updates.apiKey ?? row.api_key,
       model: updates.model ?? row.model,
       houseStyle: updates.houseStyle ?? row.house_style,
+      timezone: updates.timezone !== undefined ? updates.timezone : row.timezone,
       modified: new Date().toISOString(),
     });
     return this.getBureau(bureauId);
+  }
+
+  /**
+   * Apply a partial settings update, such as { writer: { thinking: true } }.
+   * @returns {Object|null} The updated Bureau, or null if it doesn't exist.
+   * @throws {import('./bureau-settings.js').BureauSettingsError} For unknown or invalid settings.
+   */
+  updateSettings(bureauId, update) {
+    const row = this.stmts.getBureau.get(bureauId);
+    if (!row) return null;
+
+    const settings = applySettingsUpdate(parseJson(row.settings, {}), update);
+    this.stmts.updateSettings.run(JSON.stringify(settings), new Date().toISOString(), bureauId);
+    return this.getBureau(bureauId);
+  }
+
+  /**
+   * Move the Bureau's clock. bureau-time.js decides what the time should be.
+   * @param {string} bureauId
+   * @param {string} bureauTime - ISO timestamp.
+   * @returns {boolean} Whether the Bureau exists.
+   */
+  setBureauTime(bureauId, bureauTime) {
+    const now = new Date().toISOString();
+    return this.stmts.setBureauTime.run(bureauTime, now, bureauId).changes > 0;
   }
 
   /** Deletes the Bureau with its cast and run records. */
@@ -340,6 +384,30 @@ export class BureauStorage {
       this.stmts.touchBureau.run(new Date().toISOString(), bureauId);
     }
     return removed;
+  }
+
+  // ==================== World ====================
+
+  /** Ids of the library lorebooks attached to a Bureau, in the order attached. */
+  listLorebookIds(bureauId) {
+    return this.stmts.listLorebookIds.all(bureauId).map((row) => row.lorebook_id);
+  }
+
+  /** Attach a library lorebook. Attaching one that's already attached does nothing. */
+  attachLorebook(bureauId, lorebookId) {
+    const attached = this.stmts.attachLorebook.run(bureauId, lorebookId).changes > 0;
+    if (attached) {
+      this.stmts.touchBureau.run(new Date().toISOString(), bureauId);
+    }
+    return attached;
+  }
+
+  detachLorebook(bureauId, lorebookId) {
+    const detached = this.stmts.detachLorebook.run(bureauId, lorebookId).changes > 0;
+    if (detached) {
+      this.stmts.touchBureau.run(new Date().toISOString(), bureauId);
+    }
+    return detached;
   }
 
   // ==================== Run records ====================

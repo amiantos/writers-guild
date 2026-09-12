@@ -5,6 +5,7 @@ import path from 'path';
 import { BureauStorage, CastConflictError, maskApiKey } from '../bureau-storage.js';
 import { closeBureauDb } from '../bureau-db.js';
 import { DEFAULT_MODEL } from '../deepseek-client.js';
+import { resolveSettings } from '../bureau-settings.js';
 
 const API_KEY = 'sk-storage-test-key-1234';
 
@@ -58,7 +59,7 @@ describe('BureauStorage', () => {
         presentOffsetDays: 0,
         timezone: null,
         houseStyle: '',
-        settings: {},
+        settings: resolveSettings({}),
         castCount: 0,
       });
       expect(Number.isNaN(Date.parse(bureau.bureauTime))).toBe(false);

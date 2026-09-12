@@ -60,6 +60,36 @@ describe('bureau-db', () => {
     expect(reopened.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
   });
 
+  it('upgrades an older database to the current schema', () => {
+    const db = openBureauDb(tempDir);
+    db.exec(`
+      DROP TABLE turn_variants;
+      DROP TABLE turns;
+      DROP TABLE story_cast;
+      DROP TABLE stories;
+      DROP TABLE bureau_lorebooks;
+    `);
+    db.pragma('user_version = 1');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+
+    expect(upgraded.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+    const tables = upgraded
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((table) => table.name);
+    expect(tables).toEqual(
+      expect.arrayContaining([
+        'bureau_lorebooks',
+        'stories',
+        'story_cast',
+        'turns',
+        'turn_variants',
+      ]),
+    );
+  });
+
   it('refuses a database written by a newer build', () => {
     const db = new Database(path.join(tempDir, 'future.db'));
     db.pragma('user_version = 999');

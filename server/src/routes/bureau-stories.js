@@ -1,0 +1,439 @@
+/**
+ * Bureau Story Routes
+ *
+ * Mounted at /api/bureaus/:bureauId/stories. A story is an ordered list of
+ * turns. The generate and regenerate endpoints stream the Writer's output as
+ * server-sent events when the client asks for text/event-stream, and answer
+ * with JSON otherwise.
+ */
+
+import express from 'express';
+import { asyncHandler, AppError } from '../middleware/error-handler.js';
+import { sseChannel } from '../utils/sse.js';
+import { DeepSeekError } from '../services/bureau/deepseek-client.js';
+import {
+  BureauTimeError,
+  isValidTimeZone,
+  resolveStoryEndTime,
+  resolveStoryStartTime,
+} from '../services/bureau/bureau-time.js';
+import { generateWriterTurn, requestForRegeneration } from '../services/bureau/writer-turn.js';
+import {
+  createBureauClient,
+  optionalString,
+  requireBureau,
+  requireStory,
+} from './bureau-route-helpers.js';
+
+const router = express.Router({ mergeParams: true });
+
+const GENERATE_ACTIONS = ['write', 'direct', 'continue'];
+const READER_TURN_KINDS = ['prose', 'direction', 'scene_break'];
+
+function resolveTime(resolve) {
+  try {
+    return resolve();
+  } catch (error) {
+    if (error instanceof BureauTimeError) {
+      throw new AppError(error.message, 400);
+    }
+    throw error;
+  }
+}
+
+function validateCastIds(bureaus, bureauId, castIds) {
+  if (!Array.isArray(castIds) || castIds.some((id) => typeof id !== 'string')) {
+    throw new AppError('castIds must be an array of cast member ids', 400);
+  }
+  const known = new Set(bureaus.listCast(bureauId).map((member) => member.id));
+  const unknown = castIds.filter((id) => !known.has(id));
+  if (unknown.length > 0) {
+    throw new AppError(`Not in this Bureau's cast: ${unknown.join(', ')}`, 400);
+  }
+  return [...new Set(castIds)];
+}
+
+function requireActive(story) {
+  if (story.status !== 'active') {
+    throw new AppError('This story has ended', 409);
+  }
+}
+
+function requireApiKey(bureau) {
+  if (!bureau.hasApiKey) {
+    throw new AppError('This Bureau has no API key. Add one in its settings.', 400);
+  }
+}
+
+function requireTurn(stories, storyId, turnId) {
+  const turn = stories.getTurn(storyId, turnId);
+  if (!turn) {
+    throw new AppError('Turn not found', 404);
+  }
+  return turn;
+}
+
+function personaIn(bureaus, bureauId, story) {
+  const persona = story.castIds
+    .map((castId) => bureaus.getCastMember(bureauId, castId))
+    .find((member) => member?.isPersona);
+  return persona?.id ?? null;
+}
+
+/**
+ * Run the Writer and answer the request: as a stream of events when the
+ * client asked for one, otherwise as JSON once the turn is saved.
+ */
+async function respondWithWriterTurn(
+  req,
+  res,
+  { bureau, story, request, regenerateTurnId, userTurn },
+) {
+  const { stores } = res.locals;
+  const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureau.id));
+  const channel = sseChannel(req, res);
+  const controller = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) controller.abort();
+  });
+
+  channel.open();
+  if (userTurn) {
+    channel.send({ type: 'turn', turn: userTurn });
+  }
+
+  try {
+    const turn = await generateWriterTurn({
+      stores,
+      bureau,
+      story,
+      client,
+      request,
+      regenerateTurnId,
+      signal: controller.signal,
+      onEvent: (event) => channel.send(event),
+    });
+    if (controller.signal.aborted) {
+      // The client left; any text written so far was saved with the turn.
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    channel.finish({ statusCode: regenerateTurnId ? 200 : 201, body: { userTurn, turn } });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      if (!res.writableEnded) res.end();
+      return;
+    }
+    if (!(error instanceof DeepSeekError)) {
+      console.error('[Bureau] Writer turn failed:', error);
+    }
+    channel.fail(error.message, error instanceof DeepSeekError ? 502 : 500);
+  }
+}
+
+// ==================== Stories ====================
+
+// List a Bureau's stories in order
+router.get(
+  '/',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    requireBureau(bureaus, req.params.bureauId);
+    res.json({ stories: stories.listStories(req.params.bureauId) });
+  }),
+);
+
+// Start a story. start.choice is 'present', 'bureau' (the Bureau's current
+// time), or 'custom' with start.customTime. The Bureau's clock moves to the
+// start time. The browser's timeZone is saved if the Bureau has none yet.
+router.post(
+  '/',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId } = req.params;
+    const bureau = requireBureau(bureaus, bureauId);
+    const body = req.body ?? {};
+
+    const title = optionalString(body, 'title') ?? '';
+    const castIds =
+      body.castIds === undefined
+        ? bureaus.listCast(bureauId).map((member) => member.id)
+        : validateCastIds(bureaus, bureauId, body.castIds);
+    const startTime = resolveTime(() =>
+      resolveStoryStartTime({
+        choice: body.start?.choice ?? 'present',
+        bureauTime: bureau.bureauTime,
+        present: new Date(),
+        customTime: body.start?.customTime,
+      }),
+    );
+
+    let story;
+    bureaus.db.transaction(() => {
+      story = stories.createStory(bureauId, { title, castIds, startTime });
+      bureaus.setBureauTime(bureauId, startTime);
+      if (!bureau.timezone && isValidTimeZone(body.timeZone)) {
+        bureaus.updateBureau(bureauId, { timezone: body.timeZone });
+      }
+    })();
+
+    res.status(201).json({ story, bureau: bureaus.getBureau(bureauId) });
+  }),
+);
+
+// Get a story with its turns
+router.get(
+  '/:storyId',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    requireBureau(bureaus, bureauId);
+    const story = requireStory(stories, bureauId, storyId);
+    res.json({ story, turns: stories.listTurns(storyId) });
+  }),
+);
+
+// Update a story's title or who is present
+router.put(
+  '/:storyId',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    requireBureau(bureaus, bureauId);
+    requireStory(stories, bureauId, storyId);
+
+    const body = req.body ?? {};
+    const title = optionalString(body, 'title');
+    if (title === '') {
+      throw new AppError('Title cannot be empty', 400);
+    }
+    const castIds =
+      body.castIds === undefined ? undefined : validateCastIds(bureaus, bureauId, body.castIds);
+    if (title === undefined && castIds === undefined) {
+      throw new AppError('No updates provided', 400);
+    }
+
+    res.json({ story: stories.updateStory(bureauId, storyId, { title, castIds }) });
+  }),
+);
+
+// End a story. end.choice is 'present', 'custom' with end.customTime, or
+// 'unchanged'; the Bureau's clock moves to the chosen time.
+router.post(
+  '/:storyId/end',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    const bureau = requireBureau(bureaus, bureauId);
+    requireActive(requireStory(stories, bureauId, storyId));
+
+    const end = req.body?.end;
+    const endTime = resolveTime(() =>
+      resolveStoryEndTime({
+        choice: end?.choice ?? 'unchanged',
+        bureauTime: bureau.bureauTime,
+        present: new Date(),
+        customTime: end?.customTime,
+      }),
+    );
+
+    let story;
+    bureaus.db.transaction(() => {
+      story = stories.endStory(bureauId, storyId, { endTime });
+      bureaus.setBureauTime(bureauId, endTime);
+    })();
+
+    res.json({ story, bureau: bureaus.getBureau(bureauId) });
+  }),
+);
+
+// Delete a story with its turns
+router.delete(
+  '/:storyId',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    requireBureau(bureaus, bureauId);
+
+    if (!stories.deleteStory(bureauId, storyId)) {
+      throw new AppError('Story not found', 404);
+    }
+    res.json({ success: true });
+  }),
+);
+
+// ==================== Turns ====================
+
+// Add a turn from the reader without generating a reply (for example, a scene break)
+router.post(
+  '/:storyId/turns',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    requireBureau(bureaus, bureauId);
+    const story = requireStory(stories, bureauId, storyId);
+    requireActive(story);
+
+    const body = req.body ?? {};
+    const { kind } = body;
+    if (!READER_TURN_KINDS.includes(kind)) {
+      throw new AppError(`kind must be one of: ${READER_TURN_KINDS.join(', ')}`, 400);
+    }
+    const content = optionalString(body, 'content') ?? '';
+    if (kind !== 'scene_break' && !content) {
+      throw new AppError('content is required', 400);
+    }
+
+    const turn = stories.addTurn(storyId, {
+      kind,
+      source: 'user',
+      content: kind === 'scene_break' ? '' : content,
+      authorCastId: kind === 'prose' ? personaIn(bureaus, bureauId, story) : null,
+    });
+    res.status(201).json({ turn });
+  }),
+);
+
+// Edit a turn's text
+router.put(
+  '/:storyId/turns/:turnId',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId, turnId } = req.params;
+    requireBureau(bureaus, bureauId);
+    requireStory(stories, bureauId, storyId);
+    const turn = requireTurn(stories, storyId, turnId);
+
+    const content = optionalString(req.body ?? {}, 'content');
+    if (content === undefined || (!content && turn.kind !== 'scene_break')) {
+      throw new AppError('content is required', 400);
+    }
+    res.json({ turn: stories.editTurn(storyId, turnId, content) });
+  }),
+);
+
+// Delete a turn
+router.delete(
+  '/:storyId/turns/:turnId',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId, turnId } = req.params;
+    requireBureau(bureaus, bureauId);
+    requireStory(stories, bureauId, storyId);
+
+    if (!stories.deleteTurn(storyId, turnId)) {
+      throw new AppError('Turn not found', 404);
+    }
+    res.json({ success: true });
+  }),
+);
+
+// Show a different version of a turn
+router.put(
+  '/:storyId/turns/:turnId/variant',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId, turnId } = req.params;
+    requireBureau(bureaus, bureauId);
+    requireStory(stories, bureauId, storyId);
+    requireTurn(stories, storyId, turnId);
+
+    const { variantId } = req.body ?? {};
+    if (!variantId || typeof variantId !== 'string') {
+      throw new AppError('variantId is required', 400);
+    }
+    const turn = stories.selectVariant(storyId, turnId, variantId);
+    if (!turn) {
+      throw new AppError('Variant not found', 404);
+    }
+    res.json({ turn });
+  }),
+);
+
+// ==================== Generation ====================
+
+// Generate the next turn. action 'write' adds the reader's text as prose first,
+// 'direct' adds it as a direction, and 'continue' ignores text. leadCastId
+// centers the passage on a cast member in the story.
+router.post(
+  '/:storyId/generate',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    const bureau = requireBureau(bureaus, bureauId);
+    const story = requireStory(stories, bureauId, storyId);
+    requireActive(story);
+    requireApiKey(bureau);
+
+    const body = req.body ?? {};
+    const { action, leadCastId = null } = body;
+    if (!GENERATE_ACTIONS.includes(action)) {
+      throw new AppError(`action must be one of: ${GENERATE_ACTIONS.join(', ')}`, 400);
+    }
+    const text = optionalString(body, 'text') ?? '';
+    if (action !== 'continue' && !text) {
+      throw new AppError(`text is required to ${action}`, 400);
+    }
+    if (leadCastId !== null && !story.castIds.includes(leadCastId)) {
+      throw new AppError('leadCastId must be a cast member in this story', 400);
+    }
+
+    let userTurn = null;
+    if (action === 'write') {
+      userTurn = stories.addTurn(storyId, {
+        kind: 'prose',
+        source: 'user',
+        content: text,
+        authorCastId: personaIn(bureaus, bureauId, story),
+      });
+    } else if (action === 'direct') {
+      userTurn = stories.addTurn(storyId, { kind: 'direction', source: 'user', content: text });
+    }
+
+    await respondWithWriterTurn(req, res, {
+      bureau,
+      story,
+      request: { action, direction: action === 'direct' ? text : undefined, leadCastId },
+      regenerateTurnId: null,
+      userTurn,
+    });
+  }),
+);
+
+// Regenerate a generated turn as a new variant, from the turns before it
+router.post(
+  '/:storyId/turns/:turnId/regenerate',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId, turnId } = req.params;
+    const bureau = requireBureau(bureaus, bureauId);
+    const story = requireStory(stories, bureauId, storyId);
+    requireActive(story);
+    requireApiKey(bureau);
+
+    const turns = stories.listTurns(storyId);
+    const index = turns.findIndex((turn) => turn.id === turnId);
+    if (index === -1) {
+      throw new AppError('Turn not found', 404);
+    }
+    if (turns[index].source !== 'generated') {
+      throw new AppError('Only generated turns can be regenerated', 400);
+    }
+
+    const request = requestForRegeneration(turns, index);
+    if (request.leadCastId && !story.castIds.includes(request.leadCastId)) {
+      // The lead has left the story since.
+      request.leadCastId = null;
+    }
+
+    await respondWithWriterTurn(req, res, {
+      bureau,
+      story,
+      request,
+      regenerateTurnId: turnId,
+      userTurn: null,
+    });
+  }),
+);
+
+export default router;
