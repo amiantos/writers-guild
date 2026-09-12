@@ -10,8 +10,8 @@
 
 Bureau is a new, separate mode in Writers Guild for writing a connected series of stories with
 characters who remember, change, and keep living between stories. Each Bureau is a self-contained
-environment: a cast, a world, an ordered set of stories, correspondence between stories, and a
-clock.
+environment: a cast, a world, an ordered set of stories, correspondence between stories, and one
+shared clock, **Bureau time**.
 
 Generation is agentic. A **Director** gathers what a scene needs using tools, a **Writer** produces
 the prose, an **Editor** enforces house style, and an **Archivist** turns what happened into
@@ -32,8 +32,8 @@ Discussion #49 proposed the missing pieces: a lighter way to talk with character
 together, and time awareness so characters have routines and lives of their own.
 
 Bureau is framed neutrally, in the Writers Guild motif: a tool for living characters and connected
-stories. Companion-style use (one main character, your persona, a real-time clock) is one way to
-configure a Bureau, not a special case. Nearly every companion feature is an ordinary fiction-writing
+stories. Companion-style use (one main character, your persona, frequent correspondence) is one way
+to use a Bureau, not a special case. Nearly every companion feature is an ordinary fiction-writing
 idea:
 
 | Companion idea            | Writing term                           |
@@ -50,7 +50,7 @@ idea:
 - Characters develop over time through reviewable changes, without rewriting their original card.
 - Stories in a Bureau connect: later stories know what happened in earlier ones.
 - Correspondence with cast members between stories, feeding the same memory.
-- Time awareness through a clock that follows real time or story time.
+- One Bureau time: correspondence happens in real time, and each story starts at a time you choose.
 - Agentic generation with tools, including a character generator.
 - Stricter prose discipline, such as one speaker per paragraph.
 - Everything the agents did is inspectable, without cluttering the story.
@@ -82,11 +82,11 @@ idea:
 | **Bureau**         | An environment for a connected series of stories. Holds everything below.                    |
 | **Cast**           | The Bureau's characters. Each has a file: seed card, arc notes, memories, routine.           |
 | **World**          | Attached lorebooks plus world state: timeline and ongoing threads.                           |
-| **Story**          | An ordered sequence of turns. Stories within a Bureau are ordered too.                       |
+| **Story**          | An ordered sequence of turns, with a start time. Stories within a Bureau are ordered too.    |
 | **Turn**           | One group of paragraphs (user prose, a direction, or a generated passage) plus its metadata. |
 | **Turn seam**      | A hidden divider between turns that expands to show how the next turn was made.              |
 | **Correspondence** | A message thread between the persona and one cast member, between stories.                   |
-| **Clock**          | The Bureau's idea of "now": real time or story time.                                         |
+| **Bureau time**    | The Bureau's current date and time. Correspondence moves it to the present; stories ask.     |
 | **House style**    | An editable prose rulebook used by the Writer and the Editor.                                |
 
 ### Cast members are copies
@@ -120,19 +120,22 @@ The trade-off: you lose typing anywhere in the canvas, but a story becomes an or
 
 ### Turn kinds
 
-| Kind                        | Shown as                                | Sent to the Writer as          |
-| --------------------------- | --------------------------------------- | ------------------------------ |
-| `prose` (user-written)      | Prose, attributed to the persona        | Story text                     |
-| `prose` (generated)         | Prose                                   | Story text                     |
-| `direction`                 | A small, collapsible note               | Instructions for the next beat |
-| `scene_break` / `time_skip` | A divider showing the new in-world time | A marker in the story text     |
+| Kind                   | Shown as                         | Sent to the Writer as          |
+| ---------------------- | -------------------------------- | ------------------------------ |
+| `prose` (user-written) | Prose, attributed to the persona | Story text                     |
+| `prose` (generated)    | Prose                            | Story text                     |
+| `direction`            | A small, collapsible note        | Instructions for the next beat |
+| `scene_break`          | A divider                        | A marker in the story text     |
+
+Turns never move Bureau time. Time passing inside a story is written as prose, as in any book
+("Three hours later…").
 
 ### Turn seams
 
 Between every pair of turns is an invisible seam. Hovering reveals a thin divider, and clicking it
 expands in place to show how the turn below it was made:
 
-- The in-world time, and which cast member led the turn
+- Which cast member led the turn
 - The Director's reasoning, each tool call with its result, and the scene brief
 - The Writer's reasoning, if thinking was on
 - Style lint flags and each Editor fix, with the original text and a revert button
@@ -146,7 +149,8 @@ stays in one interface, and no separate screen is needed to see how a turn was m
   "Recalling: the lighthouse"), which can be expanded to follow each step as it happens. It collapses
   when the turn is done.
 - **Touch screens have no hover,** so on touch devices seams show as a faint marker you can tap.
-- **User-written turns** have seams too, showing only their time and whether they've been edited.
+- **User-written turns** have seams too, showing only when they were written and whether they've
+  been edited.
 
 ### Composer
 
@@ -202,20 +206,18 @@ thinking) to keep latency down.
 
 ### Director
 
-Reads a compact view of the Bureau (cast files, recent turns, composer input, clock) and uses tools
-to gather what the next turn needs.
+Reads a compact view of the Bureau (cast files, recent turns, composer input) and uses tools to
+gather what the next turn needs.
 
 | Tool                            | Purpose                                                                        |
 | ------------------------------- | ------------------------------------------------------------------------------ |
 | `recall(query, character?)`     | Full-text search over a character's memories and the turns they witnessed      |
-| `get_clock()`                   | In-world time, time since the last scene, what each cast member is up to now   |
 | `lookup_lore(query)`            | Search attached lorebooks beyond what keyword activation already selected      |
 | `get_character_file(id)`        | The full file for one cast member                                              |
 | `create_character(role, notes)` | Generate a draft cast member (see [Character generator](#character-generator)) |
 
 Output is a **scene brief**, returned through a strict schema: beats, cast present, point of view,
-relevant memory ids (each with a one-line reason), tone, time advance (story time only), target
-length, and notes for the Writer.
+relevant memory ids (each with a one-line reason), tone, target length, and notes for the Writer.
 
 ### Writer
 
@@ -228,7 +230,8 @@ context caching:
 4. Always-on memories plus the memories named in the brief
 5. Short summaries of earlier stories in the Bureau, then this story's prose so far (oldest turns
    truncated first)
-6. The scene brief and composer input
+6. The scene brief and composer input, plus, for a story's opening turn only, a loose description of
+   its start time (see [Time in prompts](#time-in-prompts))
 
 Output streams into the active turn. Images pass through `ImagePreserver` exactly as in story mode.
 
@@ -251,9 +254,9 @@ the turn's seam shows the original text and each fix, so reverting a bad edit ta
 
 ### Archivist
 
-**When it runs:** when a story is marked finished, when turns have settled (enough newer turns
-exist, or the story has been idle for a while), when a correspondence session goes quiet, or on
-demand ("Commit to memory").
+**When it runs:** when a story ends, when turns have settled (enough newer turns exist, or the story
+has been idle for a while), when a correspondence session goes quiet, or on demand ("Commit to
+memory").
 
 **Input:** unprocessed turns or messages, who was present, and each present character's current
 file.
@@ -296,7 +299,7 @@ Memory belongs to characters, not to the Bureau.
 | Knowledge      | Facts about other cast members (persona included), preferences, milestones, running jokes | Always, within a budget ranked by importance and recency |
 | Episodes       | Dated summaries of stories and correspondence sessions the character took part in         | Recent ones in full                                      |
 | Eras           | Summaries rolled up from older episodes                                                   | Always, compact                                          |
-| Offscreen life | Routine, plus what the character did while nobody was watching                            | When time matters (correspondence, scene openings)       |
+| Offscreen life | Routine, plus what the character did while nobody was watching                            | In correspondence and story openings                     |
 | Archive        | Raw turns and messages the character witnessed                                            | Only through `recall`                                    |
 
 ### Who remembers what
@@ -304,6 +307,9 @@ Memory belongs to characters, not to the Bureau.
 Start simple: cast members in a story remember it, and correspondence is private to its two
 participants. Offscreen life belongs to the character who lived it until they share it. Presence is
 tracked per story at first; per-turn presence (someone leaving mid-scene) can come later.
+
+A story also only remembers what happened before its start time (see
+[Time and memory](#time-and-memory)).
 
 ### Sources and review
 
@@ -337,31 +343,74 @@ with other cast members. It's saved as knowledge memories with `backstory` as th
 
 ## Correspondence
 
-- One thread per persona and cast member pair. Short first-person messages in a texting voice, with
+- One thread per persona and cast member pair. Short first-person messages (texts by default), with
   their own section of the house style.
-- Every prompt includes the current time (per the clock), time since the last message, the
-  character's routine for right now, and recent episodes.
+- Correspondence is always real time: sending or receiving a message moves Bureau time to the
+  Bureau's present (see [The Bureau's present](#the-bureaus-present)).
+- Every prompt includes a loose time of day, the character's routine for right now, and recent
+  episodes. The time since the last message is included only when the gap is long enough to matter.
 - Replies use a lighter pipeline: Writer-style generation with memory, calling the Director only when
   tools are needed.
 - Sessions become episodes, so the next story knows you texted that afternoon.
-- **Offscreen time is generated lazily.** When a thread or story opens after a gap, one capped call
-  generates what the character did during that gap and stores it as offscreen life. Nothing runs in
-  the background: a month away produces one summary, not thirty days of invented drama. Prompts ask
-  for mostly mundane events and cap the notable ones.
-- **Later:** characters message first (real-time clock only), and other delivery channels such as an
-  IRC bridge.
+- **Offscreen life** fills the gap whenever Bureau time jumps forward (see
+  [Offscreen life](#offscreen-life)).
+- **Later:** characters message first, and other delivery channels such as an IRC bridge.
 
-## Clock
+## Bureau time
 
-|                          | Real time                | Story time                                 |
-| ------------------------ | ------------------------ | ------------------------------------------ |
-| "Now"                    | The user's local time    | A stored in-world date and time            |
-| How it advances          | By itself                | Time advances in scene briefs, or manually |
-| Offscreen time covers    | Real gaps between visits | Time skips                                 |
-| Characters message first | Possible                 | No                                         |
-| Typical use              | Companion-style          | A book-like series                         |
+Each Bureau has a single clock, **Bureau time**: the current date and time in the Bureau. It changes
+at only three moments:
 
-Every turn and message records the in-world time it happened.
+| When                          | What happens to Bureau time                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| A message is sent or received | It moves to the Bureau's present. Correspondence is always real time.                                       |
+| A story starts                | You choose: the present, the current Bureau time, or a time you pick. The story keeps it as its start time. |
+| A story ends                  | You choose: the present, a time you pick to reflect how long the story lasted, or no change.                |
+
+Both story dialogs default to whatever you chose last time. Turns never move Bureau time.
+
+### The Bureau's present
+
+A Bureau's present is normally today, but it can be set to another date, such as June 1996. It's
+stored as a whole-day offset from the real calendar:
+
+- Time of day always follows your real clock, so a message sent at 11pm is still late at night.
+- The date shifts by the offset, and the weekday and season follow the shifted date.
+- Everywhere this doc says "the present" (correspondence and both story dialogs), it means real time
+  plus the offset.
+- When the offset isn't zero, the Bureau's year goes into the world section of prompts as setting,
+  not as a timestamp, so the Writer avoids anachronisms.
+- Correspondence doesn't have to be texting. The house style can set a medium that fits the era,
+  such as letters or email.
+
+### Time in prompts
+
+Exact timestamps aren't sent with every generation, because models tend to fixate on them. Instead:
+
+- A story's **opening turn** gets a loose description of its start time, such as "a Tuesday, a little
+  past midnight, late October." After that, the story's own prose carries the time.
+- **Correspondence** gets a loose time of day with every message, plus the gap since the last message
+  when it's long enough to matter.
+- Loose descriptions come from a small, unit-tested function in `bureau-time.js`, not from the model,
+  so they stay consistent.
+
+### Time and memory
+
+- **A story only remembers what happened before its start time.** Messages exchanged while a story is
+  still unfinished don't leak into it, because they come after its start. Starting a story at an
+  earlier time works as a flashback: characters don't know what happens later.
+- Memories from a story are dated to its start time. Memories from correspondence are dated to when
+  the messages were sent.
+
+### Offscreen life
+
+- When Bureau time moves forward across a gap (a message after a quiet stretch, or a story starting
+  later than the current Bureau time), one capped call generates what the characters involved did
+  during that gap and stores it as offscreen life.
+- Moving time forward when a story **ends** doesn't generate offscreen life. That span counts as time
+  the story covered.
+- Nothing runs in the background: a month away produces one summary, not thirty days of invented
+  drama. Prompts ask for mostly mundane events and cap the notable ones.
 
 ## Character generator
 
@@ -396,8 +445,8 @@ in `writers-guild.db` (library characters and lorebooks) are plain ids, not fore
 A sketch, not final:
 
 ```text
-bureaus        (id, name, description, api_key, model, clock_mode, clock_now, timezone,
-                house_style, settings JSON, created, modified)
+bureaus        (id, name, description, api_key, model, bureau_time, present_offset_days,
+                timezone, house_style, settings JSON, created, modified)
 cast_members   (id, bureau_id, library_character_id NULL, is_persona, is_draft,
                 seed_card JSON, routine JSON, created)
 arc_notes      (id, cast_member_id, content, rationale, source_refs JSON,
@@ -405,14 +454,15 @@ arc_notes      (id, cast_member_id, content, rationale, source_refs JSON,
 bureau_lorebooks (bureau_id, lorebook_id)
 world_threads  (id, bureau_id, title, summary, status, modified)
 
-stories        (id, bureau_id, position, title, status [active|finished], created, modified)
+stories        (id, bureau_id, position, title, status [active|ended], start_time,
+                end_time NULL, created, modified)
 story_cast     (story_id, cast_member_id)
 turns          (id, story_id, position, kind, source [user|generated], author_cast_id NULL,
-                content, world_time, run_id NULL, edited, created, modified)
+                content, run_id NULL, edited, created, modified)
 turn_variants  (id, turn_id, content, run_id, created)
 
 threads        (id, bureau_id, cast_member_id, created)
-messages       (id, thread_id, sender_cast_id, content, world_time, run_id NULL, created)
+messages       (id, thread_id, sender_cast_id, content, bureau_time, run_id NULL, created)
 
 memories       (id, cast_member_id, layer [knowledge|episode|era|offscreen|backstory],
                 content, importance, world_time, source_refs JSON, superseded_by NULL,
@@ -424,6 +474,9 @@ agent_runs     (id, bureau_id, trigger, target_type, target_id, status, started,
 agent_steps    (id, run_id, role, request JSON, response JSON, reasoning, tool_calls JSON,
                 usage JSON, duration_ms, error)
 ```
+
+Messages store their Bureau time directly instead of deriving it from `created`, because a Bureau's
+present offset can change later.
 
 ## Code layout
 
@@ -442,7 +495,7 @@ server/src/services/bureau/
   editor.js
   archivist.js
   memory.js                              # budgets, retrieval, FTS
-  clock.js
+  bureau-time.js                         # Bureau time changes, loose time descriptions
   offscreen.js
   character-generator.js
   run-recorder.js                        # agent_runs and agent_steps
@@ -487,12 +540,13 @@ Each phase ends with something usable.
 2. **Turn-based stories**
    - Story view with turns, rendering, composer, and per-turn edit, regenerate, and variants
    - Turn seams showing each run, including live status during generation
+   - Starting and ending stories with the Bureau time dialogs; loose start time in the opening turn
    - Writer-only generation (no Director yet), with house style and lorebooks
    - _Done when:_ writing a Bureau story is comfortable, images included, and every generated
      turn's seam shows how it was made.
 3. **Memory**
    - Archivist, memory layers, FTS, memory browser, backstory step, memories in the Writer prompt,
-     stories in sequence
+     stories in sequence, stories only remembering what came before their start time
    - _Done when:_ a second story remembers the first, and every memory shows its source.
 4. **Director and Editor**
    - Director with tools and scene briefs, style lint, Editor; seams show briefs, recalls, and fixes
@@ -501,7 +555,8 @@ Each phase ends with something usable.
 5. **Character development:** arc note proposals and review; export to library.
 6. **Character generator:** standalone flow, `create_character` tool, draft cast members; portraits
    afterward.
-7. **Correspondence and clock:** threads, clock modes, offscreen time, episodes from sessions.
+7. **Correspondence and offscreen life:** threads, real-time Bureau time updates, the Bureau's
+   present offset, offscreen life, episodes from sessions.
 8. **Later:** Workbench screen for comparing and rerunning runs, characters message first, IRC
    bridge, learning house style from user edits to generated turns, embeddings, drift check, other
    providers.
@@ -515,7 +570,8 @@ Each phase ends with something usable.
 | Prompt bloat dilutes attention          | Per-layer budgets, eras, long tail through `recall`                                          |
 | Multi-step turns are slow or costly     | Fast path that skips the Director; Editor only on flagged paragraphs; stable prompt prefix   |
 | Lint false positives cause bad edits    | Pure, unit-tested checks; every fix visible in its seam with one-click revert                |
-| Offscreen life escalates into melodrama | Generated only for real gaps, capped, mostly mundane by instruction                          |
+| Characters fixate on the time           | No exact timestamps in prompts; loose descriptions only in story openings and correspondence |
+| Offscreen life escalates into melodrama | Generated only when Bureau time jumps forward, capped, mostly mundane by instruction         |
 | DeepSeek API details change             | All model access goes through one client; run records and seams surface failures             |
 | Scope creep                             | Phases that each end usable; experimental label; separate database                           |
 
@@ -527,9 +583,11 @@ Each phase ends with something usable.
 3. Should Editor fixes apply automatically with revert (proposed), or wait for approval?
 4. When is a turn settled enough for the Archivist?
 5. Is per-story presence enough, or is per-turn presence needed early?
-6. For the real-time clock, use the browser's timezone or a Bureau setting?
+6. Whose "now" does correspondence use: the browser's timezone, or a timezone saved on the Bureau
+   (needed if characters ever message first)?
 7. Should stories support branching, or only per-turn variants?
 8. Does the persona keep memories of its own (useful for Bureaus with more than one persona)?
+9. Can a Bureau have more than one unfinished story at a time?
 
 ## References
 
