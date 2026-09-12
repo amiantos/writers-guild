@@ -1,9 +1,9 @@
 # Bureau — Design Doc
 
-- **Status:** Draft, experimental
+- **Status:** Experimental; phases 1–7 are built
 - **Started:** 2026-09-11 (last updated 2026-09-12)
 - **Working name:** Bureau (not final)
-- **Branch:** `feature/bureau`
+- **Branch:** built on `feature/bureau`, merged into `main`
 - **Discussion:** [#49 Chat Mode + Memories](https://github.com/amiantos/writers-guild/discussions/49)
 
 ## Summary

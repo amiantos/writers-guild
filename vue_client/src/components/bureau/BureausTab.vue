@@ -2,9 +2,14 @@
   <div class="bureaus-tab">
     <div class="tab-header">
       <h2><i class="fas fa-landmark"></i> Bureaus</h2>
-      <button class="btn btn-primary" @click="showCreate = true">
-        <i class="fas fa-plus"></i> New Bureau
-      </button>
+      <div class="header-actions">
+        <button class="btn btn-secondary" @click="showIntro = true">
+          <i class="fas fa-circle-question"></i> What's a Bureau?
+        </button>
+        <button class="btn btn-primary" @click="showCreate = true">
+          <i class="fas fa-plus"></i> New Bureau
+        </button>
+      </div>
     </div>
 
     <p class="tab-intro">
@@ -39,6 +44,7 @@
     </div>
 
     <CreateBureauModal v-if="showCreate" @close="showCreate = false" @created="handleCreated" />
+    <BureauIntroModal v-if="showIntro" @close="closeIntro" />
   </div>
 </template>
 
@@ -47,7 +53,12 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { bureausAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
+import { rememberChoice, rememberedChoice } from '../../composables/bureau/format';
+import BureauIntroModal from './BureauIntroModal.vue';
 import CreateBureauModal from './CreateBureauModal.vue';
+
+// Remembers that this browser has seen the intro, so it only opens by itself once.
+const INTRO_KEY = 'bureau-intro';
 
 const router = useRouter();
 const toast = useToast();
@@ -55,6 +66,12 @@ const toast = useToast();
 const bureaus = ref([]);
 const loading = ref(true);
 const showCreate = ref(false);
+const showIntro = ref(rememberedChoice(INTRO_KEY, ['seen'], '') !== 'seen');
+
+function closeIntro() {
+  showIntro.value = false;
+  rememberChoice(INTRO_KEY, 'seen');
+}
 
 async function loadBureaus() {
   loading.value = true;
@@ -89,6 +106,12 @@ onMounted(loadBureaus);
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .tab-header h2 {
