@@ -9,8 +9,25 @@ vi.mock('../../../services/bureauApi', () => ({
     addMemory: vi.fn(),
     updateMemory: vi.fn(),
     removeMemory: vi.fn(),
+    listArcNotes: vi.fn(),
+    addArcNote: vi.fn(),
+    updateArcNote: vi.fn(),
+    removeArcNote: vi.fn(),
   },
 }));
+
+const PROPOSAL = {
+  id: 9,
+  content: 'Mara lets Theo steer.',
+  proposedContent: 'Mara lets Theo steer.',
+  rationale: 'She handed him the oars.',
+  status: 'proposed',
+  sourceType: 'manual',
+  sourceId: null,
+  sourceTitle: null,
+  sourceTurnIds: [],
+  needsReview: false,
+};
 
 const ModalStub = {
   props: ['title', 'maxWidth'],
@@ -60,6 +77,37 @@ describe('MemoryBrowserModal', () => {
       if (options.q) return { memories: [found] };
       return { memories: options.status === 'retired' ? [retired] : [knows, happened] };
     });
+    bureausAPI.listArcNotes.mockResolvedValue({ arcNotes: [PROPOSAL] });
+  });
+
+  it('reviews and writes changes on the development tab', async () => {
+    bureausAPI.updateArcNote.mockResolvedValue({ arcNote: { ...PROPOSAL, status: 'accepted' } });
+    bureausAPI.addArcNote.mockResolvedValue({ arcNote: PROPOSAL });
+    const wrapper = await mountBrowser();
+
+    expect(tab(wrapper, "How they've changed").text()).toContain('1');
+    await tab(wrapper, "How they've changed").trigger('click');
+    expect(wrapper.text()).toContain('Mara lets Theo steer.');
+    expect(wrapper.text()).not.toContain("Theo can't swim.");
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Accept')
+      .trigger('click');
+    await flushPromises();
+    expect(bureausAPI.updateArcNote).toHaveBeenCalledWith('b1', 9, { status: 'accepted' });
+
+    await wrapper
+      .find('textarea[aria-label="New arc note"]')
+      .setValue('Mara sleeps through storms now.');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    expect(bureausAPI.addArcNote).toHaveBeenCalledWith(
+      'b1',
+      'c1',
+      'Mara sleeps through storms now.',
+    );
+    expect(wrapper.emitted('changed')).toHaveLength(2);
   });
 
   it('shows what a character knows, what happened, and what was retired', async () => {

@@ -166,6 +166,34 @@ export const bureausAPI = {
   removeMemory(bureauId, memoryId) {
     return request(`/${bureauId}/memories/${memoryId}`, { method: 'DELETE' });
   },
+
+  /**
+   * A character's arc notes, oldest first.
+   * @param {{ status?: 'proposed'|'accepted'|'rejected' }} [options]
+   */
+  listArcNotes(bureauId, castId, { status } = {}) {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request(`/${bureauId}/cast/${castId}/arc-notes${query}`);
+  },
+
+  /** Write how a character has changed; a note written here is accepted as written. */
+  addArcNote(bureauId, castId, content) {
+    return request(`/${bureauId}/cast/${castId}/arc-notes`, { method: 'POST', body: { content } });
+  },
+
+  /** Accept, reject, or edit an arc note: content, status, needsReview. */
+  updateArcNote(bureauId, noteId, updates) {
+    return request(`/${bureauId}/arc-notes/${noteId}`, { method: 'PUT', body: updates });
+  },
+
+  removeArcNote(bureauId, noteId) {
+    return request(`/${bureauId}/arc-notes/${noteId}`, { method: 'DELETE' });
+  },
+
+  /** Export a cast member to the library as a new character, with how they've changed. */
+  exportCast(bureauId, castId) {
+    return request(`/${bureauId}/cast/${castId}/export`, { method: 'POST', body: {} });
+  },
 };
 
 export const bureauStoriesAPI = {

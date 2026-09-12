@@ -55,18 +55,56 @@
           </div>
         </form>
 
-        <p v-if="shown.length === 0" class="empty-hint">{{ emptyText }}</p>
-        <ul v-else class="memory-list">
-          <MemoryItem
-            v-for="memory in shown"
-            :key="memory.id"
-            :memory="memory"
-            :bureau-id="bureauId"
-            :busy="busyId === memory.id"
-            @update="update"
-            @remove="remove"
-          />
-        </ul>
+        <template v-if="!searching && tab === 'development'">
+          <form class="add-memory" @submit.prevent="addNote">
+            <textarea
+              v-model="noteDraft"
+              class="textarea-input"
+              rows="2"
+              :placeholder="`How ${member.name} has changed, in your own words`"
+              aria-label="New arc note"
+              @keydown.meta.enter.prevent="addNote"
+              @keydown.ctrl.enter.prevent="addNote"
+            ></textarea>
+            <div class="add-row add-row-end">
+              <button
+                type="submit"
+                class="btn btn-primary btn-small"
+                :disabled="!noteDraft.trim() || addingNote"
+              >
+                <i class="fas fa-plus"></i> {{ addingNote ? 'Adding...' : 'Add change' }}
+              </button>
+            </div>
+          </form>
+
+          <p v-if="orderedNotes.length === 0" class="empty-hint">{{ developmentEmptyText }}</p>
+          <ul v-else class="memory-list">
+            <ArcNoteItem
+              v-for="note in orderedNotes"
+              :key="note.id"
+              :note="note"
+              :bureau-id="bureauId"
+              :busy="busyNoteId === note.id"
+              @update="updateNote"
+              @remove="removeNote"
+            />
+          </ul>
+        </template>
+
+        <template v-else>
+          <p v-if="shown.length === 0" class="empty-hint">{{ emptyText }}</p>
+          <ul v-else class="memory-list">
+            <MemoryItem
+              v-for="memory in shown"
+              :key="memory.id"
+              :memory="memory"
+              :bureau-id="bureauId"
+              :busy="busyId === memory.id"
+              @update="update"
+              @remove="remove"
+            />
+          </ul>
+        </template>
       </template>
     </div>
 
@@ -79,6 +117,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Modal from '../Modal.vue';
+import ArcNoteItem from './ArcNoteItem.vue';
 import MemoryItem from './MemoryItem.vue';
 import { bureausAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
@@ -100,6 +139,10 @@ const { confirm } = useConfirm();
 const current = ref([]);
 const retired = ref([]);
 const results = ref([]);
+const arcNotes = ref([]);
+const noteDraft = ref('');
+const addingNote = ref(false);
+const busyNoteId = ref(null);
 const loading = ref(true);
 const tab = ref('knowledge');
 const query = ref('');
@@ -115,6 +158,7 @@ const searching = computed(() => query.value.trim().length > 0);
 const tabs = computed(() => [
   { key: 'knowledge', label: 'What they know', count: knowledge.value.length },
   { key: 'episodes', label: 'What happened', count: episodes.value.length },
+  { key: 'development', label: "How they've changed", count: activeNoteCount.value },
   { key: 'retired', label: 'Retired', count: retired.value.length },
 ]);
 
@@ -137,13 +181,31 @@ const emptyText = computed(() => {
   return 'Nothing retired. Memories you retire, and ones replaced by newer versions, are kept here.';
 });
 
+// Proposals first, newest first; then accepted changes in the order they happened; then rejected.
+const orderedNotes = computed(() => [
+  ...arcNotes.value.filter((note) => note.status === 'proposed').toReversed(),
+  ...arcNotes.value.filter((note) => note.status === 'accepted'),
+  ...arcNotes.value.filter((note) => note.status === 'rejected'),
+]);
+
+const activeNoteCount = computed(
+  () => arcNotes.value.filter((note) => note.status !== 'rejected').length,
+);
+
+const developmentEmptyText = computed(() => {
+  const { name } = props.member;
+  return `No changes yet. When a story changes who ${name} is, the Archivist proposes it here, and you decide what sticks. You can also write one yourself.`;
+});
+
 async function loadLists() {
-  const [currentData, retiredData] = await Promise.all([
+  const [currentData, retiredData, notesData] = await Promise.all([
     bureausAPI.listMemories(props.bureauId, props.member.id),
     bureausAPI.listMemories(props.bureauId, props.member.id, { status: 'retired' }),
+    bureausAPI.listArcNotes(props.bureauId, props.member.id),
   ]);
   current.value = currentData.memories;
   retired.value = retiredData.memories;
+  arcNotes.value = notesData.arcNotes;
 }
 
 async function search(text) {
@@ -231,6 +293,53 @@ async function remove(memory) {
   }
 }
 
+async function addNote() {
+  const content = noteDraft.value.trim();
+  if (!content || addingNote.value) return;
+  addingNote.value = true;
+  try {
+    await bureausAPI.addArcNote(props.bureauId, props.member.id, content);
+    noteDraft.value = '';
+    await refresh();
+  } catch (error) {
+    toast.error('Failed to add the change: ' + error.message);
+  } finally {
+    addingNote.value = false;
+  }
+}
+
+async function updateNote(note, updates) {
+  busyNoteId.value = note.id;
+  try {
+    await bureausAPI.updateArcNote(props.bureauId, note.id, updates);
+    await refresh();
+  } catch (error) {
+    toast.error('Failed to update the change: ' + error.message);
+  } finally {
+    busyNoteId.value = null;
+  }
+}
+
+async function removeNote(note) {
+  const confirmed = await confirm({
+    message:
+      'Delete this change for good?\n\nTo keep a record of it without using it, reject it instead.',
+    confirmText: 'Delete',
+    variant: 'danger',
+  });
+  if (!confirmed) return;
+
+  busyNoteId.value = note.id;
+  try {
+    await bureausAPI.removeArcNote(props.bureauId, note.id);
+    await refresh();
+  } catch (error) {
+    toast.error('Failed to delete the change: ' + error.message);
+  } finally {
+    busyNoteId.value = null;
+  }
+}
+
 onMounted(async () => {
   try {
     await loadLists();
@@ -290,6 +399,10 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
 
 .add-row .importance {
   width: auto;
+}
+
+.add-row-end {
+  justify-content: flex-end;
 }
 
 .memory-list {

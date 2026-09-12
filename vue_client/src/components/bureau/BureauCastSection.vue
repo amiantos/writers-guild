@@ -39,11 +39,7 @@
             <span v-if="memoryCounts[member.id]?.current" class="memory-count">
               {{ memoryCounts[member.id].current }}
             </span>
-            <span
-              v-if="memoryCounts[member.id]?.needsReview"
-              class="review-dot"
-              :title="`${memoryCounts[member.id].needsReview} to check`"
-            ></span>
+            <span v-if="reviewTitle(member)" class="review-dot" :title="reviewTitle(member)"></span>
           </button>
           <label class="checkbox-label reader-toggle" :title="readerToggleTitle">
             <input
@@ -54,6 +50,15 @@
             />
             Reader
           </label>
+          <button
+            v-if="!member.isPersona"
+            class="icon-btn"
+            title="Export to your library as a new character"
+            :disabled="busyId === member.id"
+            @click="exportMember(member)"
+          >
+            <i class="fas fa-file-export"></i>
+          </button>
           <button
             class="icon-btn"
             title="Remove from the cast"
@@ -96,6 +101,8 @@ const props = defineProps({
   cast: { type: Array, required: true },
   /** Current memories per cast member id: { current, needsReview }. */
   memoryCounts: { type: Object, default: () => ({}) },
+  /** Arc notes waiting for review per cast member id. */
+  arcNoteCounts: { type: Object, default: () => ({}) },
 });
 
 const emit = defineEmits(['changed', 'lorebook-attached']);
@@ -107,6 +114,34 @@ const showAdd = ref(false);
 const memoryMember = ref(null);
 const busyId = ref(null);
 const brokenImages = reactive({});
+
+/** What waits for the reader in a member's memory browser, or '' when nothing does. */
+function reviewTitle(member) {
+  const check = props.memoryCounts[member.id]?.needsReview ?? 0;
+  const changes = props.arcNoteCounts[member.id] ?? 0;
+  const parts = [];
+  if (check) parts.push(`${check} ${check === 1 ? 'memory' : 'memories'} to check`);
+  if (changes) parts.push(`${changes} ${changes === 1 ? 'change' : 'changes'} to review`);
+  return parts.join(', ');
+}
+
+async function exportMember(member) {
+  const confirmed = await confirm({
+    message: `Export ${member.name} to your library as a new character?\n\nThe new character starts from ${member.name}'s card in this Bureau, with the changes you've accepted. The library character this Bureau copied isn't touched.`,
+    confirmText: 'Export',
+  });
+  if (!confirmed) return;
+
+  busyId.value = member.id;
+  try {
+    const { name } = await bureausAPI.exportCast(props.bureauId, member.id);
+    toast.success(`Exported ${name} to your library`);
+  } catch (error) {
+    toast.error('Failed to export: ' + error.message);
+  } finally {
+    busyId.value = null;
+  }
+}
 
 async function setPersona(member, isPersona) {
   busyId.value = member.id;

@@ -32,6 +32,7 @@
           :bureau-id="bureauId"
           :cast="cast"
           :memory-counts="memoryCounts"
+          :arc-note-counts="arcNoteCounts"
           @changed="loadCast"
           @lorebook-attached="worldVersion++"
         />
@@ -63,6 +64,7 @@ const toast = useToast();
 const bureau = ref(null);
 const cast = ref([]);
 const memoryCounts = ref({});
+const arcNoteCounts = ref({});
 const loading = ref(true);
 const loadError = ref('');
 const worldVersion = ref(0);
@@ -78,6 +80,7 @@ async function load() {
     bureau.value = bureauData.bureau;
     cast.value = castData.cast;
     memoryCounts.value = castData.memoryCounts ?? {};
+    arcNoteCounts.value = castData.arcNoteCounts ?? {};
     setPageTitle(bureau.value.name);
   } catch (error) {
     console.error('Failed to load Bureau:', error);
@@ -97,6 +100,7 @@ async function loadCast() {
     bureau.value = bureauData.bureau;
     cast.value = castData.cast;
     memoryCounts.value = castData.memoryCounts ?? {};
+    arcNoteCounts.value = castData.arcNoteCounts ?? {};
   } catch (error) {
     toast.error('Failed to refresh the cast: ' + error.message);
   }
