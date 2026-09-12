@@ -548,7 +548,7 @@ describe('buildDirectorMessages', () => {
   });
 
   it("leaves the reader's character to the reader when there's no direction", () => {
-    const [system] = buildDirectorMessages({
+    const [system, user] = buildDirectorMessages({
       story: { title: 'Lamplight' },
       cast,
       turns: [{ kind: 'prose', source: 'user', content: 'Theo knocked.' }],
@@ -556,6 +556,14 @@ describe('buildDirectorMessages', () => {
     });
 
     expect(system.content).toContain("Don't plan what Theo says or decides.\n");
+    // Who wrote the latest passage doesn't matter: the story just continues.
+    expect(user.content).toContain(
+      '=== NEXT ===\nContinue the story naturally from where it left off.',
+    );
+    expect(user.content).not.toContain('wrote the latest passage');
+    expect(system.content).toContain(
+      "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent story already has",
+    );
   });
 
   it('marks an opening with its loose start time', () => {

@@ -182,7 +182,7 @@ describe('generateWriterTurn', () => {
       response: { content: 'Mara opened the door.', finishReason: 'stop' },
     });
     expect(run.steps[0].request.messages[1].content).toContain(
-      "leave Theo's next words and choices to Theo",
+      "Leave Theo's words and choices to Theo.",
     );
   });
 

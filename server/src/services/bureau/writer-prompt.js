@@ -94,29 +94,33 @@ function fitToBudget(parts, budget) {
   return { kept: parts.slice(start), truncated: start > 0 };
 }
 
-function instructionFor({ request, readerName, openingTime, hasProse, hasGeneratedProse }) {
+function instructionFor({
+  request,
+  readerName,
+  openingTime,
+  hasProse,
+  hasGeneratedProse,
+  hasReaderProse,
+}) {
   const lines = [];
 
+  // Who wrote the latest passage doesn't matter: every passage continues the story, as in story mode.
   if (!hasProse) {
     lines.push(
       'Write the opening of this story: set the scene, bring in the characters naturally, and end at a point that invites what comes next.',
     );
-  } else if (request.action === 'write' && readerName) {
-    lines.push(
-      `Continue the story from where ${readerName} left off. Respond to what ${readerName} just did, and leave ${readerName}'s next words and choices to ${readerName}.`,
-    );
-    lines.push(
-      `${readerName}'s passages may be written in first or second person; write yours in the house style's perspective and refer to ${readerName} by name.`,
-    );
-  } else if (request.action === 'write') {
-    lines.push(
-      "Continue the story from the reader's latest passage, responding to what happens in it.",
-    );
-    lines.push(
-      "The reader's passages may be written in first or second person; write yours in the house style's perspective.",
-    );
   } else {
     lines.push('Continue the story naturally from where it left off.');
+  }
+  if (hasReaderProse) {
+    lines.push(
+      readerName
+        ? `Some passages may be written in first or second person; write in the house style's perspective and refer to ${readerName} by name.`
+        : "Some passages may be written in first or second person; write in the house style's perspective.",
+    );
+  }
+  if (request.action === 'write' && readerName) {
+    lines.push(`Leave ${readerName}'s words and choices to ${readerName}.`);
   }
 
   if (request.action === 'direct' && request.direction) {
@@ -166,6 +170,11 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
       hasProse
         ? 'Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response.'
         : 'Write 3 to 5 paragraphs.',
+    );
+  }
+  if (hasProse) {
+    lines.push(
+      "Keep the scene moving: don't repeat an action, gesture, or line the story already has unless something new comes of it.",
     );
   }
   return lines.join('\n');
@@ -297,6 +306,7 @@ export function buildWriterMessages({
     hasGeneratedProse: storyTurns.some(
       (turn) => turn.kind === 'prose' && turn.source === 'generated',
     ),
+    hasReaderProse: storyTurns.some((turn) => turn.kind === 'prose' && turn.source === 'user'),
   });
 
   const storySection = storyText ? preserve(storyText, 'story') : '(Nothing has been written yet.)';

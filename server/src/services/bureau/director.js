@@ -130,7 +130,7 @@ export const DIRECTOR_TOOLS = [
         notes: {
           type: 'string',
           description:
-            "Continuity the Writer could get wrong, such as where everyone is or what just happened, in a sentence or two. Don't restate the character cards. Empty if nothing.",
+            "Continuity the Writer could get wrong, such as where everyone is or what just happened, in a sentence or two. Leave out props and details this passage doesn't need, and don't restate the character cards. Empty if nothing.",
         },
       },
       required: ['beats', 'pov', 'tone', 'length', 'memories', 'notes'],
@@ -215,6 +215,7 @@ export function buildDirectorMessages({
       '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
       '- Plan what happens and leave how it reads to the Writer. Each beat is a plain sentence about what someone does or what changes, without lines of dialogue, jokes, imagery, or explanations of what anyone feels underneath.',
       '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
+      "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent story already has, such as refilling a drink or glancing out a window, unless something new comes of it.",
       "- The Writer has the character cards, so don't restate anyone's traits or habits in the notes.",
       "- For the point of view, name only the character the passage stays closest to. The narration's person and tense come from the house style, so don't specify them.",
       canCreateCharacters
@@ -252,11 +253,7 @@ export function buildDirectorMessages({
         : `This is the opening of "${story.title}".`,
     );
   }
-  if (request.action === 'write') {
-    next.push(
-      `${personaName ?? 'The reader'} wrote the latest passage above. Plan the response to it.`,
-    );
-  } else if (request.action === 'direct' && request.direction) {
+  if (request.action === 'direct' && request.direction) {
     next.push(
       `The author's direction for the next passage (not part of the story yet): ${request.direction}`,
       'Plan a passage that carries it out.',

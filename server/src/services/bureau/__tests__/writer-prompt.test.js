@@ -161,10 +161,10 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain('=== STORY SO FAR ===\nThe lamp was lit.\n\nTheo climbed the stairs.');
-    expect(user).toContain("leave Theo's next words and choices to Theo");
     expect(user).toContain(
-      "write yours in the house style's perspective and refer to Theo by name",
+      "=== NEXT ===\nContinue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective and refer to Theo by name.\nLeave Theo's words and choices to Theo.",
     );
+    expect(user).not.toMatch(/Theo left off|Respond to what/);
   });
 
   it('writes for a reader with no character in the story without inventing a name', () => {
@@ -174,8 +174,25 @@ describe('buildWriterMessages', () => {
       request: { action: 'write' },
     });
 
-    expect(user).toContain("Continue the story from the reader's latest passage");
+    expect(user).toContain(
+      "Continue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective.\n",
+    );
     expect(user).not.toContain('User');
+  });
+
+  it('notes other perspectives on any action once the reader has written, but not who wrote last', () => {
+    const { user } = build({
+      turns: [prose('I opened the door.', 'user'), prose('The lamp was lit.')],
+      request: { action: 'continue' },
+    });
+    const generatedOnly = build({
+      turns: [prose('The lamp was lit.')],
+      request: { action: 'continue' },
+    });
+
+    expect(user).toContain('Some passages may be written in first or second person');
+    expect(user).not.toContain("Leave Theo's words and choices to Theo");
+    expect(generatedOnly.user).not.toContain('Some passages may be written');
   });
 
   it("still describes anyone else marked as a reader's character", () => {
@@ -249,6 +266,19 @@ describe('buildWriterMessages', () => {
       "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nPoint of view: Mara, narrated in the house style's person and tense. Tone: uneasy.\nStay consistent with:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
     );
     expect(user).not.toContain('Write the next 3 to 6 paragraphs');
+  });
+
+  it('keeps the scene moving once the story has prose', () => {
+    const continuing = build({
+      turns: [prose('The lamp was lit.')],
+      request: { action: 'continue' },
+    });
+    const opening = build({ turns: [], request: { action: 'continue' } });
+
+    expect(continuing.user).toMatch(
+      /Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response\.\nKeep the scene moving: don't repeat an action, gesture, or line the story already has unless something new comes of it\.$/,
+    );
+    expect(opening.user).not.toContain('Keep the scene moving');
   });
 
   it('drops the oldest turns when the story is over budget', () => {
