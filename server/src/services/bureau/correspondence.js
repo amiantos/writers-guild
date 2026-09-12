@@ -191,7 +191,7 @@ export function buildCorrespondenceMessages({
   };
 
   const system = [
-    `You write ${name}'s side of a private correspondence with ${personaName}, the reader's character, between the stories of an ongoing series. Write only ${name}'s messages.`,
+    `You write ${name}'s side of a private correspondence with ${personaName}, the reader's character, between the chapters of an ongoing story. Write only ${name}'s messages.`,
     section(
       'CORRESPONDENCE STYLE',
       bureau.settings.correspondence.style.trim() || DEFAULT_CORRESPONDENCE_STYLE,

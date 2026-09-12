@@ -258,7 +258,7 @@ describe('archiveStory', () => {
     expect(prompt).toContain('Theo is getting braver about water.');
     expect(prompt).not.toContain('Theo is afraid of water.');
     expect(prompt).toContain(`[${pinned.id}] Theo hates boats.`);
-    expect(prompt).toContain('Episode for this story so far: First episode.');
+    expect(prompt).toContain('Episode for this chapter so far: First episode.');
     expect(prompt).not.toContain('Theo waded in');
     expect(second.warnings).toEqual([`Kept memory ${pinned.id} for Mara: it can't be replaced`]);
     expect(maraMemories('episode').map((memory) => memory.content)).toEqual(['Second episode.']);

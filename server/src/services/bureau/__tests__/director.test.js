@@ -271,9 +271,9 @@ describe('runDirector', () => {
     await direct(client);
 
     expect(toolResults(client.calls[1]).map((result) => result.error)).toEqual([
-      'No one named "Nobody" in this story keeps memories',
+      'No one named "Nobody" in this chapter keeps memories',
       "Theo is the reader's character and keeps no memories. To find what the others remember about Theo, search with an empty character.",
-      'No one named "Nobody" is in this story',
+      'No one named "Nobody" is in this chapter',
     ]);
   });
 
@@ -335,7 +335,7 @@ describe('runDirector', () => {
       description: 'Runs the harbor pub and hears everything.',
       addedToStory: true,
     });
-    expect(duplicate.error).toMatch(/Mara is already in this story/);
+    expect(duplicate.error).toMatch(/Mara is already in this chapter/);
   });
 
   it('brings someone already in the Bureau into the story instead of creating them', async () => {
@@ -539,7 +539,7 @@ describe('buildDirectorMessages', () => {
     expect(user.content).toContain(
       "=== CAST ===\n- Mara: She keeps the Greywater light.\n- Theo (the reader's character)",
     );
-    expect(user.content).toContain('=== STORY SO FAR ===\nTheo knocked.');
+    expect(user.content).toContain('=== CHAPTER SO FAR ===\nTheo knocked.');
     expect(user.content).not.toContain('An old direction');
     expect(user.content).toContain(
       "The author's direction for the next passage (not part of the story yet): Make it rain\nPlan a passage that carries it out.",
@@ -562,7 +562,7 @@ describe('buildDirectorMessages', () => {
     );
     expect(user.content).not.toContain('wrote the latest passage');
     expect(system.content).toContain(
-      "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent story already has",
+      "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have",
     );
   });
 

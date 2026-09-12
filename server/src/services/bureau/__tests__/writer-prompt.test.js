@@ -109,7 +109,7 @@ describe('buildWriterMessages', () => {
     });
 
     expect(system).toContain(
-      "=== MEMORIES ===\nWhat the characters remember from before this story, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
+      "=== MEMORIES ===\nWhat the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
     );
     expect(system).not.toContain('The reader remembers this.');
   });
@@ -140,8 +140,10 @@ describe('buildWriterMessages', () => {
     const { user } = build({ openingTime: 'a Tuesday, a little past midnight, late October' });
 
     expect(user).toContain('(Nothing has been written yet.)');
-    expect(user).toContain('Write the opening of this story');
-    expect(user).toContain('The story begins on a Tuesday, a little past midnight, late October.');
+    expect(user).toContain('Write the opening of this chapter');
+    expect(user).toContain(
+      'This chapter begins on a Tuesday, a little past midnight, late October.',
+    );
   });
 
   it('keeps the start time until the story has generated prose', () => {
@@ -160,7 +162,7 @@ describe('buildWriterMessages', () => {
       request: { action: 'write' },
     });
 
-    expect(user).toContain('=== STORY SO FAR ===\nThe lamp was lit.\n\nTheo climbed the stairs.');
+    expect(user).toContain('=== CHAPTER SO FAR ===\nThe lamp was lit.\n\nTheo climbed the stairs.');
     expect(user).toContain(
       "=== NEXT ===\nContinue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective and refer to Theo by name.\nLeave Theo's words and choices to Theo.",
     );
@@ -216,7 +218,7 @@ describe('buildWriterMessages', () => {
       request: { action: 'direct', direction: 'She suggests the night market' },
     });
 
-    expect(user).toContain('=== STORY SO FAR ===\nThe lamp was lit.\n\n---\n\nMorning came.');
+    expect(user).toContain('=== CHAPTER SO FAR ===\nThe lamp was lit.\n\n---\n\nMorning came.');
     expect(user).not.toContain('An old direction');
     expect(user).toContain(
       "The author's direction for this passage (not part of the story yet): She suggests the night market\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do. Beyond that, leave Theo's words and choices to Theo.",
@@ -276,7 +278,7 @@ describe('buildWriterMessages', () => {
     const opening = build({ turns: [], request: { action: 'continue' } });
 
     expect(continuing.user).toMatch(
-      /Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response\.\nKeep the scene moving: don't repeat an action, gesture, or line the story already has unless something new comes of it\.$/,
+      /Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response\.\nKeep the scene moving: don't repeat an action, gesture, or line the chapter already has unless something new comes of it\.$/,
     );
     expect(opening.user).not.toContain('Keep the scene moving');
   });
@@ -288,7 +290,7 @@ describe('buildWriterMessages', () => {
     });
 
     expect(storyTruncated).toBe(true);
-    expect(user).toContain('[Earlier parts of the story are omitted.]');
+    expect(user).toContain('[Earlier parts of the chapter are omitted.]');
     expect(user).not.toContain('AAAA');
     expect(user).toContain(`${'B'.repeat(50)}\n\n${'C'.repeat(50)}`);
   });

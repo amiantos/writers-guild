@@ -288,7 +288,7 @@ describe('generateWriterTurn', () => {
     await generate(client, { action: 'continue' });
 
     expect(client.calls[0].messages[1].content).toContain(
-      'The story begins on a Tuesday, a little past midnight, late October.',
+      'This chapter begins on a Tuesday, a little past midnight, late October.',
     );
   });
 

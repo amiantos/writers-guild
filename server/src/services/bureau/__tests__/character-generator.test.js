@@ -105,7 +105,7 @@ describe('buildGeneratorMessages', () => {
     expect(system.content).toContain('never name or describe anyone from it');
     expect(user.content).toContain('=== IDEA ===\nA harbor pub owner who hears everything');
     expect(user.content).toContain('The character is named Ines.');
-    expect(user.content).toContain('=== ROLE IN THE CURRENT STORY ===\nShe warns Theo');
+    expect(user.content).toContain('=== ROLE IN THE CURRENT CHAPTER ===\nShe warns Theo');
     expect(user.content).toContain('=== EXISTING CAST ===\n- Mara: Keeper of the light.');
     expect(user.content).toContain('=== WORLD ===\n- Greywater: lighthouse, harbor');
   });

@@ -126,10 +126,10 @@ The trade-off: you lose typing anywhere in the canvas, but a chapter becomes an 
 
 | Kind                   | Shown as                         | Sent to the Writer as          |
 | ---------------------- | -------------------------------- | ------------------------------ |
-| `prose` (user-written) | Prose, attributed to the persona | Story text                     |
-| `prose` (generated)    | Prose                            | Story text                     |
+| `prose` (user-written) | Prose, attributed to the persona | Chapter text                   |
+| `prose` (generated)    | Prose                            | Chapter text                   |
 | `direction`            | A small, collapsible note        | Instructions for the next beat |
-| `scene_break`          | A divider                        | A marker in the story text     |
+| `scene_break`          | A divider                        | A marker in the chapter text   |
 
 Turns never move Bureau time. Time passing inside a chapter is written as prose, as in any book
 ("Three hours later…").

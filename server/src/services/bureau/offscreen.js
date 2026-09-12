@@ -162,7 +162,7 @@ export function buildOffscreenMessages({
 }) {
   const personaName = persona ? nameOf(persona) : null;
   const system = [
-    'You keep track of what the characters in an ongoing series of stories do between the scenes the reader sees. Call record_offscreen once, with one entry for each character listed.',
+    'You keep track of what the characters in an ongoing story do between the scenes the reader sees. Call record_offscreen once, with one entry for each character listed.',
     [
       '- Write two to four sentences for each character, in the past tense and the third person, about how they spent the time since they were last seen: work, errands, habits, small pleasures and annoyances, people they ran into.',
       '- Keep it mostly mundane and true to who they are: their routine, what they know, and how they have changed. At most one thing in an entry can be notable, and nothing that settles or invents a major turn in their story.',

@@ -36,7 +36,7 @@ const BRIEF_LENGTHS = {
 };
 
 const MEMORIES_PREFACE =
-  'What the characters remember from before this story, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.';
+  'What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.';
 
 // PromptBuilder is story mode's, reused here only for its {{user}}/{{char}} replacement.
 const placeholders = new PromptBuilder();
@@ -107,7 +107,7 @@ function instructionFor({
   // Who wrote the latest passage doesn't matter: every passage continues the story, as in story mode.
   if (!hasProse) {
     lines.push(
-      'Write the opening of this story: set the scene, bring in the characters naturally, and end at a point that invites what comes next.',
+      'Write the opening of this chapter: set the scene, bring in the characters naturally, and end at a point that invites what comes next.',
     );
   } else {
     lines.push('Continue the story naturally from where it left off.');
@@ -138,7 +138,7 @@ function instructionFor({
   }
   if (openingTime && !hasGeneratedProse) {
     lines.push(
-      `The story begins on ${openingTime}. Let the time shape the scene without stating an exact hour.`,
+      `This chapter begins on ${openingTime}. Let the time shape the scene without stating an exact hour.`,
     );
   }
 
@@ -174,7 +174,7 @@ function instructionFor({
   }
   if (hasProse) {
     lines.push(
-      "Keep the scene moving: don't repeat an action, gesture, or line the story already has unless something new comes of it.",
+      "Keep the scene moving: don't repeat an action, gesture, or line the chapter already has unless something new comes of it.",
     );
   }
   return lines.join('\n');
@@ -294,7 +294,7 @@ export function buildWriterMessages({
   const { kept, truncated } = fitToBudget(parts, storyCharacterBudget);
   let storyText = kept.join('\n\n');
   if (truncated) {
-    storyText = `[Earlier parts of the story are omitted.]\n\n${storyText}`;
+    storyText = `[Earlier parts of the chapter are omitted.]\n\n${storyText}`;
   }
 
   const hasProse = storyTurns.some((turn) => turn.kind === 'prose');
@@ -317,7 +317,9 @@ export function buildWriterMessages({
       { role: 'system', content: system.join('\n\n') },
       {
         role: 'user',
-        content: [section('STORY SO FAR', storySection), section('NEXT', instruction)].join('\n\n'),
+        content: [section('CHAPTER SO FAR', storySection), section('NEXT', instruction)].join(
+          '\n\n',
+        ),
       },
     ],
     storyTruncated: truncated,

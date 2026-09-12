@@ -57,7 +57,7 @@ function recordableMessages(messages, storySection) {
   if (storySection.length <= RECORDED_STORY_TAIL) return messages;
 
   const omitted = storySection.length - RECORDED_STORY_TAIL;
-  const trimmed = `[${omitted} earlier characters not recorded; the full story is in its turns]\n…${storySection.slice(-RECORDED_STORY_TAIL)}`;
+  const trimmed = `[${omitted} earlier characters not recorded; the full chapter is in its turns]\n…${storySection.slice(-RECORDED_STORY_TAIL)}`;
   return messages.map((message) =>
     message.role === 'user'
       ? { ...message, content: message.content.replace(storySection, () => trimmed) }

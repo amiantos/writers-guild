@@ -80,7 +80,7 @@ export const RECORD_MEMORIES_TOOL = {
       episodes: {
         type: 'array',
         description:
-          'One per character, telling the whole story so far from their point of view, in the third person.',
+          'One per character, telling what has happened so far from their point of view, in the third person.',
         items: {
           type: 'object',
           properties: {
@@ -119,7 +119,7 @@ export const RECORD_MEMORIES_TOOL = {
       },
       story_summary: {
         type: 'string',
-        description: 'What has happened in the whole story so far, at most 150 words.',
+        description: 'What has happened in the whole chapter so far, at most 150 words.',
       },
     },
     required: ['knowledge', 'episodes', 'arc_notes', 'story_summary'],
@@ -197,11 +197,11 @@ const WORDING = {
   story: {
     units: 'passages',
     unit: 'Passage',
-    scope: 'this story',
+    scope: 'this chapter',
     episodes:
-      'Episodes: one for each character who remembers, telling what happened in this story so far from their point of view, in the third person and past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
+      'Episodes: one for each character who remembers, telling what happened in this chapter so far from their point of view, in the third person and past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
     summary:
-      'story_summary: what has happened in the whole story so far, in at most 150 words, updating the previous summary.',
+      'story_summary: what has happened in the whole chapter so far, in at most 150 words, updating the previous summary.',
   },
   correspondence: {
     units: 'messages',
@@ -257,7 +257,7 @@ export function buildArchivistMessages({
   const about = personaName ? `the people around them (including ${personaName})` : 'each other';
 
   const system = [
-    `You are the Archivist for a series of connected stories. Read the new ${wording.units}, then call record_memories once with what the characters will remember.`,
+    `You are the Archivist for an ongoing story told in chapters. Read the new ${wording.units}, then call record_memories once with what the characters will remember.`,
     `Characters who remember: ${names.length > 0 ? listNames(names) : 'none'}.`,
   ];
   if (personaName) {
@@ -332,7 +332,7 @@ export function buildArchivistMessages({
     if (source.openingTime) storyLines.push(`Begins: ${source.openingTime}`);
     storyLines.push(`Present: ${present.length > 0 ? listNames(present) : 'no one in the cast'}`);
     user = [
-      section('STORY', storyLines.join('\n')),
+      section('CHAPTER', storyLines.join('\n')),
       section(
         'SUMMARY SO FAR',
         source.summary || 'Nothing has been summarized yet; these are the first passages.',

@@ -35,14 +35,14 @@ export const DIRECTOR_TOOLS = [
   {
     name: 'recall',
     description:
-      'Search what the characters remember: earlier stories, backstory, and what this story has recorded so far. Use it when the passage turns on earlier events, people, or promises.',
+      'Search what the characters remember: earlier chapters, backstory, and what this chapter has recorded so far. Use it when the passage turns on earlier events, people, or promises.',
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Words to search for.' },
         character: {
           type: 'string',
-          description: "A character's name, or an empty string to search everyone in the story.",
+          description: "A character's name, or an empty string to search everyone in the chapter.",
         },
       },
       required: ['query', 'character'],
@@ -61,7 +61,7 @@ export const DIRECTOR_TOOLS = [
   },
   {
     name: 'get_character_file',
-    description: "A character's full card, with what they know and their recent stories.",
+    description: "A character's full card, with what they know and their recent chapters.",
     parameters: {
       type: 'object',
       properties: { name: { type: 'string', description: "The character's name." } },
@@ -77,10 +77,10 @@ export const DIRECTOR_TOOLS = [
       type: 'object',
       properties: {
         name: { type: 'string', description: 'The name they go by in the story.' },
-        role: { type: 'string', description: 'Their part in this story, in a sentence.' },
+        role: { type: 'string', description: 'Their part in this chapter, in a sentence.' },
         notes: {
           type: 'string',
-          description: 'Who they are: anything the story or the request establishes.',
+          description: 'Who they are: anything the chapter or the request establishes.',
         },
       },
       required: ['name', 'role', 'notes'],
@@ -215,11 +215,11 @@ export function buildDirectorMessages({
       '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
       '- Plan what happens and leave how it reads to the Writer. Each beat is a plain sentence about what someone does or what changes, without lines of dialogue, jokes, imagery, or explanations of what anyone feels underneath.',
       '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
-      "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent story already has, such as refilling a drink or glancing out a window, unless something new comes of it.",
+      "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have, such as refilling a drink or glancing out a window, unless something new comes of it.",
       "- The Writer has the character cards, so don't restate anyone's traits or habits in the notes.",
       "- For the point of view, name only the character the passage stays closest to. The narration's person and tense come from the house style, so don't specify them.",
       canCreateCharacters
-        ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this story.'
+        ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this chapter.'
         : null,
       personaName
         ? `- ${personaName}'s words and choices belong to the reader. Don't plan what ${personaName} says or decides${request.action === 'direct' ? " beyond what the author's direction asks for" : ''}.`
@@ -271,7 +271,7 @@ export function buildDirectorMessages({
       role: 'user',
       content: [
         section('CAST', castLines.join('\n') || '(No one in the cast.)'),
-        section('STORY SO FAR', recent || '(Nothing has been written yet.)'),
+        section('CHAPTER SO FAR', recent || '(Nothing has been written yet.)'),
         section('NEXT', next.join('\n')),
       ].join('\n\n'),
     },
@@ -340,7 +340,7 @@ function toolHandlers({
           throw new Error(
             persona
               ? `${nameOf(persona)} is the reader's character and keeps no memories. To find what the others remember about ${nameOf(persona)}, search with an empty character.`
-              : `No one named "${character}" in this story keeps memories`,
+              : `No one named "${character}" in this chapter keeps memories`,
           );
         }
         members = [member];
@@ -408,7 +408,7 @@ function toolHandlers({
       lookUp();
       const member = findMember(cast, name);
       if (!member) {
-        throw new Error(`No one named "${name}" is in this story`);
+        throw new Error(`No one named "${name}" is in this chapter`);
       }
       const data = member.seedCard?.data ?? {};
       const file = {
@@ -427,9 +427,9 @@ function toolHandlers({
           id: remember(member, memory),
           content: memory.content,
         }));
-        file.recentStories = episodes.map((memory) => ({
+        file.recentChapters = episodes.map((memory) => ({
           id: remember(member, memory),
-          story: sourceLabelOf(memory),
+          from: sourceLabelOf(memory),
           content: memory.content,
         }));
         file.hasChanged = notesAsOf(
@@ -482,7 +482,7 @@ function toolHandlers({
       const inStory = findMember(cast, wanted);
       if (inStory || createdNames.has(key)) {
         throw new Error(
-          `${inStory ? nameOf(inStory) : wanted} is already in this story; use get_character_file to learn about them`,
+          `${inStory ? nameOf(inStory) : wanted} is already in this chapter; use get_character_file to learn about them`,
         );
       }
 
