@@ -25,14 +25,24 @@ function record(fields = {}) {
   return { knowledge: [], episodes: [], story_summary: '', ...fields };
 }
 
-/** A client that answers each chat call with the next record as a record_memories call. */
+/** A knowledge item in which Mara replaces memory `id` with `content`. */
+function replacement(id, content) {
+  return { character: 'Mara', content, importance: 3, supersedes: id, passages: [0] };
+}
+
+/**
+ * A client that answers each chat call with the next record as a record_memories call.
+ * Set `client.beforeAnswer` to change things while the model is "reading".
+ */
 function archivistClient(records, { failWith = null } = {}) {
   const client = {
     model: 'deepseek-flash',
     calls: [],
+    beforeAnswer: null,
     async chat(options) {
       client.calls.push(options);
       if (failWith) throw failWith;
+      client.beforeAnswer?.();
       const next = records[client.calls.length - 1] ?? records.at(-1);
       return {
         content: '',
@@ -251,6 +261,91 @@ describe('archiveStory', () => {
     expect(second.warnings).toEqual([`Kept memory ${pinned.id} for Mara: it can't be replaced`]);
     expect(maraMemories('episode').map((memory) => memory.content)).toEqual(['Second episode.']);
     expect(stores.memories.getMemory(bureau.id, pinned.id).supersededBy).toBeNull();
+  });
+
+  it('flags what it recorded from a passage that changed while it was reading', async () => {
+    const turn = addProse("Theo admitted he couldn't swim.");
+    const client = archivistClient([
+      record({
+        knowledge: [
+          {
+            character: 'Mara',
+            content: "Theo can't swim.",
+            importance: 4,
+            supersedes: 0,
+            passages: [turn.position],
+          },
+        ],
+        episodes: [{ character: 'Mara', content: 'Theo confided in Mara.' }],
+      }),
+    ]);
+    client.beforeAnswer = () =>
+      stores.stories.editTurn(story.id, turn.id, 'Theo admitted he could swim a little.');
+
+    const result = await archive(client);
+
+    expect(maraMemories().map((memory) => [memory.layer, memory.needsReview])).toEqual([
+      ['episode', true],
+      ['knowledge', true],
+    ]);
+    expect(result.warnings).toEqual([
+      'Marked for review: 1 passage(s) changed while the Archivist read them',
+    ]);
+  });
+
+  it('leaves memories alone that were pinned, edited, or already replaced during the pass', async () => {
+    const add = (content) =>
+      stores.memories.addMemory(bureau.id, mara.id, { layer: 'knowledge', content });
+    const pinnedLater = add('Theo hates boats.');
+    const editedLater = add('Theo hates tea.');
+    const replacedTwice = add('Theo lives inland.');
+    addProse('Theo rowed out alone and drank his tea on the water.');
+    const client = archivistClient([
+      record({
+        knowledge: [
+          replacement(pinnedLater.id, 'Theo likes boats now.'),
+          replacement(editedLater.id, 'Theo drinks tea on the water.'),
+          replacement(replacedTwice.id, 'Theo lives by the sea.'),
+          replacement(replacedTwice.id, 'Theo moved to the coast.'),
+        ],
+      }),
+    ]);
+    client.beforeAnswer = () => {
+      stores.memories.updateMemory(bureau.id, pinnedLater.id, { pinned: true });
+      stores.memories.updateMemory(bureau.id, editedLater.id, {
+        content: 'Theo hates strong tea.',
+      });
+    };
+
+    const result = await archive(client);
+
+    expect(result).toMatchObject({ added: 4, superseded: 1 });
+    expect(result.warnings).toHaveLength(3);
+    expect(stores.memories.getMemory(bureau.id, pinnedLater.id).supersededBy).toBeNull();
+    expect(stores.memories.getMemory(bureau.id, editedLater.id)).toMatchObject({
+      content: 'Theo hates strong tea.',
+      supersededBy: null,
+    });
+    expect(stores.memories.getMemory(bureau.id, replacedTwice.id).supersededBy).not.toBeNull();
+  });
+
+  it('cites every passage in an episode, and keeps a pinned episode', async () => {
+    const episode = (content) => record({ episodes: [{ character: 'Mara', content }] });
+    const first = addProse('Theo waded in.');
+    await archive(archivistClient([episode('First.')]));
+    const second = addProse('Theo swam to the buoy.');
+    await archive(archivistClient([episode('Second.')]));
+
+    const [current] = maraMemories('episode');
+    expect(current).toMatchObject({ content: 'Second.', sourceTurnIds: [first.id, second.id] });
+
+    stores.memories.updateMemory(bureau.id, current.id, { pinned: true });
+    addProse('Theo floated on his back.');
+    const result = await archive(archivistClient([episode('Third.')]));
+
+    expect(result.episodes).toBe(0);
+    expect(result.warnings).toHaveLength(1);
+    expect(maraMemories('episode').map((memory) => memory.content)).toEqual(['Second.']);
   });
 
   it("skips memories for anyone who isn't a character that remembers", async () => {

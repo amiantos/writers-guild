@@ -482,10 +482,13 @@ describe('Bureau story routes', () => {
         .send({ content: 'Theo admitted he could barely swim.' })
         .expect(200);
 
-      const knowledge = (await maraMemories()).find((memory) => memory.layer === 'knowledge');
-      expect(knowledge.needsReview).toBe(true);
+      // The episode covers every passage, so it's flagged along with the knowledge.
+      expect((await maraMemories()).map((memory) => [memory.layer, memory.needsReview])).toEqual([
+        ['episode', true],
+        ['knowledge', true],
+      ]);
       const { body } = await request(app).get(`/api/bureaus/${bureau.id}/cast`).expect(200);
-      expect(body.memoryCounts[mara.id]).toEqual({ current: 2, needsReview: 1 });
+      expect(body.memoryCounts[mara.id]).toEqual({ current: 2, needsReview: 2 });
     });
 
     it('deletes the memories recorded from a deleted story', async () => {

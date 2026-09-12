@@ -183,6 +183,23 @@ describe('MemoryStorage', () => {
     expect(memories.updateMemory(bureau.id, 9999, { pinned: true })).toBeNull();
   });
 
+  it('retires the newest replacement when an older version is restored', () => {
+    const boston = remember('Mara lives in Boston.');
+    const denver = remember('Mara moved to Denver.', { supersedes: boston.id });
+    const seattle = remember('Mara moved on to Seattle.', { supersedes: denver.id });
+
+    memories.updateMemory(bureau.id, boston.id, { retired: false });
+
+    expect(memories.listMemories(bureau.id, mara.id).map((memory) => memory.id)).toEqual([
+      boston.id,
+    ]);
+    expect(memories.getMemory(bureau.id, seattle.id).retired).toBe(true);
+    expect(memories.getMemory(bureau.id, denver.id)).toMatchObject({
+      retired: false,
+      supersededBy: seattle.id,
+    });
+  });
+
   it('flags memories citing changed turns until they are reviewed', () => {
     const cited = stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Knock.' });
     const other = stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Lamp.' });

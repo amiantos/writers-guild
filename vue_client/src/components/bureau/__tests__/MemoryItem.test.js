@@ -74,6 +74,16 @@ describe('MemoryItem', () => {
 
     await wrapper.find('select').setValue('2');
     expect(lastUpdate(wrapper)).toEqual({ importance: 2 });
+    // The saved importance shows until the updated memory comes back.
+    expect(wrapper.find('select').element.value).toBe('4');
+  });
+
+  it('pins knowledge but not episodes', () => {
+    const wrapper = mountItem({ layer: 'episode' });
+
+    expect(wrapper.find('button[title^="Pin"]').exists()).toBe(false);
+    expect(wrapper.find('select').exists()).toBe(false);
+    expect(wrapper.find('button[title="Edit"]').exists()).toBe(true);
   });
 
   it('offers restore, not edits, for a replaced memory', async () => {
@@ -84,7 +94,7 @@ describe('MemoryItem', () => {
     expect(wrapper.find('button[title="Edit"]').exists()).toBe(false);
     expect(wrapper.find('select').exists()).toBe(false);
 
-    await wrapper.find('button[title="Restore"]').trigger('click');
+    await wrapper.find('button[title^="Restore this version"]').trigger('click');
     expect(lastUpdate(wrapper)).toEqual({ retired: false });
   });
 });

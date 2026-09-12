@@ -276,10 +276,34 @@ function applyRecord({
 
   const base = { sourceType: 'story', sourceId: story.id, worldTime: story.startTime, runId };
 
+  // The model read memories as they were before its call, which can take a while. Replace one
+  // only if it's still that memory: not pinned, edited, retired, or replaced since, including
+  // by an earlier item in this record. Call inside the transaction.
+  const replaced = new Set();
+  const canReplace = (castId, seen) => {
+    const current = memories.getMemory(bureauId, seen.id);
+    return (
+      Boolean(current) &&
+      current.castMemberId === castId &&
+      !current.pinned &&
+      !current.retired &&
+      current.supersededBy === null &&
+      current.content === seen.content &&
+      current.modified === seen.modified &&
+      !replaced.has(seen.id)
+    );
+  };
+
   stores.bureaus.db.transaction(() => {
     if (!stories.getStory(bureauId, story.id)) {
       throw new StoryDeletedError();
     }
+
+    // Turns edited, regenerated, or deleted while the model was reading them.
+    const changedTurnIds = turns
+      .filter((turn) => stories.getTurn(story.id, turn.id)?.content !== turn.content)
+      .map((turn) => turn.id);
+
     for (const item of Array.isArray(record.knowledge) ? record.knowledge : []) {
       const member = memberFor(item?.character, 'a memory');
       const content = text(item?.content);
@@ -287,11 +311,12 @@ function applyRecord({
 
       let supersedes = null;
       if (item.supersedes) {
-        const target = (knownByCast.get(member.id) ?? []).find(
+        const seen = (knownByCast.get(member.id) ?? []).find(
           (memory) => memory.id === item.supersedes,
         );
-        if (target && !target.pinned && target.supersededBy === null) {
-          supersedes = target.id;
+        if (seen && canReplace(member.id, seen)) {
+          supersedes = seen.id;
+          replaced.add(seen.id);
           result.superseded += 1;
         } else {
           result.warnings.push(
@@ -321,14 +346,32 @@ function applyRecord({
       const content = text(item?.content);
       if (member && content) episodes.set(member.id, content);
     }
+    const proseTurnIds = turns.filter((turn) => turn.kind === 'prose').map((turn) => turn.id);
     for (const [castId, content] of episodes) {
+      const previous = episodeByCast.get(castId) ?? null;
+      if (previous && !canReplace(castId, previous)) {
+        const name = nameOf(characters.find((member) => member.id === castId));
+        result.warnings.push(
+          `Kept ${name}'s episode for this story: it was pinned or changed during the pass`,
+        );
+        continue;
+      }
       memories.addMemory(bureauId, castId, {
         ...base,
         layer: 'episode',
         content,
-        supersedes: episodeByCast.get(castId)?.id ?? null,
+        // An episode covers every passage so far, so a change to any of them flags it.
+        sourceTurnIds: [...new Set([...(previous?.sourceTurnIds ?? []), ...proseTurnIds])],
+        supersedes: previous?.id ?? null,
       });
       result.episodes += 1;
+    }
+
+    if (changedTurnIds.length > 0) {
+      memories.flagTurnsChanged(bureauId, story.id, changedTurnIds);
+      result.warnings.push(
+        `Marked for review: ${changedTurnIds.length} passage(s) changed while the Archivist read them`,
+      );
     }
 
     stories.setArchiveProgress(story.id, {

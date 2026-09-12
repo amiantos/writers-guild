@@ -126,6 +126,7 @@ export class MemoryStorage {
                             superseded_by = @supersededBy, modified = @modified
         WHERE id = @id
       `),
+      retire: this.db.prepare('UPDATE memories SET retired = 1, modified = ? WHERE id = ?'),
       delete: this.db.prepare('DELETE FROM memories WHERE bureau_id = ? AND id = ?'),
       deleteForStory: this.db.prepare(
         "DELETE FROM memories WHERE bureau_id = ? AND source_type = 'story' AND source_id = ?",
@@ -252,7 +253,7 @@ export class MemoryStorage {
    * @param {number} memoryId
    * @param {Object} updates - Any of content, importance, pinned, retired, needsReview.
    *   Editing the content counts as reviewing it. Setting retired to false also restores a
-   *   memory that was replaced.
+   *   memory that was replaced, retiring the newest version that replaced it.
    * @returns {Object|null} The updated memory, or null if it doesn't exist.
    */
   updateMemory(bureauId, memoryId, { content, importance, pinned, retired, needsReview }) {
@@ -261,17 +262,38 @@ export class MemoryStorage {
 
     const contentChanged = content !== undefined && content !== memory.content;
     const restored = retired === false;
-    this.stmts.update.run({
-      id: memoryId,
-      content: content ?? memory.content,
-      importance: importance === undefined ? memory.importance : clampImportance(importance),
-      pinned: (pinned ?? memory.pinned) ? 1 : 0,
-      retired: (retired ?? memory.retired) ? 1 : 0,
-      needsReview: (needsReview ?? (contentChanged ? false : memory.needsReview)) ? 1 : 0,
-      supersededBy: restored ? null : memory.supersededBy,
-      modified: new Date().toISOString(),
-    });
+    const modified = new Date().toISOString();
+    this.db.transaction(() => {
+      // Two versions of one memory shouldn't both be current.
+      if (restored && memory.supersededBy !== null) {
+        const newest = this.newestVersionOf(bureauId, memory.supersededBy);
+        if (newest && !newest.retired) {
+          this.stmts.retire.run(modified, newest.id);
+        }
+      }
+      this.stmts.update.run({
+        id: memoryId,
+        content: content ?? memory.content,
+        importance: importance === undefined ? memory.importance : clampImportance(importance),
+        pinned: (pinned ?? memory.pinned) ? 1 : 0,
+        retired: (retired ?? memory.retired) ? 1 : 0,
+        needsReview: (needsReview ?? (contentChanged ? false : memory.needsReview)) ? 1 : 0,
+        supersededBy: restored ? null : memory.supersededBy,
+        modified,
+      });
+    })();
     return this.getMemory(bureauId, memoryId);
+  }
+
+  /** The end of a chain of replacements, starting from a memory. */
+  newestVersionOf(bureauId, memoryId) {
+    let memory = this.getMemory(bureauId, memoryId);
+    const seen = new Set();
+    while (memory && memory.supersededBy !== null && !seen.has(memory.id)) {
+      seen.add(memory.id);
+      memory = this.getMemory(bureauId, memory.supersededBy);
+    }
+    return memory;
   }
 
   /** Deleting a memory brings back any memory it had replaced. */

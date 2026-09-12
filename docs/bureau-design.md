@@ -275,10 +275,12 @@ Direction turns are left out.
 - `story_summary`: the whole story so far, shown in the Bureau's story list
 
 Memory operations apply automatically because they are visible, sourced, and reversible. The
-Archivist can supersede memories but can't retire or delete them, and it can't replace pinned ones.
-Changing a turn it has read (editing, deleting, switching versions, or regenerating) marks the
-memories that cite the turn for review. Deleting a story deletes its memories, which brings back
-anything they had replaced.
+Archivist can supersede memories but can't retire or delete them, and it leaves alone pinned
+memories and any you change while it's reading. Changing a turn it has read (editing, deleting,
+switching versions, or regenerating) marks the memories that cite the turn for review, including
+episodes, which cite every passage they cover. A turn that changes while a pass is reading it is
+flagged the same way. Deleting a story deletes its memories, which brings back anything they had
+replaced.
 
 **Later:** `propose_arc_note` for character development, which waits for approval (phase 5), and
 `update_world` for ongoing threads and timeline events.
@@ -344,7 +346,8 @@ A story also only remembers what happened before its start time (see
 Every memory links to the turns or messages it came from. Each character has a memory browser:
 search, edit, pin, retire, and jump to the source. A wrong memory breaks the illusion faster than no
 memory, so memories must be visible and easy to correct. Retired memories, and memories replaced by
-newer versions, stay in the browser and can be restored.
+newer versions, stay in the browser and can be restored. Restoring a replaced memory retires the
+newest version that replaced it, so only one version is current.
 
 ### Retrieval
 

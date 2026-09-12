@@ -40,7 +40,7 @@
           :disabled="busy"
           aria-label="Importance"
           title="More important memories are kept in the prompt first"
-          @change="$emit('update', memory, { importance: Number($event.target.value) })"
+          @change="changeImportance"
         >
           <option v-for="level in IMPORTANCE_LEVELS" :key="level.value" :value="level.value">
             {{ level.label }}
@@ -67,6 +67,7 @@
         </button>
         <template v-if="isCurrent">
           <button
+            v-if="memory.layer === 'knowledge'"
             class="icon-btn"
             :class="{ active: memory.pinned }"
             :title="memory.pinned ? 'Unpin' : 'Pin: always include it in the prompt'"
@@ -90,7 +91,11 @@
         <button
           v-else
           class="icon-btn"
-          title="Restore"
+          :title="
+            memory.supersededBy
+              ? 'Restore this version, retiring the one that replaced it'
+              : 'Restore'
+          "
           :disabled="busy"
           @click="$emit('update', memory, { retired: false })"
         >
@@ -132,6 +137,14 @@ const sourceLink = computed(() => {
     query: memory.sourceTurnIds.length > 0 ? { turn: memory.sourceTurnIds[0] } : {},
   };
 });
+
+function changeImportance(event) {
+  const importance = Number(event.target.value);
+  // Keep showing the saved importance; the new one arrives with the updated memory, and a
+  // failed save leaves nothing stale behind.
+  event.target.value = String(props.memory.importance);
+  emit('update', props.memory, { importance });
+}
 
 function startEdit() {
   draft.value = props.memory.content;
