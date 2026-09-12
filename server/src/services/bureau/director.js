@@ -213,7 +213,9 @@ export function buildDirectorMessages({
     'You are the Director for an ongoing story. Before the Writer writes the next passage, decide what should happen in it and gather anything the Writer needs.',
     [
       '- Use recall when the passage turns on earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for more about someone. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
-      '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
+      personaName
+        ? `- Follow the request below. Keep the beats to what fits in one passage, and end at the first moment that waits on ${personaName}${request.action === 'direct' ? " once the author's direction is carried out" : ''}, such as someone asking ${personaName} something. Don't plan past it.`
+        : '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
       '- Plan what happens and leave how it reads to the Writer. Each beat is a plain sentence about what someone does or what changes, without lines of dialogue, jokes, imagery, or explanations of what anyone feels underneath.',
       '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
       "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have, such as refilling a drink or glancing out a window, unless something new comes of it or the request below asks for it.",

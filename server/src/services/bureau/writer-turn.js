@@ -343,7 +343,8 @@ export async function generateWriterTurn({
   // Lint runs and is recorded even with the Editor off, so runs can be compared.
   const houseStyle = bureau.houseStyle?.trim() || DEFAULT_HOUSE_STYLE;
   const persona = cast.find((member) => member.isPersona) ?? null;
-  const readerName = request.action === 'write' && persona ? nameOf(persona) : null;
+  // The reader's character speaks only when the author's direction has them speak.
+  const readerName = request.action !== 'direct' && persona ? nameOf(persona) : null;
   const findings = lintProse(finalContent, {
     names: cast.map((member) => ({ name: nameOf(member), pronoun: pronounOf(member) })),
     readerName,

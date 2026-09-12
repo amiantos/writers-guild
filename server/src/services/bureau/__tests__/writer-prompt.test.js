@@ -182,7 +182,7 @@ describe('buildWriterMessages', () => {
     expect(user).not.toContain('User');
   });
 
-  it('notes other perspectives on any action once the reader has written, but not who wrote last', () => {
+  it("notes other perspectives once the reader has written, and keeps the reader's character theirs on Continue", () => {
     const { user } = build({
       turns: [prose('I opened the door.', 'user'), prose('The lamp was lit.')],
       request: { action: 'continue' },
@@ -193,7 +193,7 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain('Some passages may be written in first or second person');
-    expect(user).not.toContain("Leave Theo's words and choices to Theo");
+    expect(user).toContain("Leave Theo's words and choices to Theo.");
     expect(generatedOnly.user).not.toContain('Some passages may be written');
   });
 
@@ -223,6 +223,9 @@ describe('buildWriterMessages', () => {
     expect(user).toContain(
       "The author's direction for this passage (not part of the story yet): She suggests the night market\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do. Beyond that, leave Theo's words and choices to Theo.",
     );
+    expect(user).toContain(
+      "Once the direction is carried out, if someone asks Theo something or waits for Theo to respond, end the passage right there, even if it's shorter than asked.",
+    );
   });
 
   it("carries out a direction without naming a reader's character when there is none", () => {
@@ -235,6 +238,7 @@ describe('buildWriterMessages', () => {
     expect(user).toContain(
       'Make it rain\nCarry it out in the passage itself: write what it describes as happening.\n',
     );
+    expect(user).not.toContain('end the passage right there');
   });
 
   it('centers the passage on a chosen cast member', () => {
@@ -278,7 +282,7 @@ describe('buildWriterMessages', () => {
     const opening = build({ turns: [], request: { action: 'continue' } });
 
     expect(continuing.user).toMatch(
-      /Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response\.\nKeep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it\.$/,
+      /Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response\.\nKeep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it\.\nIf someone asks Theo something or waits for Theo to respond, end the passage right there, even if it's shorter than asked\.$/,
     );
     expect(opening.user).not.toContain('Keep the scene moving');
   });

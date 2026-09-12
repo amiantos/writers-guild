@@ -162,8 +162,7 @@ A multi-line textarea at the bottom (story mode's preview bar is a single-line i
 actions:
 
 - **Write:** add the text as a prose turn, then continue the story from it (like story mode's
-  preview bar). It continues the story the same way Continue does, adding only that the reader's
-  character's words and choices stay the reader's.
+  preview bar). Its instructions are the same as Continue's.
   Ctrl or ⌘ + Enter also writes.
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate. The
   Director and Writer treat a direction as something that hasn't happened yet and write it happening,
@@ -173,6 +172,11 @@ actions:
   (like story mode's character button). "Whoever fits" leaves it to the Writer.
 - **Scene break** adds a divider without generating, and **Stop** ends a generation early while
   keeping whatever was already written.
+
+On Write and Continue, the reader's character's words and choices stay the reader's; only a
+direction can have them speak or act. Whatever the action, a passage ends once someone asks the
+reader's character something or waits for them to respond, even if that makes it shorter than
+asked (on Direct, once the direction is carried out).
 
 Editing a turn opens a textarea for just that turn, which recovers most of the feel of editing
 directly.
@@ -279,7 +283,8 @@ recorded in its run even with the Editor off, so Writer-only runs can be compare
   if they're named in this paragraph or the one before.
 - **First-person narration:** three or more of "I", "me", "my", or "myself" outside dialogue and
   thoughts ("…, she thought") when the house style asks for third person.
-- **Speaking for the reader's character:** on Write turns, dialogue attributed to the persona.
+- **Speaking for the reader's character:** on Write and Continue turns, dialogue attributed to the
+  persona.
 - **Repeated phrasing:** seven-word stretches of narration repeated from the last three generated
   turns or earlier in the passage, plus a per-Bureau list of banned phrases.
 

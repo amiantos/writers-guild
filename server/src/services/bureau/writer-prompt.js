@@ -119,7 +119,7 @@ function instructionFor({
         : "Some passages may be written in first or second person; write in the house style's perspective.",
     );
   }
-  if (request.action === 'write' && readerName) {
+  if (request.action !== 'direct' && readerName) {
     lines.push(`Leave ${readerName}'s words and choices to ${readerName}.`);
   }
 
@@ -175,6 +175,11 @@ function instructionFor({
   if (hasProse) {
     lines.push(
       "Keep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it.",
+    );
+  }
+  if (readerName) {
+    lines.push(
+      `${request.action === 'direct' ? 'Once the direction is carried out, if' : 'If'} someone asks ${readerName} something or waits for ${readerName} to respond, end the passage right there, even if it's shorter than asked.`,
     );
   }
   return lines.join('\n');

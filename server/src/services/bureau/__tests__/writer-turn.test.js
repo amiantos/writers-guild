@@ -507,7 +507,7 @@ describe('generateWriterTurn', () => {
       expect(events.find((event) => event.type === 'edits').edits).toMatchObject([
         {
           paragraph: 0,
-          rules: ['multiple_speakers'],
+          rules: ['multiple_speakers', 'speaking_for_reader'],
           original: TWO_SPEAKERS,
           replacement: SPLIT_SPEAKERS,
         },
@@ -519,7 +519,8 @@ describe('generateWriterTurn', () => {
         ['editor', 'model'],
         ['editor', 'tool'],
       ]);
-      expect(run.steps[1].response.findings).toHaveLength(1);
+      // On Continue, Theo's line is flagged too: the reader's character is the reader's.
+      expect(run.steps[1].response.findings).toHaveLength(2);
     });
 
     it('keeps the unedited text when the Editor is off or fails', async () => {

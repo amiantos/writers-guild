@@ -542,6 +542,7 @@ describe('buildDirectorMessages', () => {
     expect(system.content).toContain(
       "Theo's words and choices belong to the reader. Don't plan what Theo says or decides beyond what the author's direction asks for.",
     );
+    expect(system.content).toContain("waits on Theo once the author's direction is carried out");
     expect(user.content).toContain(
       "=== CAST ===\n- Mara: She keeps the Greywater light.\n- Theo (the reader's character)",
     );
@@ -562,6 +563,9 @@ describe('buildDirectorMessages', () => {
     });
 
     expect(system.content).toContain("Don't plan what Theo says or decides.\n");
+    expect(system.content).toContain(
+      "end at the first moment that waits on Theo, such as someone asking Theo something. Don't plan past it.",
+    );
     // Who wrote the latest passage doesn't matter: the story just continues.
     expect(user.content).toContain(
       '=== NEXT ===\nContinue the story naturally from where it left off.',
