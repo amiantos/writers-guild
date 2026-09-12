@@ -79,7 +79,7 @@
               :turn="turn"
               :cast-by-id="castById"
               :live="pending?.regenerateTurnId === turn.id ? pending : null"
-              :busy="generating"
+              :busy="generating || reverting"
               @revert-edit="revertEdit"
             />
             <TurnBlock
@@ -194,6 +194,7 @@ const titleInput = ref(null);
 const readingRef = ref(null);
 const composerRef = ref(null);
 const archiving = ref(false);
+const reverting = ref(false);
 const highlightTurnId = ref(null);
 
 // Prose the Archivist hasn't read yet.
@@ -424,6 +425,8 @@ async function deleteTurn(turn) {
 }
 
 async function revertEdit({ turn, runId, index }) {
+  if (reverting.value) return;
+  reverting.value = true;
   try {
     const { turn: updated } = await bureauStoriesAPI.revertEdit(
       props.bureauId,
@@ -434,6 +437,8 @@ async function revertEdit({ turn, runId, index }) {
     replaceTurn(updated);
   } catch (error) {
     toast.error('Failed to revert the fix: ' + error.message);
+  } finally {
+    reverting.value = false;
   }
 }
 

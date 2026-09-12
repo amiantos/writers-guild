@@ -20,6 +20,8 @@ const PROFILE_CHARACTERS = 300;
 const RECALL_LIMIT = 8;
 const LORE_LIMIT = 5;
 const LORE_ENTRY_CHARACTERS = 800;
+// Lookups per passage; after that, the Director is told to hand over its brief.
+const LOOKUP_LIMIT = 4;
 const STOPWORDS = new Set(
   'the and for with that this from what who where when how are was were has have had not but his her its our their you she him they them into onto about'.split(
     ' ',
@@ -205,14 +207,35 @@ export function buildDirectorMessages({ story, cast, turns, request, openingTime
 }
 
 /** The tools' handlers. They share what the Director has found, so a brief can cite only that. */
-function toolHandlers({ stores, bureau, story, cast }) {
+function toolHandlers({ stores, bureau, story, cast, turns }) {
   const characters = cast.filter((member) => !member.isPersona);
   const found = new Map();
+  const earlierTurnIds = new Set(turns.map((turn) => turn.id));
+  let lookups = 0;
 
+  const lookUp = () => {
+    lookups += 1;
+    if (lookups > LOOKUP_LIMIT) {
+      throw new Error("That's enough looking up for one passage. Call submit_brief now.");
+    }
+  };
+
+  // Memories from this story count only if every passage they cite comes before the one being
+  // written, so regenerating an earlier turn doesn't plan around what happens after it.
   const visibleMemories = (member) =>
-    memoriesAsOf(stores.memories.listMemories(bureau.id, member.id, { status: 'all' }), story, {
-      includeOwnStory: true,
-    });
+    memoriesAsOf(
+      stores.memories
+        .listMemories(bureau.id, member.id, { status: 'all' })
+        .filter(
+          (memory) =>
+            memory.sourceType !== 'story' ||
+            memory.sourceId !== story.id ||
+            (memory.sourceTurnIds.length > 0 &&
+              memory.sourceTurnIds.every((turnId) => earlierTurnIds.has(turnId))),
+        ),
+      story,
+      { includeOwnStory: true },
+    );
 
   const remember = (member, memory) => {
     found.set(memory.id, { ...memory, character: nameOf(member) });
@@ -221,6 +244,7 @@ function toolHandlers({ stores, bureau, story, cast }) {
 
   return {
     recall({ query, character }) {
+      lookUp();
       let members = characters;
       if (text(character)) {
         const member = findMember(characters, character);
@@ -255,6 +279,7 @@ function toolHandlers({ stores, bureau, story, cast }) {
     },
 
     async lookup_lore({ query }) {
+      lookUp();
       const words = [
         ...new Set(
           text(query)
@@ -296,6 +321,7 @@ function toolHandlers({ stores, bureau, story, cast }) {
     },
 
     get_character_file({ name }) {
+      lookUp();
       const member = findMember(cast, name);
       if (!member) {
         throw new Error(`No one named "${name}" is in this story`);
@@ -390,7 +416,7 @@ export async function runDirector({
     role: 'director',
     messages: buildDirectorMessages({ story, cast, turns, request, openingTime }),
     tools: DIRECTOR_TOOLS,
-    handlers: toolHandlers({ stores, bureau, story, cast }),
+    handlers: toolHandlers({ stores, bureau, story, cast, turns }),
     options: { thinking, reasoningEffort, strict: true, maxTokens: DIRECTOR_MAX_TOKENS },
     recorder,
     maxIterations: DIRECTOR_MAX_ITERATIONS,

@@ -82,17 +82,26 @@ const TAG_AFTER = new RegExp(
   'u',
 );
 
-// Mara said, "…" / Theo turned and asked: "…"
+// Mara said, "…" / Mara turned to Theo and asked: "…" (the speaker starts the sentence, so a
+// name later in it, such as the person spoken to, isn't taken for the speaker)
 const TAG_BEFORE = new RegExp(
-  String.raw`(?:^|[\s(])(${SPEAKER})\s+(?:\p{Ll}+\s+){0,3}?(?:${SPEECH_VERBS})\b[^.!?"“”]{0,40}[,:]\s*$`,
+  String.raw`(?:^[\s,;—–-]*|[.!?]["”’]?\s+)(${SPEAKER})\s+(?:[\p{L}'’-]+,?\s+){0,6}?(?:${SPEECH_VERBS})\b[^.!?"“”]{0,40}[,:]\s*$`,
   'u',
 );
 
 // Theo shook his head. "…" (a sentence starting with a name, just before the quote)
-const BEAT_BEFORE = /(?:^\s*|[.!?]\s+)([\p{Lu}][\p{L}-]*)\s+\p{Ll}[^.!?"“”]*[.!?]\s*$/u;
+// Group 1 is the sentence, group 2 its first word.
+const BEAT_BEFORE = /(?:^\s*|[.!?]\s+)(([\p{Lu}][\p{L}-]*)\s+\p{Ll}[^.!?"“”]*[.!?])\s*$/u;
 
 // A quote ending in a period (not an ellipsis) ends its sentence, so what follows isn't its tag.
-const ENDS_SENTENCE = /(?<!\.)\.["”]?$/;
+const ENDS_SENTENCE = /(?<!\.)\.["”’]?$/;
+
+// "…my fear, she thought." A thought, often italic before asterisks were stripped, isn't narration.
+const THOUGHT =
+  /[^.!?]*[,—–-]\s*(?:he|she|they|[\p{Lu}][\p{L}-]*)\s+(?:thought|wondered|told (?:himself|herself|themselves))\b[^.!?]*[.!?]?/gu;
+
+// Capitalized words after a lowercase word or a comma: mid-sentence, so likely names.
+const MID_SENTENCE_CAPITAL = /(?<=[\p{Ll},;]\s+)[\p{Lu}][\p{L}-]+/gu;
 
 // Capitalized words that start sentences but aren't speakers' names.
 const NOT_NAMES = new Map([
@@ -135,7 +144,9 @@ const PRONOUNS = new Set(['he', 'she', 'they']);
 const PARAGRAPH_BREAK = /\n[ \t]*(?:\n[ \t]*)*/g;
 const SCENE_BREAK = /^\s*(?:-{3,}|\*{3,}|⁂)\s*$/;
 const IMAGE = /!\[|<img\b/i;
-const FIRST_PERSON = /\b(?:I|[Mm]e|[Mm]y|[Mm]ine|[Mm]yself)\b/g;
+const FIRST_PERSON = /\b(?:I|[Mm]e|[Mm]y|[Mm]yself)\b/g;
+// First-person words outside dialogue and thoughts before narration counts as drifting.
+const FIRST_PERSON_THRESHOLD = 3;
 const REPEAT_LENGTH = 7;
 
 /**
@@ -163,25 +174,33 @@ export function joinParagraphs({ paragraphs, separators }) {
 }
 
 /**
- * Quoted spans in a paragraph, with straight or curly double quotes. A quote
- * left open runs to the end of the paragraph, as when speech continues into
- * the next one.
+ * Quoted spans in a paragraph, with straight or curly double quotes, or curly
+ * single quotes. A curly apostrophe inside a word doesn't end a single-quoted
+ * span. A quote left open runs to the end of the paragraph, as when speech
+ * continues into the next one.
  * @returns {Array<{ start: number, end: number }>} end is just past the closing mark.
  */
 export function findQuotes(paragraph) {
   const quotes = [];
   let open = null;
+  let single = false;
   for (let index = 0; index < paragraph.length; index++) {
     const char = paragraph[index];
-    if (char === '“') {
-      if (open === null) open = index;
-    } else if (char === '”' || (char === '"' && open !== null)) {
-      if (open !== null) {
-        quotes.push({ start: open, end: index + 1 });
-        open = null;
+    if (open === null) {
+      if (char === '“' || char === '"') {
+        open = index;
+        single = false;
+      } else if (char === '‘' && /[\s(—–-]/.test(paragraph[index - 1] ?? ' ')) {
+        open = index;
+        single = true;
       }
-    } else if (char === '"') {
-      open = index;
+    } else if (
+      single
+        ? char === '’' && !/\p{L}/u.test(paragraph[index + 1] ?? '')
+        : char === '”' || char === '"'
+    ) {
+      quotes.push({ start: open, end: index + 1 });
+      open = null;
     }
   }
   if (open !== null) quotes.push({ start: open, end: paragraph.length });
@@ -223,33 +242,55 @@ export function usesThirdPerson(houseStyle) {
 }
 
 /**
- * Maps every part of each cast name ("Mara", "Quinn") to the full name, with its pronoun.
+ * The cast as members with the parts of their names ("Mara", "Quinn"), plus an
+ * index from each part to its member.
  * @param {Array<{ name: string, pronoun?: string|null }>} names
  */
-function nameIndex(names) {
+function castFrom(names) {
   const index = new Map();
+  const members = [];
   for (const { name, pronoun = null } of names) {
-    for (const part of name.split(/\s+/)) {
-      if (/^[\p{Lu}][\p{L}-]+$/u.test(part)) index.set(part, { name, pronoun });
-    }
+    const parts = name.split(/\s+/).filter((part) => /^[\p{Lu}][\p{L}-]+$/u.test(part));
+    const member = { name, pronoun, parts };
+    members.push(member);
+    for (const part of parts) index.set(part, member);
   }
-  return index;
+  return { index, members };
 }
 
-/** A matched speaker as a cast name, another name, or a pronoun; null when it's neither. */
-function speakerFrom(token, names) {
+/** Whether text mentions any part of a cast member's name. */
+function mentions(text, member) {
+  return member.parts.some((part) =>
+    new RegExp(String.raw`(?<!\p{L})${part}(?!\p{L})`, 'u').test(text),
+  );
+}
+
+/**
+ * A matched speaker as a cast name, another name, or a pronoun; null when it's neither.
+ * @param {Set<string>|null} [properNouns] - When given, a name outside the cast must be one of
+ *   these: a sentence can open with a capitalized word that isn't a name ("Finally").
+ */
+function speakerFrom(token, index, properNouns = null) {
   if (!token) return null;
   if (PRONOUNS.has(token)) return { pronoun: token };
   if (NOT_NAMES.has(token)) {
     const pronoun = NOT_NAMES.get(token);
     return pronoun ? { pronoun } : null;
   }
-  const known = names.get(token);
-  return known ? { name: known.name, pronoun: known.pronoun } : { name: token, pronoun: null };
+  const known = index.get(token);
+  if (known) return { name: known.name, pronoun: known.pronoun };
+  if (properNouns && !properNouns.has(token)) return null;
+  return { name: token, pronoun: null };
 }
 
-/** Who speaks in a paragraph: named speakers and pronoun-only speakers, by attribution. */
-function speakersIn(paragraph, names) {
+/**
+ * Who speaks in a paragraph: named speakers, and speakers known only by a pronoun.
+ * @param {string} paragraph
+ * @param {ReturnType<typeof castFrom>} cast
+ * @param {Set<string>} properNouns - Capitalized words that appear mid-sentence in the passage.
+ * @param {string} context - This paragraph and the one before, for resolving pronouns.
+ */
+function speakersIn(paragraph, cast, properNouns, context) {
   const quotes = findQuotes(paragraph);
   const named = new Map();
   const pronouns = new Set();
@@ -260,23 +301,35 @@ function speakersIn(paragraph, names) {
 
     const endsSentence = ENDS_SENTENCE.test(paragraph.slice(quote.start, quote.end));
     const tagAfter = endsSentence ? null : after.match(TAG_AFTER);
-    const tagBefore = before.match(TAG_BEFORE);
-    let speaker = speakerFrom(tagAfter?.[1] ?? tagAfter?.[2], names);
-    speaker ??= speakerFrom(tagBefore?.[1], names);
+    let speaker = speakerFrom(tagAfter?.[1] ?? tagAfter?.[2], cast.index);
+    speaker ??= speakerFrom(before.match(TAG_BEFORE)?.[1], cast.index, properNouns);
     if (!speaker) {
-      // An action beat names the speaker only when it's someone in the cast.
-      const beat = before.match(BEAT_BEFORE)?.[1];
-      if (beat && names.has(beat)) speaker = speakerFrom(beat, names);
+      // An action beat names the speaker only when its subject is in the cast and it mentions
+      // no one else from the cast.
+      const beat = before.match(BEAT_BEFORE);
+      const member = beat ? cast.index.get(beat[2]) : null;
+      if (member && !cast.members.some((other) => other !== member && mentions(beat[1], other))) {
+        speaker = { name: member.name, pronoun: member.pronoun };
+      }
     }
 
     if (speaker?.name) named.set(speaker.name, speaker.pronoun);
     else if (speaker?.pronoun) pronouns.add(speaker.pronoun);
   }
 
-  // A pronoun is someone else only if no named speaker could be it.
-  const others = [...pronouns].filter(
-    (pronoun) => ![...named.values()].some((known) => known === null || known === pronoun),
-  );
+  // A pronoun that no named speaker could be is someone else: the one cast member who uses it,
+  // when they're named nearby, or an unnamed speaker otherwise.
+  const others = [];
+  for (const pronoun of pronouns) {
+    const couldBeNamed = [...named.values()].some((known) => known === null || known === pronoun);
+    if (couldBeNamed) continue;
+    const candidates = cast.members.filter((member) => member.pronoun === pronoun);
+    if (candidates.length === 1 && mentions(context, candidates[0])) {
+      named.set(candidates[0].name, pronoun);
+    } else {
+      others.push(pronoun);
+    }
+  }
   return { named: [...named.keys()], others };
 }
 
@@ -320,7 +373,8 @@ export function lintProse(
   text,
   { names = [], readerName = null, thirdPerson = true, recentText = '', bannedPhrases = [] } = {},
 ) {
-  const index = nameIndex(names);
+  const cast = castFrom(names);
+  const properNouns = new Set(text.match(MID_SENTENCE_CAPITAL) ?? []);
   const banned = bannedPhrases
     .map((phrase) => phrase.trim())
     .filter(Boolean)
@@ -338,18 +392,21 @@ export function lintProse(
   );
 
   const findings = [];
-  for (const [number, paragraph] of splitParagraphs(text).paragraphs.entries()) {
+  const { paragraphs } = splitParagraphs(text);
+  for (const [number, paragraph] of paragraphs.entries()) {
     if (!paragraph.trim() || SCENE_BREAK.test(paragraph) || IMAGE.test(paragraph)) continue;
     const flag = (rule, reason) => findings.push({ paragraph: number, rule, reason });
     const narration = narrationOf(paragraph);
 
-    const { named, others } = speakersIn(paragraph, index);
+    const context = `${paragraphs[number - 1] ?? ''}\n${paragraph}`;
+    const { named, others } = speakersIn(paragraph, cast, properNouns, context);
     if (named.length + others.length >= 2) {
       const speakers = [...named, ...others.map((pronoun) => `"${pronoun}"`)];
       flag('multiple_speakers', `${listSpeakers(speakers)} both speak in one paragraph`);
     }
 
-    if (thirdPerson && (narration.match(FIRST_PERSON) ?? []).length >= 2) {
+    const firstPerson = narration.replace(THOUGHT, ' ').match(FIRST_PERSON) ?? [];
+    if (thirdPerson && firstPerson.length >= FIRST_PERSON_THRESHOLD) {
       flag('first_person_narration', 'The narration slips into first person');
     }
 

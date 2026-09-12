@@ -261,6 +261,43 @@ describe('Bureau story routes', () => {
       await request(app).post(url).send({}).expect(400);
     });
 
+    it('reverts a cut-down fix once, in the paragraph it replaced', async () => {
+      const story = await startStory();
+      const original = 'Mara grinned. "Race you," she said. Theo laughed. "You\'re on," he said.';
+      const replacement = 'Mara grinned. "Race you," she said.';
+      const runId = stores.bureaus.createRun({
+        bureauId: bureau.id,
+        purpose: 'turn',
+        targetType: 'story',
+        targetId: story.id,
+      });
+      stores.bureaus.addStep(runId, {
+        position: 0,
+        role: 'editor',
+        kind: 'tool',
+        request: { name: 'edit_paragraphs' },
+        response: {
+          edits: [
+            { paragraph: 1, rules: ['speaking_for_reader'], reason: '', original, replacement },
+          ],
+        },
+      });
+      // The same words also end the first paragraph, which must be left alone.
+      const turn = stores.stories.addTurn(story.id, {
+        kind: 'prose',
+        source: 'generated',
+        content: `The race began. ${replacement}\n\n${replacement}`,
+        runId,
+      });
+      const url = `${storiesUrl()}/${story.id}/turns/${turn.id}/revert-edit`;
+
+      const { body } = await request(app).post(url).send({ runId, index: 0 }).expect(200);
+
+      expect(body.turn.content).toBe(`The race began. ${replacement}\n\n${original}`);
+      const { body: again } = await request(app).post(url).send({ runId, index: 0 }).expect(409);
+      expect(again.error).toMatch(/already reverted/);
+    });
+
     it('adds, edits, and deletes turns from the reader', async () => {
       const story = await startStory();
       const turnsUrl = `${storiesUrl()}/${story.id}/turns`;

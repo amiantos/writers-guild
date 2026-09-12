@@ -54,6 +54,31 @@ describe('lintProse: multiple speakers', () => {
     expect(rules('"Well..." Theo said. "Fine," Mara said.')).toEqual([[0, 'multiple_speakers']]);
   });
 
+  it("doesn't take the person spoken to, or a second name in a beat, for the speaker", () => {
+    expect(
+      rules('Mara turned to Theo and said, "Let\'s go." She took his hand. "Now," she added.', {
+        readerName: 'Theo',
+      }),
+    ).toEqual([]);
+    expect(rules('Theo hesitated, and Mara pressed. "Well?"', { readerName: 'Theo' })).toEqual([]);
+  });
+
+  it("doesn't count a capitalized sentence opener as a speaker", () => {
+    expect(rules('"Is that all?" Mara asked. Finally she said, "Then we go."')).toEqual([]);
+    expect(rules('"Hi," Harold said. "Hey," Theo said.')).toEqual([[0, 'multiple_speakers']]);
+  });
+
+  it("recognizes the reader's character by pronoun when they were just named", () => {
+    expect(
+      rules('Theo lowered the map.\n\n"Three nights running," he said.', { readerName: 'Theo' }),
+    ).toEqual([[1, 'speaking_for_reader']]);
+    expect(
+      rules('The harbormaster shrugged.\n\n"Three nights running," he said.', {
+        readerName: 'Theo',
+      }),
+    ).toEqual([]);
+  });
+
   it('reads tags before quotes, "said Mara" order, and curly quotes', () => {
     expect(rules('Mara leaned in and asked, “Coming?” “No,” said Theo.')).toEqual([
       [0, 'multiple_speakers'],
@@ -93,12 +118,17 @@ describe('lintProse: multiple speakers', () => {
 });
 
 describe('lintProse: other rules', () => {
-  it('flags first-person narration, but not first person inside dialogue', () => {
-    expect(rules('I walked to the door and my hands shook.')).toEqual([
-      [0, 'first_person_narration'],
-    ]);
-    expect(rules('"I know my way," Mara said.')).toEqual([]);
-    expect(rules('I walked to the door and my hands shook.', { thirdPerson: false })).toEqual([]);
+  it('flags first-person narration, but not dialogue, thoughts, or the word "mine"', () => {
+    const drift = 'I walked to the door and my hands shook. I told myself to breathe.';
+
+    expect(rules(drift)).toEqual([[0, 'first_person_narration']]);
+    expect(rules(drift, { thirdPerson: false })).toEqual([]);
+    expect(rules('"I know my way, and I know mine," Mara said.')).toEqual([]);
+    expect(rules('‘I told you my way was faster,’ Mara said, and I laughed.')).toEqual([]);
+    expect(rules('I can’t let him see my fear, she thought, and I won’t.')).toEqual([]);
+    expect(
+      rules('The mine was dark. Mara stepped into the mine, and the mine swallowed her lamp.'),
+    ).toEqual([]);
   });
 
   it("flags the reader's character speaking only when asked to", () => {
@@ -155,6 +185,17 @@ describe('findQuotes', () => {
     expect(findQuotes(paragraph).map(({ start, end }) => paragraph.slice(start, end))).toEqual([
       '“Wait,”',
       '"Go on',
+    ]);
+  });
+});
+
+describe('findQuotes with single quotes', () => {
+  it('reads curly single quotes without mistaking apostrophes for them', () => {
+    const paragraph = '‘I can’t,’ she said. “Go.”';
+
+    expect(findQuotes(paragraph).map(({ start, end }) => paragraph.slice(start, end))).toEqual([
+      '‘I can’t,’',
+      '“Go.”',
     ]);
   });
 });

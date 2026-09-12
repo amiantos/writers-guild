@@ -223,9 +223,11 @@ gather what the next turn needs.
 
 Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, point of view,
 tone, target length, memories (each with a one-line reason, and only ones the Director found), and
-notes for the Writer. The Director runs with thinking on at low effort by default. A successful
-`submit_brief` call ends the tool loop without another model call. Searching the raw turns a
-character witnessed is a later addition to `recall`.
+notes for the Writer. The Director runs with thinking on at low effort by default and gets four
+lookups per passage, after which it's told to hand over its brief. A successful `submit_brief` call
+ends the tool loop without another model call. `recall` only finds what the story can see: memories
+from before its start, and this story's memories from passages before the one being written.
+Searching the raw turns a character witnessed is a later addition.
 
 ### Writer
 
@@ -249,12 +251,17 @@ Output streams into the active turn. Images pass through `ImagePreserver` exactl
 recorded in its run even with the Editor off, so Writer-only runs can be compared:
 
 - **Multiple speakers in one paragraph:** attribute each quote from a dialogue tag ("Mara said",
-  "said Mara", "she asked") or, failing that, from an action beat that starts with a cast member's
-  name just before it, and flag paragraphs with two or more speakers. A pronoun tag counts as
-  someone new only when no named speaker could be them, using pronouns inferred from seed cards.
-- **First-person narration:** "I", "me", or "my" outside quotes when the house style asks for third
-  person.
-- **Speaking for the reader's character:** on Write turns, dialogue tagged to the persona.
+  "said Mara", "Mara turned to Theo and asked,") or, failing that, from an action beat just before
+  it that starts with a cast member's name and mentions no one else in the cast, and flag
+  paragraphs with two or more speakers. A tag before a quote needs its speaker to start the
+  sentence, so the person spoken to isn't mistaken for the speaker, and a capitalized word outside
+  the cast counts as a name only if it also appears mid-sentence ("Finally" doesn't).
+- **Pronouns:** a "he said" or "she said" counts as someone new only when no named speaker could be
+  them. It's then taken for the one cast member who uses that pronoun (inferred from seed cards),
+  if they're named in this paragraph or the one before.
+- **First-person narration:** three or more of "I", "me", "my", or "myself" outside dialogue and
+  thoughts ("…, she thought") when the house style asks for third person.
+- **Speaking for the reader's character:** on Write turns, dialogue attributed to the persona.
 - **Repeated phrasing:** seven-word stretches of narration repeated from the last three generated
   turns or earlier in the passage, plus a per-Bureau list of banned phrases.
 
@@ -265,7 +272,9 @@ checks are noisy.
 The Editor receives the numbered passage, the flagged paragraphs with the reasons they were flagged,
 and the house style. It answers with a forced, strict `edit_paragraphs` call: a list of
 `{ paragraph, replacement }` edits, applied only to flagged paragraphs. Fixes apply automatically;
-the turn's seam shows each fix's before and after, and one click reverts it.
+the turn's seam shows each fix's before and after, and one click reverts it. A fix reverts only once
+(when its original text is back, it's done), and only where its replacement stands as whole
+paragraphs.
 
 ### Archivist
 

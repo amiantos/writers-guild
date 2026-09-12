@@ -102,7 +102,7 @@ describe('runDirector', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  function direct(client, request = { action: 'continue' }) {
+  function direct(client, request = { action: 'continue' }, turns = []) {
     return runDirector({
       stores,
       bureau: stores.bureaus.getBureau(bureau.id),
@@ -111,7 +111,7 @@ describe('runDirector', () => {
         stores.bureaus.getCastMember(bureau.id, mara.id),
         stores.bureaus.getCastMember(bureau.id, theo.id),
       ],
-      turns: [],
+      turns,
       request,
       client,
       recorder: { runId: 'run-1', recordStep() {} },
@@ -230,6 +230,54 @@ describe('runDirector', () => {
       "Theo is the reader's character and keeps no memories. To find what the others remember about Theo, search with an empty character.",
       'No one named "Nobody" is in this story',
     ]);
+  });
+
+  it('stops looking things up after four lookups', async () => {
+    const lookup = (id) => toolCall(id, 'lookup_lore', { query: 'lighthouse' });
+    const client = scriptedClient(
+      modelTurn([lookup('c1'), lookup('c2'), lookup('c3'), lookup('c4'), lookup('c5')]),
+      modelTurn([], 'Done.'),
+    );
+
+    await direct(client);
+
+    expect(toolResults(client.calls[1]).at(-1).error).toBe(
+      "That's enough looking up for one passage. Call submit_brief now.",
+    );
+  });
+
+  it("recalls this story's memories only from passages before the one being written", async () => {
+    const earlier = stores.stories.addTurn(story.id, {
+      kind: 'prose',
+      source: 'generated',
+      content: 'Theo waded in.',
+    });
+    const later = stores.stories.addTurn(story.id, {
+      kind: 'prose',
+      source: 'generated',
+      content: 'Theo swam to the buoy.',
+    });
+    const fromTurn = (turn, content) =>
+      stores.memories.addMemory(bureau.id, mara.id, {
+        layer: 'knowledge',
+        content,
+        sourceType: 'story',
+        sourceId: story.id,
+        worldTime: START,
+        sourceTurnIds: [turn.id],
+      });
+    fromTurn(earlier, 'Theo waded into the water.');
+    fromTurn(later, 'Theo swam out to the buoy.');
+    const client = scriptedClient(
+      modelTurn([toolCall('c1', 'recall', { query: 'Theo', character: '' })]),
+      modelTurn([], 'Done.'),
+    );
+
+    await direct(client, { action: 'continue' }, [earlier]);
+
+    const contents = toolResults(client.calls[1])[0].memories.map((memory) => memory.content);
+    expect(contents).toContain('Theo waded into the water.');
+    expect(contents).not.toContain('Theo swam out to the buoy.');
   });
 });
 

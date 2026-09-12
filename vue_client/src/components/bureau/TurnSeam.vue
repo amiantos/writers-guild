@@ -252,8 +252,9 @@ function editsOf(step) {
 /** Whether a fix is still in the turn, was reverted, or was edited over since. */
 function editState(edit) {
   const content = props.turn?.content ?? '';
-  if (content.includes(edit.replacement)) return 'applied';
+  // The original first: a replacement can be part of it, as when the Editor cut the reader's lines.
   if (content.includes(edit.original)) return 'reverted';
+  if (content.includes(edit.replacement)) return 'applied';
   return 'changed';
 }
 

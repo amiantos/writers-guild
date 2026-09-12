@@ -92,6 +92,19 @@ async function archiveNow(req, res, bureauId, storyId) {
   }
 }
 
+/** Where `part` appears in `text` as whole paragraphs, or -1. */
+function paragraphIndexOf(text, part) {
+  let index = text.indexOf(part);
+  while (index !== -1) {
+    const end = index + part.length;
+    const startsParagraph = index === 0 || text[index - 1] === '\n';
+    const endsParagraph = end === text.length || text[end] === '\n';
+    if (startsParagraph && endsParagraph) return index;
+    index = text.indexOf(part, index + 1);
+  }
+  return -1;
+}
+
 function personaIn(bureaus, bureauId, story) {
   const persona = story.castIds
     .map((castId) => bureaus.getCastMember(bureauId, castId))
@@ -450,14 +463,20 @@ router.post(
     if (!fix) {
       throw new AppError('Fix not found', 404);
     }
-    if (!turn.content.includes(fix.replacement)) {
-      throw new AppError('This fix was already reverted or edited over', 409);
+    // Check for the original first: a replacement can be part of it (when the Editor cut the
+    // reader's lines), so finding the replacement doesn't mean the fix is still in place.
+    if (turn.content.includes(fix.original)) {
+      throw new AppError('This fix was already reverted', 409);
+    }
+    const at = paragraphIndexOf(turn.content, fix.replacement);
+    if (at === -1) {
+      throw new AppError('This fix was edited over', 409);
     }
 
     const updated = stories.editTurn(
       storyId,
       turnId,
-      turn.content.replace(fix.replacement, () => fix.original),
+      turn.content.slice(0, at) + fix.original + turn.content.slice(at + fix.replacement.length),
     );
     memories.flagTurnsChanged(bureauId, storyId, [turnId]);
     res.json({ turn: updated });

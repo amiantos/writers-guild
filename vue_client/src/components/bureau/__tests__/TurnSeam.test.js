@@ -208,6 +208,45 @@ describe('TurnSeam', () => {
     expect(wrapper.find('.seam-panel').text()).toContain('Reverted');
   });
 
+  it('shows a cut-down fix as reverted once its original is back', async () => {
+    const original = 'Mara grinned. "Race you," she said. Theo laughed. "You\'re on," he said.';
+    const replacement = 'Mara grinned. "Race you," she said.';
+    bureausAPI.getRun.mockResolvedValue({
+      run: {
+        ...RUN,
+        steps: [
+          runStep(1, {
+            role: 'editor',
+            kind: 'tool',
+            request: { name: 'edit_paragraphs' },
+            response: {
+              edits: [
+                {
+                  paragraph: 0,
+                  rules: ['speaking_for_reader'],
+                  reason: 'Theo speaks',
+                  original,
+                  replacement,
+                },
+              ],
+            },
+          }),
+        ],
+      },
+    });
+    const wrapper = mount(TurnSeam, {
+      props: { bureauId: 'b1', turn: turn({ content: original }), castById: CAST },
+    });
+
+    await wrapper.find('.seam-toggle').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.seam-fix').text()).toContain('Reverted');
+    expect(wrapper.findAll('button').some((button) => button.text().includes('Revert'))).toBe(
+      false,
+    );
+  });
+
   it('shows the scene brief while the passage is written', async () => {
     const wrapper = mount(TurnSeam, {
       props: {
