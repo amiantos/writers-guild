@@ -35,7 +35,7 @@ export const DIRECTOR_TOOLS = [
   {
     name: 'recall',
     description:
-      'Search what the characters remember: earlier stories, backstory, and what this story has recorded so far. Use it when the passage touches earlier events, people, or promises.',
+      'Search what the characters remember: earlier stories, backstory, and what this story has recorded so far. Use it when the passage turns on earlier events, people, or promises.',
     parameters: {
       type: 'object',
       properties: {

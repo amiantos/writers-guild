@@ -95,6 +95,30 @@ describe('BureauSettingsSection', () => {
     expect(wrapper.find('#bureau-settings-api-key').element.value).toBe('');
   });
 
+  it('follows the default again after saving an unedited copy of it', async () => {
+    // The server saves a style that matches its default as empty.
+    bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
+    const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
+    await flushPromises();
+    const editDefault = () =>
+      wrapper.findAll('button').find((button) => button.text().includes('Edit the default'));
+
+    await editDefault().trigger('click');
+    expect(wrapper.find('#bureau-settings-house-style').element.value).toBe('Default style.');
+    await saveSettings(wrapper);
+
+    expect(bureausAPI.update).toHaveBeenLastCalledWith(
+      'b1',
+      expect.objectContaining({ houseStyle: 'Default style.' }),
+    );
+    expect(wrapper.find('#bureau-settings-house-style').element.value).toBe('');
+    expect(editDefault()).toBeDefined();
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Save settings'));
+    expect(saveButton.attributes('disabled')).toBeDefined();
+  });
+
   it('saves Director, Editor, and banned phrase settings', async () => {
     bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
     const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });

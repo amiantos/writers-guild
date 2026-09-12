@@ -83,9 +83,18 @@ router.get(
   }),
 );
 
+/**
+ * A style saved exactly as its default is stored empty, so the Bureau keeps following the default
+ * as it improves instead of keeping a copy of it.
+ */
+function followingDefault(style, defaultStyle) {
+  return typeof style === 'string' && style.trim() === defaultStyle.trim() ? '' : style;
+}
+
 // Update a Bureau. An apiKey of '' removes the key; a timezone of null clears it.
 // presentOffsetDays moves the Bureau's present by whole days from the real date.
-// `settings` is a partial update, such as { writer: { thinking: true } }.
+// `settings` is a partial update, such as { writer: { thinking: true } }. A house style or
+// correspondence style that matches its default is saved empty (see followingDefault).
 router.put(
   '/:bureauId',
   asyncHandler(async (req, res) => {
@@ -99,7 +108,7 @@ router.put(
       description: optionalString(body, 'description'),
       apiKey: optionalString(body, 'apiKey'),
       model: optionalString(body, 'model'),
-      houseStyle: optionalString(body, 'houseStyle'),
+      houseStyle: followingDefault(optionalString(body, 'houseStyle'), DEFAULT_HOUSE_STYLE),
       timezone: body.timezone,
       presentOffsetDays: body.presentOffsetDays,
     };
@@ -137,7 +146,18 @@ router.put(
       bureaus.db.transaction(() => {
         bureau = bureaus.updateBureau(bureauId, updates);
         if (body.settings !== undefined) {
-          bureau = bureaus.updateSettings(bureauId, body.settings);
+          const style = body.settings?.correspondence?.style;
+          const settings =
+            typeof style === 'string'
+              ? {
+                  ...body.settings,
+                  correspondence: {
+                    ...body.settings.correspondence,
+                    style: followingDefault(style, DEFAULT_CORRESPONDENCE_STYLE),
+                  },
+                }
+              : body.settings;
+          bureau = bureaus.updateSettings(bureauId, settings);
         }
       })();
     } catch (error) {

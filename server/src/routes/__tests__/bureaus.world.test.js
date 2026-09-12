@@ -69,6 +69,30 @@ describe('Bureau settings and world routes', () => {
       await request(app).put(bureauUrl()).send({ timezone: 'Atlantis/Central' }).expect(400);
     });
 
+    it('saves a style copied from its default as empty, so it keeps following the default', async () => {
+      const defaults = (await request(app).get('/api/bureaus/defaults').expect(200)).body;
+
+      const { body } = await request(app)
+        .put(bureauUrl())
+        .send({
+          houseStyle: `${defaults.houseStyle}\n`,
+          settings: { correspondence: { style: defaults.correspondenceStyle } },
+        })
+        .expect(200);
+
+      expect(body.bureau.houseStyle).toBe('');
+      expect(body.bureau.settings.correspondence.style).toBe('');
+
+      const edited = `${defaults.houseStyle}\nKeep chapters short.`;
+      const custom = await request(app)
+        .put(bureauUrl())
+        .send({ houseStyle: edited, settings: { correspondence: { style: 'Write letters.' } } })
+        .expect(200);
+
+      expect(custom.body.bureau.houseStyle).toBe(edited);
+      expect(custom.body.bureau.settings.correspondence.style).toBe('Write letters.');
+    });
+
     it('rejects invalid settings without saving the rest of the update', async () => {
       const { body } = await request(app)
         .put(bureauUrl())

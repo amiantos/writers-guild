@@ -87,7 +87,7 @@ idea:
 | **Turn seam**      | A hidden divider between turns that expands to show how the next turn was made.              |
 | **Correspondence** | A message thread between the persona and one cast member, between stories.                   |
 | **Bureau time**    | The Bureau's current date and time. Correspondence moves it to the present; stories ask.     |
-| **House style**    | An editable prose rulebook used by the Writer and the Editor.                                |
+| **House style**    | An editable prose rulebook used by the Writer and the Editor. Empty follows the default.     |
 
 ### Cast members are copies
 
@@ -229,8 +229,8 @@ one-line reason; usually none), and notes on continuity the Writer could get wro
 what happens and leave dialogue and wording to the Writer. The brief doesn't restate the cards or
 plan callbacks to earlier events unless the scene is about them: memories are background, and
 characters who keep bringing up the past read as talky and artificial. The Director runs with
-thinking on at low effort by default and gets four lookups per passage, after which it's told to hand over its brief. Creating a character isn't a
-lookup; it has its own limit of two per passage. A successful `submit_brief` call
+thinking on at low effort by default and gets four lookups per passage, after which it's told to
+hand over its brief. Creating a character isn't a lookup; it has its own limit of two per passage. A successful `submit_brief` call
 ends the tool loop without another model call. `recall` only finds what the story can see: memories
 from before its start, and this story's memories from passages before the one being written.
 Searching the raw turns a character witnessed is a later addition. When the reader brings in someone
@@ -301,7 +301,7 @@ Direction turns are left out.
 - `knowledge`: facts per character, each with an importance, the passages it came from, and the
   number of any memory it `supersedes`
 - `episodes`: one per character, rewritten each pass to tell the whole story so far from their point
-  of view
+  of view, in the third person
 - `story_summary`: the whole story so far, shown in the Bureau's story list
 
 A thread's memories are dated to the start of their session and cite its messages, and each session

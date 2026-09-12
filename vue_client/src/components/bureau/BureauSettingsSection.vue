@@ -397,10 +397,10 @@ async function update(updates, message) {
     const { bureau } = await bureausAPI.update(props.bureau.id, updates);
     emit('updated', bureau);
     toast.success(message);
-    return true;
+    return bureau;
   } catch (error) {
     toast.error('Failed to save: ' + error.message);
-    return false;
+    return null;
   } finally {
     saving.value = false;
   }
@@ -425,11 +425,15 @@ async function save() {
   if (form.apiKey.trim()) {
     updates.apiKey = form.apiKey.trim();
   }
-  if (await update(updates, 'Settings saved')) {
+  const saved = await update(updates, 'Settings saved');
+  if (saved) {
     Object.assign(form, {
       name: updates.name,
       description: updates.description,
       model: updates.model,
+      // A style saved as its default comes back empty, so it keeps following the default.
+      houseStyle: saved.houseStyle,
+      correspondence: { ...saved.settings.correspondence },
       apiKey: '',
     });
   }
