@@ -79,6 +79,21 @@ describe('GenerateCharacterModal', () => {
     expect(wrapper.emitted('added')[0][0]).toMatchObject({ savedToLibrary: true });
   });
 
+  it('closes with the draft kept when saving to the library fails', async () => {
+    bureausAPI.promoteCast.mockRejectedValue(new Error('Disk full'));
+    const wrapper = await generated();
+
+    await button(wrapper, 'Add and save to library').trigger('click');
+    await flushPromises();
+
+    expect(bureausAPI.addDraft).toHaveBeenCalledTimes(1);
+    expect(wrapper.emitted('added')[0][0]).toEqual({
+      castMember: { id: 'c9', name: 'Ines Varga', isDraft: true },
+      savedToLibrary: false,
+      libraryError: 'Disk full',
+    });
+  });
+
   it("won't add a character without a name", async () => {
     const wrapper = await generated();
 

@@ -308,6 +308,34 @@ describe('Bureau routes', () => {
       await request(app).post(promoteUrl).send({}).expect(400);
     });
 
+    it('saves a draft to the library once when asked twice at the same time', async () => {
+      const bureau = await createBureau();
+      const { body: added } = await request(app)
+        .post(`/api/bureaus/${bureau.id}/cast`)
+        .send({ card: { spec: 'chara_card_v2', spec_version: '2.0', data: { name: 'Ines' } } })
+        .expect(201);
+      const promoteUrl = `/api/bureaus/${bureau.id}/cast/${added.castMember.id}/promote`;
+      // A slow library save keeps the first request in flight while the second arrives.
+      const routeLibrary = getBureauStores(tempDir).library;
+      const saveCharacter = routeLibrary.saveCharacter;
+      routeLibrary.saveCharacter = async (...args) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return saveCharacter.apply(routeLibrary, args);
+      };
+
+      let responses;
+      try {
+        responses = await Promise.all([
+          request(app).post(promoteUrl).send({}),
+          request(app).post(promoteUrl).send({}),
+        ]);
+      } finally {
+        routeLibrary.saveCharacter = saveCharacter;
+      }
+
+      expect(responses.map((response) => response.status).toSorted()).toEqual([201, 409]);
+    });
+
     it('generates a character card without saving it', async () => {
       const bureau = await createBureau();
       const generated = {

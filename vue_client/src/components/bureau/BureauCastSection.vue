@@ -62,7 +62,7 @@
             <input
               type="checkbox"
               :checked="member.isPersona"
-              :disabled="busyId === member.id"
+              :disabled="busy[member.id]"
               @change="setPersona(member, $event.target.checked)"
             />
             Reader
@@ -71,7 +71,7 @@
             v-if="member.isDraft"
             class="icon-btn"
             title="Save to your library"
-            :disabled="busyId === member.id"
+            :disabled="busy[member.id]"
             @click="saveDraft(member)"
           >
             <i class="fas fa-floppy-disk"></i>
@@ -80,7 +80,7 @@
             v-else-if="!member.isPersona"
             class="icon-btn"
             title="Export to your library as a new character"
-            :disabled="busyId === member.id"
+            :disabled="busy[member.id]"
             @click="exportMember(member)"
           >
             <i class="fas fa-file-export"></i>
@@ -88,7 +88,7 @@
           <button
             class="icon-btn"
             title="Remove from the cast"
-            :disabled="busyId === member.id"
+            :disabled="busy[member.id]"
             @click="remove(member)"
           >
             <i class="fas fa-trash"></i>
@@ -148,7 +148,8 @@ const readerToggleTitle = "The reader's character is the one you write for in st
 const showAdd = ref(false);
 const showGenerate = ref(false);
 const memoryMember = ref(null);
-const busyId = ref(null);
+// Cast member ids with a request in flight.
+const busy = reactive({});
 const brokenImages = reactive({});
 
 /** What waits for the reader in a member's memory browser, or '' when nothing does. */
@@ -172,19 +173,19 @@ async function exportMember(member) {
   });
   if (!confirmed) return;
 
-  busyId.value = member.id;
+  busy[member.id] = true;
   try {
     const { name } = await bureausAPI.exportCast(props.bureauId, member.id);
     toast.success(`Exported ${name} to your library`);
   } catch (error) {
     toast.error('Failed to export: ' + error.message);
   } finally {
-    busyId.value = null;
+    delete busy[member.id];
   }
 }
 
 async function saveDraft(member) {
-  busyId.value = member.id;
+  busy[member.id] = true;
   try {
     await bureausAPI.promoteCast(props.bureauId, member.id);
     toast.success(`Saved ${member.name} to your library`);
@@ -192,29 +193,35 @@ async function saveDraft(member) {
   } catch (error) {
     toast.error('Failed to save to your library: ' + error.message);
   } finally {
-    busyId.value = null;
+    delete busy[member.id];
   }
 }
 
-function handleGenerated({ castMember, savedToLibrary }) {
+function handleGenerated({ castMember, savedToLibrary, libraryError }) {
   showGenerate.value = false;
-  toast.success(
-    savedToLibrary
-      ? `${castMember.name} joined the cast and your library`
-      : `${castMember.name} joined the cast as a draft`,
-  );
+  if (libraryError) {
+    toast.error(
+      `${castMember.name} joined the cast as a draft, but saving to your library failed: ${libraryError}`,
+    );
+  } else {
+    toast.success(
+      savedToLibrary
+        ? `${castMember.name} joined the cast and your library`
+        : `${castMember.name} joined the cast as a draft`,
+    );
+  }
   emit('changed');
 }
 
 async function setPersona(member, isPersona) {
-  busyId.value = member.id;
+  busy[member.id] = true;
   try {
     await bureausAPI.updateCast(props.bureauId, member.id, { isPersona });
     emit('changed');
   } catch (error) {
     toast.error('Failed to update the cast: ' + error.message);
   } finally {
-    busyId.value = null;
+    delete busy[member.id];
   }
 }
 
@@ -226,14 +233,14 @@ async function remove(member) {
   });
   if (!confirmed) return;
 
-  busyId.value = member.id;
+  busy[member.id] = true;
   try {
     await bureausAPI.removeCast(props.bureauId, member.id);
     emit('changed');
   } catch (error) {
     toast.error('Failed to remove from the cast: ' + error.message);
   } finally {
-    busyId.value = null;
+    delete busy[member.id];
   }
 }
 

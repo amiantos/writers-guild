@@ -149,11 +149,18 @@ async function add(saveToLibrary) {
   try {
     card.value.data.name = card.value.data.name.trim();
     const { castMember } = await bureausAPI.addDraft(props.bureauId, card.value);
-    let added = castMember;
-    if (saveToLibrary) {
-      ({ castMember: added } = await bureausAPI.promoteCast(props.bureauId, castMember.id));
+    if (!saveToLibrary) {
+      emit('added', { castMember, savedToLibrary: false });
+      return;
     }
-    emit('added', { castMember: added, savedToLibrary: saveToLibrary });
+    // The draft is in the cast either way, so a failed save still closes the modal: adding the
+    // card again would make a second draft.
+    try {
+      const promoted = await bureausAPI.promoteCast(props.bureauId, castMember.id);
+      emit('added', { castMember: promoted.castMember, savedToLibrary: true });
+    } catch (error) {
+      emit('added', { castMember, savedToLibrary: false, libraryError: error.message });
+    }
   } catch (error) {
     toast.error('Failed to add the character: ' + error.message);
   } finally {

@@ -178,7 +178,7 @@ export function buildDirectorMessages({
       '- Use recall when the passage touches earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for more about someone. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
       '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
       canCreateCharacters
-        ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in the cast.'
+        ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this story.'
         : null,
       personaName
         ? `- ${personaName}'s words and choices belong to the reader. Don't plan what ${personaName} says or decides.`
@@ -429,7 +429,7 @@ function toolHandlers({
 
   if (createCharacters) {
     // A new character joins the Bureau as a draft and this story's cast, and `cast` itself, so
-    // the Writer gets their card too.
+    // the Writer gets their card too. Someone already in the Bureau just joins the story.
     handlers.create_character = async ({ name, role, notes }) => {
       if (createdNames.size >= CREATE_LIMIT) {
         throw new Error("That's enough new characters for one passage. Call submit_brief now.");
@@ -438,37 +438,56 @@ function toolHandlers({
       if (!wanted) {
         throw new Error('A new character needs a name');
       }
-      const existing = stores.bureaus
-        .listCast(bureau.id)
-        .find((member) => member.name.toLowerCase() === wanted.toLowerCase());
-      if (existing || createdNames.has(wanted.toLowerCase())) {
+      const key = wanted.toLowerCase();
+      const inStory = findMember(cast, wanted);
+      if (inStory || createdNames.has(key)) {
         throw new Error(
-          `${existing?.name ?? wanted} is already in the cast; use get_character_file to learn about them`,
+          `${inStory ? nameOf(inStory) : wanted} is already in this story; use get_character_file to learn about them`,
         );
       }
-      createdNames.add(wanted.toLowerCase());
 
-      const { card } = await generateCharacter({
-        stores,
-        bureau,
-        client,
-        idea: text(notes) || `${wanted}, a new character in the story`,
-        name: wanted,
-        role: text(role),
-        recorder,
-        signal,
-      });
-      const member = stores.bureaus.addCastMember(bureau.id, { seedCard: card, isDraft: true });
-      const current = stores.stories.getStory(bureau.id, story.id);
-      stores.stories.updateStory(bureau.id, story.id, {
-        castIds: [...(current?.castIds ?? story.castIds), member.id],
-      });
-      cast.push(member);
-      return {
-        name: card.data.name,
-        description: truncate(card.data.description, PROFILE_CHARACTERS),
-        addedToStory: true,
+      const addToStory = (member) => {
+        const current = stores.stories.getStory(bureau.id, story.id);
+        stores.stories.updateStory(bureau.id, story.id, {
+          castIds: [...(current?.castIds ?? story.castIds), member.id],
+        });
+        cast.push(member);
+        return {
+          name: nameOf(member),
+          description: truncate(text(member.seedCard?.data?.description), PROFILE_CHARACTERS),
+          addedToStory: true,
+        };
       };
+
+      // Someone already in the Bureau joins the story instead of being created again.
+      const inBureau = findMember(stores.bureaus.listCast(bureau.id), wanted);
+      if (inBureau) {
+        return {
+          ...addToStory(stores.bureaus.getCastMember(bureau.id, inBureau.id)),
+          existing: true,
+        };
+      }
+
+      // Reserve the name before generating, and give it back if generating fails so the
+      // Director can try again.
+      createdNames.add(key);
+      let card;
+      try {
+        ({ card } = await generateCharacter({
+          stores,
+          bureau,
+          client,
+          idea: text(notes) || `${wanted}, a new character in the story`,
+          name: wanted,
+          role: text(role),
+          recorder,
+          signal,
+        }));
+      } catch (error) {
+        createdNames.delete(key);
+        throw error;
+      }
+      return addToStory(stores.bureaus.addCastMember(bureau.id, { seedCard: card, isDraft: true }));
     };
   }
   return handlers;

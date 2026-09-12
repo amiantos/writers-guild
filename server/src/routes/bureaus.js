@@ -293,6 +293,9 @@ router.post(
   }),
 );
 
+// Drafts being saved to the library, so overlapping requests can't save one twice.
+const promotingCastIds = new Set();
+
 // Save a draft cast member to the library as a new character, and link the two
 router.post(
   '/:bureauId/cast/:castId/promote',
@@ -307,11 +310,24 @@ router.post(
     if (!member.isDraft) {
       throw new AppError('Only a draft character can be saved to the library this way', 400);
     }
+    if (promotingCastIds.has(castId)) {
+      throw new AppError(`${member.name} is already being saved to the library`, 409);
+    }
 
-    const characterId = uuidv4();
-    await library.saveCharacter(characterId, structuredClone(member.seedCard), null);
-    const castMember = bureaus.promoteDraft(bureauId, castId, characterId);
-    res.status(201).json({ castMember, characterId });
+    promotingCastIds.add(castId);
+    try {
+      const characterId = uuidv4();
+      await library.saveCharacter(characterId, structuredClone(member.seedCard), null);
+      const castMember = bureaus.promoteDraft(bureauId, castId, characterId);
+      if (!castMember) {
+        // Removed from the cast while the library copy was being saved.
+        await library.deleteCharacter(characterId);
+        throw new AppError(`${member.name} left the cast while being saved`, 409);
+      }
+      res.status(201).json({ castMember, characterId });
+    } finally {
+      promotingCastIds.delete(castId);
+    }
   }),
 );
 

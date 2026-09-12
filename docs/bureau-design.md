@@ -495,8 +495,9 @@ to the stories.
   it and save it to the library at once.
 - **Director tool:** when a new named character enters a story, `create_character(name, role, notes)`
   generates a **draft cast member** and adds them to the story's cast. It creates at most two
-  characters per passage, apart from the Director's lookups, refuses a name already in the cast, and
-  can be turned off in the Bureau's settings.
+  characters per passage, apart from the Director's lookups, and can be turned off in the Bureau's
+  settings. Someone already in the Bureau but not in the story joins the story instead of being
+  created again; a failed generation can be retried.
 - **Drafts** exist only in their Bureau, so new characters stay consistent without cluttering the
   library. The Director, Writer, and Archivist treat them like anyone else. "Save to library" on a
   draft's cast row saves its card as a new library character (without an image) and links the cast

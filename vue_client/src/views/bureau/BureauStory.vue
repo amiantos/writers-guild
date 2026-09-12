@@ -245,6 +245,10 @@ async function load() {
 async function refreshStory() {
   try {
     const data = await bureauStoriesAPI.get(props.bureauId, props.storyId);
+    // The Director can add someone to the story, including a character it just created.
+    if (data.story.castIds.some((castId) => !castById.value[castId])) {
+      cast.value = (await bureausAPI.listCast(props.bureauId)).cast;
+    }
     story.value = data.story;
     turns.value = data.turns;
   } catch (error) {
