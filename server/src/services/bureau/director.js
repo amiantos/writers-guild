@@ -9,9 +9,7 @@
 
 import { generateCharacter } from './character-generator.js';
 import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
-import { usesThirdPerson } from './style-lint.js';
 import { runToolLoop } from './tool-loop.js';
-import { DEFAULT_HOUSE_STYLE } from './writer-prompt.js';
 
 export const DIRECTOR_MAX_ITERATIONS = 6;
 export const DIRECTOR_MAX_TOKENS = 8000;
@@ -151,16 +149,22 @@ function truncate(value, length) {
   return value.length > length ? `${value.slice(0, length).trimEnd()}…` : value;
 }
 
-const OTHER_NARRATION = /\b(?:first|second|1st|2nd)[\s-]+person\b/gi;
+// A narrative person named in a point of view: "first person", "close third", "third-person limited".
+const NARRATIVE_PERSON =
+  /\b(?:(?:close|deep|tight|limited)\s+(?:first|second|third)(?:[\s-]+person)?|(?:first|second|third|1st|2nd|3rd)[\s-]+person(?:\s+(?:limited|omniscient))?)\b/gi;
 
 /**
- * A brief's point of view, with any first- or second-person narration it asks for turned into
- * third person when the house style narrates in third: the Director picks whose view, not the
- * narration's person.
+ * A brief's point of view without any narrative person it names: the Director picks whose view,
+ * and the house style, whatever it is, sets the narration's person and tense.
  */
-function povForHouseStyle(pov, bureau) {
-  if (!usesThirdPerson(bureau.houseStyle?.trim() || DEFAULT_HOUSE_STYLE)) return pov;
-  return pov.replace(OTHER_NARRATION, 'third person');
+function whoseView(pov) {
+  return pov
+    .replace(NARRATIVE_PERSON, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/([,;:—–-])(?:\s*[,;:—–-])+/g, '$1')
+    .replace(/^[\s,;:—–-]+|[\s,;:—–-]+$/g, '')
+    .replace(/\s+([,;:])/g, '$1')
+    .replace(/\s{2,}/g, ' ');
 }
 
 /** Where a memory came from, for the Director. */
@@ -203,7 +207,7 @@ export function buildDirectorMessages({
     [
       '- Use recall when the passage touches earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for more about someone. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
       '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
-      "- The narration's person and tense come from the house style and aren't yours to choose: never ask for first- or second-person narration, even for a passage that stays close to one character.",
+      "- For the point of view, name only the character the passage stays closest to. The narration's person and tense come from the house style, so don't specify them.",
       canCreateCharacters
         ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this story.'
         : null,
@@ -445,7 +449,7 @@ function toolHandlers({
         });
       return {
         beats,
-        pov: povForHouseStyle(text(args.pov), bureau),
+        pov: whoseView(text(args.pov)),
         tone: text(args.tone),
         length: BRIEF_LENGTHS.includes(args.length) ? args.length : 'medium',
         memories,

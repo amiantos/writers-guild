@@ -168,7 +168,7 @@ describe('runDirector', () => {
     expect(client.calls[0]).toMatchObject({ strict: true, thinking: true, reasoningEffort: 'low' });
   });
 
-  it("keeps the brief's point of view to whose view, not first or second person", async () => {
+  it("keeps the brief's point of view to whose view, leaving person to the house style", async () => {
     const briefWithPov = (pov) =>
       scriptedClient(
         modelTurn([
@@ -183,13 +183,29 @@ describe('runDirector', () => {
         ]),
       );
 
-    expect((await direct(briefWithPov('Mara, first person, close on her voice'))).pov).toBe(
-      'Mara, third person, close on her voice',
-    );
-    expect((await direct(briefWithPov('Mara (2nd-person)'))).pov).toBe('Mara (third person)');
+    const cases = [
+      ['Mara, first person, close on her voice', 'Mara, close on her voice'],
+      ['Mara (2nd-person)', 'Mara'],
+      [
+        'Mara — third person, close to her read on the room',
+        'Mara — close to her read on the room',
+      ],
+      ['Mara, close third', 'Mara'],
+      ['First person: Mara', 'Mara'],
+      ['Mara, first thing in the morning', 'Mara, first thing in the morning'],
+    ];
+    for (const [pov, expected] of cases) {
+      expect((await direct(briefWithPov(pov))).pov).toBe(expected);
+    }
 
+    // The same goes for a first-person house style, and the prompt never takes a side.
     stores.bureaus.updateBureau(bureau.id, { houseStyle: 'Write in first person, present tense.' });
-    expect((await direct(briefWithPov('Mara, first person'))).pov).toBe('Mara, first person');
+    const client = briefWithPov('Mara, close third');
+    expect((await direct(client)).pov).toBe('Mara');
+    expect(client.calls[0].messages[0].content).toContain(
+      'name only the character the passage stays closest to',
+    );
+    expect(client.calls[0].messages[0].content).not.toMatch(/first- or second-person/);
   });
 
   it('looks up lore and character files', async () => {

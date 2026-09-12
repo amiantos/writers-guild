@@ -222,8 +222,8 @@ gather what the next turn needs.
 | `create_character(name, role, notes)` | Generate a draft cast member and add them to the story (see [Character generator](#character-generator)) |
 
 Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, point of view
-(whose view only: the house style sets the narration's person and tense, and a brief that asks for
-first or second person under a third-person house style is corrected to third),
+(whose view only: the house style sets the narration's person and tense, so any narrative person a
+brief names, such as "first person" or "close third", is dropped),
 tone, target length, memories (each with a one-line reason, and only ones the Director found), and
 notes for the Writer. The Director runs with thinking on at low effort by default and gets four
 lookups per passage, after which it's told to hand over its brief. Creating a character isn't a
