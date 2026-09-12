@@ -61,7 +61,8 @@ export const DIRECTOR_TOOLS = [
   },
   {
     name: 'get_character_file',
-    description: "A character's full card, with what they know and their recent chapters.",
+    description:
+      "A character's full card, with what they know and their latest episodes: what they remember of recent chapters and messages.",
     parameters: {
       type: 'object',
       properties: { name: { type: 'string', description: "The character's name." } },
@@ -215,7 +216,7 @@ export function buildDirectorMessages({
       '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
       '- Plan what happens and leave how it reads to the Writer. Each beat is a plain sentence about what someone does or what changes, without lines of dialogue, jokes, imagery, or explanations of what anyone feels underneath.',
       '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
-      "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have, such as refilling a drink or glancing out a window, unless something new comes of it.",
+      "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have, such as refilling a drink or glancing out a window, unless something new comes of it or the request below asks for it.",
       "- The Writer has the character cards, so don't restate anyone's traits or habits in the notes.",
       "- For the point of view, name only the character the passage stays closest to. The narration's person and tense come from the house style, so don't specify them.",
       canCreateCharacters
@@ -326,6 +327,12 @@ function toolHandlers({
     return memory.id;
   };
 
+  // Where a memory came from, marking this chapter's own so it doesn't read as an earlier one.
+  const labelOf = (memory) =>
+    memory.sourceType === 'story' && memory.sourceId === story.id
+      ? 'this chapter'
+      : sourceLabelOf(memory);
+
   const handlers = {
     recall({ query, character }) {
       lookUp();
@@ -354,7 +361,7 @@ function toolHandlers({
             id: remember(member, memory),
             character: nameOf(member),
             kind: memory.layer,
-            from: sourceLabelOf(memory),
+            from: labelOf(memory),
             content: memory.content,
           });
         }
@@ -427,9 +434,9 @@ function toolHandlers({
           id: remember(member, memory),
           content: memory.content,
         }));
-        file.recentChapters = episodes.map((memory) => ({
+        file.recentEpisodes = episodes.map((memory) => ({
           id: remember(member, memory),
-          from: sourceLabelOf(memory),
+          from: labelOf(memory),
           content: memory.content,
         }));
         file.hasChanged = notesAsOf(

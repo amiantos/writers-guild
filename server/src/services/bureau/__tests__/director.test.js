@@ -513,6 +513,12 @@ describe('runDirector', () => {
     const contents = toolResults(client.calls[1])[0].memories.map((memory) => memory.content);
     expect(contents).toContain('Theo waded into the water.');
     expect(contents).not.toContain('Theo swam out to the buoy.');
+    // This chapter's own memories are marked, so they don't read as an earlier chapter.
+    const labels = Object.fromEntries(
+      toolResults(client.calls[1])[0].memories.map((memory) => [memory.content, memory.from]),
+    );
+    expect(labels['Theo waded into the water.']).toBe('this chapter');
+    expect(labels["Theo can't swim."]).not.toBe('this chapter');
   });
 });
 

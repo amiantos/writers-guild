@@ -174,7 +174,7 @@ function instructionFor({
   }
   if (hasProse) {
     lines.push(
-      "Keep the scene moving: don't repeat an action, gesture, or line the chapter already has unless something new comes of it.",
+      "Keep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it.",
     );
   }
   return lines.join('\n');

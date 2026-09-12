@@ -80,7 +80,7 @@ export const RECORD_MEMORIES_TOOL = {
       episodes: {
         type: 'array',
         description:
-          'One per character, telling what has happened so far from their point of view, in the third person.',
+          'One per character, telling what has happened so far in this chapter or exchange of messages, from their point of view, in the third person.',
         items: {
           type: 'object',
           properties: {
@@ -199,7 +199,7 @@ const WORDING = {
     unit: 'Passage',
     scope: 'this chapter',
     episodes:
-      'Episodes: one for each character who remembers, telling what happened in this chapter so far from their point of view, in the third person and past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
+      'Episodes: one for each character who remembers, telling what happened in this chapter so far from their point of view, in the third person and past tense, in at most 120 words. When they already have an episode for this chapter, rewrite it to include the new passages.',
     summary:
       'story_summary: what has happened in the whole chapter so far, in at most 150 words, updating the previous summary.',
   },

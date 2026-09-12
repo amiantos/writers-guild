@@ -278,7 +278,7 @@ describe('buildWriterMessages', () => {
     const opening = build({ turns: [], request: { action: 'continue' } });
 
     expect(continuing.user).toMatch(
-      /Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response\.\nKeep the scene moving: don't repeat an action, gesture, or line the chapter already has unless something new comes of it\.$/,
+      /Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response\.\nKeep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it\.$/,
     );
     expect(opening.user).not.toContain('Keep the scene moving');
   });

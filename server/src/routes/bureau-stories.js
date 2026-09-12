@@ -63,7 +63,7 @@ function validateCastIds(bureaus, bureauId, castIds) {
 
 function requireActive(story) {
   if (story.status !== 'active') {
-    throw new AppError('This story has ended', 409);
+    throw new AppError('This chapter has ended', 409);
   }
 }
 
@@ -399,7 +399,7 @@ router.delete(
       deleted = stories.deleteStory(bureauId, storyId);
     })();
     if (!deleted) {
-      throw new AppError('Story not found', 404);
+      throw new AppError('Chapter not found', 404);
     }
     res.json({ success: true });
   }),
@@ -570,7 +570,7 @@ router.post(
       throw new AppError(`text is required to ${action}`, 400);
     }
     if (leadCastId !== null && !story.castIds.includes(leadCastId)) {
-      throw new AppError('leadCastId must be a cast member in this story', 400);
+      throw new AppError('leadCastId must be a cast member in this chapter', 400);
     }
 
     let userTurn = null;

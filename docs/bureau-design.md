@@ -162,7 +162,8 @@ A multi-line textarea at the bottom (story mode's preview bar is a single-line i
 actions:
 
 - **Write:** add the text as a prose turn, then continue the story from it (like story mode's
-  preview bar). Who wrote the latest passage doesn't change the instructions.
+  preview bar). It continues the story the same way Continue does, adding only that the reader's
+  character's words and choices stay the reader's.
   Ctrl or ⌘ + Enter also writes.
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate. The
   Director and Writer treat a direction as something that hasn't happened yet and write it happening,

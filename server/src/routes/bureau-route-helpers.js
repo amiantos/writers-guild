@@ -23,7 +23,7 @@ export function requireBureau(bureaus, bureauId) {
 export function requireStory(stories, bureauId, storyId) {
   const story = stories.getStory(bureauId, storyId);
   if (!story) {
-    throw new AppError('Story not found', 404);
+    throw new AppError('Chapter not found', 404);
   }
   return story;
 }
