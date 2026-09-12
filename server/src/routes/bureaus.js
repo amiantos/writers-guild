@@ -7,11 +7,13 @@
  */
 
 import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { CastConflictError } from '../services/bureau/bureau-storage.js';
 import { BureauSettingsError, DEFAULT_SETTINGS } from '../services/bureau/bureau-settings.js';
 import { isValidTimeZone } from '../services/bureau/bureau-time.js';
 import { DEFAULT_MODEL } from '../services/bureau/deepseek-client.js';
+import { exportedCard } from '../services/bureau/character-export.js';
 import { DEFAULT_HOUSE_STYLE } from '../services/bureau/writer-prompt.js';
 import bureauMemoriesRouter from './bureau-memories.js';
 import bureauStoriesRouter from './bureau-stories.js';
@@ -134,15 +136,19 @@ router.delete(
 
 // ==================== Cast ====================
 
-// List cast members (without seed cards), with how many current memories each has
-// and how many of those need review
+// List cast members (without seed cards), with how many current memories each has,
+// how many of those need review, and how many arc notes are waiting for review
 router.get(
   '/:bureauId/cast',
   asyncHandler(async (req, res) => {
-    const { bureaus, memories } = res.locals.stores;
+    const { bureaus, memories, arcNotes } = res.locals.stores;
     const { bureauId } = req.params;
     requireBureau(bureaus, bureauId);
-    res.json({ cast: bureaus.listCast(bureauId), memoryCounts: memories.countsByCast(bureauId) });
+    res.json({
+      cast: bureaus.listCast(bureauId),
+      memoryCounts: memories.countsByCast(bureauId),
+      arcNoteCounts: arcNotes.proposedCountsByCast(bureauId),
+    });
   }),
 );
 
@@ -240,6 +246,37 @@ router.put(
       throw new AppError('Cast member not found', 404);
     }
     res.json({ castMember });
+  }),
+);
+
+// Export a cast member to the library as a new character: a copy of their seed card with
+// how they've changed, from accepted arc notes, and the original's portrait. Neither the
+// seed card nor the library character it came from changes.
+router.post(
+  '/:bureauId/cast/:castId/export',
+  asyncHandler(async (req, res) => {
+    const { bureaus, arcNotes, library } = res.locals.stores;
+    const { bureauId, castId } = req.params;
+    const bureau = requireBureau(bureaus, bureauId);
+    const member = bureaus.getCastMember(bureauId, castId);
+    if (!member) {
+      throw new AppError('Cast member not found', 404);
+    }
+
+    const notes = arcNotes.listNotes(bureauId, castId, { status: 'accepted' });
+    const card = exportedCard(member, notes, { bureauName: bureau.name });
+    let image = null;
+    if (member.libraryCharacterId) {
+      try {
+        image = await library.getCharacterImage(member.libraryCharacterId);
+      } catch {
+        // The library character is gone; export without a portrait.
+      }
+    }
+
+    const characterId = uuidv4();
+    await library.saveCharacter(characterId, card, image);
+    res.status(201).json({ characterId, name: card.data.name, arcNotes: notes.length });
   }),
 );
 

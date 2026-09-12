@@ -4,15 +4,16 @@
  * Reads a story's turns and records what its characters will remember (see
  * "Archivist" in docs/bureau-design.md). Each pass is one forced call to a
  * strict record_memories tool, which returns knowledge, an episode per
- * character, and the story's running summary.
+ * character, arc notes, and the story's running summary.
  *
- * What it records applies without review, because every memory is visible,
- * sourced, and editable in the memory browser. The reader's character gets no
- * memories: the reader remembers for them.
+ * Memories apply without review, because every memory is visible, sourced, and
+ * editable in the memory browser. Arc notes, which change how a character is
+ * written, are only proposed: the reader accepts or rejects each one. The
+ * reader's character gets neither: the reader remembers for them.
  */
 
 import { describeBureauTime } from './bureau-time.js';
-import { memoriesAsOf, selectForPrompt } from './memory.js';
+import { isBeforeStory, memoriesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 
 // The latest turns may still be regenerated or edited, so automatic passes leave them.
@@ -75,12 +76,35 @@ export const RECORD_MEMORIES_TOOL = {
           additionalProperties: false,
         },
       },
+      arc_notes: {
+        type: 'array',
+        description:
+          'Ways a character changed in these passages, for the reader to review. Usually empty.',
+        items: {
+          type: 'object',
+          properties: {
+            character: { type: 'string', description: 'Name of the character who changed.' },
+            content: {
+              type: 'string',
+              description: 'How they have changed, in one or two sentences, in the third person.',
+            },
+            rationale: { type: 'string', description: 'What in the passages shows it.' },
+            passages: {
+              type: 'array',
+              items: { type: 'integer' },
+              description: 'Numbers of the passages that show it.',
+            },
+          },
+          required: ['character', 'content', 'rationale', 'passages'],
+          additionalProperties: false,
+        },
+      },
       story_summary: {
         type: 'string',
         description: 'What has happened in the whole story so far, at most 150 words.',
       },
     },
-    required: ['knowledge', 'episodes', 'story_summary'],
+    required: ['knowledge', 'episodes', 'arc_notes', 'story_summary'],
     additionalProperties: false,
   },
 };
@@ -150,6 +174,8 @@ function section(title, body) {
  * @param {Object|null} params.persona - The reader's character, if present.
  * @param {Map<string, Array<Object>>} params.knownByCast - Knowledge each character has now.
  * @param {Map<string, Object>} params.episodeByCast - Each character's episode for this story.
+ * @param {Map<string, {accepted: Array<Object>, proposed: Array<Object>}>} [params.notesByCast] -
+ *   Each character's accepted arc notes and the proposals waiting for review.
  * @param {Array<Object>} params.turns - The turns to read, in order.
  * @returns {Array<{role: string, content: string}>}
  */
@@ -160,6 +186,7 @@ export function buildArchivistMessages({
   persona,
   knownByCast,
   episodeByCast,
+  notesByCast = new Map(),
   turns,
 }) {
   const names = characters.map(nameOf);
@@ -188,6 +215,7 @@ export function buildArchivistMessages({
       '- Recording no knowledge is fine when nothing lasting happened.',
     ].join('\n'),
     'Episodes: one for each character who remembers, telling what happened in this story so far from their point of view, in the past tense, in at most 120 words. When they already have an episode for this story, rewrite it to include the new passages.',
+    "Arc notes: only when the passages change who a character is, such as a new habit, a stance that softened or hardened, or a lasting decision about themselves or someone else. Not a fact they learned (that's knowledge), and not a passing mood. Write how they have changed in one or two sentences, with a rationale naming what in the passages shows it. Don't repeat a change they already have or one waiting for review. Most passages call for none; the reader reviews every one.",
     'story_summary: what has happened in the whole story so far, in at most 150 words, updating the previous summary.',
   );
 
@@ -207,6 +235,19 @@ export function buildArchivistMessages({
     const episode = episodeByCast.get(member.id);
     if (episode) {
       lines.push(`Episode for this story so far: ${episode.content}`);
+    }
+    const notes = notesByCast.get(member.id);
+    if (notes?.accepted.length > 0) {
+      lines.push(
+        `How ${nameOf(member)} has changed so far:`,
+        ...notes.accepted.map((note) => `- ${note.content}`),
+      );
+    }
+    if (notes?.proposed.length > 0) {
+      lines.push(
+        'Changes already waiting for review:',
+        ...notes.proposed.map((note) => `- ${note.content}`),
+      );
     }
     return lines.join('\n');
   });
@@ -243,7 +284,8 @@ function text(value) {
 
 /**
  * Save one pass's record, skipping anything that doesn't check out.
- * @returns {{ added: number, superseded: number, episodes: number, warnings: string[] }}
+ * @returns {{ added: number, superseded: number, episodes: number, arcNotes: number,
+ *   warnings: string[] }}
  */
 function applyRecord({
   stores,
@@ -253,6 +295,7 @@ function applyRecord({
   characters,
   knownByCast,
   episodeByCast,
+  notesByCast,
   turns,
   runId,
   archivedThrough,
@@ -262,7 +305,14 @@ function applyRecord({
   const turnIdByPosition = new Map(
     turns.filter((turn) => turn.kind === 'prose').map((turn) => [turn.position, turn.id]),
   );
-  const result = { added: 0, superseded: 0, episodes: 0, warnings: [] };
+  const turnIdsFor = (passages) => [
+    ...new Set(
+      (Array.isArray(passages) ? passages : [])
+        .map((position) => turnIdByPosition.get(position))
+        .filter(Boolean),
+    ),
+  ];
+  const result = { added: 0, superseded: 0, episodes: 0, arcNotes: 0, warnings: [] };
 
   const memberFor = (name, what) => {
     const member = byName.get(text(name).toLowerCase());
@@ -325,15 +375,12 @@ function applyRecord({
         }
       }
 
-      const passages = Array.isArray(item.passages) ? item.passages : [];
       memories.addMemory(bureauId, member.id, {
         ...base,
         layer: 'knowledge',
         content,
         importance: item.importance,
-        sourceTurnIds: [
-          ...new Set(passages.map((position) => turnIdByPosition.get(position)).filter(Boolean)),
-        ],
+        sourceTurnIds: turnIdsFor(item.passages),
         supersedes,
       });
       result.added += 1;
@@ -367,8 +414,36 @@ function applyRecord({
       result.episodes += 1;
     }
 
+    // Arc notes are proposals for the reader, skipping changes the character already has or
+    // that are already waiting.
+    const seenNotes = new Set(
+      [...notesByCast.entries()].flatMap(([castId, notes]) =>
+        [...notes.accepted, ...notes.proposed].map(
+          (note) => `${castId}:${note.content.toLowerCase()}`,
+        ),
+      ),
+    );
+    for (const item of Array.isArray(record.arc_notes) ? record.arc_notes : []) {
+      const member = memberFor(item?.character, 'an arc note');
+      const content = text(item?.content);
+      if (!member || !content) continue;
+      const key = `${member.id}:${content.toLowerCase()}`;
+      if (seenNotes.has(key)) continue;
+      seenNotes.add(key);
+
+      stores.arcNotes.addNote(bureauId, member.id, {
+        ...base,
+        content,
+        rationale: text(item.rationale),
+        status: 'proposed',
+        sourceTurnIds: turnIdsFor(item.passages),
+      });
+      result.arcNotes += 1;
+    }
+
     if (changedTurnIds.length > 0) {
       memories.flagTurnsChanged(bureauId, story.id, changedTurnIds);
+      stores.arcNotes.flagTurnsChanged(bureauId, story.id, changedTurnIds);
       result.warnings.push(
         `Marked for review: ${changedTurnIds.length} passage(s) changed while the Archivist read them`,
       );
@@ -404,11 +479,26 @@ export function isArchiving(storyId) {
   return storyLocks.has(storyId);
 }
 
-/** What each character remembering in this story knows now, and their episode for it. */
+/**
+ * What each character remembering in this story knows now, their episode for it, and their
+ * arc notes: accepted ones the story can see, and every proposal still waiting.
+ */
 function currentMemories(stores, bureauId, story, characters) {
   const knownByCast = new Map();
   const episodeByCast = new Map();
+  const notesByCast = new Map();
   for (const member of characters) {
+    const notes = stores.arcNotes.listNotes(bureauId, member.id);
+    notesByCast.set(member.id, {
+      accepted: notes.filter(
+        (note) =>
+          note.status === 'accepted' &&
+          (isBeforeStory(note, story) ||
+            (note.sourceType === 'story' && note.sourceId === story.id)),
+      ),
+      proposed: notes.filter((note) => note.status === 'proposed'),
+    });
+
     const asOf = memoriesAsOf(
       stores.memories.listMemories(bureauId, member.id, { status: 'all' }),
       story,
@@ -427,7 +517,7 @@ function currentMemories(stores, bureauId, story, characters) {
     );
     if (episode) episodeByCast.set(member.id, episode);
   }
-  return { knownByCast, episodeByCast };
+  return { knownByCast, episodeByCast, notesByCast };
 }
 
 async function readChunk({ stores, bureau, storyId, client, recorder, chunk, signal }) {
@@ -441,7 +531,12 @@ async function readChunk({ stores, bureau, storyId, client, recorder, chunk, sig
     .filter(Boolean);
   const persona = cast.find((member) => member.isPersona) ?? null;
   const characters = cast.filter((member) => member !== persona);
-  const { knownByCast, episodeByCast } = currentMemories(stores, bureau.id, story, characters);
+  const { knownByCast, episodeByCast, notesByCast } = currentMemories(
+    stores,
+    bureau.id,
+    story,
+    characters,
+  );
 
   const messages = buildArchivistMessages({
     story,
@@ -450,6 +545,7 @@ async function readChunk({ stores, bureau, storyId, client, recorder, chunk, sig
     persona,
     knownByCast,
     episodeByCast,
+    notesByCast,
     turns: chunk,
   });
   const options = {
@@ -509,6 +605,7 @@ async function readChunk({ stores, bureau, storyId, client, recorder, chunk, sig
     characters,
     knownByCast,
     episodeByCast,
+    notesByCast,
     turns: chunk,
     runId: recorder.runId,
     archivedThrough: chunk.at(-1).position,
@@ -533,7 +630,7 @@ async function readChunk({ stores, bureau, storyId, client, recorder, chunk, sig
  * @param {number} [params.through] - Last position to read; defaults to the end of the story.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} Totals for the passes ({ passes, added, superseded, episodes,
- *   warnings, archivedThrough, runId }), or null when there was nothing to read.
+ *   arcNotes, warnings, archivedThrough, runId }), or null when there was nothing to read.
  */
 export function archiveStory({ stores, bureauId, storyId, client, through = Infinity, signal }) {
   return withStoryLock(storyId, async () => {
@@ -551,6 +648,7 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
       added: 0,
       superseded: 0,
       episodes: 0,
+      arcNotes: 0,
       warnings: [],
       archivedThrough: story.archivedThrough,
       runId: null,
@@ -589,6 +687,7 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
           totals.added += result.added;
           totals.superseded += result.superseded;
           totals.episodes += result.episodes;
+          totals.arcNotes += result.arcNotes;
           totals.warnings.push(...result.warnings);
         }
         totals.archivedThrough = last;

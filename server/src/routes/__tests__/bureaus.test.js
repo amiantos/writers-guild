@@ -9,6 +9,7 @@ import bureausRouter from '../bureaus.js';
 import { errorHandler } from '../../middleware/error-handler.js';
 import { SqliteStorageService } from '../../services/sqliteStorage.js';
 import { BureauStorage } from '../../services/bureau/bureau-storage.js';
+import { getBureauStores } from '../../services/bureau/stores.js';
 import { closeBureauDb } from '../../services/bureau/bureau-db.js';
 import { RunRecorder } from '../../services/bureau/run-recorder.js';
 
@@ -244,6 +245,35 @@ describe('Bureau routes', () => {
       await request(app).delete(memberUrl).expect(200);
       await request(app).get(memberUrl).expect(404);
       await request(app).delete(memberUrl).expect(404);
+    });
+
+    it('exports a cast member to the library as a new character', async () => {
+      await seedCharacter('char-1', 'Mara');
+      const bureau = await createBureau();
+      const { body: added } = await request(app)
+        .post(`/api/bureaus/${bureau.id}/cast`)
+        .send({ characterId: 'char-1' })
+        .expect(201);
+      const castId = added.castMember.id;
+      const before = await library.getCharacter('char-1');
+      const { arcNotes } = getBureauStores(tempDir);
+      arcNotes.addNote(bureau.id, castId, { content: 'Mara lets Theo steer.', status: 'accepted' });
+      arcNotes.addNote(bureau.id, castId, { content: 'Still waiting.', status: 'proposed' });
+
+      const { body } = await request(app)
+        .post(`/api/bureaus/${bureau.id}/cast/${castId}/export`)
+        .send({})
+        .expect(201);
+
+      expect(body).toMatchObject({ name: 'Mara', arcNotes: 1 });
+      expect(body.characterId).not.toBe('char-1');
+      const exported = await library.getCharacter(body.characterId);
+      expect(exported.data.description).toBe(
+        'Mara from the library\n\nHow Mara has changed:\n- Mara lets Theo steer.',
+      );
+      expect(exported.data.tags).toContain('bureau');
+      expect(await library.getCharacter('char-1')).toEqual(before);
+      await request(app).post(`/api/bureaus/${bureau.id}/cast/missing/export`).send({}).expect(404);
     });
   });
 

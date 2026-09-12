@@ -162,6 +162,8 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
  * @param {Array<{content: string}>} [params.loreEntries] - Lorebook entries already activated.
  * @param {Map<string, {knowledge: Array<Object>, episodes: Array<Object>}>} [params.memoriesByCast] -
  *   What each character remembers from before this story, by cast member id (see memory.js).
+ * @param {Map<string, Array<{content: string}>>} [params.arcNotesByCast] - Accepted arc notes
+ *   from before this story, by cast member id: how each character has changed.
  * @param {Array<Object>} params.turns - The story's turns in order, including any turn just
  *   added from the composer. Uses kind, source, and content.
  * @param {Object} params.request
@@ -182,6 +184,7 @@ export function buildWriterMessages({
   cast,
   loreEntries = [],
   memoriesByCast = new Map(),
+  arcNotesByCast = new Map(),
   turns,
   request,
   openingTime = null,
@@ -216,6 +219,11 @@ export function buildWriterMessages({
     if (description) lines.push(`Description: ${description}`);
     const personality = prepareCardText(data.personality, card);
     if (personality) lines.push(`Personality: ${personality}`);
+    const notes = arcNotesByCast.get(member.id) ?? [];
+    if (notes.length > 0) {
+      const changes = notes.map((note) => `- ${stripAsterisks(note.content)}`);
+      lines.push(`How ${data.name || member.name} has changed:\n${changes.join('\n')}`);
+    }
     return lines.join('\n');
   };
 

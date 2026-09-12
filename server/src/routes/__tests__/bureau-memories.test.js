@@ -161,4 +161,66 @@ describe('Bureau memory routes', () => {
 
     expect(body.memoryCounts).toEqual({ [mara.id]: { current: 2, needsReview: 1 } });
   });
+
+  describe('arc notes', () => {
+    const notesUrl = (castId = mara.id) => `/api/bureaus/${bureau.id}/cast/${castId}/arc-notes`;
+    const noteUrl = (noteId) => `/api/bureaus/${bureau.id}/arc-notes/${noteId}`;
+
+    it('lists proposals, accepts with edits, rejects, and deletes', async () => {
+      const story = stores.stories.createStory(bureau.id, {
+        startTime: '2026-10-27T07:30:00.000Z',
+        castIds: [mara.id],
+        title: 'Lamplight',
+      });
+      const proposal = stores.arcNotes.addNote(bureau.id, mara.id, {
+        content: 'Mara trusts Theo.',
+        rationale: 'She gave him the oars.',
+        sourceType: 'story',
+        sourceId: story.id,
+        worldTime: story.startTime,
+      });
+
+      const { body: waiting } = await request(app)
+        .get(notesUrl())
+        .query({ status: 'proposed' })
+        .expect(200);
+      expect(waiting.arcNotes.map((note) => note.id)).toEqual([proposal.id]);
+      const { body: cast } = await request(app).get(`/api/bureaus/${bureau.id}/cast`).expect(200);
+      expect(cast.arcNoteCounts).toEqual({ [mara.id]: 1 });
+
+      const { body: accepted } = await request(app)
+        .put(noteUrl(proposal.id))
+        .send({ content: 'Mara trusts Theo with the boat.', status: 'accepted' })
+        .expect(200);
+      expect(accepted.arcNote).toMatchObject({
+        status: 'accepted',
+        content: 'Mara trusts Theo with the boat.',
+        proposedContent: 'Mara trusts Theo.',
+      });
+
+      await request(app).put(noteUrl(proposal.id)).send({ status: 'rejected' }).expect(200);
+      await request(app).put(noteUrl(proposal.id)).send({ status: 'maybe' }).expect(400);
+      await request(app).put(noteUrl(proposal.id)).send({}).expect(400);
+      await request(app).get(notesUrl()).query({ status: 'lost' }).expect(400);
+
+      await request(app).delete(noteUrl(proposal.id)).expect(200);
+      await request(app).delete(noteUrl(proposal.id)).expect(404);
+      await request(app).put(noteUrl('abc')).send({ status: 'accepted' }).expect(404);
+    });
+
+    it("writes a note as accepted, but not for the reader's character", async () => {
+      const { body } = await request(app)
+        .post(notesUrl())
+        .send({ content: ' Mara keeps the lamp lit for no one now. ' })
+        .expect(201);
+
+      expect(body.arcNote).toMatchObject({
+        content: 'Mara keeps the lamp lit for no one now.',
+        status: 'accepted',
+        sourceType: 'manual',
+      });
+      await request(app).post(notesUrl(theo.id)).send({ content: 'Nope.' }).expect(400);
+      await request(app).post(notesUrl()).send({ content: '' }).expect(400);
+    });
+  });
 });

@@ -259,6 +259,14 @@ describe('generateWriterTurn', () => {
     fromStory(mara.id, earlier, 'episode', 'Mara met Theo at the pier.');
     fromStory(mara.id, story, 'knowledge', 'Theo waded in up to his knees.');
     fromStory(theo.id, earlier, 'knowledge', 'Theo remembers the pier.');
+    stores.arcNotes.addNote(bureau.id, mara.id, {
+      content: 'Mara lets Theo take the oars now.',
+      status: 'accepted',
+      sourceType: 'story',
+      sourceId: earlier.id,
+      worldTime: earlier.startTime,
+    });
+    stores.arcNotes.addNote(bureau.id, mara.id, { content: 'Mara waits to be asked.' });
     const client = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
 
     await generate(client, { action: 'continue' });
@@ -267,6 +275,8 @@ describe('generateWriterTurn', () => {
     expect(system).toContain(
       "Mara knows:\n- Theo can't swim.\n\nMara remembers from earlier stories:\n- The Pier: Mara met Theo at the pier.",
     );
+    expect(system).toContain('How Mara has changed:\n- Mara lets Theo take the oars now.');
+    expect(system).not.toContain('waits to be asked');
     expect(system).not.toContain('waded in');
     expect(system).not.toContain('Theo remembers the pier.');
   });

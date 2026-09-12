@@ -17,7 +17,7 @@ import { describeBureauTime } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { runDirector } from './director.js';
 import { runEditor } from './editor.js';
-import { memoriesAsOf, selectForPrompt } from './memory.js';
+import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 import { inferPronoun, lintProse, usesThirdPerson } from './style-lint.js';
 import { DEFAULT_HOUSE_STYLE, buildWriterMessages } from './writer-prompt.js';
@@ -148,6 +148,16 @@ export async function generateWriterTurn({
       ]),
   );
 
+  // How each character has changed before this story, from accepted arc notes.
+  const arcNotesByCast = new Map(
+    cast
+      .filter((member) => !member.isPersona)
+      .map((member) => [
+        member.id,
+        notesAsOf(stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }), story),
+      ]),
+  );
+
   const openingTime = describeBureauTime(story.startTime, bureau.timezone);
   const promptRequest = {
     action: request.action,
@@ -207,6 +217,7 @@ export async function generateWriterTurn({
       cast,
       loreEntries: await activatedLore(stores, bureau.id, scanText),
       memoriesByCast,
+      arcNotesByCast,
       turns,
       request: { ...promptRequest, brief },
       openingTime,

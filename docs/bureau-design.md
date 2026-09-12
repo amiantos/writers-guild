@@ -385,14 +385,23 @@ members. It's saved as knowledge with no story and no time, so every story can s
 ## Character development
 
 - The seed card never changes. Accepted arc notes layer on top of it.
-- The Archivist proposes arc notes with a rationale and sources. You accept, edit, or reject each
-  one, and the history is kept.
+- The Archivist proposes arc notes during its usual pass, with a rationale and the passages that show
+  the change, and only when a story changes who a character is: a new habit, a stance that softened
+  or hardened, a lasting decision. It skips changes the character already has or that are already
+  waiting. Proposals never apply on their own.
+- You accept, edit then accept, or reject each one in the character's memory browser ("How they've
+  changed"), and can write one yourself, which is accepted as written. Rejected notes stay as
+  history, and an accepted note that was edited shows what was first proposed.
+- Accepted notes follow the same timeline rule as memories: a story sees notes from before its start.
+  The Writer gets them in the character's profile ("How Mara has changed"), and the Director's
+  `get_character_file` includes them. Changing a passage a note cites marks the note for review.
 - **Why not rewrite the card:** repeated LLM rewrites flatten a character toward bland and agreeable.
   A fixed seed anchors the voice; notes only add.
 - **Drift check (later):** periodically compare recent dialogue against the seed card's voice and flag
   drift.
-- **Export to library** merges seed card and arc notes into a new library character, never
-  overwriting the original.
+- **Export to library** copies the seed card into a new library character, adds the accepted notes to
+  its description under "How {name} has changed", keeps the original's portrait, and tags it
+  `bureau`. The library character the Bureau copied is never overwritten.
 
 ## Correspondence
 
@@ -508,8 +517,10 @@ bureaus        (id, name, description, api_key, model, bureau_time, present_offs
                 timezone, house_style, settings JSON, created, modified)
 cast_members   (id, bureau_id, library_character_id NULL, name, is_persona, is_draft,
                 seed_card JSON, routine JSON, created, modified)
-arc_notes      (id, cast_member_id, content, rationale, source_refs JSON,
-                status [proposed|accepted|rejected], created, decided)
+arc_notes      (id, bureau_id, cast_member_id, content, proposed_content, rationale,
+                status [proposed|accepted|rejected], world_time NULL, source_type [story|manual],
+                source_id NULL, source_turn_ids JSON, run_id NULL, needs_review, created,
+                decided NULL, modified)
 bureau_lorebooks (bureau_id, lorebook_id)
 world_threads  (id, bureau_id, title, summary, status, modified)
 

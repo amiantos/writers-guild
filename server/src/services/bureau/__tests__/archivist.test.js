@@ -22,7 +22,7 @@ function card(name) {
 }
 
 function record(fields = {}) {
-  return { knowledge: [], episodes: [], story_summary: '', ...fields };
+  return { knowledge: [], episodes: [], arc_notes: [], story_summary: '', ...fields };
 }
 
 /** A knowledge item in which Mara replaces memory `id` with `content`. */
@@ -346,6 +346,60 @@ describe('archiveStory', () => {
     expect(result.episodes).toBe(0);
     expect(result.warnings).toHaveLength(1);
     expect(maraMemories('episode').map((memory) => memory.content)).toEqual(['Second.']);
+  });
+
+  it('proposes arc notes for review, skipping changes the character already has', async () => {
+    stores.arcNotes.addNote(bureau.id, mara.id, {
+      content: 'Mara trusts Theo with the boat.',
+      status: 'accepted',
+    });
+    stores.arcNotes.addNote(bureau.id, mara.id, {
+      content: 'Mara laughs more easily.',
+      sourceType: 'story',
+      sourceId: story.id,
+      worldTime: START,
+    });
+    const turn = addProse('Mara handed Theo the oars without a word.');
+    const note = (content, character = 'Mara') => ({
+      character,
+      content,
+      rationale: 'She gave him the oars.',
+      passages: [turn.position],
+    });
+    const client = archivistClient([
+      record({
+        arc_notes: [
+          note('Mara lets Theo steer now.'),
+          note('mara trusts theo with the boat.'),
+          note('Mara laughs more easily.'),
+          note('Theo is braver.', 'Theo'),
+        ],
+      }),
+    ]);
+
+    const result = await archive(client);
+
+    expect(result.arcNotes).toBe(1);
+    const proposed = stores.arcNotes.listNotes(bureau.id, mara.id, { status: 'proposed' });
+    expect(proposed.map((item) => item.content)).toEqual([
+      'Mara laughs more easily.',
+      'Mara lets Theo steer now.',
+    ]);
+    expect(proposed[1]).toMatchObject({
+      rationale: 'She gave him the oars.',
+      sourceId: story.id,
+      sourceTurnIds: [turn.id],
+      runId: result.runId,
+    });
+    const [system, user] = client.calls[0].messages;
+    expect(system.content).toContain('Arc notes: only when the passages change who a character is');
+    expect(user.content).toContain(
+      'How Mara has changed so far:\n- Mara trusts Theo with the boat.',
+    );
+    expect(user.content).toContain(
+      'Changes already waiting for review:\n- Mara laughs more easily.',
+    );
+    expect(result.warnings).toEqual([expect.stringContaining('"Theo"')]);
   });
 
   it("skips memories for anyone who isn't a character that remembers", async () => {

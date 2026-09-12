@@ -68,6 +68,16 @@ export function memoriesAsOf(memories, story, { includeOwnStory = false } = {}) 
 }
 
 /**
+ * Accepted arc notes a story can draw on: written by the reader, or from stories
+ * before it (see isBeforeStory). A story's own notes are left out, like its memories.
+ * @param {Array<Object>} notes - A character's arc notes (see arc-note-storage.js).
+ * @param {Object} story - Uses id, startTime, and position.
+ */
+export function notesAsOf(notes, story) {
+  return notes.filter((note) => note.status === 'accepted' && isBeforeStory(note, story));
+}
+
+/**
  * What goes in the Writer prompt for one character: pinned knowledge, then the
  * most important knowledge that fits the budget, and the latest episodes.
  *

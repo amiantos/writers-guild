@@ -571,13 +571,20 @@ describe('Bureau story routes', () => {
       expect(body.memoryCounts[mara.id]).toEqual({ current: 2, needsReview: 2 });
     });
 
-    it('deletes the memories recorded from a deleted story', async () => {
+    it('deletes the memories and arc notes recorded from a deleted story', async () => {
       const story = await storyWithConfession();
       await request(app).post(`${storiesUrl()}/${story.id}/archive`).send({}).expect(200);
+      stores.arcNotes.addNote(bureau.id, mara.id, {
+        content: 'Mara trusts Theo.',
+        sourceType: 'story',
+        sourceId: story.id,
+        worldTime: story.startTime,
+      });
 
       await request(app).delete(`${storiesUrl()}/${story.id}`).expect(200);
 
       expect(await maraMemories()).toEqual([]);
+      expect(stores.arcNotes.listNotes(bureau.id, mara.id)).toEqual([]);
     });
 
     it('archives settled turns in the background after generating', async () => {

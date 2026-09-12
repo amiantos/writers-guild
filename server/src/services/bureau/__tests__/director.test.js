@@ -186,6 +186,10 @@ describe('runDirector', () => {
         };
       },
     };
+    stores.arcNotes.addNote(bureau.id, mara.id, {
+      content: 'Mara lets Theo steer now.',
+      status: 'accepted',
+    });
     stores.bureaus.attachLorebook(bureau.id, 'lb-gone');
     stores.bureaus.attachLorebook(bureau.id, 'lb-1');
     const client = scriptedClient(
@@ -210,6 +214,7 @@ describe('runDirector', () => {
       name: 'Mara',
       description: 'She keeps the Greywater light.',
       knows: [{ id: cantSwim.id, content: "Theo can't swim." }],
+      hasChanged: ['Mara lets Theo steer now.'],
     });
   });
 

@@ -92,6 +92,12 @@ async function archiveNow(req, res, bureauId, storyId) {
   }
 }
 
+/** Mark memories and arc notes that cite changed or deleted turns for review. */
+function flagChangedTurns(stores, bureauId, storyId, turnIds) {
+  stores.memories.flagTurnsChanged(bureauId, storyId, turnIds);
+  stores.arcNotes.flagTurnsChanged(bureauId, storyId, turnIds);
+}
+
 /** Where `part` appears in `text` as whole paragraphs, or -1. */
 function paragraphIndexOf(text, part) {
   let index = text.indexOf(part);
@@ -146,7 +152,7 @@ async function respondWithWriterTurn(
       onEvent: (event) => channel.send(event),
     });
     if (regenerateTurnId && turn) {
-      stores.memories.flagTurnsChanged(bureau.id, story.id, [regenerateTurnId]);
+      flagChangedTurns(stores, bureau.id, story.id, [regenerateTurnId]);
     }
     if (controller.signal.aborted) {
       // The client left; any text written so far was saved with the turn.
@@ -327,13 +333,15 @@ router.post(
 router.delete(
   '/:storyId',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories, memories } = res.locals.stores;
+    const { bureaus, stories } = res.locals.stores;
     const { bureauId, storyId } = req.params;
     requireBureau(bureaus, bureauId);
 
+    const { memories, arcNotes } = res.locals.stores;
     let deleted = false;
     bureaus.db.transaction(() => {
       memories.deleteStoryMemories(bureauId, storyId);
+      arcNotes.deleteStoryNotes(bureauId, storyId);
       deleted = stories.deleteStory(bureauId, storyId);
     })();
     if (!deleted) {
@@ -379,7 +387,7 @@ router.post(
 router.put(
   '/:storyId/turns/:turnId',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories, memories } = res.locals.stores;
+    const { bureaus, stories } = res.locals.stores;
     const { bureauId, storyId, turnId } = req.params;
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
@@ -390,7 +398,7 @@ router.put(
       throw new AppError('content is required', 400);
     }
     const edited = stories.editTurn(storyId, turnId, content);
-    memories.flagTurnsChanged(bureauId, storyId, [turnId]);
+    flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
     res.json({ turn: edited });
   }),
 );
@@ -399,7 +407,7 @@ router.put(
 router.delete(
   '/:storyId/turns/:turnId',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories, memories } = res.locals.stores;
+    const { bureaus, stories } = res.locals.stores;
     const { bureauId, storyId, turnId } = req.params;
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
@@ -407,7 +415,7 @@ router.delete(
     if (!stories.deleteTurn(storyId, turnId)) {
       throw new AppError('Turn not found', 404);
     }
-    memories.flagTurnsChanged(bureauId, storyId, [turnId]);
+    flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
     res.json({ success: true });
   }),
 );
@@ -416,7 +424,7 @@ router.delete(
 router.put(
   '/:storyId/turns/:turnId/variant',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories, memories } = res.locals.stores;
+    const { bureaus, stories } = res.locals.stores;
     const { bureauId, storyId, turnId } = req.params;
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
@@ -431,7 +439,7 @@ router.put(
       throw new AppError('Variant not found', 404);
     }
     if (variantId !== current.activeVariantId) {
-      memories.flagTurnsChanged(bureauId, storyId, [turnId]);
+      flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
     }
     res.json({ turn });
   }),
@@ -442,7 +450,7 @@ router.put(
 router.post(
   '/:storyId/turns/:turnId/revert-edit',
   asyncHandler(async (req, res) => {
-    const { bureaus, stories, memories } = res.locals.stores;
+    const { bureaus, stories } = res.locals.stores;
     const { bureauId, storyId, turnId } = req.params;
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
@@ -478,7 +486,7 @@ router.post(
       turnId,
       turn.content.slice(0, at) + fix.original + turn.content.slice(at + fix.replacement.length),
     );
-    memories.flagTurnsChanged(bureauId, storyId, [turnId]);
+    flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
     res.json({ turn: updated });
   }),
 );

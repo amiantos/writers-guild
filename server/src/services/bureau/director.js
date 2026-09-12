@@ -7,7 +7,7 @@
  * and in the run record, so the Writer's prompt stays prose.
  */
 
-import { memoriesAsOf, selectForPrompt } from './memory.js';
+import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { runToolLoop } from './tool-loop.js';
 
 export const DIRECTOR_MAX_ITERATIONS = 6;
@@ -348,6 +348,10 @@ function toolHandlers({ stores, bureau, story, cast, turns }) {
           story: memory.sourceTitle,
           content: memory.content,
         }));
+        file.hasChanged = notesAsOf(
+          stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }),
+          story,
+        ).map((note) => note.content);
       }
       return file;
     },

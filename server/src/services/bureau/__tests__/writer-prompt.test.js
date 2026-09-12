@@ -86,6 +86,20 @@ describe('buildWriterMessages', () => {
     expect(system).not.toContain('The reader remembers this.');
   });
 
+  it('adds how a character has changed to their profile', () => {
+    const { system } = build({
+      arcNotesByCast: new Map([
+        ['mara', [{ content: 'Mara lets Theo take the *oars* now.' }]],
+        ['theo', []],
+      ]),
+    });
+
+    expect(system).toContain(
+      'Personality: Wry and stubborn.\nHow Mara has changed:\n- Mara lets Theo take the oars now.',
+    );
+    expect(system).not.toContain('How Theo has changed');
+  });
+
   it('leaves out the memories section when no one remembers anything', () => {
     const { system } = build({
       memoriesByCast: new Map([['mara', { knowledge: [], episodes: [] }]]),
