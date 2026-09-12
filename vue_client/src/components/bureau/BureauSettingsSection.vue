@@ -110,6 +110,75 @@
         </p>
       </fieldset>
 
+      <fieldset class="writer-settings">
+        <legend>Director</legend>
+        <label class="checkbox-label">
+          <input
+            id="bureau-settings-director-enabled"
+            v-model="form.director.enabled"
+            type="checkbox"
+          />
+          Plan each passage with the Director
+        </label>
+        <template v-if="form.director.enabled">
+          <label class="checkbox-label">
+            <input
+              id="bureau-settings-director-skip"
+              v-model="form.director.skipOnContinue"
+              type="checkbox"
+            />
+            Skip planning for a plain Continue
+          </label>
+          <label class="checkbox-label">
+            <input v-model="form.director.thinking" type="checkbox" />
+            Thinking mode
+          </label>
+          <div v-if="form.director.thinking" class="form-group">
+            <label for="bureau-settings-director-effort">Reasoning effort</label>
+            <select
+              id="bureau-settings-director-effort"
+              v-model="form.director.reasoningEffort"
+              class="select-input"
+            >
+              <option value="low">Low</option>
+              <option value="high">High</option>
+              <option value="max">Max</option>
+            </select>
+          </div>
+        </template>
+        <p class="help-text">
+          The Director looks up memories and lore, then gives the Writer a scene brief. Both show in
+          each turn's seam.
+        </p>
+      </fieldset>
+
+      <fieldset class="writer-settings">
+        <legend>Style checks</legend>
+        <label class="checkbox-label">
+          <input
+            id="bureau-settings-editor-enabled"
+            v-model="form.editor.enabled"
+            type="checkbox"
+          />
+          Let the Editor fix what the checks find
+        </label>
+        <div class="form-group">
+          <label for="bureau-settings-banned-phrases">Banned phrases</label>
+          <textarea
+            id="bureau-settings-banned-phrases"
+            v-model="form.bannedPhrases"
+            class="textarea-input"
+            rows="3"
+            placeholder="One per line"
+          ></textarea>
+        </div>
+        <p class="help-text">
+          Every generated passage is checked for two characters speaking in one paragraph,
+          first-person narration, repeated phrasing, and banned phrases. Findings and fixes show in
+          the turn's seam, where a fix can be reverted.
+        </p>
+      </fieldset>
+
       <div class="form-group">
         <div class="label-row">
           <label for="bureau-settings-house-style">House style</label>
@@ -188,7 +257,17 @@ function snapshot(bureau) {
     model: bureau.model,
     houseStyle: bureau.houseStyle,
     writer: { ...bureau.settings.writer },
+    director: { ...bureau.settings.director },
+    editor: { ...bureau.settings.editor },
+    bannedPhrases: bureau.settings.style.bannedPhrases.join('\n'),
   };
+}
+
+function phrasesFrom(text) {
+  return text
+    .split('\n')
+    .map((phrase) => phrase.trim())
+    .filter(Boolean);
 }
 
 // What the form was last synced from. When the Bureau changes elsewhere (removing the
@@ -203,7 +282,7 @@ function syncForm(bureau) {
     for (const [field, value] of Object.entries(incoming)) {
       const untouched = JSON.stringify(form[field]) === JSON.stringify(syncedFrom[field]);
       if (untouched) {
-        form[field] = field === 'writer' ? { ...value } : value;
+        form[field] = typeof value === 'object' && value !== null ? { ...value } : value;
       }
     }
   }
@@ -240,7 +319,12 @@ async function save() {
     description: form.description.trim(),
     model: form.model.trim(),
     houseStyle: form.houseStyle,
-    settings: { writer: { ...form.writer } },
+    settings: {
+      writer: { ...form.writer },
+      director: { ...form.director },
+      editor: { ...form.editor },
+      style: { bannedPhrases: phrasesFrom(form.bannedPhrases) },
+    },
   };
   if (form.apiKey.trim()) {
     updates.apiKey = form.apiKey.trim();

@@ -11,11 +11,17 @@
 
     <div v-if="open" class="seam-panel">
       <template v-if="live">
+        <div v-if="live.brief" class="seam-block">
+          <div class="block-label">Scene brief</div>
+          <ol class="seam-list">
+            <li v-for="(beat, index) in live.brief.beats" :key="index">{{ beat }}</li>
+          </ol>
+        </div>
         <div v-if="live.reasoning" class="seam-block">
           <div class="block-label">Reasoning</div>
           <pre class="block-text">{{ live.reasoning }}</pre>
         </div>
-        <p v-else class="seam-meta">
+        <p v-else-if="!live.brief" class="seam-meta">
           Nothing to show yet. Reasoning streams in here when thinking mode is on.
         </p>
       </template>
@@ -35,6 +41,62 @@
             </header>
             <p v-if="step.error" class="seam-error">{{ step.error }}</p>
             <p v-if="stepSettings(step)" class="seam-meta">{{ stepSettings(step) }}</p>
+
+            <div v-if="briefOf(step)" class="seam-brief">
+              <ol class="seam-list">
+                <li v-for="(beat, index) in briefOf(step).beats" :key="index">{{ beat }}</li>
+              </ol>
+              <p v-if="briefDetails(briefOf(step))" class="seam-meta">
+                {{ briefDetails(briefOf(step)) }}
+              </p>
+              <ul v-if="briefOf(step).memories?.length" class="seam-list">
+                <li v-for="memory in briefOf(step).memories" :key="memory.id">
+                  {{ memory.content }}
+                  <span v-if="memory.reason" class="seam-meta">({{ memory.reason }})</span>
+                </li>
+              </ul>
+              <p v-if="briefOf(step).notes" class="seam-meta">Notes: {{ briefOf(step).notes }}</p>
+            </div>
+
+            <template v-if="step.role === 'lint'">
+              <p v-if="findingsOf(step).length === 0" class="seam-meta">No style problems found.</p>
+              <ul v-else class="seam-list">
+                <li v-for="(finding, index) in findingsOf(step)" :key="index">
+                  Paragraph {{ finding.paragraph + 1 }}: {{ finding.reason }}
+                </li>
+              </ul>
+            </template>
+
+            <div v-for="(edit, index) in editsOf(step)" :key="index" class="seam-fix">
+              <div class="fix-header">
+                <span>Paragraph {{ edit.paragraph + 1 }}: {{ edit.reason }}</span>
+                <button
+                  v-if="editState(edit) === 'applied' && run.id === turn.runId"
+                  class="btn btn-secondary btn-small"
+                  :disabled="busy"
+                  @click="$emit('revert-edit', { turn, runId: run.id, index })"
+                >
+                  <i class="fas fa-rotate-left"></i> Revert
+                </button>
+                <span v-else-if="editState(edit) === 'reverted'" class="seam-meta">Reverted</span>
+              </div>
+              <div class="block-label">Before</div>
+              <pre class="block-text">{{ edit.original }}</pre>
+              <div class="block-label">After</div>
+              <pre class="block-text">{{ edit.replacement }}</pre>
+            </div>
+
+            <details v-if="lookupOf(step)" class="seam-details">
+              <summary>What was looked up</summary>
+              <div class="seam-block">
+                <div class="block-label">Asked</div>
+                <pre class="block-text">{{ lookupOf(step).asked }}</pre>
+              </div>
+              <div class="seam-block">
+                <div class="block-label">Found</div>
+                <pre class="block-text">{{ lookupOf(step).found }}</pre>
+              </div>
+            </details>
             <details v-if="step.reasoning" class="seam-details" open>
               <summary>Reasoning</summary>
               <pre class="block-text">{{ step.reasoning }}</pre>
@@ -67,9 +129,28 @@ const props = defineProps({
   /** The turn below this seam; absent for a turn still being written. */
   turn: { type: Object, default: null },
   castById: { type: Object, default: () => ({}) },
-  /** Live progress ({ status, reasoning }) while the turn below is being written. */
+  /** Live progress ({ status, reasoning, brief }) while the turn below is being written. */
   live: { type: Object, default: null },
+  /** Disables reverting fixes while something is being written. */
+  busy: { type: Boolean, default: false },
 });
+
+defineEmits(['revert-edit']);
+
+const ROLE_LABELS = {
+  director: 'Director',
+  writer: 'Writer',
+  lint: 'Style lint',
+  editor: 'Editor',
+};
+
+const TOOL_LABELS = {
+  recall: 'recall',
+  lookup_lore: 'lore lookup',
+  get_character_file: 'character file',
+  submit_brief: 'scene brief',
+  edit_paragraphs: 'fixes',
+};
 
 const STATUS_LABELS = {
   completed: 'Written',
@@ -111,17 +192,77 @@ const runMeta = computed(() => {
 });
 
 function stepLabel(step) {
-  const role = step.role.charAt(0).toUpperCase() + step.role.slice(1);
-  return step.kind === 'tool' ? `${role} · ${step.request?.name ?? 'tool'}` : role;
+  const role = ROLE_LABELS[step.role] ?? step.role.charAt(0).toUpperCase() + step.role.slice(1);
+  if (step.kind !== 'tool' || step.role === 'lint') return role;
+  const name = step.request?.name ?? 'tool';
+  return `${role} · ${TOOL_LABELS[name] ?? name}`;
 }
 
 function stepSettings(step) {
   const request = step.request;
   if (step.kind !== 'model' || !request?.model) return '';
-  const mode = request.thinking
-    ? `thinking (${request.reasoningEffort} effort)`
-    : `temperature ${request.temperature}`;
-  return `${request.model} · ${mode} · up to ${request.maxTokens} tokens`;
+  const parts = [request.model];
+  if (request.thinking) {
+    parts.push(`thinking (${request.reasoningEffort} effort)`);
+  } else if (request.temperature !== undefined) {
+    parts.push(`temperature ${request.temperature}`);
+  }
+  if (request.maxTokens) parts.push(`up to ${request.maxTokens} tokens`);
+  return parts.join(' · ');
+}
+
+// Tool steps store the model's arguments and the result as JSON text.
+function parseJson(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function pretty(value) {
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+}
+
+function briefOf(step) {
+  if (step.kind !== 'tool' || step.request?.name !== 'submit_brief' || step.error) return null;
+  const brief = parseJson(step.response);
+  return Array.isArray(brief?.beats) ? brief : null;
+}
+
+function briefDetails(brief) {
+  return [
+    brief.pov ? `Point of view: ${brief.pov}` : '',
+    brief.tone ? `Tone: ${brief.tone}` : '',
+    brief.length ? `Length: ${brief.length}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function findingsOf(step) {
+  return step.response?.findings ?? [];
+}
+
+function editsOf(step) {
+  return step.role === 'editor' && step.kind === 'tool' ? (step.response?.edits ?? []) : [];
+}
+
+/** Whether a fix is still in the turn, was reverted, or was edited over since. */
+function editState(edit) {
+  const content = props.turn?.content ?? '';
+  if (content.includes(edit.replacement)) return 'applied';
+  if (content.includes(edit.original)) return 'reverted';
+  return 'changed';
+}
+
+function lookupOf(step) {
+  if (step.kind !== 'tool' || step.role !== 'director' || briefOf(step)) return null;
+  return {
+    asked: pretty(parseJson(step.request?.arguments)),
+    found: pretty(parseJson(step.response)),
+  };
 }
 
 async function loadRun() {
@@ -264,6 +405,36 @@ watch(
 .step-role {
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.seam-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.seam-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.seam-fix {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.fix-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .seam-details summary {

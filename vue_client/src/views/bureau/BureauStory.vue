@@ -79,6 +79,8 @@
               :turn="turn"
               :cast-by-id="castById"
               :live="pending?.regenerateTurnId === turn.id ? pending : null"
+              :busy="generating"
+              @revert-edit="revertEdit"
             />
             <TurnBlock
               :data-turn-id="turn.id"
@@ -161,6 +163,12 @@ const props = defineProps({
 });
 
 const HIGHLIGHT_DURATION = 2500;
+
+const STAGE_LABELS = {
+  directing: 'Planning the scene...',
+  writing: 'Writing...',
+  editing: 'Editing...',
+};
 
 const route = useRoute();
 const router = useRouter();
@@ -289,6 +297,7 @@ async function runStream(start, { regenerateTurnId = null, composerText = '' } =
     status: 'Starting...',
     content: '',
     reasoning: '',
+    brief: null,
     runId: null,
     regenerateTurnId,
   };
@@ -303,7 +312,10 @@ async function runStream(start, { regenerateTurnId = null, composerText = '' } =
         turns.value = [...turns.value, event.turn];
       } else if (event.type === 'run') {
         pending.value.runId = event.runId;
-        pending.value.status = 'Writing...';
+      } else if (event.type === 'stage') {
+        pending.value.status = STAGE_LABELS[event.stage] ?? pending.value.status;
+      } else if (event.type === 'brief') {
+        pending.value.brief = event.brief;
       } else if (event.type === 'reasoning') {
         pending.value.reasoning += event.text;
         pending.value.status = 'Thinking...';
@@ -408,6 +420,20 @@ async function deleteTurn(turn) {
     turns.value = turns.value.filter((item) => item.id !== turn.id);
   } catch (error) {
     toast.error('Failed to delete: ' + error.message);
+  }
+}
+
+async function revertEdit({ turn, runId, index }) {
+  try {
+    const { turn: updated } = await bureauStoriesAPI.revertEdit(
+      props.bureauId,
+      props.storyId,
+      turn.id,
+      { runId, index },
+    );
+    replaceTurn(updated);
+  } catch (error) {
+    toast.error('Failed to revert the fix: ' + error.message);
   }
 }
 

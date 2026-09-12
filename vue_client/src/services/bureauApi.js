@@ -233,9 +233,17 @@ export const bureauStoriesAPI = {
     });
   },
 
+  /** Undo one of the Editor's fixes; index is its place in the run's list of fixes. */
+  revertEdit(bureauId, storyId, turnId, { runId, index }) {
+    return request(`/${bureauId}/stories/${storyId}/turns/${turnId}/revert-edit`, {
+      method: 'POST',
+      body: { runId, index },
+    });
+  },
+
   /**
-   * Stream the next turn. Events: turn (the reader's new turn), run, reasoning,
-   * content, and done (with userTurn and turn).
+   * Stream the next turn. Events: turn (the reader's new turn), run, stage (directing,
+   * writing, or editing), brief, reasoning, content, edits, and done (with userTurn and turn).
    * @param {{ action: 'write'|'direct'|'continue', text?: string, leadCastId?: string|null }} generation
    */
   generate(bureauId, storyId, generation, signal) {

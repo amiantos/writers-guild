@@ -19,6 +19,9 @@ function bureau(fields = {}) {
     timezone: null,
     settings: {
       writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
+      director: { enabled: true, thinking: true, reasoningEffort: 'low', skipOnContinue: true },
+      editor: { enabled: true },
+      style: { bannedPhrases: ['a testament to'] },
     },
     ...fields,
   };
@@ -68,5 +71,29 @@ describe('BureauSettingsSection', () => {
     );
     expect(wrapper.emitted('updated')[0][0].name).toBe('Lighthouse');
     expect(wrapper.find('#bureau-settings-api-key').element.value).toBe('');
+  });
+
+  it('saves Director, Editor, and banned phrase settings', async () => {
+    bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
+    const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
+    await flushPromises();
+
+    await wrapper.find('#bureau-settings-director-skip').setValue(false);
+    await wrapper.find('#bureau-settings-editor-enabled').setValue(false);
+    await wrapper
+      .find('#bureau-settings-banned-phrases')
+      .setValue('a testament to\n\n  sent shivers down  \n');
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Save settings'))
+      .trigger('click');
+    await flushPromises();
+
+    expect(bureausAPI.update.mock.calls[0][1].settings).toEqual({
+      writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
+      director: { enabled: true, thinking: true, reasoningEffort: 'low', skipOnContinue: false },
+      editor: { enabled: false },
+      style: { bannedPhrases: ['a testament to', 'sent shivers down'] },
+    });
   });
 });
