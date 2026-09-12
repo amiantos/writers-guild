@@ -159,7 +159,9 @@ actions:
 
 - **Write:** add the text as a prose turn, then generate a response (like story mode's preview bar).
   Ctrl or ⌘ + Enter also writes.
-- **Direct:** add a direction turn, for example "she suggests the night market," then generate.
+- **Direct:** add a direction turn, for example "she suggests the night market," then generate. The
+  Director and Writer treat a direction as something that hasn't happened yet and write it happening,
+  including anything it has the reader's character say or do, and nothing more of theirs.
 - **Continue:** generate with no new input.
 - **Focus:** choose which cast member the next passage centers on, for any of the three actions
   (like story mode's character button). "Whoever fits" leaves it to the Writer.

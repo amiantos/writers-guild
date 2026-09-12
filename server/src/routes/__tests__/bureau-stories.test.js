@@ -450,7 +450,7 @@ describe('Bureau story routes', () => {
         content: 'She suggests the night market',
       });
       expect(client.calls[0].messages[1].content).toContain(
-        'The author wants this to happen next: She suggests the night market',
+        "The author's direction for this passage (not part of the story yet): She suggests the night market",
       );
     });
 

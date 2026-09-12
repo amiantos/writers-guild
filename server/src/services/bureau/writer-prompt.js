@@ -120,7 +120,12 @@ function instructionFor({ request, readerName, openingTime, hasProse, hasGenerat
   }
 
   if (request.action === 'direct' && request.direction) {
-    lines.push(`The author wants this to happen next: ${request.direction}`);
+    lines.push(
+      `The author's direction for this passage (not part of the story yet): ${request.direction}`,
+      readerName
+        ? `Carry it out in the passage itself: write what it describes as happening, including anything it has ${readerName} say or do. Beyond that, leave ${readerName}'s words and choices to ${readerName}.`
+        : 'Carry it out in the passage itself: write what it describes as happening.',
+    );
   }
   if (request.leadName) {
     lines.push(

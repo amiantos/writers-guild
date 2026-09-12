@@ -201,7 +201,21 @@ describe('buildWriterMessages', () => {
 
     expect(user).toContain('=== STORY SO FAR ===\nThe lamp was lit.\n\n---\n\nMorning came.');
     expect(user).not.toContain('An old direction');
-    expect(user).toContain('The author wants this to happen next: She suggests the night market');
+    expect(user).toContain(
+      "The author's direction for this passage (not part of the story yet): She suggests the night market\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do. Beyond that, leave Theo's words and choices to Theo.",
+    );
+  });
+
+  it("carries out a direction without naming a reader's character when there is none", () => {
+    const { user } = build({
+      cast: [MARA],
+      turns: [prose('The lamp was lit.')],
+      request: { action: 'direct', direction: 'Make it rain' },
+    });
+
+    expect(user).toContain(
+      'Make it rain\nCarry it out in the passage itself: write what it describes as happening.\n',
+    );
   });
 
   it('centers the passage on a chosen cast member', () => {

@@ -533,14 +533,29 @@ describe('buildDirectorMessages', () => {
       request: { action: 'direct', direction: 'Make it rain', leadName: 'Mara' },
     });
 
-    expect(system.content).toContain("Theo's words and choices belong to the reader");
+    expect(system.content).toContain(
+      "Theo's words and choices belong to the reader. Don't plan what Theo says or decides beyond what the author's direction asks for.",
+    );
     expect(user.content).toContain(
       "=== CAST ===\n- Mara: She keeps the Greywater light.\n- Theo (the reader's character)",
     );
     expect(user.content).toContain('=== STORY SO FAR ===\nTheo knocked.');
     expect(user.content).not.toContain('An old direction');
-    expect(user.content).toContain('The author wants this to happen next: Make it rain');
+    expect(user.content).toContain(
+      "The author's direction for the next passage (not part of the story yet): Make it rain\nPlan a passage that carries it out.",
+    );
     expect(user.content).toContain('Center the passage on Mara.');
+  });
+
+  it("leaves the reader's character to the reader when there's no direction", () => {
+    const [system] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast,
+      turns: [{ kind: 'prose', source: 'user', content: 'Theo knocked.' }],
+      request: { action: 'write' },
+    });
+
+    expect(system.content).toContain("Don't plan what Theo says or decides.\n");
   });
 
   it('marks an opening with its loose start time', () => {

@@ -221,7 +221,7 @@ export function buildDirectorMessages({
         ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this story.'
         : null,
       personaName
-        ? `- ${personaName}'s words and choices belong to the reader. Don't plan what ${personaName} says or decides.`
+        ? `- ${personaName}'s words and choices belong to the reader. Don't plan what ${personaName} says or decides${request.action === 'direct' ? " beyond what the author's direction asks for" : ''}.`
         : null,
       '- Finish by calling submit_brief once.',
     ]
@@ -257,7 +257,10 @@ export function buildDirectorMessages({
       `${personaName ?? 'The reader'} wrote the latest passage above. Plan the response to it.`,
     );
   } else if (request.action === 'direct' && request.direction) {
-    next.push(`The author wants this to happen next: ${request.direction}`);
+    next.push(
+      `The author's direction for the next passage (not part of the story yet): ${request.direction}`,
+      'Plan a passage that carries it out.',
+    );
   } else {
     next.push('Continue the story naturally from where it left off.');
   }
