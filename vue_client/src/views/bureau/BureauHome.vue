@@ -24,7 +24,7 @@
       <div class="sections-container">
         <div v-if="!bureau.hasApiKey" class="notice">
           <i class="fas fa-key"></i>
-          Add a DeepSeek API key in Settings below to generate stories.
+          Add a DeepSeek API key in Settings below to generate chapters.
         </div>
 
         <BureauStoriesSection :bureau="bureau" :cast="cast" @open="openStory" />

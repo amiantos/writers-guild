@@ -12,7 +12,7 @@
       rows="3"
       :disabled="generating"
       placeholder="Write what happens next, or a direction for the Writer..."
-      aria-label="Write or direct the next part of the story"
+      aria-label="Write or direct the next part of the chapter"
       @keydown="handleKeydown"
     ></textarea>
 
@@ -60,7 +60,7 @@
           </button>
           <button
             class="btn btn-primary"
-            title="Add your text to the story, then the Writer responds (Ctrl or ⌘ + Enter)"
+            title="Add your text to the chapter, then the Writer continues from it (Ctrl or ⌘ + Enter)"
             :disabled="!hasApiKey || !text.trim()"
             @click="submit('write')"
           >

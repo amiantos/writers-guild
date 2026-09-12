@@ -176,10 +176,10 @@ const emptyText = computed(() => {
   const { name } = props.member;
   if (searching.value) return 'No memories match.';
   if (tab.value === 'knowledge') {
-    return `Nothing yet. ${name} learns things as stories are committed to memory. You can also add what ${name} already knows.`;
+    return `Nothing yet. ${name} learns things as chapters are committed to memory. You can also add what ${name} already knows.`;
   }
   if (tab.value === 'episodes') {
-    return `No stories yet. When a story is committed to memory, ${name}'s account of it is kept here.`;
+    return `No chapters yet. When a chapter is committed to memory, ${name}'s account of it is kept here.`;
   }
   return 'Nothing retired. Memories you retire, and ones replaced by newer versions, are kept here.';
 });
@@ -197,7 +197,7 @@ const activeNoteCount = computed(
 
 const developmentEmptyText = computed(() => {
   const { name } = props.member;
-  return `No changes yet. When a story changes who ${name} is, the Archivist proposes it here, and you decide what sticks. You can also write one yourself.`;
+  return `No changes yet. When a chapter changes who ${name} is, the Archivist proposes it here, and you decide what sticks. You can also write one yourself.`;
 });
 
 async function loadLists() {

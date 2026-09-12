@@ -1,7 +1,7 @@
 <template>
-  <Modal title="Who's in this story" max-width="480px" @close="$emit('close')">
+  <Modal title="Who's in this chapter" max-width="480px" @close="$emit('close')">
     <div class="form">
-      <p class="help-text">The Writer only sees the cards of characters who are in the story.</p>
+      <p class="help-text">The Writer only sees the cards of characters who are in the chapter.</p>
       <div class="form-group">
         <label v-for="member in cast" :key="member.id" class="checkbox-label">
           <input v-model="castIds" type="checkbox" :value="member.id" :disabled="readonly" />
@@ -54,7 +54,7 @@ async function save() {
     });
     emit('updated', story);
   } catch (error) {
-    toast.error("Failed to update who's in the story: " + error.message);
+    toast.error("Failed to update who's in the chapter: " + error.message);
   } finally {
     saving.value = false;
   }

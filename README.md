@@ -11,17 +11,17 @@ AI-powered short story writing application that supports Tavern character cards 
 - **Full Lorebook Support** - Import SillyTavern lorebooks with fully featured activation engine
 - **ST Macro Support** - Supports ST macros like `{{random:a,b,c}}` and `{{pick:x,y,z}}`
 - **Generation Control** - Continue the story from a specific character's perspective; open-ended generation based on story context; or request specific events to occur.
-- **Bureau (experimental)** - Write a connected series of stories with characters who remember, change over time, and can be messaged between stories. See [Bureau](#bureau-experimental).
+- **Bureau (experimental)** - Write an ongoing story, chapter by chapter, with characters who remember, change over time, and can be messaged between chapters. See [Bureau](#bureau-experimental).
 
 ## Bureau (experimental)
 
-Bureau is a separate mode for connected stories with living characters. Each Bureau has a cast, a world of attached lorebooks, an ordered series of stories, and one clock: Bureau time.
+Bureau is a separate mode for an ongoing story with living characters, written in chapters. Each Bureau has a cast, a world of attached lorebooks, an ordered series of chapters, and one clock: Bureau time.
 
 - **Agentic generation** - A Director plans each passage from the characters' memories and your lorebooks, a Writer writes it, style checks and an Editor fix problems like two characters speaking in one paragraph, and an Archivist commits what happened to memory. Every step is recorded and shows in the seam between turns.
-- **Memory** - Characters remember what they know, what happened from their point of view, and how they've changed. Every memory shows its source and can be edited, and a story only remembers what came before its start.
+- **Memory** - Characters remember what they know, what happened from their point of view, and how they've changed. Every memory shows its source and can be edited, and a chapter only remembers what came before its start.
 - **Character development** - Changes to a character are proposed for your review; the card itself never changes.
-- **Messages** - Write to cast members between stories. Replies know their memories, their routine, and the time of day, and conversations become memories too. When time jumps forward, characters get a short account of what they did meanwhile.
-- **Character generator** - Generate characters from an idea, or let the Director create them when someone new walks into a story.
+- **Messages** - Write to cast members between chapters. Replies know their memories, their routine, and the time of day, and conversations become memories too. When time jumps forward, characters get a short account of what they did meanwhile.
+- **Character generator** - Generate characters from an idea, or let the Director create them when someone new walks into a chapter.
 
 Bureau keeps its data in `data/bureau.db`, apart from story mode, and each Bureau has its own DeepSeek API key (DeepSeek V4.1 Flash by default). The Bureaus tab explains the terms the first time you open it, and the full design is in [docs/bureau-design.md](docs/bureau-design.md).
 

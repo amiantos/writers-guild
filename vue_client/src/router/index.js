@@ -60,7 +60,7 @@ const routes = [
     name: 'bureau-story',
     component: BureauStory,
     props: true,
-    meta: { title: 'Bureau Story - Writers Guild', dynamicTitle: true },
+    meta: { title: 'Bureau Chapter - Writers Guild', dynamicTitle: true },
   },
   {
     path: '/bureaus/:bureauId/messages/:castId',

@@ -1,8 +1,8 @@
 <template>
-  <Modal title="End this story" max-width="520px" @close="$emit('close')">
+  <Modal title="End this chapter" max-width="520px" @close="$emit('close')">
     <div class="form">
       <p class="help-text">
-        An ended story takes no new turns.
+        An ended chapter takes no new turns.
         <template v-if="commitsToMemory">
           The Archivist then commits the rest of it to the characters' memories.
         </template>
@@ -18,7 +18,7 @@
         <label class="radio-label">
           <input v-model="choice" type="radio" value="custom" />
           A time I pick
-          <span class="choice-detail">to reflect how long the story lasted</span>
+          <span class="choice-detail">to reflect how long the chapter lasted</span>
         </label>
         <input
           v-if="choice === 'custom'"
@@ -82,7 +82,7 @@ const commitsToMemory = computed(
   () => props.bureau.hasApiKey && props.bureau.settings?.memory?.autoArchive !== false,
 );
 const endingLabel = computed(() => {
-  if (!ending.value) return 'End story';
+  if (!ending.value) return 'End chapter';
   return commitsToMemory.value ? 'Committing to memory...' : 'Ending...';
 });
 
@@ -99,7 +99,7 @@ async function end() {
     emit('ended', result);
   } catch (error) {
     console.error('Failed to end story:', error);
-    toast.error('Failed to end the story: ' + error.message);
+    toast.error('Failed to end the chapter: ' + error.message);
   } finally {
     ending.value = false;
   }

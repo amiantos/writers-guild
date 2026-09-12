@@ -1,5 +1,5 @@
 <template>
-  <Modal title="Start a story" max-width="540px" @close="$emit('close')">
+  <Modal title="Start a chapter" max-width="540px" @close="$emit('close')">
     <div class="form">
       <div class="form-group">
         <label for="start-story-title">Title</label>
@@ -8,7 +8,7 @@
           v-model="title"
           type="text"
           class="text-input"
-          :placeholder="`Story ${storyCount + 1}`"
+          :placeholder="`Chapter ${storyCount + 1}`"
         />
       </div>
 
@@ -56,7 +56,7 @@
     <template #footer>
       <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
       <button class="btn btn-primary" :disabled="!canStart || starting" @click="start">
-        <i class="fas fa-play"></i> {{ starting ? 'Starting...' : 'Start story' }}
+        <i class="fas fa-play"></i> {{ starting ? 'Starting...' : 'Start chapter' }}
       </button>
     </template>
   </Modal>
@@ -117,17 +117,17 @@ async function start() {
       timeZone: browserTimeZone(),
     });
     if (archiveError) {
-      toast.error(`The story started, but committing messages to memory failed: ${archiveError}`);
+      toast.error(`The chapter started, but committing messages to memory failed: ${archiveError}`);
     }
     if (offscreenError) {
       toast.error(
-        `The story started, but catching the cast up on time away failed: ${offscreenError}`,
+        `The chapter started, but catching the cast up on time away failed: ${offscreenError}`,
       );
     }
     emit('started', story);
   } catch (error) {
     console.error('Failed to start story:', error);
-    toast.error('Failed to start story: ' + error.message);
+    toast.error('Failed to start the chapter: ' + error.message);
   } finally {
     starting.value = false;
   }

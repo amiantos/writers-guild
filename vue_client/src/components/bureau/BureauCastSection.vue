@@ -165,7 +165,7 @@ const emit = defineEmits(['changed', 'lorebook-attached']);
 const toast = useToast();
 const { confirm } = useConfirm();
 
-const readerToggleTitle = "The reader's character is the one you write for in stories";
+const readerToggleTitle = "The reader's character is the one you write for in chapters";
 const showAdd = ref(false);
 const showGenerate = ref(false);
 const memoryMember = ref(null);

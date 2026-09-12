@@ -53,7 +53,7 @@ describe('StoryStorage', () => {
 
       expect(first).toMatchObject({
         position: 0,
-        title: 'Story 1',
+        title: 'Chapter 1',
         status: 'active',
         startTime: START,
         endTime: null,
@@ -61,7 +61,7 @@ describe('StoryStorage', () => {
         turnCount: 0,
       });
       expect(stories.listStories(bureau.id).map((story) => story.title)).toEqual([
-        'Story 1',
+        'Chapter 1',
         'The Night Market',
       ]);
       expect(second.position).toBe(1);

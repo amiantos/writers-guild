@@ -12,13 +12,13 @@
           v-model="titleDraft"
           class="title-input"
           type="text"
-          aria-label="Story title"
+          aria-label="Chapter title"
           @keydown.enter="saveTitle"
           @keydown.esc="editingTitle = false"
           @blur="saveTitle"
         />
-        <h1 v-else class="story-title" title="Rename this story" @click="startTitleEdit">
-          {{ story?.title || 'Story' }}
+        <h1 v-else class="story-title" title="Rename this chapter" @click="startTitleEdit">
+          {{ story?.title || 'Chapter' }}
         </h1>
         <span v-if="story?.status === 'ended'" class="status-badge">Ended</span>
       </div>
@@ -28,7 +28,7 @@
         </span>
         <button
           class="icon-btn"
-          title="Who's in this story"
+          title="Who's in this chapter"
           :disabled="!story"
           @click="showCast = true"
         >
@@ -50,14 +50,14 @@
           :disabled="generating"
           @click="showEnd = true"
         >
-          <i class="fas fa-flag-checkered"></i> End story
+          <i class="fas fa-flag-checkered"></i> End chapter
         </button>
       </div>
     </header>
 
     <div v-if="loading" class="loading-container">
       <div class="spinner"></div>
-      <p>Loading story...</p>
+      <p>Loading chapter...</p>
     </div>
 
     <div v-else-if="loadError" class="loading-container">
@@ -69,7 +69,7 @@
       <main ref="readingRef" class="story-reading">
         <div class="story-column">
           <p v-if="turns.length === 0 && !pending" class="story-empty">
-            This story hasn't started. Write the opening yourself, give the Writer a direction, or
+            This chapter hasn't started. Write the opening yourself, give the Writer a direction, or
             press Continue and the Writer will set the scene.
           </p>
 
@@ -117,7 +117,7 @@
         @stop="stop"
       />
       <div v-else class="ended-bar">
-        This story has ended. Start the next one from
+        This chapter has ended. Start the next one from
         <button class="link-button" @click="backToBureau">{{ bureau.name }}</button>.
       </div>
     </template>
@@ -232,7 +232,7 @@ async function load() {
   } catch (error) {
     console.error('Failed to load story:', error);
     loadError.value =
-      error.status === 404 ? 'This story no longer exists.' : `Failed to load: ${error.message}`;
+      error.status === 404 ? 'This chapter no longer exists.' : `Failed to load: ${error.message}`;
   } finally {
     loading.value = false;
   }
@@ -252,7 +252,7 @@ async function refreshStory() {
     story.value = data.story;
     turns.value = data.turns;
   } catch (error) {
-    toast.error('Failed to refresh the story: ' + error.message);
+    toast.error('Failed to refresh the chapter: ' + error.message);
   }
 }
 
@@ -482,7 +482,7 @@ async function saveTitle() {
     story.value = updated;
     setPageTitle(updated.title);
   } catch (error) {
-    toast.error('Failed to rename the story: ' + error.message);
+    toast.error('Failed to rename the chapter: ' + error.message);
   }
 }
 
@@ -508,9 +508,9 @@ function handleEnded({ story: endedStory, bureau: updatedBureau, archive, archiv
   story.value = endedStory;
   bureau.value = updatedBureau;
   if (archiveError) {
-    toast.error(`The story ended, but committing it to memory failed: ${archiveError}`);
+    toast.error(`The chapter ended, but committing it to memory failed: ${archiveError}`);
   } else {
-    toast.success(archive ? `Story ended. ${describeArchive(archive)}` : 'Story ended');
+    toast.success(archive ? `Chapter ended. ${describeArchive(archive)}` : 'Chapter ended');
   }
 }
 

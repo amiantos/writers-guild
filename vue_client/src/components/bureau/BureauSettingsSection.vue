@@ -188,7 +188,7 @@
       </fieldset>
 
       <fieldset class="writer-settings">
-        <legend>Between stories</legend>
+        <legend>Between chapters</legend>
         <label class="checkbox-label">
           <input
             id="bureau-settings-offscreen-life"
@@ -198,9 +198,9 @@
           Give characters offscreen life when time jumps forward
         </label>
         <p class="help-text">
-          When a story starts well after the last one, or someone writes after a quiet stretch, the
-          characters get a short, mostly ordinary account of what they did meanwhile. It shows in
-          their memories under "What happened".
+          When a chapter starts well after the last one, or someone writes after a quiet stretch,
+          the characters get a short, mostly ordinary account of what they did meanwhile. It shows
+          in their memories under "What happened".
         </p>
       </fieldset>
 
@@ -277,7 +277,7 @@
         />
         <p class="help-text">
           Messages are sent on this date, with the time of day following your clock. Set another
-          year, such as 1996, and stories and replies take it as the setting. Clear it for today.
+          year, such as 1996, and chapters and replies take it as the setting. Clear it for today.
         </p>
       </div>
 
@@ -286,7 +286,7 @@
         <p class="status-line">
           {{
             bureau.timezone ||
-            "Not set yet. This browser's time zone is saved when you start a story."
+            "Not set yet. This browser's time zone is saved when you start a chapter."
           }}
         </p>
         <div v-if="browserZone && bureau.timezone !== browserZone">
@@ -441,7 +441,7 @@ async function save() {
 
 async function removeKey() {
   const confirmed = await confirm({
-    message: "Remove this Bureau's API key? Stories can't be generated until you add another.",
+    message: "Remove this Bureau's API key? Chapters can't be generated until you add another.",
     confirmText: 'Remove key',
     variant: 'danger',
   });
@@ -454,7 +454,7 @@ function useBrowserZone() {
 
 async function deleteBureau() {
   const confirmed = await confirm({
-    message: `Delete "${props.bureau.name}"?\n\nIts stories, cast, and run records are deleted. Your library characters and lorebooks are not affected. This cannot be undone.`,
+    message: `Delete "${props.bureau.name}"?\n\nIts chapters, cast, and run records are deleted. Your library characters and lorebooks are not affected. This cannot be undone.`,
     confirmText: 'Delete Bureau',
     variant: 'danger',
   });

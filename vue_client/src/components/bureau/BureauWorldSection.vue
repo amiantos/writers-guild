@@ -6,7 +6,7 @@
 
     <div class="section-content">
       <p class="help-text">
-        Attached lorebooks give the Writer entries whose keywords appear in the story, as in story
+        Attached lorebooks give the Writer entries whose keywords appear in the chapter, as in story
         mode.
       </p>
 

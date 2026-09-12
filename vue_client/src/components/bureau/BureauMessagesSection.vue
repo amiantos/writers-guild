@@ -7,7 +7,7 @@
     <div class="section-content">
       <div v-if="loading" class="loading">Loading messages...</div>
       <p v-else-if="!personaId" class="empty-hint">
-        Choose a reader's character in the cast to write to the others between stories.
+        Choose a reader's character in the cast to write to the others between chapters.
       </p>
       <p v-else-if="correspondents.length === 0" class="empty-hint">
         Add someone else to the cast to write to them.

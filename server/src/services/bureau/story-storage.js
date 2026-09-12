@@ -172,7 +172,7 @@ export class StoryStorage {
    * @param {Object} story
    * @param {string} story.startTime - ISO time the story starts.
    * @param {string[]} story.castIds - Cast members present in the story.
-   * @param {string} [story.title] - Defaults to "Story N".
+   * @param {string} [story.title] - Defaults to "Chapter N".
    * @returns {Object} The new story.
    */
   createStory(bureauId, { startTime, castIds, title = '' }) {
@@ -184,7 +184,7 @@ export class StoryStorage {
         id,
         bureauId,
         position,
-        title: title || `Story ${position + 1}`,
+        title: title || `Chapter ${position + 1}`,
         startTime,
         created,
         modified: created,

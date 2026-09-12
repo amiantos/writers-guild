@@ -148,7 +148,7 @@ describe('Bureau story routes', () => {
         .expect(201);
 
       expect(body.story).toMatchObject({
-        title: 'Story 1',
+        title: 'Chapter 1',
         status: 'active',
         castIds: [mara.id, theo.id],
       });

@@ -1,14 +1,14 @@
 <template>
   <section class="edit-section">
     <div class="section-header">
-      <h2><i class="fas fa-book-open"></i> Stories</h2>
+      <h2><i class="fas fa-book-open"></i> Chapters</h2>
       <button
         class="btn btn-primary btn-small"
         :disabled="cast.length === 0"
         :title="cast.length === 0 ? 'Add someone to the cast first' : ''"
         @click="showStart = true"
       >
-        <i class="fas fa-plus"></i> Start a story
+        <i class="fas fa-plus"></i> Start a chapter
       </button>
     </div>
 
@@ -18,9 +18,9 @@
         <strong>{{ formatDateTime(bureau.bureauTime, bureau.timezone) }}</strong>
       </p>
 
-      <div v-if="loading" class="loading">Loading stories...</div>
+      <div v-if="loading" class="loading">Loading chapters...</div>
       <p v-else-if="stories.length === 0" class="empty-hint">
-        No stories yet. Starting one asks when it takes place.
+        No chapters yet. Starting one asks when it takes place.
       </p>
       <ul v-else class="story-list">
         <li v-for="story in newestFirst" :key="story.id">
@@ -78,7 +78,7 @@ async function loadStories() {
     stories.value = data.stories;
   } catch (error) {
     console.error('Failed to load stories:', error);
-    toast.error('Failed to load stories: ' + error.message);
+    toast.error('Failed to load chapters: ' + error.message);
   } finally {
     loading.value = false;
   }

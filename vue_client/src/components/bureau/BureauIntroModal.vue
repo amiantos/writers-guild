@@ -3,9 +3,9 @@
     <div class="intro">
       <p class="lead">
         <span class="experimental-badge">Experimental</span>
-        A Bureau is a home for a cast and a connected series of stories. Characters remember what
-        happened, change over time, and can be written to between stories. It's separate from story
-        mode: nothing here changes your stories or your library.
+        A Bureau is a home for a cast and an ongoing story, written in chapters. Characters remember
+        what happened, change over time, and can be written to between chapters. It's separate from
+        story mode: nothing here changes your stories or your library.
       </p>
 
       <section>
@@ -19,7 +19,7 @@
             Add characters from your library, or generate new ones. Mark one as your
             <strong>reader's character</strong>: the one you write for.
           </li>
-          <li>Attach lorebooks if you like, then start a story.</li>
+          <li>Attach lorebooks if you like, then start a chapter.</li>
         </ol>
       </section>
 
@@ -52,9 +52,14 @@ const TERMS = [
       "The Bureau's characters. Each keeps its own copy of their card, so what happens in a Bureau never changes your library.",
   },
   {
-    name: 'Stories and turns',
+    name: 'Chapters',
     description:
-      'Stories happen in order, each at a time you choose. A story is written in turns: Write adds your passage and the Writer responds, Direct tells the Writer what should happen next, and Continue lets it keep going.',
+      "Installments of the Bureau's ongoing story, each with its own title, start time, and cast. Chapters happen in order, and later chapters remember earlier ones.",
+  },
+  {
+    name: 'Turns',
+    description:
+      'A chapter is written in turns: Write adds your passage and the Writer continues from it, Direct tells the Writer what should happen next, and Continue lets it keep going.',
   },
   {
     name: 'Seams',
@@ -74,17 +79,17 @@ const TERMS = [
   {
     name: 'How they’ve changed',
     description:
-      'When a story changes someone, the Archivist proposes a note for you to accept or reject. The card itself never changes; accepted notes add to it.',
+      'When a chapter changes someone, the Archivist proposes a note for you to accept or reject. The card itself never changes; accepted notes add to it.',
   },
   {
     name: 'Messages',
     description:
-      "Between stories, write to cast members as your reader's character. Replies know their memories, their routine, and the time of day, and conversations become memories too.",
+      "Between chapters, write to cast members as your reader's character. Replies know their memories, their routine, and the time of day, and conversations become memories too.",
   },
   {
     name: 'Bureau time',
     description:
-      "One clock for the Bureau. Messages happen now, and each story asks when it starts. A story only remembers what came before its start, so starting earlier works as a flashback. The Bureau's present can be set to another date, such as 1996.",
+      "One clock for the Bureau. Messages happen now, and each chapter asks when it starts. A chapter only remembers what came before its start, so starting earlier works as a flashback. The Bureau's present can be set to another date, such as 1996.",
   },
   {
     name: 'Offscreen life',
@@ -94,7 +99,7 @@ const TERMS = [
   {
     name: 'Drafts',
     description:
-      'Characters generated in a Bureau, by you or by the Director when someone new walks into a story. They stay out of your library until you save them.',
+      'Characters generated in a Bureau, by you or by the Director when someone new walks into a chapter. They stay out of your library until you save them.',
   },
 ];
 </script>

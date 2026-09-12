@@ -14,15 +14,15 @@
 
     <p class="tab-intro">
       <span class="experimental-badge">Experimental</span>
-      A Bureau holds a cast and a connected series of stories. Each character keeps their own copy
-      of their card, and each Bureau uses its own DeepSeek API key.
+      A Bureau holds a cast and an ongoing story, written in chapters. Each character keeps their
+      own copy of their card, and each Bureau uses its own DeepSeek API key.
     </p>
 
     <div v-if="loading" class="loading">Loading Bureaus...</div>
 
     <div v-else-if="bureaus.length === 0" class="empty-state">
       <i class="fas fa-landmark"></i>
-      <p>No Bureaus yet. Create one to start a series of connected stories.</p>
+      <p>No Bureaus yet. Create one to start an ongoing story, written in chapters.</p>
     </div>
 
     <div v-else class="bureau-grid">
