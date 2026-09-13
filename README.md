@@ -135,4 +135,3 @@ The server runs on port 8000 and provides:
 
 - Discuss Writers Guild [on Libera.Chat IRC](https://web.libera.chat/#writers-guild) in #writers-guild
 - Or, in [The Eye of Providence Discord](https://discord.gg/rpSKvGp2uY) in #writers-guild
-- Or, on [The Eye of Providence Discourse](https://discuss.bradroot.me/tags/c/projects/13/writers-guild/12) under the writers-guild tag
