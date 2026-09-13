@@ -443,7 +443,7 @@ describe('Bureau story routes', () => {
       await request(app).put(`${turnsUrl}/missing`).send({ content: 'x' }).expect(404);
     });
 
-    it('lets time pass in a chapter, moving the Bureau clock with it', async () => {
+    it('lets time pass in a chapter, moving the Bureau clock forward with it', async () => {
       stores.bureaus.updateBureau(bureau.id, { timezone: 'UTC' });
       const story = await startStory({
         start: { choice: 'custom', customTime: '2026-10-27T22:15:00Z' },
@@ -463,14 +463,16 @@ describe('Bureau story routes', () => {
       });
       expect(morning.bureau.bureauTime).toBe('2026-10-28T08:00:00.000Z');
 
-      // Time passes from the chapter's time, even when Bureau time was set elsewhere since.
+      // Time passes from the chapter's time, even when Bureau time has moved on elsewhere since,
+      // and then Bureau time stays where it is instead of going back.
       stores.bureaus.setBureauTime(bureau.id, '2026-12-01T00:00:00.000Z');
       const { body: picked } = await request(app)
         .post(turnsUrl)
         .send({ kind: 'time_passes', to: '2026-10-28T09:30:00Z' })
         .expect(201);
       expect(picked.turn.bureauTime).toBe('2026-10-28T09:30:00.000Z');
-      expect(clock()).toBe('2026-10-28T09:30:00.000Z');
+      expect(picked.bureau.bureauTime).toBe('2026-12-01T00:00:00.000Z');
+      expect(clock()).toBe('2026-12-01T00:00:00.000Z');
 
       const { body: notLater } = await request(app)
         .post(turnsUrl)
@@ -491,7 +493,7 @@ describe('Bureau story routes', () => {
 
       // Deleting it leaves the clock where it is.
       await request(app).delete(`${turnsUrl}/${picked.turn.id}`).expect(200);
-      expect(clock()).toBe('2026-10-28T09:30:00.000Z');
+      expect(clock()).toBe('2026-12-01T00:00:00.000Z');
       const { body: detail } = await request(app).get(`${storiesUrl()}/${story.id}`).expect(200);
       expect(detail.turns.map((turn) => turn.bureauTime)).toEqual(['2026-10-28T08:00:00.000Z']);
     });

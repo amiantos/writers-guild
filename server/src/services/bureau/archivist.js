@@ -16,7 +16,7 @@
  * one session at a time, and each session gets an episode of its own.
  */
 
-import { describeBureauTime, describeTimePassing } from './bureau-time.js';
+import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
 import {
   isBeforeStory,
   memoriesAsOf,
@@ -272,7 +272,7 @@ function section(title, body) {
 /**
  * @param {Object} params
  * @param {Object} params.source - What the pass reads (see storySource and threadSource): uses
- *   kind, title, openingTime, summary, and timeZone.
+ *   kind, title, openingTime, timePassedTo, summary, and timeZone.
  * @param {Array<Object>} params.characters - Cast members who remember.
  * @param {Object|null} params.persona - The reader's character, if present.
  * @param {Map<string, Array<Object>>} params.knownByCast - Knowledge each character has now.
@@ -380,6 +380,10 @@ export function buildArchivistMessages({
   if (source.kind === 'story') {
     const storyLines = [`Title: ${source.title}`];
     if (source.openingTime) storyLines.push(`Begins: ${source.openingTime}`);
+    // A pass reads only its own passages, so it's told when time last passed before them.
+    if (source.timePassedTo) {
+      storyLines.push(`Before these passages, time passed to: ${source.timePassedTo}`);
+    }
     storyLines.push(`Present: ${present.length > 0 ? listNames(present) : 'no one in the cast'}`);
     user = [
       section('CHAPTER', storyLines.join('\n')),
@@ -409,8 +413,11 @@ export function buildArchivistMessages({
 /**
  * What a story pass reads, loaded fresh for each pass: the previous pass updated
  * the story's summary.
+ * @param {Object} [options]
+ * @param {number} [options.before] - The position the pass starts reading at, for when time last
+ *   passed in the chapter before it.
  */
-function storySource(stores, bureau, storyId) {
+function storySource(stores, bureau, storyId, { before = Infinity } = {}) {
   const story = stores.stories.getStory(bureau.id, storyId);
   if (!story) {
     throw new SourceDeletedError('story');
@@ -419,11 +426,16 @@ function storySource(stores, bureau, storyId) {
     .map((castId) => stores.bureaus.getCastMember(bureau.id, castId))
     .filter(Boolean);
   const persona = cast.find((member) => member.isPersona) ?? null;
+  const clock = chapterTime(
+    story,
+    stores.stories.listTurns(storyId).filter((turn) => turn.position < before),
+  );
   return {
     kind: 'story',
     id: story.id,
     title: story.title,
     openingTime: describeBureauTime(story.startTime, bureau.timezone),
+    timePassedTo: clock.passed ? describeBureauTime(clock.time, bureau.timezone) : null,
     summary: story.summary,
     timeZone: bureau.timezone,
     worldTime: story.startTime,
@@ -886,7 +898,7 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
           const result = await readChunk({
             stores,
             bureau,
-            loadSource: () => storySource(stores, bureau, storyId),
+            loadSource: () => storySource(stores, bureau, storyId, { before: chunk[0].position }),
             client,
             recorder,
             chunk,

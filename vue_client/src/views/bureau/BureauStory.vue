@@ -139,7 +139,7 @@
       :from="chapterTime"
       :time-zone="bureau.timezone"
       :passing="passingTime"
-      :intro="`The chapter's time is ${formatDateTime(chapterTime, bureau.timezone)}. Time passes from there, and Bureau time moves with it.`"
+      :intro="`The chapter's time is ${formatDateTime(chapterTime, bureau.timezone)}. Time passes from there, and Bureau time moves up with it unless it's already later.`"
       pick-help="Later than the chapter's time."
       @pass="passTimeInChapter"
       @close="showTimePasses = false"

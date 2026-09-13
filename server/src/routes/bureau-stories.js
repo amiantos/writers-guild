@@ -414,7 +414,7 @@ router.delete(
 // Add a turn from the reader without generating a reply, such as a scene break. Time passing in
 // the chapter (kind time_passes) takes { step } or a later { to }, as letting Bureau time pass
 // does: it moves on from the chapter's time (its last time passing, or its start), and the
-// Bureau's clock follows, as when a chapter starts. Answers with the Bureau too.
+// Bureau's clock moves up to it unless it's already later. Answers with the Bureau too.
 router.post(
   '/:storyId/turns',
   asyncHandler(async (req, res) => {
@@ -441,11 +441,14 @@ router.post(
           400,
         );
       }
-      // No offscreen life: the chapter covers this time.
+      // No offscreen life: the chapter covers this time. Bureau time never goes back from here,
+      // since messages may already be dated later (after letting time pass between them).
       let turn;
       bureaus.db.transaction(() => {
         turn = stories.addTurn(storyId, { kind, source: 'user', bureauTime });
-        bureaus.setBureauTime(bureauId, bureauTime);
+        if (Date.parse(bureauTime) > Date.parse(bureau.bureauTime)) {
+          bureaus.setBureauTime(bureauId, bureauTime);
+        }
       })();
       res.status(201).json({ turn, bureau: bureaus.getBureau(bureauId) });
       return;

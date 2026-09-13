@@ -490,10 +490,11 @@ chose last time.
   the exchanges of messages it leaves finished to memory, in the background.
 - **Time passes in a chapter** sits in the composer, next to Scene break. It moves on from the
   chapter's time (when time last passed in it, or its start) and must end up later. It adds a
-  `time_passes` turn, shown as a divider with the new time, and Bureau time follows the chapter
-  there, as when a chapter starts. It writes no offscreen accounts, since the chapter covers that
-  time. The divider can't be edited, and deleting it leaves Bureau time where it is. Memories from
-  the chapter are still dated to its start.
+  `time_passes` turn, shown as a divider with the new time, and Bureau time moves up to it. If
+  Bureau time is already later (say, after letting time pass between messages), it stays put, so
+  it never goes back behind messages already sent. It writes no offscreen accounts, since the
+  chapter covers that time. The divider can't be edited, and deleting it leaves Bureau time where
+  it is. Memories from the chapter are still dated to its start.
 - The Bureau's settings edit Bureau time directly, earlier or later. Going back happens there.
 - The date and time fields (in settings, Time passes, and the chapter dialogs) show and read times
   on the Bureau's clock, in its time zone (this browser's until one is saved), matching the times
@@ -521,7 +522,8 @@ reader moves the clock, the time is deliberate, so the prompts say it exactly:
 - The Writer lets the time shape the scene without dwelling on the clock, and keeps any mention of
   the time consistent with it and with how much has happened since.
 - In the chapter text the Writer, Director, and Archivist read, time passing is a scene break
-  followed by "[Time passes. It's now exactly ...]".
+  followed by "[Time passes. It's now exactly ...]". An Archivist pass only reads its own
+  passages, so one that starts after time has passed is also told when it last passed.
 - **Correspondence** gets the exact time at the start of the transcript, after each long gap, and
   at the end. The gaps themselves stay loose ("about a day since the last message"), as do
   offscreen accounts' spans.

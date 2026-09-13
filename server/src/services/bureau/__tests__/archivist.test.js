@@ -524,6 +524,28 @@ describe('archiveStory', () => {
     expect(user).toContain('Morning came grey.');
   });
 
+  it('tells a later pass when time last passed before its passages', async () => {
+    stores.bureaus.updateBureau(bureau.id, { timezone: 'UTC' });
+    addProse('Theo knocked.');
+    stores.stories.addTurn(story.id, {
+      kind: 'time_passes',
+      source: 'user',
+      bureauTime: '2026-10-28T08:00:00.000Z',
+    });
+    const client = archivistClient([record(), record()]);
+    await archive(client);
+    addProse('Morning came grey.');
+
+    await archive(client);
+
+    const [first, later] = client.calls.map((call) => call.messages[1].content);
+    expect(first).not.toContain('Before these passages');
+    expect(later).toContain(
+      'Before these passages, time passed to: 8:00 AM on Wednesday, October 28, 2026',
+    );
+    expect(later).not.toContain('[Time passes.');
+  });
+
   it('runs one archive at a time per story', async () => {
     addProse('Theo knocked.');
     const client = archivistClient([record()]);
