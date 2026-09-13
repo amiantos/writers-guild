@@ -177,6 +177,45 @@ describe('BureauSettingsSection', () => {
       expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(-11000);
     });
 
+    it('waits for a whole date before moving the present', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 8, 12, 12, 0));
+      bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
+      const wrapper = mount(BureauSettingsSection, {
+        props: { bureau: bureau({ presentOffsetDays: -11000 }) },
+      });
+      await flushPromises();
+      const field = wrapper.find('#bureau-settings-present');
+
+      // The field reads empty while a part is unfinished, and 2075 passes through 0002, 0020, 0207.
+      for (const partial of ['', '0002-09-12', '0020-09-12', '0207-09-12']) {
+        await field.setValue(partial);
+        expect(field.element.value).toBe(partial);
+      }
+      await field.setValue('2075-09-12');
+      await saveSettings(wrapper);
+
+      expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(17897);
+    });
+
+    it('treats a cleared date as today once the field is left', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 8, 12, 12, 0));
+      bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
+      const wrapper = mount(BureauSettingsSection, {
+        props: { bureau: bureau({ presentOffsetDays: -11000 }) },
+      });
+      await flushPromises();
+      const field = wrapper.find('#bureau-settings-present');
+
+      await field.setValue('');
+      await field.trigger('blur');
+
+      expect(field.element.value).toBe('2026-09-12');
+      await saveSettings(wrapper);
+      expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(0);
+    });
+
     it("keeps the present's offset when saving after midnight", async () => {
       vi.useFakeTimers({ toFake: ['Date'] });
       vi.setSystemTime(new Date(2026, 8, 12, 23, 59));

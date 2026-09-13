@@ -129,7 +129,8 @@ export function bureauPresent(bureau, now = new Date()) {
 export function presentDateValue(bureau, now = new Date()) {
   const clock = wallClock(now, bureau?.timezone);
   const date = new Date(clock + (bureau?.presentOffsetDays ?? 0) * DAY_MS);
-  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+  const year = String(date.getUTCFullYear()).padStart(4, '0');
+  return `${year}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 
 /**
@@ -141,7 +142,12 @@ export function offsetDaysTo(dateValue, now = new Date(), timeZone) {
   if (!match) return null;
   const clock = new Date(wallClock(now, timeZone));
   const today = Date.UTC(clock.getUTCFullYear(), clock.getUTCMonth(), clock.getUTCDate());
-  const target = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  // Date.UTC reads years 0-99 as 1900-1999, so set the full year on its own.
+  const target = new Date(0).setUTCFullYear(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+  );
   return Math.round((target - today) / DAY_MS);
 }
 

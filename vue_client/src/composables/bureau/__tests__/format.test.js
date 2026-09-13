@@ -21,6 +21,10 @@ describe("the Bureau's present", () => {
     expect(offsetDaysTo('1996-07-31', now)).toBe(-11000);
     expect(offsetDaysTo('2026-09-15', now)).toBe(3);
     expect(offsetDaysTo('', now)).toBeNull();
+    // Years below 100 stay themselves instead of becoming 19xx.
+    const ancient = offsetDaysTo('0002-09-12', now);
+    expect(ancient).toBeLessThan(offsetDaysTo('1902-09-12', now));
+    expect(presentDateValue({ presentOffsetDays: ancient }, now)).toBe('0002-09-12');
   });
 
   it('keeps the time of day', () => {

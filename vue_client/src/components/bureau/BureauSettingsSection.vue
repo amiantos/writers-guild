@@ -274,6 +274,7 @@
           type="date"
           class="text-input"
           @input="setPresentDate($event.target.value)"
+          @blur="settlePresentDate"
         />
         <p class="help-text">
           Messages are sent on this date, with the time of day following your clock. Set another
@@ -388,7 +389,16 @@ const presentDate = computed(() =>
 );
 
 function setPresentDate(value) {
+  // Mid-typing, the field reads empty, or as year 0002 on the way to 2075: wait until it's whole.
+  if (!value || /^0\d{3}-/.test(value)) return;
   form.presentOffsetDays = offsetDaysTo(value, new Date(), props.bureau.timezone) ?? 0;
+}
+
+// Leaving the field cleared means today; leaving it half-typed puts back the date it had.
+function settlePresentDate(event) {
+  const field = event.target;
+  if (!field.value && !field.validity.badInput) form.presentOffsetDays = 0;
+  field.value = presentDate.value;
 }
 
 async function update(updates, message) {
