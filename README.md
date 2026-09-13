@@ -41,6 +41,23 @@ This will start:
 
 Open http://localhost:5173 in your browser.
 
+**Access from another device (phone, tablet):**
+
+By default both dev servers listen on localhost only. To expose them to your
+local network instead:
+
+```bash
+npm run dev:lan
+```
+
+Then open `http://<your-machine-ip>:5173` on the other device. Only do this on
+a network you trust — the API serves your stories and your configured provider
+API keys. If you want a password prompt in front of it, you can optionally set
+`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` in `.env` (see `.env.example`).
+
+Docker and `npm run server:start` are unaffected — they keep binding all
+interfaces per `server/config.yaml`. `HOST` overrides that value when set.
+
 **Or run separately:**
 
 ```bash
