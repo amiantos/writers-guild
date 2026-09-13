@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import BureauSettingsSection from '../BureauSettingsSection.vue';
 import { bureausAPI } from '../../../services/bureauApi';
@@ -17,7 +17,7 @@ function bureau(fields = {}) {
     hasApiKey: true,
     apiKeyPreview: 'sk-…1234',
     timezone: null,
-    presentOffsetDays: 0,
+    bureauTime: '2026-09-12T22:15:00.000Z',
     settings: {
       writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
       director: {
@@ -40,6 +40,16 @@ function bureau(fields = {}) {
     ...fields,
   };
 }
+
+// A moment in the browser's time zone, in any year.
+function localTime(year, month, day, hour, minute) {
+  const date = new Date(2000, month - 1, day, hour, minute);
+  date.setFullYear(year);
+  return date.toISOString();
+}
+
+const findSaveButton = (wrapper) =>
+  wrapper.findAll('button').find((button) => button.text().includes('Save settings'));
 
 async function saveSettings(wrapper) {
   await wrapper
@@ -158,78 +168,67 @@ describe('BureauSettingsSection', () => {
     });
   });
 
-  describe("the Bureau's present", () => {
-    afterEach(() => {
-      vi.useRealTimers();
+  describe('Bureau time', () => {
+    it('takes a typed year like 1350 and saves it', async () => {
+      bureausAPI.update.mockImplementation(async (_id, updates) => ({
+        bureau: bureau({ bureauTime: updates.bureauTime }),
+      }));
+      const wrapper = mount(BureauSettingsSection, {
+        props: { bureau: bureau({ bureauTime: localTime(2026, 9, 12, 22, 15) }) },
+      });
+      await flushPromises();
+      const field = wrapper.find('#bureau-settings-time');
+
+      expect(field.element.value).toBe('2026-09-12T22:15');
+      // Typing 1350 passes through 0001, 0013, and 0135, and the field keeps each.
+      for (const typed of [
+        '0001-09-12T22:15',
+        '0013-09-12T22:15',
+        '0135-09-12T22:15',
+        '1350-09-12T22:15',
+      ]) {
+        await field.setValue(typed);
+        expect(field.element.value).toBe(typed);
+      }
+      await saveSettings(wrapper);
+
+      expect(bureausAPI.update.mock.calls[0][1].bureauTime).toBe(localTime(1350, 9, 12, 22, 15));
+      expect(field.element.value).toBe('1350-09-12T22:15');
     });
 
-    it('sets the present from the date field', async () => {
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date(2026, 8, 12, 12, 0));
+    it("doesn't send Bureau time when it wasn't changed", async () => {
       bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
       const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
       await flushPromises();
 
-      expect(wrapper.find('#bureau-settings-present').element.value).toBe('2026-09-12');
-      await wrapper.find('#bureau-settings-present').setValue('1996-07-31');
+      await wrapper.find('#bureau-settings-name').setValue('Lighthouse');
       await saveSettings(wrapper);
 
-      expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(-11000);
+      expect(bureausAPI.update.mock.calls[0][1]).not.toHaveProperty('bureauTime');
     });
 
-    it('waits for a whole date before moving the present', async () => {
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date(2026, 8, 12, 12, 0));
-      bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
-      const wrapper = mount(BureauSettingsSection, {
-        props: { bureau: bureau({ presentOffsetDays: -11000 }) },
-      });
+    it('shows Bureau time moved elsewhere, unless the field was edited', async () => {
+      const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
       await flushPromises();
-      const field = wrapper.find('#bureau-settings-present');
+      const field = wrapper.find('#bureau-settings-time');
 
-      // The field reads empty while a part is unfinished, and 2075 passes through 0002, 0020, 0207.
-      for (const partial of ['', '0002-09-12', '0020-09-12', '0207-09-12']) {
-        await field.setValue(partial);
-        expect(field.element.value).toBe(partial);
-      }
-      await field.setValue('2075-09-12');
-      await saveSettings(wrapper);
+      await wrapper.setProps({ bureau: bureau({ bureauTime: localTime(2026, 9, 13, 8, 0) }) });
+      expect(field.element.value).toBe('2026-09-13T08:00');
+      expect(findSaveButton(wrapper).attributes('disabled')).toBeDefined();
 
-      expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(17897);
+      await field.setValue('1996-06-03T21:00');
+      await wrapper.setProps({ bureau: bureau({ bureauTime: localTime(2026, 9, 20, 8, 0) }) });
+      expect(field.element.value).toBe('1996-06-03T21:00');
     });
 
-    it('treats a cleared date as today once the field is left', async () => {
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date(2026, 8, 12, 12, 0));
-      bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
-      const wrapper = mount(BureauSettingsSection, {
-        props: { bureau: bureau({ presentOffsetDays: -11000 }) },
-      });
-      await flushPromises();
-      const field = wrapper.find('#bureau-settings-present');
-
-      await field.setValue('');
-      await field.trigger('blur');
-
-      expect(field.element.value).toBe('2026-09-12');
-      await saveSettings(wrapper);
-      expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(0);
-    });
-
-    it("keeps the present's offset when saving after midnight", async () => {
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date(2026, 8, 12, 23, 59));
-      bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
-      const wrapper = mount(BureauSettingsSection, {
-        props: { bureau: bureau({ presentOffsetDays: -11000 }) },
-      });
+    it("won't save a date and time it can't read", async () => {
+      const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
       await flushPromises();
 
-      vi.setSystemTime(new Date(2026, 8, 13, 0, 30));
-      await wrapper.find('#bureau-settings-correspondence-thinking').setValue(true);
+      await wrapper.find('#bureau-settings-time').setValue('');
       await saveSettings(wrapper);
 
-      expect(bureausAPI.update.mock.calls[0][1].presentOffsetDays).toBe(-11000);
+      expect(bureausAPI.update).not.toHaveBeenCalled();
     });
   });
 });

@@ -101,6 +101,31 @@ describe('bureau-db', () => {
     expect(upgraded.prepare('SELECT archived_through, summary FROM stories').all()).toEqual([]);
   });
 
+  it("moves a shifted Bureau's clock to the date it showed, and stops counting the offset", () => {
+    const db = openBureauDb(tempDir);
+    db.exec(`
+      INSERT INTO bureaus (id, name, model, bureau_time, present_offset_days, created, modified)
+      VALUES ('shifted', 'Shifted', 'deepseek-flash', '2020-01-01T00:00:00.000Z', -365, 'now', 'now'),
+             ('plain', 'Plain', 'deepseek-flash', '2020-01-01T00:00:00.000Z', 0, 'now', 'now');
+    `);
+    db.pragma('user_version = 6');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+    const rows = Object.fromEntries(
+      upgraded
+        .prepare('SELECT id, bureau_time, present_offset_days FROM bureaus')
+        .all()
+        .map((row) => [row.id, row]),
+    );
+
+    const yearAgo = Date.now() - 365 * 86_400_000;
+    expect(Math.abs(Date.parse(rows.shifted.bureau_time) - yearAgo)).toBeLessThan(60_000);
+    expect(rows.shifted.bureau_time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    expect(rows.plain.bureau_time).toBe('2020-01-01T00:00:00.000Z');
+    expect([rows.shifted.present_offset_days, rows.plain.present_offset_days]).toEqual([0, 0]);
+  });
+
   it('refuses a database written by a newer build', () => {
     const db = new Database(path.join(tempDir, 'future.db'));
     db.pragma('user_version = 999');

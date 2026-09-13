@@ -50,8 +50,8 @@ idea:
 - Characters develop over time through reviewable changes, without rewriting their original card.
 - Chapters in a Bureau connect: later chapters know what happened in earlier ones.
 - Correspondence with cast members between chapters, feeding the same memory.
-- One Bureau time: correspondence happens in real time, and each chapter starts at a time you
-  choose.
+- One Bureau time, a story clock only you move: messages happen at it, and each chapter starts at
+  it or at a time you choose.
 - Agentic generation with tools, including a character generator.
 - Stricter prose discipline, such as one speaker per paragraph.
 - Everything the agents did is inspectable, without cluttering the story.
@@ -87,7 +87,7 @@ idea:
 | **Turn**           | One group of paragraphs (user prose, a direction, or a generated passage) plus its metadata. |
 | **Turn seam**      | A hidden divider between turns that expands to show how the next turn was made.              |
 | **Correspondence** | A message thread between the persona and one cast member, between chapters.                  |
-| **Bureau time**    | The Bureau's current date and time. Correspondence moves it to the present; chapters ask.    |
+| **Bureau time**    | The Bureau's current date and time: a story clock that only the reader moves.                |
 | **House style**    | An editable prose rulebook used by the Writer and the Editor. Empty follows the default.     |
 
 Code, the API, and the database still call a chapter a `story`: the `stories` and `story_cast`
@@ -303,8 +303,9 @@ paragraphs.
 turns have settled. A turn is settled when six newer turns follow it; after each generated turn, a
 pass starts if at least six settled prose turns are waiting. A Bureau can turn automatic archiving
 off, and then the Archivist runs only on demand. Threads are read the same way, one session of
-messages at a time: in the background once a session is over (a newer one started, or three hours
-passed), from "Commit to memory" in the thread, and for a chapter's cast before the chapter starts.
+messages at a time: in the background once a session is over (a newer one started, or Bureau time
+is more than three hours past its last message), from "Commit to memory" in the thread, and for a
+chapter's cast before the chapter starts.
 
 **Input:** the turns it hasn't read, in passes of about 60,000 characters; the chapter's running
 summary; who was present; and what each present character already knows, as numbered memories.
@@ -439,14 +440,14 @@ members. It's saved as knowledge with no chapter and no time, so every chapter c
 - Replies are short first-person messages, texts by default. The Bureau's settings have a **message
   style** used in place of the house style; for a Bureau set before phones, it can describe letters
   or telegrams.
-- Correspondence is always real time: sending a message and every reply move Bureau time to the
-  Bureau's present (see [The Bureau's present](#the-bureaus-present)). Each message keeps the Bureau
-  time it was sent at, because the present offset can change later.
+- Messages happen at Bureau time: each message and reply is dated at the Bureau's current time, and
+  none of them move it (see [Bureau time](#bureau-time)). To let time pass between messages, use
+  **Time passes** in the thread's header. Each message keeps the Bureau time it was sent at.
 - A reply is one streamed call with the character's profile and arc notes, their memories as they
-  stand at the present (a chapter that started earlier counts even if it hasn't ended), lore
+  stand at Bureau time (a chapter that started earlier counts even if it hasn't ended), lore
   activated by recent messages, and the conversation as a labeled transcript, since this is a chat.
   The transcript marks a loose time at its start and after each long gap. The prompt ends with the
-  loose time now, and how long it's been since the last message when that matters. Messages in a
+  loose Bureau time, and how long it's been since the last message when that matters. Messages in a
   reply are separated by a line holding only `---`, and a reply saves as up to six messages.
 - The thread view groups messages into sessions (no gap over three hours), shows how each reply was
   written in a seam, and lets you edit or delete any message; changing one marks memories that cite
@@ -461,34 +462,33 @@ members. It's saved as knowledge with no chapter and no time, so every chapter c
 
 ## Bureau time
 
-Each Bureau has a single clock, **Bureau time**: the current date and time in the Bureau. It changes
-at only three moments:
+Each Bureau has a single clock, **Bureau time**: the current date and time in the Bureau. It's a
+story clock. It never follows your real clock, and only you move it:
 
-| When                          | What happens to Bureau time                                                                                   |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| A message is sent or received | It moves to the Bureau's present. Correspondence is always real time.                                         |
-| A chapter starts              | You choose: the present, the current Bureau time, or a time you pick. The chapter keeps it as its start time. |
-| A chapter ends                | You choose: the present, a time you pick to reflect how long the chapter lasted, or no change.                |
+| What moves it    | What happens to Bureau time                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Time passes      | It moves forward: an hour later, later that day, the next morning, a few days later, a week later, or to a time you pick. |
+| Settings         | It's set to any date and time, earlier or later.                                                                          |
+| A chapter starts | You choose: the current Bureau time or a time you pick. The chapter keeps it as its start time.                           |
+| A chapter ends   | You choose: leave it as it is, or a time you pick to reflect how long the chapter lasted.                                 |
 
-Both chapter dialogs default to whatever you chose last time. Turns never move Bureau time.
+Messages, replies, and turns never move Bureau time. Both chapter dialogs default to whatever you
+chose last time.
 
-### The Bureau's present
+### Setting the date
 
-A Bureau's present is normally today, but it can be set to another date, such as June 1996. It's
-stored as a whole-day offset from the real calendar:
-
-- Time of day always follows your real clock, so a message sent at 11pm is still late at night.
-- The date shifts by the offset, counted in calendar days in the Bureau's time zone (so a daylight
-  saving change between the two dates doesn't move the hour), and the weekday and season follow the
-  shifted date.
-- Everywhere this doc says "the present" (correspondence and both chapter dialogs), it means real
-  time plus the offset.
-- When the offset isn't zero, or a chapter starts in a year other than the real one, the year goes
-  into the world section of prompts as setting ("The year is 1996."), not as a timestamp, so the
-  Writer avoids anachronisms.
+- **Time passes** sits in the message thread's header and next to Bureau time in the Bureau's
+  Chapters section. The next morning is 8:00 on the following day, and days count on the Bureau's
+  clock in its time zone (the server's until one is saved), so a daylight saving change doesn't
+  move the hour. A picked time must be later than Bureau time.
+- The Bureau's settings edit Bureau time directly, earlier or later. Going back happens there.
+- Any year from 1 to 9999 works, so a Bureau can be set in 1350 or 1996.
+- When a moment falls in a year other than the real one, the year goes into the world section of
+  prompts as setting ("The year is 1350."), not as a timestamp, so the Writer avoids anachronisms.
 - Correspondence doesn't have to be texting. The message style can set a medium that fits the era,
-  such as letters or email.
-- The present is set in the Bureau's settings as a date; clearing it means today.
+  such as letters.
+- Bureau time used to follow the real clock, shifted by a whole-day offset. Migration 7 moved each
+  shifted Bureau's clock to the date it showed then, and the offset no longer counts.
 
 ### Time in prompts
 
@@ -516,11 +516,11 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
 
 ### Offscreen life
 
-- A character is owed an account when at least 12 hours have passed since they were last seen: their
-  latest dated memory, their latest message, or the end of a chapter they were in. Anyone in a
-  chapter that's still going is left alone, since the chapter is their time. One forced call to a
-  strict `record_offscreen` tool writes everyone owed one two to four sentences about how they spent
-  the gap, saved as an offscreen memory:
+- A character is owed an account when at least 12 hours of Bureau time have passed since they were
+  last seen: their latest dated memory, their latest message, or the end of a chapter they were in.
+  Anyone in a chapter that's still going is left alone, since the chapter is their time. One forced
+  call to a strict `record_offscreen` tool writes everyone owed one two to four sentences about how
+  they spent the gap, saved as an offscreen memory:
   - Before a chapter starts: its cast, after their unread messages are committed to memory (a
     thread that fails doesn't keep the others out). Accounts are dated just before the chapter's
     start, and if either step fails, the chapter still starts, with a notice.
@@ -531,6 +531,8 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
   and their last time away. It leaves out the reader's character, whose doings belong to the reader.
 - Moving time forward when a chapter **ends** doesn't generate offscreen life. That span counts as
   time the chapter covered.
+- Time passes doesn't write anything by itself. Accounts are written when they're needed: before
+  the next reply or chapter start.
 - Nothing runs in the background: a month away produces one summary, not thirty days of invented
   drama. Prompts ask for mostly mundane events and cap the notable ones.
 - The Writer and reply prompts include the latest account ("Mara lately: ..."), until an episode
@@ -583,7 +585,7 @@ A sketch, not final. Phase 1 created `bureaus`, `cast_members`, `agent_runs`, an
 later phases add the rest as migrations:
 
 ```text
-bureaus        (id, name, description, api_key, model, bureau_time, present_offset_days,
+bureaus        (id, name, description, api_key, model, bureau_time, present_offset_days [unused],
                 timezone, house_style, settings JSON, created, modified)
 cast_members   (id, bureau_id, library_character_id NULL, name, is_persona, is_draft,
                 seed_card JSON, routine JSON, created, modified)
@@ -620,8 +622,8 @@ agent_steps    (id, run_id, position, role, kind [model|tool], request JSON, res
                 reasoning, tool_calls JSON, usage JSON, duration_ms, error, created)
 ```
 
-Messages store their Bureau time directly instead of deriving it from `created`, because a Bureau's
-present offset can change later.
+Messages store their Bureau time directly instead of deriving it from `created`, because Bureau time
+has nothing to do with the real clock.
 
 ## Code layout
 
@@ -705,8 +707,8 @@ Each phase ends with something usable.
 5. **Character development:** arc note proposals and review; export to library.
 6. **Character generator:** standalone flow, `create_character` tool, draft cast members; portraits
    afterward.
-7. **Correspondence and offscreen life:** threads, real-time Bureau time updates, the Bureau's
-   present offset, offscreen life, episodes from sessions.
+7. **Correspondence and offscreen life:** threads, Bureau time as a clock the reader moves with Time
+   passes, offscreen life, episodes from sessions.
 8. **Later:** Workbench screen for comparing and rerunning runs, characters message first, IRC
    bridge, learning house style from user edits to generated turns, embeddings, drift check, other
    providers.
@@ -734,8 +736,9 @@ Each phase ends with something usable.
 4. When is a turn settled enough for the Archivist? _For now, once six newer turns follow it; revisit
    with use._
 5. Is per-chapter presence enough, or is per-turn presence needed early?
-6. Whose "now" does correspondence use: the browser's timezone, or a timezone saved on the Bureau
-   (needed if characters ever message first)?
+6. Whose time zone gives Bureau time its time of day: the browser's, saved when the first chapter
+   starts, or one chosen in settings? And if characters ever message first, what lets time pass for
+   them, since only the reader moves the clock?
 7. Should chapters support branching, or only per-turn variants?
 8. Does the persona keep memories of its own? _Yes, since 2026-09-12: they remember like everyone
    else. Only writing as them is restricted, and offscreen life leaves them out._

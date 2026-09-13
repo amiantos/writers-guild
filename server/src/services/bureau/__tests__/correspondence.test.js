@@ -84,7 +84,6 @@ describe('splitMessages', () => {
 describe('buildCorrespondenceMessages', () => {
   const bureau = {
     timezone: 'UTC',
-    presentOffsetDays: 0,
     settings: { correspondence: { style: '' } },
   };
   const mara = { id: 'c1', name: 'Mara', seedCard: card('Mara', 'Keeps the light for {{user}}.') };
@@ -101,7 +100,7 @@ describe('buildCorrespondenceMessages', () => {
       bureau,
       member: mara,
       persona: theo,
-      present: now,
+      time: now,
       now,
       memories: {
         knowledge: [{ content: "Theo can't swim." }],
@@ -139,12 +138,11 @@ describe('buildCorrespondenceMessages', () => {
     const [system, user] = buildCorrespondenceMessages({
       bureau: {
         ...bureau,
-        presentOffsetDays: -11000,
         settings: { correspondence: { style: 'Letters.' } },
       },
       member: mara,
       persona: theo,
-      present: new Date('1996-09-10T08:00:00Z'),
+      time: new Date('1996-09-10T08:00:00Z'),
       now,
       history: [message('generated', 'Night.', '1996-09-01T23:00:00Z')],
     });
@@ -160,7 +158,7 @@ describe('buildCorrespondenceMessages', () => {
       bureau,
       member: mara,
       persona: theo,
-      present: now,
+      time: now,
       now,
       history: [],
     });
@@ -233,17 +231,20 @@ describe('generateReply', () => {
     });
   });
 
-  it('saves the reply as messages at the present and moves Bureau time', async () => {
+  it('saves the reply as messages at Bureau time, without moving the clock', async () => {
     const client = streamingClient(['Always *yawns*.', '\n---\n', 'Storm?']);
     const events = [];
-    const before = Date.now();
+    stores.bureaus.setBureauTime(bureau.id, '2026-10-27T22:10:00.000Z');
 
     const saved = await reply(client, { onEvent: (event) => events.push(event) });
 
     expect(saved.map((message) => message.content)).toEqual(['Always yawns.', 'Storm?']);
     expect(saved[0]).toMatchObject({ source: 'generated', senderCastId: mara.id, position: 1 });
-    expect(Date.parse(saved[0].bureauTime)).toBeGreaterThanOrEqual(before - 1000);
-    expect(stores.bureaus.getBureau(bureau.id).bureauTime).toBe(saved[0].bureauTime);
+    expect(saved.map((item) => item.bureauTime)).toEqual([
+      '2026-10-27T22:10:00.000Z',
+      '2026-10-27T22:10:00.000Z',
+    ]);
+    expect(stores.bureaus.getBureau(bureau.id).bureauTime).toBe('2026-10-27T22:10:00.000Z');
     expect(events[0]).toEqual({ type: 'run', runId: saved[0].runId });
     expect(
       events
@@ -264,8 +265,10 @@ describe('generateReply', () => {
       source: 'generated',
       senderCastId: mara.id,
       content: 'Night.',
-      bureauTime: new Date(Date.now() - 9 * 24 * 3_600_000).toISOString(),
+      bureauTime: '2026-10-27T23:00:00.000Z',
     });
+    // Nine days later in Bureau time, whatever the real clock says.
+    stores.bureaus.setBureauTime(bureau.id, '2026-11-05T20:00:00.000Z');
     const client = streamingClient(['Back from the mainland.']);
     client.chat = async (options) => {
       client.calls.push(options);
@@ -346,12 +349,13 @@ describe('generateReply', () => {
     expect(client.calls.map((call) => call.tools?.[0]?.name ?? 'reply')).toEqual(['reply']);
   });
 
-  it("uses the character's memories as they stand at the present", async () => {
+  it("uses the character's memories as they stand at Bureau time", async () => {
     stores.bureaus.updateSettings(bureau.id, { memory: { offscreenLife: false } });
+    stores.bureaus.setBureauTime(bureau.id, '2026-10-27T22:10:00.000Z');
     const remember = (content, worldTime) =>
       stores.memories.addMemory(bureau.id, mara.id, { layer: 'knowledge', content, worldTime });
     remember("Theo can't swim.", '2026-01-01T00:00:00.000Z');
-    remember('Theo won the regatta.', '2999-01-01T00:00:00.000Z');
+    remember('Theo won the regatta.', '2026-12-01T00:00:00.000Z');
     const client = streamingClient(['Hi.']);
 
     await reply(client);

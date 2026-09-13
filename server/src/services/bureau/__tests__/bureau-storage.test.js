@@ -56,13 +56,13 @@ describe('BureauStorage', () => {
         model: DEFAULT_MODEL,
         hasApiKey: true,
         apiKeyPreview: 'sk-…1234',
-        presentOffsetDays: 0,
         timezone: null,
         houseStyle: '',
         settings: resolveSettings({}),
         castCount: 0,
       });
       expect(Number.isNaN(Date.parse(bureau.bureauTime))).toBe(false);
+      expect(bureau).not.toHaveProperty('presentOffsetDays');
       expect(JSON.stringify(bureau)).not.toContain(API_KEY);
     });
 

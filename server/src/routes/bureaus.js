@@ -11,7 +11,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { CastConflictError } from '../services/bureau/bureau-storage.js';
 import { BureauSettingsError, DEFAULT_SETTINGS } from '../services/bureau/bureau-settings.js';
-import { isValidTimeZone, MAX_PRESENT_OFFSET_DAYS } from '../services/bureau/bureau-time.js';
+import {
+  advanceBureauTime,
+  BureauTimeError,
+  isValidTimeZone,
+  parseBureauTime,
+  TIME_STEPS,
+} from '../services/bureau/bureau-time.js';
 import { DEFAULT_MODEL, DeepSeekError } from '../services/bureau/deepseek-client.js';
 import { exportedCard } from '../services/bureau/character-export.js';
 import { generateCharacter } from '../services/bureau/character-generator.js';
@@ -91,8 +97,20 @@ function followingDefault(style, defaultStyle) {
   return typeof style === 'string' && style.trim() === defaultStyle.trim() ? '' : style;
 }
 
-// Update a Bureau. An apiKey of '' removes the key; a timezone of null clears it.
-// presentOffsetDays moves the Bureau's present by whole days from the real date.
+/** Run a Bureau time calculation, answering 400 for a time it can't take. */
+function withBureauTime(resolve) {
+  try {
+    return resolve();
+  } catch (error) {
+    if (error instanceof BureauTimeError) {
+      throw new AppError(error.message, 400);
+    }
+    throw error;
+  }
+}
+
+// Update a Bureau. An apiKey of '' removes the key; a timezone of null clears it. bureauTime
+// sets the Bureau's clock to any time in the years 1 to 9999, earlier or later.
 // `settings` is a partial update, such as { writer: { thinking: true } }. A house style or
 // correspondence style that matches its default is saved empty (see followingDefault).
 router.put(
@@ -110,7 +128,10 @@ router.put(
       model: optionalString(body, 'model'),
       houseStyle: followingDefault(optionalString(body, 'houseStyle'), DEFAULT_HOUSE_STYLE),
       timezone: body.timezone,
-      presentOffsetDays: body.presentOffsetDays,
+      bureauTime:
+        body.bureauTime === undefined
+          ? undefined
+          : withBureauTime(() => parseBureauTime(body.bureauTime, 'bureauTime')),
     };
 
     if (Object.values(updates).every((value) => value === undefined) && !body.settings) {
@@ -127,19 +148,6 @@ router.put(
         throw new AppError('timezone must be an IANA time zone name, or null', 400);
       }
     }
-    if (
-      updates.presentOffsetDays !== undefined &&
-      !(
-        Number.isInteger(updates.presentOffsetDays) &&
-        Math.abs(updates.presentOffsetDays) <= MAX_PRESENT_OFFSET_DAYS
-      )
-    ) {
-      throw new AppError(
-        `presentOffsetDays must be a whole number from -${MAX_PRESENT_OFFSET_DAYS} to ${MAX_PRESENT_OFFSET_DAYS}`,
-        400,
-      );
-    }
-
     let bureau;
     try {
       // One transaction, so invalid settings don't leave the other fields half-saved.
@@ -167,6 +175,41 @@ router.put(
       throw error;
     }
     res.json({ bureau });
+  }),
+);
+
+// Let time pass: move the Bureau's clock forward by a step ({ step }: hour, later, morning, days,
+// or week) or to a later time ({ to }). An earlier time is set in the Bureau's settings instead.
+router.post(
+  '/:bureauId/time',
+  asyncHandler(async (req, res) => {
+    const { bureaus } = res.locals.stores;
+    const { bureauId } = req.params;
+    const bureau = requireBureau(bureaus, bureauId);
+    const { step, to } = req.body ?? {};
+
+    let bureauTime;
+    if (step !== undefined && to === undefined) {
+      if (!TIME_STEPS.includes(step)) {
+        throw new AppError(`step must be one of: ${TIME_STEPS.join(', ')}`, 400);
+      }
+      bureauTime = withBureauTime(() =>
+        advanceBureauTime(bureau.bureauTime, step, bureau.timezone),
+      );
+    } else if (to !== undefined && step === undefined) {
+      bureauTime = withBureauTime(() => parseBureauTime(to, 'to'));
+      if (Date.parse(bureauTime) < Date.parse(bureau.bureauTime)) {
+        throw new AppError(
+          "Time only moves forward here: to can't be earlier than Bureau time. Set an earlier time in the Bureau's settings.",
+          400,
+        );
+      }
+    } else {
+      throw new AppError('Send either step or to', 400);
+    }
+
+    bureaus.setBureauTime(bureauId, bureauTime);
+    res.json({ bureau: bureaus.getBureau(bureauId) });
   }),
 );
 

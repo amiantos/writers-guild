@@ -97,9 +97,20 @@ export const bureausAPI = {
     return request(`/${bureauId}`);
   },
 
-  /** Partial update: name, description, apiKey ('' removes it), model, houseStyle, timezone, settings. */
+  /**
+   * Partial update: name, description, apiKey ('' removes it), model, houseStyle, timezone,
+   * settings, and bureauTime (an ISO time in the years 1 to 9999, earlier or later).
+   */
   update(bureauId, updates) {
     return request(`/${bureauId}`, { method: 'PUT', body: updates });
+  },
+
+  /**
+   * Let time pass: move Bureau time forward by a step, or to a later time. Answers with the Bureau.
+   * @param {{ step: 'hour'|'later'|'morning'|'days'|'week' } | { to: string }} move
+   */
+  passTime(bureauId, move) {
+    return request(`/${bureauId}/time`, { method: 'POST', body: move });
   },
 
   remove(bureauId) {
@@ -221,7 +232,8 @@ export const bureauStoriesAPI = {
    * @param {Object} story
    * @param {string} [story.title]
    * @param {string[]} [story.castIds] - Defaults to the whole cast.
-   * @param {{ choice: 'present'|'bureau'|'custom', customTime?: string }} story.start
+   * @param {{ choice: 'bureau'|'custom', customTime?: string }} [story.start] - Defaults to Bureau
+   *   time. The Bureau's clock moves to the start time.
    * @param {string} [story.timeZone] - The browser's time zone.
    */
   start(bureauId, story) {
@@ -239,7 +251,8 @@ export const bureauStoriesAPI = {
   /**
    * End a story. Answers with the story and Bureau, plus `archive` (what was committed to
    * memory, or null) and `archiveError` (why committing failed, or null).
-   * @param {{ choice: 'present'|'custom'|'unchanged', customTime?: string }} end
+   * @param {{ choice: 'unchanged'|'custom', customTime?: string }} end - Defaults to leaving Bureau
+   *   time as it is.
    */
   end(bureauId, storyId, end) {
     return request(`/${bureauId}/stories/${storyId}/end`, { method: 'POST', body: { end } });

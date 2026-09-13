@@ -137,18 +137,61 @@ describe('Bureau routes', () => {
       await request(app).put(`/api/bureaus/${bureau.id}`).send({ model: ' ' }).expect(400);
     });
 
-    it("sets the Bureau's present as a whole number of days from today", async () => {
+    it('sets Bureau time to any year from 1 to 9999, earlier or later', async () => {
       const bureau = await createBureau();
 
       const { body } = await request(app)
         .put(`/api/bureaus/${bureau.id}`)
-        .send({ presentOffsetDays: -11000 })
+        .send({ bureauTime: '1350-06-01T20:00:00Z', presentOffsetDays: -365 })
         .expect(200);
 
-      expect(body.bureau.presentOffsetDays).toBe(-11000);
-      for (const presentOffsetDays of [1.5, '3', 80000]) {
-        await request(app).put(`/api/bureaus/${bureau.id}`).send({ presentOffsetDays }).expect(400);
+      expect(body.bureau.bureauTime).toBe('1350-06-01T20:00:00.000Z');
+      expect(body.bureau).not.toHaveProperty('presentOffsetDays');
+      for (const bureauTime of [
+        'soon',
+        1350,
+        null,
+        '0000-06-01T00:00:00Z',
+        '+010000-01-01T00:00:00Z',
+      ]) {
+        await request(app)
+          .put(`/api/bureaus/${bureau.id}`)
+          .send({ name: 'Renamed', bureauTime })
+          .expect(400);
       }
+      expect(bureaus.getBureau(bureau.id)).toMatchObject({
+        name: 'Harbor',
+        bureauTime: '1350-06-01T20:00:00.000Z',
+      });
+    });
+
+    it('lets time pass by a step or to a later time, and only forward', async () => {
+      const bureau = await createBureau();
+      bureaus.updateBureau(bureau.id, { timezone: 'UTC', bureauTime: '2026-09-12T22:15:00.000Z' });
+      const pass = (body) => request(app).post(`/api/bureaus/${bureau.id}/time`).send(body);
+
+      expect((await pass({ step: 'hour' }).expect(200)).body.bureau.bureauTime).toBe(
+        '2026-09-12T23:15:00.000Z',
+      );
+      expect((await pass({ step: 'morning' }).expect(200)).body.bureau.bureauTime).toBe(
+        '2026-09-13T08:00:00.000Z',
+      );
+      expect((await pass({ to: '2026-09-20T12:00:00Z' }).expect(200)).body.bureau.bureauTime).toBe(
+        '2026-09-20T12:00:00.000Z',
+      );
+
+      const { body } = await pass({ to: '2026-09-19T12:00:00Z' }).expect(400);
+      expect(body.error).toMatch(/only moves forward/);
+      for (const bad of [
+        {},
+        { step: 'fortnight' },
+        { to: 'soon' },
+        { step: 'hour', to: '2026-09-21T00:00:00Z' },
+      ]) {
+        await pass(bad).expect(400);
+      }
+      expect(bureaus.getBureau(bureau.id).bureauTime).toBe('2026-09-20T12:00:00.000Z');
+      await request(app).post('/api/bureaus/missing/time').send({ step: 'hour' }).expect(404);
     });
 
     it('returns 404 for a Bureau that does not exist', async () => {

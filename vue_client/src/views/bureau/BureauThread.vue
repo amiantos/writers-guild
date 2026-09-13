@@ -26,9 +26,12 @@
           <i class="fas fa-brain"></i>
           <span class="action-label">{{ archiving ? 'Committing...' : 'Commit to memory' }}</span>
         </button>
-        <span v-if="bureau" class="thread-clock" title="The Bureau's present">
-          <i class="fas fa-clock"></i> {{ formatDateTime(present, bureau.timezone) }}
-        </span>
+        <template v-if="bureau">
+          <span class="thread-clock" title="Bureau time">
+            <i class="fas fa-clock"></i> {{ formatDateTime(bureau.bureauTime, bureau.timezone) }}
+          </span>
+          <TimePassesControl :bureau="bureau" :disabled="sending" @updated="bureau = $event" />
+        </template>
       </div>
     </header>
 
@@ -135,11 +138,12 @@ import { bureausAPI, bureauThreadsAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import { useConfirm } from '../../composables/useConfirm';
 import { setPageTitle } from '../../router';
-import { bureauPresent, formatDateTime } from '../../composables/bureau/format';
+import { formatDateTime } from '../../composables/bureau/format';
 import { describeArchive } from '../../composables/bureau/memories';
 import { groupSessions, splitReply } from '../../composables/bureau/messages';
 import TurnSeam from '../../components/bureau/TurnSeam.vue';
 import MessageBubble from '../../components/bureau/MessageBubble.vue';
+import TimePassesControl from '../../components/bureau/TimePassesControl.vue';
 
 const props = defineProps({
   bureauId: { type: String, required: true },
@@ -168,13 +172,6 @@ const listRef = ref(null);
 const inputRef = ref(null);
 const brokenAvatar = ref(false);
 
-// The clock in the header follows the real one.
-const now = ref(new Date());
-const clock = setInterval(() => {
-  now.value = new Date();
-}, 60_000);
-
-const present = computed(() => bureauPresent(bureau.value, now.value));
 const sessions = computed(() => groupSessions(messages.value));
 const pendingParts = computed(() => (pending.value ? splitReply(pending.value.content) : []));
 const canWrite = computed(() => hasPersona.value && Boolean(bureau.value?.hasApiKey));
@@ -380,7 +377,6 @@ function backToBureau() {
 onMounted(load);
 onBeforeUnmount(() => {
   abortController?.abort();
-  clearInterval(clock);
 });
 </script>
 

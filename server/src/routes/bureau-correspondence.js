@@ -3,9 +3,10 @@
  *
  * Mounted at /api/bureaus/:bureauId/threads. Each cast member has one thread
  * with the Bureau's reader's character (see "Correspondence" in
- * docs/bureau-design.md). Sending a message moves Bureau time to the Bureau's
- * present, and so does every reply. Replies stream as server-sent events when
- * the client asks for text/event-stream, and answer with JSON otherwise.
+ * docs/bureau-design.md). Messages and replies happen at the current Bureau
+ * time and never move it: the reader lets time pass themselves. Replies stream
+ * as server-sent events when the client asks for text/event-stream, and answer
+ * with JSON otherwise.
  */
 
 import express from 'express';
@@ -13,7 +14,6 @@ import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { sseChannel } from '../utils/sse.js';
 import { DeepSeekError } from '../services/bureau/deepseek-client.js';
 import { archiveSettledSessions, archiveThread } from '../services/bureau/archivist.js';
-import { bureauPresent } from '../services/bureau/bureau-time.js';
 import { generateReply } from '../services/bureau/correspondence.js';
 import {
   createBureauClient,
@@ -166,8 +166,8 @@ router.get(
   }),
 );
 
-// Send a message as the reader's character, at the Bureau's present. The cast
-// member replies unless reply is false.
+// Send a message as the reader's character, at the current Bureau time. The
+// cast member replies unless reply is false.
 router.post(
   '/:castId/messages',
   asyncHandler(async (req, res) => {
@@ -183,7 +183,6 @@ router.post(
       requireApiKey(bureau);
     }
 
-    const sentAt = bureauPresent(bureau).toISOString();
     let thread;
     let message;
     bureaus.db.transaction(() => {
@@ -192,9 +191,8 @@ router.post(
         source: 'user',
         senderCastId: persona.id,
         content: text,
-        bureauTime: sentAt,
+        bureauTime: bureau.bureauTime,
       });
-      bureaus.setBureauTime(bureauId, sentAt);
     })();
 
     if (!wantsReply) {

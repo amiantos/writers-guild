@@ -11,9 +11,11 @@
 
       <div class="form-group">
         <label class="radio-label">
-          <input v-model="choice" type="radio" value="present" />
-          Now
-          <span class="choice-detail">{{ formatDateTime(now) }}</span>
+          <input v-model="choice" type="radio" value="unchanged" />
+          Leave Bureau time as it is
+          <span class="choice-detail">{{
+            formatDateTime(bureau.bureauTime, bureau.timezone)
+          }}</span>
         </label>
         <label class="radio-label">
           <input v-model="choice" type="radio" value="custom" />
@@ -24,16 +26,11 @@
           v-if="choice === 'custom'"
           v-model="customTime"
           type="datetime-local"
+          min="0001-01-01T00:00"
+          max="9999-12-31T23:59"
           class="text-input"
           aria-label="End time"
         />
-        <label class="radio-label">
-          <input v-model="choice" type="radio" value="unchanged" />
-          Leave it as is
-          <span class="choice-detail">{{
-            formatDateTime(bureau.bureauTime, bureau.timezone)
-          }}</span>
-        </label>
       </div>
     </div>
 
@@ -52,7 +49,6 @@ import Modal from '../Modal.vue';
 import { bureauStoriesAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import {
-  bureauPresent,
   formatDateTime,
   fromDatetimeLocal,
   rememberChoice,
@@ -71,9 +67,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'ended']);
 const toast = useToast();
 
-// The Bureau's present, which can be set to another date.
-const now = bureauPresent(props.bureau);
-const choice = ref(rememberedChoice(CHOICE_KEY, ['present', 'custom', 'unchanged'], 'present'));
+const choice = ref(rememberedChoice(CHOICE_KEY, ['unchanged', 'custom'], 'unchanged'));
 const customTime = ref(toDatetimeLocal(new Date(Date.parse(props.story.startTime) + TWO_HOURS)));
 const ending = ref(false);
 

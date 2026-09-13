@@ -67,7 +67,7 @@ describe('buildOffscreenMessages', () => {
     };
 
     const [system, user] = buildOffscreenMessages({
-      bureau: { timezone: 'UTC', presentOffsetDays: 0 },
+      bureau: { timezone: 'UTC' },
       gaps: [{ member: mara, from: FROM }],
       persona: { name: 'Theo' },
       to: TO,

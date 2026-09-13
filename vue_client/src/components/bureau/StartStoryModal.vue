@@ -24,11 +24,6 @@
       <div class="form-group">
         <span class="group-label">When does it start?</span>
         <label class="radio-label">
-          <input v-model="choice" type="radio" value="present" />
-          Now
-          <span class="choice-detail">{{ formatDateTime(now) }}</span>
-        </label>
-        <label class="radio-label">
           <input v-model="choice" type="radio" value="bureau" />
           Bureau time
           <span class="choice-detail">{{
@@ -43,12 +38,14 @@
           v-if="choice === 'custom'"
           v-model="customTime"
           type="datetime-local"
+          min="0001-01-01T00:00"
+          max="9999-12-31T23:59"
           class="text-input"
           aria-label="Start time"
         />
         <p class="help-text">
           The Writer sets the opening scene loosely at this time, and the Bureau's clock moves to
-          it.
+          it. An earlier time works as a flashback, and any year from 1 to 9999 works.
         </p>
       </div>
     </div>
@@ -69,7 +66,6 @@ import { bureauStoriesAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import {
   browserTimeZone,
-  bureauPresent,
   formatDateTime,
   fromDatetimeLocal,
   rememberChoice,
@@ -88,11 +84,9 @@ const props = defineProps({
 const emit = defineEmits(['close', 'started']);
 const toast = useToast();
 
-// The Bureau's present, which can be set to another date.
-const now = bureauPresent(props.bureau);
 const title = ref('');
 const castIds = ref(props.cast.map((member) => member.id));
-const choice = ref(rememberedChoice(CHOICE_KEY, ['present', 'bureau', 'custom'], 'present'));
+const choice = ref(rememberedChoice(CHOICE_KEY, ['bureau', 'custom'], 'bureau'));
 const customTime = ref(toDatetimeLocal(props.bureau.bureauTime));
 const starting = ref(false);
 

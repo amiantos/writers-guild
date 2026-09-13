@@ -27,7 +27,12 @@
           Add a DeepSeek API key in Settings below to generate chapters.
         </div>
 
-        <BureauStoriesSection :bureau="bureau" :cast="cast" @open="openStory" />
+        <BureauStoriesSection
+          :bureau="bureau"
+          :cast="cast"
+          @open="openStory"
+          @updated="handleUpdated"
+        />
         <BureauMessagesSection :bureau="bureau" :cast="cast" @open="openThread" />
         <BureauCastSection
           :bureau-id="bureauId"

@@ -1,51 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  bureauPresent,
   formatDateTime,
   formatDuration,
   formatUsage,
   fromDatetimeLocal,
-  offsetDaysTo,
-  presentDateValue,
   rememberChoice,
   rememberedChoice,
   toDatetimeLocal,
 } from '../format.js';
-
-describe("the Bureau's present", () => {
-  const now = new Date(2026, 8, 12, 22, 15);
-
-  it('turns a day offset into a date and back', () => {
-    expect(presentDateValue({ presentOffsetDays: 0 }, now)).toBe('2026-09-12');
-    expect(presentDateValue({ presentOffsetDays: -11000 }, now)).toBe('1996-07-31');
-    expect(offsetDaysTo('1996-07-31', now)).toBe(-11000);
-    expect(offsetDaysTo('2026-09-15', now)).toBe(3);
-    expect(offsetDaysTo('', now)).toBeNull();
-    // Years below 100 stay themselves instead of becoming 19xx.
-    const ancient = offsetDaysTo('0002-09-12', now);
-    expect(ancient).toBeLessThan(offsetDaysTo('1902-09-12', now));
-    expect(presentDateValue({ presentOffsetDays: ancient }, now)).toBe('0002-09-12');
-  });
-
-  it('keeps the time of day', () => {
-    const present = bureauPresent({ presentOffsetDays: 3 }, now);
-
-    expect(present.getHours()).toBe(22);
-    expect(present.getDate()).toBe(15);
-  });
-
-  it("counts calendar days in the Bureau's time zone", () => {
-    // 00:30 PDT on September 12; January 15, 1996 is in PST.
-    const early = new Date('2026-09-12T07:30:00Z');
-    const days = offsetDaysTo('1996-01-15', early, 'America/Los_Angeles');
-    const bureau = { presentOffsetDays: days, timezone: 'America/Los_Angeles' };
-
-    expect(bureauPresent(bureau, early).toISOString()).toBe('1996-01-15T08:30:00.000Z');
-    expect(presentDateValue(bureau, early)).toBe('1996-01-15');
-    const tokyo = { presentOffsetDays: 0, timezone: 'Asia/Tokyo' };
-    expect(presentDateValue(tokyo, new Date('2026-09-12T20:00:00Z'))).toBe('2026-09-13');
-  });
-});
 
 describe('formatDateTime', () => {
   it('formats in the given time zone', () => {
@@ -74,6 +36,22 @@ describe('datetime-local conversion', () => {
     expect(toDatetimeLocal('')).toBe('');
     expect(fromDatetimeLocal('')).toBeNull();
     expect(fromDatetimeLocal('soon')).toBeNull();
+  });
+
+  it('keeps years below 1000 and in the 1300s as they are', () => {
+    const ancient = new Date(2026, 0, 1, 9, 5);
+    ancient.setFullYear(50);
+
+    expect(toDatetimeLocal(new Date(1350, 5, 1, 20, 0))).toBe('1350-06-01T20:00');
+    expect(toDatetimeLocal(ancient)).toBe('0050-01-01T09:05');
+    expect(fromDatetimeLocal('0050-01-01T09:05')).toBe(ancient.toISOString());
+    expect(new Date(fromDatetimeLocal('1350-06-01T20:00')).getFullYear()).toBe(1350);
+  });
+
+  it('turns down years outside 1 to 9999', () => {
+    expect(fromDatetimeLocal('0000-06-01T12:00')).toBeNull();
+    expect(fromDatetimeLocal('10000-06-01T12:00')).toBeNull();
+    expect(fromDatetimeLocal('9999-06-01T12:00')).not.toBeNull();
   });
 });
 
@@ -110,13 +88,13 @@ describe('remembered choices', () => {
   });
 
   it('returns a remembered choice only when it is allowed', () => {
-    expect(rememberedChoice('choice', ['present', 'custom'], 'present')).toBe('present');
+    expect(rememberedChoice('choice', ['bureau', 'custom'], 'bureau')).toBe('bureau');
 
     rememberChoice('choice', 'custom');
-    expect(rememberedChoice('choice', ['present', 'custom'], 'present')).toBe('custom');
+    expect(rememberedChoice('choice', ['bureau', 'custom'], 'bureau')).toBe('custom');
 
     rememberChoice('choice', 'retired-option');
-    expect(rememberedChoice('choice', ['present', 'custom'], 'present')).toBe('present');
+    expect(rememberedChoice('choice', ['bureau', 'custom'], 'bureau')).toBe('bureau');
   });
 
   it('falls back when storage is unavailable', () => {
@@ -130,6 +108,6 @@ describe('remembered choices', () => {
     });
 
     expect(() => rememberChoice('choice', 'custom')).not.toThrow();
-    expect(rememberedChoice('choice', ['present', 'custom'], 'present')).toBe('present');
+    expect(rememberedChoice('choice', ['bureau', 'custom'], 'bureau')).toBe('bureau');
   });
 });

@@ -696,17 +696,17 @@ describe('archiveThread', () => {
   });
 
   it('leaves a session that may still be going when only settled ones are read', async () => {
-    const now = new Date('2026-10-01T07:00:00.000Z');
-    const earlier = send('user', 'Up early?', '2026-09-30T08:00:00.000Z');
-    send('user', 'Storm again.', '2026-10-01T06:30:00.000Z');
+    // Decades have passed on the real clock; only Bureau time moving on settles a session.
+    stores.bureaus.setBureauTime(bureau.id, '1996-10-01T07:00:00.000Z');
+    const earlier = send('user', 'Up early?', '1996-09-30T08:00:00.000Z');
+    send('user', 'Storm again.', '1996-10-01T06:30:00.000Z');
     const client = archivistClient([record()]);
 
-    expect(await archive(client, { settledOnly: true, now })).toMatchObject({ passes: 1 });
+    expect(await archive(client, { settledOnly: true })).toMatchObject({ passes: 1 });
     expect(stores.threads.getThread(bureau.id, thread.id).archivedThrough).toBe(earlier.position);
-    expect(await archive(client, { settledOnly: true, now })).toBeNull();
-    expect(
-      await archive(client, { settledOnly: true, now: new Date('2026-10-01T10:00:00.000Z') }),
-    ).toMatchObject({ passes: 1 });
+    expect(await archive(client, { settledOnly: true })).toBeNull();
+    stores.bureaus.setBureauTime(bureau.id, '1996-10-01T10:00:00.000Z');
+    expect(await archive(client, { settledOnly: true })).toMatchObject({ passes: 1 });
   });
 
   it("rewrites a session's episode when the session grows", async () => {

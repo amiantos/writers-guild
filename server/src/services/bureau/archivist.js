@@ -16,7 +16,7 @@
  * one session at a time, and each session gets an episode of its own.
  */
 
-import { bureauPresent, describeBureauTime } from './bureau-time.js';
+import { describeBureauTime } from './bureau-time.js';
 import {
   isBeforeStory,
   memoriesAsOf,
@@ -871,34 +871,25 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
  * @param {string} params.threadId
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {boolean} [params.settledOnly] - Leave the last session while it may still be going: until
- *   it has been quiet for SESSION_GAP_MS of Bureau time.
- * @param {Date} [params.now] - Real time, to tell whether the last session is over.
+ *   Bureau time is more than SESSION_GAP_MS past its last message.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} Totals like archiveStory's, or null when there was nothing to
  *   read.
  */
-export function archiveThread({
-  stores,
-  bureauId,
-  threadId,
-  client,
-  settledOnly = false,
-  now = new Date(),
-  signal,
-}) {
+export function archiveThread({ stores, bureauId, threadId, client, settledOnly = false, signal }) {
   return withLock(`thread:${threadId}`, async () => {
     const bureau = stores.bureaus.getBureau(bureauId);
     const thread = bureau ? stores.threads.getThread(bureauId, threadId) : null;
     if (!thread) return null;
 
     const sessions = threadSessions(stores.threads.listMessages(threadId));
-    const present = bureauPresent(bureau, now).getTime();
+    const clock = Date.parse(bureau.bureauTime);
     const toRead = sessions
       .filter(
         (session, index) =>
           !settledOnly ||
           index < sessions.length - 1 ||
-          present - Date.parse(session.at(-1).bureauTime) > SESSION_GAP_MS,
+          clock - Date.parse(session.at(-1).bureauTime) > SESSION_GAP_MS,
       )
       .map((session) => ({
         session,

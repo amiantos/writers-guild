@@ -16,7 +16,6 @@ import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { sseChannel } from '../utils/sse.js';
 import { DeepSeekError } from '../services/bureau/deepseek-client.js';
 import {
-  bureauPresent,
   BureauTimeError,
   isValidTimeZone,
   resolveStoryEndTime,
@@ -246,8 +245,8 @@ async function catchUpBeforeStory(req, stores, bureau, story) {
   return result;
 }
 
-// Start a story. start.choice is 'present', 'bureau' (the Bureau's current
-// time), or 'custom' with start.customTime. The Bureau's clock moves to the
+// Start a story. start.choice is 'bureau' (the Bureau's current time, the
+// default) or 'custom' with start.customTime. The Bureau's clock moves to the
 // start time. The browser's timeZone is saved if the Bureau has none yet. Messages
 // its characters exchanged are committed to memory first, and a jump forward in
 // time gives them offscreen life; archiveError and offscreenError say if either failed.
@@ -267,9 +266,8 @@ router.post(
         : validateCastIds(bureaus, bureauId, body.castIds);
     const startTime = resolveTime(() =>
       resolveStoryStartTime({
-        choice: body.start?.choice ?? 'present',
+        choice: body.start?.choice ?? 'bureau',
         bureauTime: bureau.bureauTime,
-        present: bureauPresent(bureau),
         customTime: body.start?.customTime,
       }),
     );
@@ -326,8 +324,8 @@ router.put(
   }),
 );
 
-// End a story. end.choice is 'present', 'custom' with end.customTime, or
-// 'unchanged'; the Bureau's clock moves to the chosen time. Unless the Bureau
+// End a story. end.choice is 'unchanged' (the default) or 'custom' with
+// end.customTime; the Bureau's clock moves to the chosen time. Unless the Bureau
 // archives only on request, the rest of the story is then read into memory;
 // if that fails, the story still ends and archiveError says why.
 router.post(
@@ -343,7 +341,6 @@ router.post(
       resolveStoryEndTime({
         choice: end?.choice ?? 'unchanged',
         bureauTime: bureau.bureauTime,
-        present: bureauPresent(bureau),
         customTime: end?.customTime,
       }),
     );

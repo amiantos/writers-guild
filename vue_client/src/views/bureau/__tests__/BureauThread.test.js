@@ -4,7 +4,7 @@ import BureauThread from '../BureauThread.vue';
 import { bureausAPI, bureauThreadsAPI } from '../../../services/bureauApi';
 
 vi.mock('../../../services/bureauApi', () => ({
-  bureausAPI: { listCast: vi.fn() },
+  bureausAPI: { listCast: vi.fn(), passTime: vi.fn() },
   bureauThreadsAPI: {
     get: vi.fn(),
     send: vi.fn(),
@@ -24,7 +24,13 @@ vi.mock('../../../composables/useConfirm', () => ({
   useConfirm: () => ({ confirm: vi.fn(async () => true) }),
 }));
 
-const BUREAU = { id: 'b1', name: 'Harbor', timezone: 'UTC', hasApiKey: true, presentOffsetDays: 0 };
+const BUREAU = {
+  id: 'b1',
+  name: 'Harbor',
+  timezone: 'UTC',
+  hasApiKey: true,
+  bureauTime: '2026-10-27T22:10:00.000Z',
+};
 const MARA = { id: 'c1', name: 'Mara', libraryCharacterId: null };
 
 function message(id, source, content, bureauTime, runId = null) {
@@ -68,6 +74,24 @@ describe('BureauThread', () => {
       'Storm coming.',
     ]);
     expect(wrapper.findAll('.seam')).toHaveLength(1);
+  });
+
+  it('shows Bureau time and lets time pass from the thread', async () => {
+    bureausAPI.passTime.mockResolvedValue({
+      bureau: { ...BUREAU, bureauTime: '2026-10-28T08:00:00.000Z' },
+    });
+    const wrapper = mountThread();
+    await flushPromises();
+    const button = (label) =>
+      wrapper.findAll('button').find((candidate) => candidate.text().includes(label));
+
+    expect(wrapper.find('.thread-clock').text()).toContain('Oct 27');
+    await button('Time passes').trigger('click');
+    await button('The next morning').trigger('click');
+    await flushPromises();
+
+    expect(bureausAPI.passTime).toHaveBeenCalledWith('b1', { step: 'morning' });
+    expect(wrapper.find('.thread-clock').text()).toContain('Oct 28');
   });
 
   it('sends with Enter, streams the reply, then shows what was saved', async () => {

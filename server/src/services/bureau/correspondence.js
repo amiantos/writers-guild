@@ -3,9 +3,9 @@
  *
  * Writes a cast member's messages to the reader's character between stories
  * (see "Correspondence" in docs/bureau-design.md). A reply is one streamed call
- * with the character's profile, their memories as they stand at the Bureau's
- * present, and the conversation so far. The reply is split into messages and
- * saved at the present, which moves Bureau time.
+ * with the character's profile, their memories as they stand at the current
+ * Bureau time, and the conversation so far. The reply is split into messages
+ * saved at that time; messages never move the Bureau's clock.
  *
  * Unlike a story, the conversation reaches the model as a labeled transcript:
  * correspondence is a chat.
@@ -14,7 +14,7 @@
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
 import { SESSION_GAP_MS, threadSessions } from './archivist.js';
-import { bureauPresent, describeBureauTime, describeGap, settingYear } from './bureau-time.js';
+import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
 import { findOffscreenGaps, generateOffscreenLife } from './offscreen.js';
@@ -110,15 +110,15 @@ function memoryBlock(name, { knowledge, episodes, offscreen = null }) {
 }
 
 /**
- * When the current session of messages began: its first message, or the present
- * when the last message belongs to an earlier session (or there are none).
+ * When the current session of messages began: its first message, or the Bureau
+ * time when the last message belongs to an earlier session (or there are none).
  */
-function sessionStartOf(history, present) {
+function sessionStartOf(history, time) {
   const session = threadSessions(history).at(-1);
-  if (!session || present.getTime() - Date.parse(session.at(-1).bureauTime) > SESSION_GAP_MS) {
-    return present;
+  if (!session || time.getTime() - Date.parse(session.at(-1).bureauTime) > SESSION_GAP_MS) {
+    return time;
   }
-  return new Date(Math.min(Date.parse(session[0].bureauTime), present.getTime()));
+  return new Date(Math.min(Date.parse(session[0].bureauTime), time.getTime()));
 }
 
 /** The latest messages that fit the budget, always keeping at least the last one. */
@@ -138,16 +138,16 @@ function latestThatFit(history, budget) {
  * Build the messages for a cast member's next reply.
  *
  * @param {Object} params
- * @param {Object} params.bureau - Uses timezone, presentOffsetDays, and settings.correspondence.
+ * @param {Object} params.bureau - Uses timezone and settings.correspondence.
  * @param {Object} params.member - The cast member writing, with their seed card.
  * @param {Object} params.persona - The reader's character, with their seed card.
  * @param {Array<Object>} params.history - The thread's messages, oldest first.
- * @param {Date} params.present - The Bureau's present.
+ * @param {Date} params.time - The Bureau's current time.
  * @param {{ knowledge: Array<Object>, episodes: Array<Object> }} [params.memories] - From
  *   selectForPrompt.
- * @param {Array<{content: string}>} [params.arcNotes] - Accepted arc notes as of the present.
+ * @param {Array<{content: string}>} [params.arcNotes] - Accepted arc notes as of that time.
  * @param {Array<{content: string}>} [params.loreEntries] - Lorebook entries already activated.
- * @param {Date} [params.now] - Real time, to tell whether the present is in another year.
+ * @param {Date} [params.now] - Real time, to tell whether the Bureau is set in another year.
  * @param {number} [params.characterBudget]
  * @returns {Array<{role: string, content: string}>}
  */
@@ -156,7 +156,7 @@ export function buildCorrespondenceMessages({
   member,
   persona,
   history,
-  present,
+  time,
   memories = { knowledge: [], episodes: [] },
   arcNotes = [],
   loreEntries = [],
@@ -211,7 +211,7 @@ export function buildCorrespondenceMessages({
   const world = loreEntries
     .map((entry) => (entry.content ? stripAsterisks(macros.process(entry.content)) : ''))
     .filter(Boolean);
-  const year = settingYear(bureau, present, now);
+  const year = settingYear(bureau, time, now);
   if (year) world.unshift(`The year is ${year}.`);
   if (world.length > 0) {
     system.push(section('WORLD', world.join('\n\n')));
@@ -232,8 +232,8 @@ export function buildCorrespondenceMessages({
   }
 
   const last = history.at(-1);
-  const silence = last ? describeGap(last.bureauTime, present) : null;
-  const instructions = [`It's ${describeBureauTime(present, bureau.timezone)}.`];
+  const silence = last ? describeGap(last.bureauTime, time) : null;
+  const instructions = [`It's ${describeBureauTime(time, bureau.timezone)}.`];
   if (silence) instructions.push(`It has been ${silence} since the last message.`);
   if (!last) {
     instructions.push(`Write the first message ${name} sends ${personaName}.`);
@@ -287,7 +287,7 @@ export async function generateReply({
   signal,
 }) {
   const name = nameOf(member);
-  const present = bureauPresent(bureau);
+  const time = new Date(bureau.bureauTime);
   const history = stores.threads.listMessages(thread.id, { limit: RECENT_MESSAGES });
   const allMemories = () => stores.memories.listMemories(bureau.id, member.id, { status: 'all' });
   const isCancellation = (error) => error?.name === 'AbortError' || Boolean(signal?.aborted);
@@ -304,7 +304,7 @@ export async function generateReply({
   try {
     // After a quiet stretch, the character first gets an account of what they did meanwhile,
     // dated just before this session of messages began, so the session's episode takes over.
-    const sessionStart = sessionStartOf(history, present).toISOString();
+    const sessionStart = sessionStartOf(history, time).toISOString();
     const gaps = bureau.settings.memory.offscreenLife
       ? findOffscreenGaps(stores, bureau, [member], sessionStart)
       : [];
@@ -330,13 +330,10 @@ export async function generateReply({
       onEvent({ type: 'stage', stage: 'writing' });
     }
 
-    const memories = selectForPrompt(
-      memoriesAtTime(allMemories(), present),
-      bureau.settings.memory,
-    );
+    const memories = selectForPrompt(memoriesAtTime(allMemories(), time), bureau.settings.memory);
     const arcNotes = notesAtTime(
       stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }),
-      present,
+      time,
     );
     const scanText = history
       .slice(-LORE_SCAN_MESSAGES)
@@ -347,7 +344,7 @@ export async function generateReply({
       member,
       persona,
       history,
-      present,
+      time,
       memories,
       arcNotes,
       loreEntries: await activatedLore(stores, bureau.id, scanText),
@@ -378,7 +375,8 @@ export async function generateReply({
   const saveAndFinish = (text, finish) => {
     let saved;
     try {
-      const sentAt = bureauPresent(bureau).toISOString();
+      // At the Bureau time the reply was written for; replies don't move the clock.
+      const sentAt = bureau.bureauTime;
       stores.bureaus.db.transaction(() => {
         saved = splitMessages(text, name).map((content) =>
           stores.threads.addMessage(thread.id, {
@@ -389,7 +387,6 @@ export async function generateReply({
             runId: recorder.runId,
           }),
         );
-        stores.bureaus.setBureauTime(bureau.id, sentAt);
       })();
     } catch (saveError) {
       recorder.fail(saveError);

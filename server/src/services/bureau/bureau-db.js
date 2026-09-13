@@ -234,7 +234,7 @@ const MIGRATIONS = [
       -- The reader's character or the cast member who sent it; null once they leave the cast.
       sender_cast_id TEXT REFERENCES cast_members(id) ON DELETE SET NULL,
       content TEXT NOT NULL,
-      -- Bureau time when it was sent, kept because the present offset can change later.
+      -- Bureau time when it was sent.
       bureau_time TEXT NOT NULL,
       run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
       edited INTEGER NOT NULL DEFAULT 0,
@@ -242,6 +242,15 @@ const MIGRATIONS = [
       modified TEXT NOT NULL
     );
     CREATE UNIQUE INDEX idx_messages_thread_position ON messages(thread_id, position);
+  `,
+
+  // 7: Bureau time became a manual clock. A Bureau whose present was moved by a day offset keeps
+  // the date it showed: its clock moves there, and the offset stops counting.
+  `
+    UPDATE bureaus
+    SET bureau_time = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', present_offset_days || ' days')
+    WHERE present_offset_days != 0;
+    UPDATE bureaus SET present_offset_days = 0;
   `,
 ];
 

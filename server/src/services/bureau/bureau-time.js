@@ -1,10 +1,11 @@
 /**
  * Bureau Time
  *
- * Each Bureau has one clock (see "Bureau time" in docs/bureau-design.md).
- * Stories ask what time they start and end; correspondence always moves the
- * clock to the present. Prompts never get exact timestamps, only the loose
- * descriptions built here, so models don't fixate on the clock.
+ * Each Bureau has one clock (see "Bureau time" in docs/bureau-design.md). Only the
+ * reader moves it: by letting time pass, by setting it, or when a story starts or
+ * ends. Messages happen at the current Bureau time. Prompts never get exact
+ * timestamps, only the loose descriptions built here, so models don't fixate on
+ * the clock.
  */
 
 export class BureauTimeError extends Error {
@@ -14,8 +15,17 @@ export class BureauTimeError extends Error {
   }
 }
 
-export const START_TIME_CHOICES = ['present', 'bureau', 'custom'];
-export const END_TIME_CHOICES = ['present', 'custom', 'unchanged'];
+export const START_TIME_CHOICES = ['bureau', 'custom'];
+export const END_TIME_CHOICES = ['unchanged', 'custom'];
+
+// The years a Bureau's clock can show: what date fields and ISO dates handle.
+export const MIN_YEAR = 1;
+export const MAX_YEAR = 9999;
+
+// How "Time passes" can move the clock: an hour, later that day, the next morning, a few days,
+// or a week.
+export const TIME_STEPS = ['hour', 'later', 'morning', 'days', 'week'];
+const MORNING_HOUR = 8;
 
 // Start hour of each part of the day, in order.
 const DAY_PARTS = [
@@ -128,8 +138,6 @@ export function describeBureauTime(value, timeZone) {
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
-// About two centuries either way.
-export const MAX_PRESENT_OFFSET_DAYS = 73_000;
 // Shorter gaps between messages aren't worth mentioning in a prompt.
 export const NOTABLE_GAP_HOURS = 3;
 
@@ -149,6 +157,14 @@ function timestampOf(value) {
   return value instanceof Date ? value.getTime() : Date.parse(value);
 }
 
+/** Milliseconds for a date and time on a UTC clock. Unlike Date.UTC, years 0-99 stay themselves. */
+function utcTime(year, month, day, hour = 0, minute = 0, second = 0, millisecond = 0) {
+  const date = new Date(0);
+  date.setUTCFullYear(year, month, day);
+  date.setUTCHours(hour, minute, second, millisecond);
+  return date.getTime();
+}
+
 /** A moment's date and time of day in a time zone, as milliseconds on a UTC clock. */
 function wallClock(date, timeZone) {
   const parts = Object.fromEntries(
@@ -165,7 +181,7 @@ function wallClock(date, timeZone) {
       .formatToParts(date)
       .map((part) => [part.type, Number(part.value)]),
   );
-  return Date.UTC(
+  return utcTime(
     parts.year,
     parts.month - 1,
     parts.day,
@@ -176,27 +192,85 @@ function wallClock(date, timeZone) {
   );
 }
 
-/**
- * A Bureau's present: the real time of day, on the date the Bureau's whole-day
- * offset away in its time zone. The offset counts calendar days, not 24-hour
- * blocks, so a daylight saving change between the two dates moves neither the
- * hour nor the date. The client's bureauPresent (composables/bureau/format.js)
- * does the same.
- * @param {{ presentOffsetDays?: number, timezone?: string|null }} bureau
- * @param {Date} [now]
- * @returns {Date}
- */
-export function bureauPresent(bureau, now = new Date()) {
-  const days = bureau.presentOffsetDays ?? 0;
-  if (!days) return new Date(now.getTime());
-  const timeZone = isValidTimeZone(bureau.timezone) ? bureau.timezone : undefined;
-  const target = wallClock(now, timeZone) + days * DAY_MS;
-  // Find the moment showing that wall clock; the second pass settles a daylight saving change.
-  let moment = target;
+/** The moment a time zone's clock shows a wall-clock time (as from wallClock). */
+function momentAt(wall, timeZone) {
+  // The second pass settles a daylight saving change.
+  let moment = wall;
   for (let pass = 0; pass < 2; pass += 1) {
-    moment += target - wallClock(new Date(moment), timeZone);
+    moment += wall - wallClock(new Date(moment), timeZone);
   }
-  return new Date(moment);
+  return moment;
+}
+
+/**
+ * A Bureau time from a request: a date and time in the years MIN_YEAR to MAX_YEAR.
+ * @param {unknown} value - An ISO date and time.
+ * @param {string} [field] - The field to name in the error.
+ * @returns {string} ISO timestamp.
+ * @throws {BureauTimeError}
+ */
+export function parseBureauTime(value, field = 'time') {
+  const date = typeof value === 'string' ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    throw new BureauTimeError(`${field} must be a valid date and time`);
+  }
+  const year = date.getUTCFullYear();
+  if (year < MIN_YEAR || year > MAX_YEAR) {
+    throw new BureauTimeError(`${field} must be in the years ${MIN_YEAR} to ${MAX_YEAR}`);
+  }
+  return date.toISOString();
+}
+
+/**
+ * Bureau time after "Time passes". Days and mornings count on the Bureau's clock, so a daylight
+ * saving change doesn't move the hour.
+ *
+ * @param {string} bureauTime - The Bureau's current time (ISO).
+ * @param {'hour'|'later'|'morning'|'days'|'week'} step - An hour later, four hours later, the
+ *   next morning at 8:00, three days later, or a week later.
+ * @param {string|null} [timeZone] - The Bureau's; the server's when unset or unknown.
+ * @returns {string} ISO timestamp.
+ * @throws {BureauTimeError} For an unknown step, or a time past MAX_YEAR.
+ */
+export function advanceBureauTime(bureauTime, step, timeZone) {
+  const from = timestampOf(bureauTime);
+  if (!Number.isFinite(from)) {
+    throw new BureauTimeError(`Not a valid time: ${bureauTime}`);
+  }
+  const zone = isValidTimeZone(timeZone) ? timeZone : undefined;
+  const wall = () => wallClock(new Date(from), zone);
+
+  let to;
+  switch (step) {
+    case 'hour':
+      to = from + HOUR_MS;
+      break;
+    case 'later':
+      to = from + 4 * HOUR_MS;
+      break;
+    case 'morning': {
+      const today = new Date(wall());
+      to = momentAt(
+        utcTime(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1, MORNING_HOUR),
+        zone,
+      );
+      break;
+    }
+    case 'days':
+      to = momentAt(wall() + 3 * DAY_MS, zone);
+      break;
+    case 'week':
+      to = momentAt(wall() + 7 * DAY_MS, zone);
+      break;
+    default:
+      throw new BureauTimeError(`step must be one of: ${TIME_STEPS.join(', ')}`);
+  }
+
+  const date = new Date(to);
+  if (Number.isNaN(date.getTime()) || date.getUTCFullYear() > MAX_YEAR) {
+    throw new BureauTimeError(`Bureau time can't go past the year ${MAX_YEAR}`);
+  }
+  return date.toISOString();
 }
 
 /**
@@ -214,11 +288,11 @@ export function describeGap(from, to) {
 
 /**
  * The year to give prompts as setting ("The year is 1996."), so the Writer
- * avoids anachronisms: when the Bureau's present is moved, or a moment falls in
- * a year other than the real one. Null otherwise.
- * @param {{ presentOffsetDays?: number, timezone?: string|null }} bureau
+ * avoids anachronisms: when a moment falls in a year other than the real one.
+ * Null otherwise.
+ * @param {{ timezone?: string|null }} bureau
  * @param {Date|string} value
- * @param {Date} [now]
+ * @param {Date} [now] - Real time.
  * @returns {number|null}
  */
 export function settingYear(bureau, value, now = new Date()) {
@@ -226,35 +300,24 @@ export function settingYear(bureau, value, now = new Date()) {
   if (!Number.isFinite(time)) return null;
   const timeZone = isValidTimeZone(bureau.timezone) ? bureau.timezone : undefined;
   const { year } = zonedParts(new Date(time), timeZone);
-  return bureau.presentOffsetDays || year !== zonedParts(now, timeZone).year ? year : null;
-}
-
-function parseCustomTime(customTime) {
-  const date = typeof customTime === 'string' ? new Date(customTime) : null;
-  if (!date || Number.isNaN(date.getTime())) {
-    throw new BureauTimeError('customTime must be a valid date and time');
-  }
-  return date.toISOString();
+  return year !== zonedParts(now, timeZone).year ? year : null;
 }
 
 /**
  * The start time for a new story, from the choice made in the start dialog.
  *
  * @param {Object} params
- * @param {'present'|'bureau'|'custom'} params.choice
+ * @param {'bureau'|'custom'} params.choice
  * @param {string} params.bureauTime - The Bureau's current time (ISO).
- * @param {Date} params.present - The Bureau's present.
  * @param {string} [params.customTime] - ISO time, for 'custom'.
  * @returns {string} ISO timestamp.
  */
-export function resolveStoryStartTime({ choice, bureauTime, present, customTime }) {
+export function resolveStoryStartTime({ choice, bureauTime, customTime }) {
   switch (choice) {
-    case 'present':
-      return present.toISOString();
     case 'bureau':
       return bureauTime;
     case 'custom':
-      return parseCustomTime(customTime);
+      return parseBureauTime(customTime, 'customTime');
     default:
       throw new BureauTimeError(`Start time must be one of: ${START_TIME_CHOICES.join(', ')}`);
   }
@@ -264,20 +327,17 @@ export function resolveStoryStartTime({ choice, bureauTime, present, customTime 
  * Bureau time after a story ends, from the choice made in the end dialog.
  *
  * @param {Object} params
- * @param {'present'|'custom'|'unchanged'} params.choice
+ * @param {'unchanged'|'custom'} params.choice
  * @param {string} params.bureauTime - The Bureau's current time (ISO).
- * @param {Date} params.present - The Bureau's present.
  * @param {string} [params.customTime] - ISO time, for 'custom'.
  * @returns {string} ISO timestamp.
  */
-export function resolveStoryEndTime({ choice, bureauTime, present, customTime }) {
+export function resolveStoryEndTime({ choice, bureauTime, customTime }) {
   switch (choice) {
-    case 'present':
-      return present.toISOString();
-    case 'custom':
-      return parseCustomTime(customTime);
     case 'unchanged':
       return bureauTime;
+    case 'custom':
+      return parseBureauTime(customTime, 'customTime');
     default:
       throw new BureauTimeError(`End time must be one of: ${END_TIME_CHOICES.join(', ')}`);
   }

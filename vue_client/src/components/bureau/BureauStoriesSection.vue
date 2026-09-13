@@ -13,10 +13,11 @@
     </div>
 
     <div class="section-content">
-      <p class="bureau-clock">
+      <div class="bureau-clock">
         <i class="fas fa-clock"></i> Bureau time:
         <strong>{{ formatDateTime(bureau.bureauTime, bureau.timezone) }}</strong>
-      </p>
+        <TimePassesControl :bureau="bureau" @updated="$emit('updated', $event)" />
+      </div>
 
       <div v-if="loading" class="loading">Loading chapters...</div>
       <p v-else-if="stories.length === 0" class="empty-hint">
@@ -56,13 +57,14 @@ import { bureauStoriesAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 import { formatDateTime } from '../../composables/bureau/format';
 import StartStoryModal from './StartStoryModal.vue';
+import TimePassesControl from './TimePassesControl.vue';
 
 const props = defineProps({
   bureau: { type: Object, required: true },
   cast: { type: Array, required: true },
 });
 
-const emit = defineEmits(['open']);
+const emit = defineEmits(['open', 'updated']);
 const toast = useToast();
 
 const stories = ref([]);
@@ -98,6 +100,7 @@ onMounted(loadStories);
 .bureau-clock {
   margin: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   color: var(--text-secondary);

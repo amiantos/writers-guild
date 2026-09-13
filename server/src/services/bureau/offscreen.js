@@ -140,7 +140,7 @@ export function findOffscreenGaps(stores, bureau, members, to, { ignoreStoryId =
 
 /**
  * @param {Object} params
- * @param {Object} params.bureau - Uses timezone and presentOffsetDays.
+ * @param {Object} params.bureau - Uses timezone.
  * @param {Array<{member: Object, from: string}>} params.gaps - Characters to account for, with
  *   seed cards and routines, and when each was last seen.
  * @param {Object|null} [params.persona] - The reader's character, left out of every account.

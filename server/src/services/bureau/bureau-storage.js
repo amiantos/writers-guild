@@ -56,7 +56,6 @@ function bureauFromRow(row) {
     hasApiKey: row.api_key.length > 0,
     apiKeyPreview: maskApiKey(row.api_key),
     bureauTime: row.bureau_time,
-    presentOffsetDays: row.present_offset_days,
     timezone: row.timezone,
     houseStyle: row.house_style,
     settings: resolveSettings(parseJson(row.settings, {})),
@@ -140,7 +139,7 @@ export class BureauStorage {
       updateBureau: this.db.prepare(`
         UPDATE bureaus SET name = @name, description = @description, api_key = @apiKey,
                            model = @model, house_style = @houseStyle, timezone = @timezone,
-                           present_offset_days = @presentOffsetDays, modified = @modified
+                           bureau_time = @bureauTime, modified = @modified
         WHERE id = @id
       `),
       updateSettings: this.db.prepare('UPDATE bureaus SET settings = ?, modified = ? WHERE id = ?'),
@@ -268,7 +267,7 @@ export class BureauStorage {
   /**
    * @param {string} bureauId
    * @param {Object} updates - Any of name, description, apiKey, model, houseStyle, timezone, and
-   *   presentOffsetDays (the Bureau's present, in whole days from the real date).
+   *   bureauTime (an ISO time, checked by bureau-time.js).
    *   Undefined fields are left alone. An apiKey of '' removes the key, and a
    *   timezone of null clears it.
    * @returns {Object|null} The updated Bureau, or null if it doesn't exist.
@@ -285,7 +284,7 @@ export class BureauStorage {
       model: updates.model ?? row.model,
       houseStyle: updates.houseStyle ?? row.house_style,
       timezone: updates.timezone !== undefined ? updates.timezone : row.timezone,
-      presentOffsetDays: updates.presentOffsetDays ?? row.present_offset_days,
+      bureauTime: updates.bureauTime ?? row.bureau_time,
       modified: new Date().toISOString(),
     });
     return this.getBureau(bureauId);

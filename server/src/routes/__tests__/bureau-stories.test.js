@@ -139,8 +139,8 @@ describe('Bureau story routes', () => {
   }
 
   describe('starting and ending', () => {
-    it('starts a story with the whole cast at the present, and moves the Bureau clock', async () => {
-      const before = Date.now();
+    it('starts a story with the whole cast at Bureau time by default', async () => {
+      stores.bureaus.setBureauTime(bureau.id, '1350-06-01T20:00:00.000Z');
 
       const { body } = await request(app)
         .post(storiesUrl())
@@ -152,9 +152,9 @@ describe('Bureau story routes', () => {
         status: 'active',
         castIds: [mara.id, theo.id],
       });
-      expect(Date.parse(body.story.startTime)).toBeGreaterThanOrEqual(before - 1000);
+      expect(body.story.startTime).toBe('1350-06-01T20:00:00.000Z');
       expect(body.bureau).toMatchObject({
-        bureauTime: body.story.startTime,
+        bureauTime: '1350-06-01T20:00:00.000Z',
         timezone: 'America/Chicago',
       });
     });
@@ -276,21 +276,27 @@ describe('Bureau story routes', () => {
       expect(stores.threads.getThreadForCast(bureau.id, ines.id).archivedThrough).toBe(0);
     });
 
-    it("starts at the Bureau's present when its date is moved", async () => {
-      stores.bureaus.updateBureau(bureau.id, { presentOffsetDays: -365 });
-      const before = Date.now();
+    it('starts in another century and moves the clock there, but not past the year 9999', async () => {
+      const story = await startStory({
+        start: { choice: 'custom', customTime: '1350-06-01T20:00:00Z' },
+      });
 
-      const story = await startStory({ start: { choice: 'present' } });
-
-      const started = Date.parse(story.startTime);
-      expect(started).toBeGreaterThanOrEqual(before - 365 * 86_400_000 - 1000);
-      expect(started).toBeLessThan(before - 364 * 86_400_000);
+      expect(story.startTime).toBe('1350-06-01T20:00:00.000Z');
+      expect(stores.bureaus.getBureau(bureau.id).bureauTime).toBe('1350-06-01T20:00:00.000Z');
+      await request(app)
+        .post(storiesUrl())
+        .send({ start: { choice: 'custom', customTime: '+010000-01-01T00:00:00Z' } })
+        .expect(400);
     });
 
     it('rejects an unknown time choice or cast member', async () => {
       await request(app)
         .post(storiesUrl())
         .send({ start: { choice: 'someday' } })
+        .expect(400);
+      await request(app)
+        .post(storiesUrl())
+        .send({ start: { choice: 'present' } })
         .expect(400);
       await request(app)
         .post(storiesUrl())

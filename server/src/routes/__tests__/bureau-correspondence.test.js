@@ -116,8 +116,8 @@ describe('Bureau correspondence routes', () => {
     ]);
   });
 
-  it('sends a message at the present and streams the reply', async () => {
-    const before = Date.now();
+  it('sends a message at Bureau time and streams the reply, without moving the clock', async () => {
+    stores.bureaus.setBureauTime(bureau.id, '1996-06-03T21:00:00.000Z');
 
     const response = await request(app)
       .post(`${threadsUrl()}/${mara.id}/messages`)
@@ -140,9 +140,13 @@ describe('Bureau correspondence routes', () => {
       senderCastId: theo.id,
       position: 0,
     });
-    expect(Date.parse(done.message.bureauTime)).toBeGreaterThanOrEqual(before - 1000);
+    expect(done.message.bureauTime).toBe('1996-06-03T21:00:00.000Z');
     expect(done.replies.map((reply) => reply.content)).toEqual(['Always.', 'Storm?']);
-    expect(done.bureau.bureauTime).toBe(done.replies[0].bureauTime);
+    expect(done.replies.map((reply) => reply.bureauTime)).toEqual([
+      '1996-06-03T21:00:00.000Z',
+      '1996-06-03T21:00:00.000Z',
+    ]);
+    expect(done.bureau.bureauTime).toBe('1996-06-03T21:00:00.000Z');
 
     const { body } = await request(app).get(`${threadsUrl()}/${mara.id}`).expect(200);
     expect(body.castMember).toMatchObject({ id: mara.id, name: 'Mara' });
@@ -154,8 +158,8 @@ describe('Bureau correspondence routes', () => {
     ]);
   });
 
-  it("saves a message without a reply at the Bureau's present", async () => {
-    stores.bureaus.updateBureau(bureau.id, { presentOffsetDays: -365 });
+  it('saves a message without a reply at Bureau time', async () => {
+    stores.bureaus.setBureauTime(bureau.id, '1350-06-01T20:00:00.000Z');
 
     const { body } = await request(app)
       .post(`${threadsUrl()}/${mara.id}/messages`)
@@ -163,8 +167,8 @@ describe('Bureau correspondence routes', () => {
       .expect(201);
 
     expect(client.calls).toHaveLength(0);
-    expect(Date.parse(body.message.bureauTime)).toBeLessThan(Date.now() - 364 * 86_400_000);
-    expect(body.bureau.bureauTime).toBe(body.message.bureauTime);
+    expect(body.message.bureauTime).toBe('1350-06-01T20:00:00.000Z');
+    expect(body.bureau.bureauTime).toBe('1350-06-01T20:00:00.000Z');
   });
 
   it('answers with JSON when not streaming, and writes without a new message', async () => {
