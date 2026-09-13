@@ -252,6 +252,11 @@ const MIGRATIONS = [
     WHERE present_offset_days != 0;
     UPDATE bureaus SET present_offset_days = 0;
   `,
+
+  // 8: Time can pass inside a chapter. A time_passes turn keeps the time it passed to.
+  `
+    ALTER TABLE turns ADD COLUMN bureau_time TEXT;
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

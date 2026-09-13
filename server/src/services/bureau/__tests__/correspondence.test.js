@@ -95,7 +95,7 @@ describe('buildCorrespondenceMessages', () => {
   };
   const now = new Date('2026-10-27T22:30:00Z');
 
-  it('gives the character, the reader, memories, and the conversation with loose times', () => {
+  it('gives the character, the reader, memories, and the conversation with exact times', () => {
     const [system, user] = buildCorrespondenceMessages({
       bureau,
       member: mara,
@@ -122,14 +122,14 @@ describe('buildCorrespondenceMessages', () => {
     expect(system.content).not.toContain('The year is');
     expect(user.content).toContain(
       [
-        '(a Saturday, late evening, late October)',
+        '(9:00 PM on Saturday, October 24, 2026)',
         'Theo: You up?',
         'Mara: Always.',
-        '(a few days later: a Tuesday, late evening, late October)',
+        '(a few days later: 10:00 PM on Tuesday, October 27, 2026)',
         'Theo: Storm coming.',
       ].join('\n'),
     );
-    expect(user.content).toContain("It's a Tuesday, late evening, late October.");
+    expect(user.content).toContain("It's exactly 10:30 PM on Tuesday, October 27, 2026.");
     expect(user.content).toContain("Write Mara's reply to Theo.");
     expect(user.content).not.toContain('since the last message');
   });

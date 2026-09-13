@@ -442,6 +442,59 @@ describe('Bureau story routes', () => {
       expect(detail.turns.map((turn) => turn.kind)).toEqual(['scene_break']);
       await request(app).put(`${turnsUrl}/missing`).send({ content: 'x' }).expect(404);
     });
+
+    it('lets time pass in a chapter, moving the Bureau clock with it', async () => {
+      stores.bureaus.updateBureau(bureau.id, { timezone: 'UTC' });
+      const story = await startStory({
+        start: { choice: 'custom', customTime: '2026-10-27T22:15:00Z' },
+      });
+      const turnsUrl = `${storiesUrl()}/${story.id}/turns`;
+      const clock = () => stores.bureaus.getBureau(bureau.id).bureauTime;
+
+      const { body: morning } = await request(app)
+        .post(turnsUrl)
+        .send({ kind: 'time_passes', step: 'morning' })
+        .expect(201);
+      expect(morning.turn).toMatchObject({
+        kind: 'time_passes',
+        source: 'user',
+        content: '',
+        bureauTime: '2026-10-28T08:00:00.000Z',
+      });
+      expect(morning.bureau.bureauTime).toBe('2026-10-28T08:00:00.000Z');
+
+      // Time passes from the chapter's time, even when Bureau time was set elsewhere since.
+      stores.bureaus.setBureauTime(bureau.id, '2026-12-01T00:00:00.000Z');
+      const { body: picked } = await request(app)
+        .post(turnsUrl)
+        .send({ kind: 'time_passes', to: '2026-10-28T09:30:00Z' })
+        .expect(201);
+      expect(picked.turn.bureauTime).toBe('2026-10-28T09:30:00.000Z');
+      expect(clock()).toBe('2026-10-28T09:30:00.000Z');
+
+      const { body: notLater } = await request(app)
+        .post(turnsUrl)
+        .send({ kind: 'time_passes', to: '2026-10-28T09:30:00Z' })
+        .expect(400);
+      expect(notLater.error).toMatch(/later than the chapter's time/);
+      await request(app)
+        .post(turnsUrl)
+        .send({ kind: 'time_passes', step: 'fortnight' })
+        .expect(400);
+      await request(app).post(turnsUrl).send({ kind: 'time_passes' }).expect(400);
+
+      const { body: edit } = await request(app)
+        .put(`${turnsUrl}/${picked.turn.id}`)
+        .send({ content: 'Later.' })
+        .expect(400);
+      expect(edit.error).toMatch(/can't be edited/);
+
+      // Deleting it leaves the clock where it is.
+      await request(app).delete(`${turnsUrl}/${picked.turn.id}`).expect(200);
+      expect(clock()).toBe('2026-10-28T09:30:00.000Z');
+      const { body: detail } = await request(app).get(`${storiesUrl()}/${story.id}`).expect(200);
+      expect(detail.turns.map((turn) => turn.bureauTime)).toEqual(['2026-10-28T08:00:00.000Z']);
+    });
   });
 
   describe('generation', () => {

@@ -16,7 +16,7 @@
  * one session at a time, and each session gets an episode of its own.
  */
 
-import { describeBureauTime } from './bureau-time.js';
+import { describeBureauTime, describeTimePassing } from './bureau-time.js';
 import {
   isBeforeStory,
   memoriesAsOf,
@@ -272,7 +272,7 @@ function section(title, body) {
 /**
  * @param {Object} params
  * @param {Object} params.source - What the pass reads (see storySource and threadSource): uses
- *   kind, title, openingTime, and summary.
+ *   kind, title, openingTime, summary, and timeZone.
  * @param {Array<Object>} params.characters - Cast members who remember.
  * @param {Object|null} params.persona - The reader's character, if present.
  * @param {Map<string, Array<Object>>} params.knownByCast - Knowledge each character has now.
@@ -367,12 +367,14 @@ export function buildArchivistMessages({
   });
 
   const passages = turns
-    .filter((turn) => turn.kind === 'prose' || turn.kind === 'scene_break')
-    .map((turn) =>
-      turn.kind === 'scene_break'
-        ? '---'
-        : `[${wording.unit} ${turn.position}]\n${turn.speaker ? `${turn.speaker}: ` : ''}${turn.content}`,
-    );
+    .filter((turn) => ['prose', 'scene_break', 'time_passes'].includes(turn.kind))
+    .map((turn) => {
+      if (turn.kind === 'scene_break') return '---';
+      if (turn.kind === 'time_passes') {
+        return `---\n\n${describeTimePassing(turn.bureauTime, source.timeZone)}`;
+      }
+      return `[${wording.unit} ${turn.position}]\n${turn.speaker ? `${turn.speaker}: ` : ''}${turn.content}`;
+    });
 
   let user;
   if (source.kind === 'story') {
@@ -423,6 +425,7 @@ function storySource(stores, bureau, storyId) {
     title: story.title,
     openingTime: describeBureauTime(story.startTime, bureau.timezone),
     summary: story.summary,
+    timeZone: bureau.timezone,
     worldTime: story.startTime,
     // The reader's character remembers too.
     characters: cast,

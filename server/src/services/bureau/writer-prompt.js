@@ -11,6 +11,7 @@
 
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
+import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
 
 export const DEFAULT_HOUSE_STYLE = [
   'Write in a narrative, novel-style format with proper paragraphs and dialogue.',
@@ -28,6 +29,12 @@ export const DEFAULT_HOUSE_STYLE = [
 export const STORY_CHARACTER_BUDGET = 300_000;
 
 const SCENE_BREAK = '---';
+
+// Turns that are part of the chapter's text. Directions are instructions, so they go in NEXT.
+const CHAPTER_TEXT_KINDS = ['prose', 'scene_break', 'time_passes'];
+
+const KEEP_TO_THE_TIME =
+  'Let the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this';
 
 const BRIEF_LENGTHS = {
   short: 'Write 1 to 3 paragraphs.',
@@ -94,14 +101,32 @@ function fitToBudget(parts, budget) {
   return { kept: parts.slice(start), truncated: start > 0 };
 }
 
-function instructionFor({
-  request,
-  readerName,
-  openingTime,
-  hasProse,
-  hasGeneratedProse,
-  hasReaderProse,
-}) {
+/**
+ * Where the chapter stands in time: exactly when it began, or when time last passed in it (see
+ * chapterTime). Nothing when the start time isn't known.
+ */
+function timeInstructions({ startTime, turns, timeZone, hasProse }) {
+  if (!startTime) return [];
+  const { time, passed, justPassed } = chapterTime({ startTime }, turns);
+  const exactly = describeBureauTime(time, timeZone);
+  if (!hasProse) {
+    return [`This chapter begins at exactly ${exactly}.`, `${KEEP_TO_THE_TIME}.`];
+  }
+  if (justPassed) {
+    return [
+      `Time has just passed: it's now exactly ${exactly}. Pick the story up at this time.`,
+      `${KEEP_TO_THE_TIME}.`,
+    ];
+  }
+  return [
+    passed
+      ? `When time last passed in the chapter, it was exactly ${exactly}.`
+      : `When the chapter began, the time was exactly ${exactly}.`,
+    `${KEEP_TO_THE_TIME} and with how much has happened since.`,
+  ];
+}
+
+function instructionFor({ request, readerName, timeLines, hasProse, hasReaderProse }) {
   const lines = [];
 
   // Who wrote the latest passage doesn't matter: every passage continues the story, as in story mode.
@@ -134,11 +159,7 @@ function instructionFor({
         : 'Carry it out in the passage itself: write what it describes as happening.',
     );
   }
-  if (openingTime && !hasGeneratedProse) {
-    lines.push(
-      `This chapter begins on ${openingTime}. Let the time shape the scene without stating an exact hour.`,
-    );
-  }
+  lines.push(...timeLines);
 
   const { brief } = request;
   if (brief) {
@@ -181,7 +202,7 @@ function instructionFor({
  * Build the Writer's messages for the next generated turn.
  *
  * @param {Object} params
- * @param {Object} params.bureau - Uses houseStyle.
+ * @param {Object} params.bureau - Uses houseStyle and timezone.
  * @param {Array<Object>} params.cast - Cast members, each with seedCard and isPersona.
  * @param {Array<{content: string}>} [params.loreEntries] - Lorebook entries already activated.
  * @param {Map<string, {knowledge: Array<Object>, episodes: Array<Object>}>} [params.memoriesByCast] -
@@ -189,14 +210,14 @@ function instructionFor({
  * @param {Map<string, Array<{content: string}>>} [params.arcNotesByCast] - Accepted arc notes
  *   from before this story, by cast member id: how each character has changed.
  * @param {Array<Object>} params.turns - The story's turns in order, including any turn just
- *   added from the composer. Uses kind, source, and content.
+ *   added from the composer. Uses kind, source, content, and bureauTime.
  * @param {Object} params.request
  * @param {'write'|'direct'|'continue'} params.request.action
  * @param {string} [params.request.direction] - The direction text, for 'direct'.
  * @param {Object|null} [params.request.brief] - The Director's scene brief (see director.js).
- * @param {string|null} [params.openingTime] - Loose start-time description; used until the
- *   story has generated prose.
- * @param {number|null} [params.settingYear] - The year to name as setting, for a story set in
+ * @param {string|null} [params.startTime] - When the chapter began (ISO), so the Writer knows
+ *   the exact time.
+ * @param {string|null} [params.settingYear] - The year to name as setting, for a story set in
  *   another year (see settingYear in bureau-time.js).
  * @param {import('../image-preserver.js').ImagePreserver|null} [params.imagePreserver] - Swaps
  *   image markup for placeholders the model can reproduce.
@@ -212,7 +233,7 @@ export function buildWriterMessages({
   arcNotesByCast = new Map(),
   turns,
   request,
-  openingTime = null,
+  startTime = null,
   settingYear = null,
   imagePreserver = null,
   storyCharacterBudget = STORY_CHARACTER_BUDGET,
@@ -284,10 +305,14 @@ export function buildWriterMessages({
     system.push(section('WORLD', lore.join('\n\n')));
   }
 
-  const storyTurns = turns.filter((turn) => turn.kind === 'prose' || turn.kind === 'scene_break');
-  const parts = storyTurns.map((turn) =>
-    turn.kind === 'scene_break' ? SCENE_BREAK : turn.content,
-  );
+  const storyTurns = turns.filter((turn) => CHAPTER_TEXT_KINDS.includes(turn.kind));
+  const parts = storyTurns.map((turn) => {
+    if (turn.kind === 'scene_break') return SCENE_BREAK;
+    if (turn.kind === 'time_passes') {
+      return `${SCENE_BREAK}\n\n${describeTimePassing(turn.bureauTime, bureau.timezone)}`;
+    }
+    return turn.content;
+  });
   const { kept, truncated } = fitToBudget(parts, storyCharacterBudget);
   let storyText = kept.join('\n\n');
   if (truncated) {
@@ -298,11 +323,8 @@ export function buildWriterMessages({
   const instruction = instructionFor({
     request,
     readerName: personaInfo?.name ?? null,
-    openingTime,
+    timeLines: timeInstructions({ startTime, turns, timeZone: bureau.timezone, hasProse }),
     hasProse,
-    hasGeneratedProse: storyTurns.some(
-      (turn) => turn.kind === 'prose' && turn.source === 'generated',
-    ),
     hasReaderProse: storyTurns.some((turn) => turn.kind === 'prose' && turn.source === 'user'),
   });
 

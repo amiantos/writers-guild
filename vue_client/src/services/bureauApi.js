@@ -267,6 +267,11 @@ export const bureauStoriesAPI = {
     return request(`/${bureauId}/stories/${storyId}`, { method: 'DELETE' });
   },
 
+  /**
+   * Add a turn without generating: prose, a direction, a scene break, or time passing in the
+   * chapter ({ kind: 'time_passes', step } or a later { kind: 'time_passes', to }). Time passing
+   * moves Bureau time too, so it answers with the Bureau as well as the turn.
+   */
   addTurn(bureauId, storyId, turn) {
     return request(`/${bureauId}/stories/${storyId}/turns`, { method: 'POST', body: turn });
   },

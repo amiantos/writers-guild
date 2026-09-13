@@ -173,6 +173,7 @@ const label = computed(() => {
   if (props.turn.source === 'generated') return 'How this was written';
   if (props.turn.kind === 'direction') return 'Your direction';
   if (props.turn.kind === 'scene_break') return 'Scene break';
+  if (props.turn.kind === 'time_passes') return 'Time passes';
   return authorName.value ? `Written by ${authorName.value}` : 'Written by you';
 });
 

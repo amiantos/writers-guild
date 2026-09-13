@@ -170,6 +170,9 @@ actions:
 - **Continue:** generate with no new input.
 - **Scene break** adds a divider without generating, and **Stop** ends a generation early while
   keeping whatever was already written.
+- **Time passes** moves the chapter's time forward without generating, with the same choices as
+  Time passes elsewhere, and adds a divider showing the new time (see
+  [Bureau time](#bureau-time)).
 
 On Write and Continue, the reader's character's words and choices stay the reader's; only a
 direction can have them speak or act. Otherwise, a passage ends once someone asks the reader's
@@ -260,8 +263,8 @@ context caching:
 4. Always-on memories (memories the brief names travel with the brief, in step 6)
 5. Short summaries of earlier chapters in the Bureau, then this chapter's prose so far (oldest turns
    truncated first)
-6. The scene brief and composer input, plus, for a chapter's opening turn only, a loose description
-   of its start time (see [Time in prompts](#time-in-prompts))
+6. The scene brief and composer input, plus the chapter's exact time: when it began, or when time
+   last passed in it (see [Time in prompts](#time-in-prompts))
 
 Output streams into the active turn. Images pass through `ImagePreserver` exactly as in story mode.
 
@@ -448,8 +451,8 @@ members. It's saved as knowledge with no chapter and no time, so every chapter c
 - A reply is one streamed call with the character's profile and arc notes, their memories as they
   stand at Bureau time (a chapter that started earlier counts even if it hasn't ended), lore
   activated by recent messages, and the conversation as a labeled transcript, since this is a chat.
-  The transcript marks a loose time at its start and after each long gap. The prompt ends with the
-  loose Bureau time, and how long it's been since the last message when that matters. Messages in a
+  The transcript marks the exact time at its start and after each long gap. The prompt ends with the
+  exact Bureau time, and how long it's been since the last message when that matters. Messages in a
   reply are separated by a line holding only `---`, and a reply saves as up to six messages.
 - The thread view groups messages into sessions (no gap over three hours), shows how each reply was
   written in a seam, and lets you edit or delete any message; changing one marks memories that cite
@@ -467,14 +470,15 @@ members. It's saved as knowledge with no chapter and no time, so every chapter c
 Each Bureau has a single clock, **Bureau time**: the current date and time in the Bureau. It's a
 story clock. It never follows your real clock, and only you move it:
 
-| What moves it    | What happens to Bureau time                                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Time passes      | It moves forward: an hour later, later that day, the next morning, a few days later, a week later, or to a time you pick. |
-| Settings         | It's set to any date and time, earlier or later.                                                                          |
-| A chapter starts | You choose: the current Bureau time or a time you pick. The chapter keeps it as its start time.                           |
-| A chapter ends   | You choose: leave it as it is, or a time you pick to reflect how long the chapter lasted.                                 |
+| What moves it            | What happens to Bureau time                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Time passes              | It moves forward: an hour later, later that day, the next morning, a few days later, a week later, or to a time you pick. |
+| Settings                 | It's set to any date and time, earlier or later.                                                                          |
+| A chapter starts         | You choose: the current Bureau time or a time you pick. The chapter keeps it as its start time.                           |
+| A chapter ends           | You choose: leave it as it is, or a time you pick to reflect how long the chapter lasted.                                 |
+| Time passes in a chapter | It moves on from the chapter's time in the same ways, and the chapter marks where.                                        |
 
-Messages, replies, and turns never move Bureau time. Both chapter dialogs default to whatever you
+Messages, replies, and passages never move Bureau time. Both chapter dialogs default to whatever you
 chose last time.
 
 ### Setting the date
@@ -484,6 +488,12 @@ chose last time.
   clock in its time zone (the server's until one is saved), so a daylight saving change doesn't
   move the hour. A picked time must be later than Bureau time. Like a reply, Time passes commits
   the exchanges of messages it leaves finished to memory, in the background.
+- **Time passes in a chapter** sits in the composer, next to Scene break. It moves on from the
+  chapter's time (when time last passed in it, or its start) and must end up later. It adds a
+  `time_passes` turn, shown as a divider with the new time, and Bureau time follows the chapter
+  there, as when a chapter starts. It writes no offscreen accounts, since the chapter covers that
+  time. The divider can't be edited, and deleting it leaves Bureau time where it is. Memories from
+  the chapter are still dated to its start.
 - The Bureau's settings edit Bureau time directly, earlier or later. Going back happens there.
 - The date and time fields (in settings, Time passes, and the chapter dialogs) show and read times
   on the Bureau's clock, in its time zone (this browser's until one is saved), matching the times
@@ -498,14 +508,25 @@ chose last time.
 
 ### Time in prompts
 
-Exact timestamps aren't sent with every generation, because models tend to fixate on them. Instead:
+Prompts give the exact time, such as "12:10 AM on Monday, September 13, 2027". Prompts used to give
+only a loose time ("a Tuesday, a little past midnight, late October") so models wouldn't fixate on
+the clock, but that didn't keep the clock out of the prose: told only that it was a little past
+midnight, a character would name a precise time that disagreed with Bureau time. Now that only the
+reader moves the clock, the time is deliberate, so the prompts say it exactly:
 
-- A chapter's **opening turn** gets a loose description of its start time, such as "a Tuesday, a
-  little past midnight, late October." After that, the chapter's own prose carries the time.
-- **Correspondence** gets a loose time of day with every message, plus the gap since the last message
-  when it's long enough to matter.
-- Loose descriptions come from a small, unit-tested function in `bureau-time.js`, not from the model,
-  so they stay consistent.
+- The Writer and Director get the chapter's time with every passage: "This chapter begins at
+  exactly ..." for the opening, then "When the chapter began, the time was exactly ...", or, once
+  time has passed in the chapter, when it last passed. Right after time passes, they pick the story
+  up at the new time.
+- The Writer lets the time shape the scene without dwelling on the clock, and keeps any mention of
+  the time consistent with it and with how much has happened since.
+- In the chapter text the Writer, Director, and Archivist read, time passing is a scene break
+  followed by "[Time passes. It's now exactly ...]".
+- **Correspondence** gets the exact time at the start of the transcript, after each long gap, and
+  at the end. The gaps themselves stay loose ("about a day since the last message"), as do
+  offscreen accounts' spans.
+- Descriptions come from small, unit-tested functions in `bureau-time.js`, not from the model, so
+  they stay consistent.
 
 ### Time and memory
 
@@ -542,8 +563,9 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
   and their last time away. It leaves out the reader's character, whose doings belong to the reader.
 - Moving time forward when a chapter **ends** doesn't generate offscreen life. That span counts as
   time the chapter covered.
-- Time passes doesn't write accounts by itself. They're written when they're needed: before the next
-  reply or chapter start.
+- Time passes doesn't write accounts by itself, and time passing in a chapter never does, since the
+  chapter covers that time. Accounts are written when they're needed: before the next reply or
+  chapter start.
 - Nothing runs in the background: a month away produces one summary, not thirty days of invented
   drama. Prompts ask for mostly mundane events and cap the notable ones.
 - The Writer and reply prompts include the latest account ("Mara lately: ..."), until an episode
@@ -655,7 +677,7 @@ server/src/services/bureau/
   archivist.js
   memory-storage.js                      # memory queries and FTS
   memory.js                              # what a story can see, prompt budgets
-  bureau-time.js                         # Bureau time changes, loose time descriptions
+  bureau-time.js                         # Bureau time changes, exact time descriptions
   thread-storage.js                      # correspondence threads and messages
   correspondence.js                      # replies
   offscreen.js                           # what characters did while time jumped forward
@@ -703,7 +725,7 @@ Each phase ends with something usable.
 2. **Turn-based chapters**
    - Chapter view with turns, rendering, composer, and per-turn edit, regenerate, and variants
    - Turn seams showing each run, including live status during generation
-   - Starting and ending chapters with the Bureau time dialogs; loose start time in the opening turn
+   - Starting and ending chapters with the Bureau time dialogs; the start time in the Writer's prompt
    - Writer-only generation (no Director yet), with house style and lorebooks
    - _Done when:_ writing a Bureau chapter is comfortable, images included, and every generated
      turn's seam shows how it was made.
@@ -726,17 +748,17 @@ Each phase ends with something usable.
 
 ## Risks
 
-| Risk                                    | Mitigation                                                                                     |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Characters flatten over time            | Fixed seed card; additive, reviewed arc notes; drift check later                               |
-| False or distorted memories             | Sources on every memory; editable; `recall` can check raw text; edited sources flag memories   |
-| Prompt bloat dilutes attention          | Per-layer budgets, eras, long tail through `recall`                                            |
-| Multi-step turns are slow or costly     | Fast path that skips the Director; Editor only on flagged paragraphs; stable prompt prefix     |
-| Lint false positives cause bad edits    | Pure, unit-tested checks; every fix visible in its seam with one-click revert                  |
-| Characters fixate on the time           | No exact timestamps in prompts; loose descriptions only in chapter openings and correspondence |
-| Offscreen life escalates into melodrama | Generated only when Bureau time jumps forward, capped, mostly mundane by instruction           |
-| DeepSeek API details change             | All model access goes through one client; run records and seams surface failures               |
-| Scope creep                             | Phases that each end usable; experimental label; separate database                             |
+| Risk                                    | Mitigation                                                                                    |
+| --------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Characters flatten over time            | Fixed seed card; additive, reviewed arc notes; drift check later                              |
+| False or distorted memories             | Sources on every memory; editable; `recall` can check raw text; edited sources flag memories  |
+| Prompt bloat dilutes attention          | Per-layer budgets, eras, long tail through `recall`                                           |
+| Multi-step turns are slow or costly     | Fast path that skips the Director; Editor only on flagged paragraphs; stable prompt prefix    |
+| Lint false positives cause bad edits    | Pure, unit-tested checks; every fix visible in its seam with one-click revert                 |
+| Characters get the time wrong           | The exact time in prompts, with mentions kept consistent with it and no dwelling on the clock |
+| Offscreen life escalates into melodrama | Generated only when Bureau time jumps forward, capped, mostly mundane by instruction          |
+| DeepSeek API details change             | All model access goes through one client; run records and seams surface failures              |
+| Scope creep                             | Phases that each end usable; experimental label; separate database                            |
 
 ## Open questions
 

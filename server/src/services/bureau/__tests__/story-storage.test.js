@@ -283,5 +283,33 @@ describe('StoryStorage', () => {
         /Unknown turn source/,
       );
     });
+
+    it('keeps the time a time_passes turn passes to, and only there', () => {
+      const passing = stories.addTurn(story.id, {
+        kind: 'time_passes',
+        source: 'user',
+        bureauTime: '2026-10-28T08:00:00.000Z',
+      });
+
+      expect(stories.getTurn(story.id, passing.id)).toMatchObject({
+        kind: 'time_passes',
+        content: '',
+        bureauTime: '2026-10-28T08:00:00.000Z',
+      });
+      expect(
+        stories.addTurn(story.id, { kind: 'scene_break', source: 'user' }).bureauTime,
+      ).toBeNull();
+      expect(() => stories.addTurn(story.id, { kind: 'time_passes', source: 'user' })).toThrow(
+        /bureauTime/,
+      );
+      expect(() =>
+        stories.addTurn(story.id, {
+          kind: 'prose',
+          source: 'user',
+          content: 'Hi.',
+          bureauTime: '2026-10-28T08:00:00.000Z',
+        }),
+      ).toThrow(/bureauTime/);
+    });
   });
 });

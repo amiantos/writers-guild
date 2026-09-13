@@ -44,8 +44,8 @@
           aria-label="Start time"
         />
         <p class="help-text">
-          The Writer sets the opening scene loosely at this time, and the Bureau's clock moves to
-          it. An earlier time works as a flashback, and any year from 1 to 9999 works.
+          The chapter opens at exactly this time, and the Bureau's clock moves to it. An earlier
+          time works as a flashback, and any year from 1 to 9999 works.
         </p>
       </div>
     </div>

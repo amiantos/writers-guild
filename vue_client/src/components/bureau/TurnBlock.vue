@@ -4,6 +4,14 @@
       <span aria-hidden="true">⁂</span>
     </div>
 
+    <div v-else-if="turn.kind === 'time_passes'" class="time-passes-divider" role="separator">
+      <span class="divider-line" aria-hidden="true"></span>
+      <span class="divider-label">
+        <i class="fas fa-hourglass-half"></i> {{ formatDateTime(turn.bureauTime, timeZone) }}
+      </span>
+      <span class="divider-line" aria-hidden="true"></span>
+    </div>
+
     <div v-else-if="editing" class="turn-editor">
       <textarea
         ref="editorRef"
@@ -51,7 +59,7 @@
         </button>
       </div>
       <button
-        v-if="turn.kind !== 'scene_break'"
+        v-if="turn.kind === 'prose' || turn.kind === 'direction'"
         class="icon-btn"
         title="Edit"
         :disabled="busy"
@@ -78,9 +86,12 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue';
 import { renderProse } from '../../composables/bureau/renderProse';
+import { formatDateTime } from '../../composables/bureau/format';
 
 const props = defineProps({
   turn: { type: Object, required: true },
+  /** The Bureau's time zone, for the time a time_passes turn moved the chapter to. */
+  timeZone: { type: String, default: null },
   /** Text to show instead of the turn's own, while a new version streams in. */
   overrideContent: { type: String, default: null },
   busy: { type: Boolean, default: false },
@@ -169,6 +180,24 @@ function stepVariant(delta) {
   margin: 0.5rem 0 1.5rem;
   color: var(--text-secondary);
   letter-spacing: 0.5em;
+}
+
+.time-passes-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.time-passes-divider .divider-line {
+  flex: 1;
+  border-top: 1px solid var(--border-color);
+}
+
+.time-passes-divider .divider-label {
+  white-space: nowrap;
 }
 
 .turn-actions {

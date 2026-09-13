@@ -62,6 +62,16 @@ describe('StoryComposer', () => {
     expect(wrapper.emitted('stop')).toHaveLength(1);
   });
 
+  it('lets time pass in the chapter, but not while generating', async () => {
+    const wrapper = mount(StoryComposer);
+    await buttonNamed(wrapper, 'Time passes').trigger('click');
+    expect(wrapper.emitted('time-passes')).toHaveLength(1);
+
+    const generating = mount(StoryComposer, { props: { generating: true } });
+    expect(buttonNamed(generating, 'Time passes').attributes('disabled')).toBeDefined();
+    expect(buttonNamed(generating, 'Scene break').attributes('disabled')).toBeDefined();
+  });
+
   it('warns and disables generation without an API key', () => {
     const wrapper = mount(StoryComposer, { props: { hasApiKey: false } });
 

@@ -3,9 +3,9 @@
  *
  * Each Bureau has one clock (see "Bureau time" in docs/bureau-design.md). Only the
  * reader moves it: by letting time pass, by setting it, or when a story starts or
- * ends. Messages happen at the current Bureau time. Prompts never get exact
- * timestamps, only the loose descriptions built here, so models don't fixate on
- * the clock.
+ * ends. Messages happen at the current Bureau time. Prompts get the exact time,
+ * described here: the reader set it on purpose, and a loose time of day only leads
+ * the model to make up a clock time of its own.
  */
 
 export class BureauTimeError extends Error {
@@ -27,23 +27,6 @@ export const MAX_YEAR = 9999;
 export const TIME_STEPS = ['hour', 'later', 'morning', 'days', 'week'];
 const MORNING_HOUR = 8;
 
-// Start hour of each part of the day, in order.
-const DAY_PARTS = [
-  [0, 'a little past midnight'],
-  [1, 'the middle of the night'],
-  [4, 'the hours before dawn'],
-  [6, 'early morning'],
-  [9, 'mid-morning'],
-  [11, 'late morning'],
-  [12, 'around midday'],
-  [13, 'early afternoon'],
-  [15, 'late afternoon'],
-  [17, 'early evening'],
-  [19, 'evening'],
-  [21, 'late evening'],
-  [23, 'nearly midnight'],
-];
-
 /**
  * @param {string|null|undefined} timeZone
  * @returns {boolean}
@@ -57,24 +40,13 @@ export function isValidTimeZone(timeZone) {
   }
 }
 
-/**
- * @param {number} hour - 0 to 23.
- * @returns {string} A loose part of the day, e.g. "late evening".
- */
-export function describeDayPart(hour) {
-  let label = DAY_PARTS[0][1];
-  for (const [start, name] of DAY_PARTS) {
-    if (hour >= start) label = name;
-  }
-  return label;
-}
-
 /** The year in Intl date parts that include the era, counting 1 BC as 0, 2 BC as -1, and so on. */
 function yearOf(parts) {
   const year = Number(parts.year);
   return parts.era === 'BC' ? 1 - year : year;
 }
 
+/** A moment on a time zone's clock, as Intl date parts: weekday, month, day, year, era, and time. */
 function zonedParts(date, timeZone) {
   if (timeZone !== undefined && !isValidTimeZone(timeZone)) {
     throw new BureauTimeError(`Unknown time zone: ${timeZone}`);
@@ -87,48 +59,31 @@ function zonedParts(date, timeZone) {
     year: 'numeric',
     era: 'short',
     hour: 'numeric',
-    hourCycle: 'h23',
+    minute: '2-digit',
+    hourCycle: 'h12',
   });
-  const parts = Object.fromEntries(
-    formatter.formatToParts(date).map((part) => [part.type, part.value]),
-  );
-  return {
-    weekday: parts.weekday,
-    month: parts.month,
-    day: Number(parts.day),
-    year: yearOf(parts),
-    hour: Number(parts.hour),
-  };
-}
-
-function describeMonthPart(day, month) {
-  if (day <= 10) return `early ${month}`;
-  if (day <= 20) return `mid-${month}`;
-  return `late ${month}`;
+  return Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
 }
 
 /**
- * A loose description of a moment for scene-setting, such as
- * "a Tuesday, a little past midnight, late October".
+ * A moment exactly, for prompts, such as "12:10 AM on Monday, September 13, 2027".
  *
  * @param {Date|string} value
  * @param {Object} [options]
  * @param {string} [options.timeZone] - IANA zone; defaults to the server's.
- * @param {boolean} [options.includeYear] - For Bureaus set in another era.
- * @returns {string}
+ * @returns {string} Years before 1 AD end in "BC".
  */
-export function describeTime(value, { timeZone, includeYear = false } = {}) {
+export function describeExactTime(value, { timeZone } = {}) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) {
     throw new BureauTimeError(`Not a valid time: ${value}`);
   }
-  const { weekday, month, day, year, hour } = zonedParts(date, timeZone);
-  const monthPart = describeMonthPart(day, month);
-  return `a ${weekday}, ${describeDayPart(hour)}, ${monthPart}${includeYear ? ` ${year}` : ''}`;
+  const { weekday, month, day, year, era, hour, minute, dayPeriod } = zonedParts(date, timeZone);
+  return `${hour}:${minute} ${dayPeriod} on ${weekday}, ${month} ${day}, ${era === 'BC' ? `${year} BC` : year}`;
 }
 
 /**
- * describeTime in a Bureau's time zone. A stored zone this server doesn't know
+ * describeExactTime in a Bureau's time zone. A stored zone this server doesn't know
  * falls back to the server's.
  * @param {Date|string} value
  * @param {string|null} timeZone - The Bureau's timezone.
@@ -136,11 +91,43 @@ export function describeTime(value, { timeZone, includeYear = false } = {}) {
  */
 export function describeBureauTime(value, timeZone) {
   try {
-    return describeTime(value, { timeZone: timeZone ?? undefined });
+    return describeExactTime(value, { timeZone: timeZone ?? undefined });
   } catch (error) {
     if (!(error instanceof BureauTimeError) || !timeZone) throw error;
-    return describeTime(value);
+    return describeExactTime(value);
   }
+}
+
+// Turns that are part of a chapter's text, as opposed to directions for the Writer.
+const CHAPTER_TEXT_KINDS = ['prose', 'scene_break', 'time_passes'];
+
+/**
+ * Where a chapter stands in time after some of its turns: when time last passed in the chapter
+ * (a time_passes turn), or when the chapter began.
+ *
+ * @param {{ startTime: string }} story
+ * @param {Array<Object>} turns - The chapter's turns in order, up to the point in question.
+ * @returns {{ time: string, passed: boolean, justPassed: boolean }} passed says time has passed
+ *   in the chapter; justPassed, that nothing has been written since.
+ */
+export function chapterTime(story, turns) {
+  const text = turns.filter((turn) => CHAPTER_TEXT_KINDS.includes(turn.kind));
+  const passing = text.findLast((turn) => turn.kind === 'time_passes');
+  return {
+    time: passing?.bureauTime ?? story.startTime,
+    passed: Boolean(passing),
+    justPassed: text.at(-1)?.kind === 'time_passes',
+  };
+}
+
+/**
+ * How time passing reads in the chapter text the Writer, Director, and Archivist see, after a
+ * scene break.
+ * @param {string} bureauTime - The time it passed to (ISO).
+ * @param {string|null} timeZone - The Bureau's.
+ */
+export function describeTimePassing(bureauTime, timeZone) {
+  return `[Time passes. It's now exactly ${describeBureauTime(bureauTime, timeZone)}.]`;
 }
 
 const HOUR_MS = 3_600_000;
@@ -282,6 +269,31 @@ export function advanceBureauTime(bureauTime, step, timeZone) {
 }
 
 /**
+ * Where "Time passes" moves a clock: by a step, or to a time. Whether that time may be earlier is
+ * for the caller to decide.
+ *
+ * @param {string} from - The time it passes from (ISO).
+ * @param {Object} move
+ * @param {unknown} [move.step] - One of TIME_STEPS (see advanceBureauTime).
+ * @param {unknown} [move.to] - An ISO time.
+ * @param {string|null} [timeZone] - The Bureau's.
+ * @returns {string} ISO timestamp.
+ * @throws {BureauTimeError} Unless exactly one of step and to is valid.
+ */
+export function passTime(from, { step, to } = {}, timeZone) {
+  if (step !== undefined && to === undefined) {
+    if (!TIME_STEPS.includes(step)) {
+      throw new BureauTimeError(`step must be one of: ${TIME_STEPS.join(', ')}`);
+    }
+    return advanceBureauTime(from, step, timeZone);
+  }
+  if (to !== undefined && step === undefined) {
+    return parseBureauTime(to, 'to');
+  }
+  throw new BureauTimeError('Send either step or to');
+}
+
+/**
  * How long it's been between two moments, loosely, or null when it's too short
  * to matter (or either time can't be read).
  * @param {Date|string} from
@@ -295,20 +307,21 @@ export function describeGap(from, to) {
 }
 
 /**
- * The year to give prompts as setting ("The year is 1996."), so the Writer
- * avoids anachronisms: when a moment falls in a year other than the real one.
- * Null otherwise.
+ * The year to give prompts as setting ("The year is 1996." or "The year is 44 BC."), so the
+ * Writer avoids anachronisms: when a moment falls in a year other than the real one. Null
+ * otherwise.
  * @param {{ timezone?: string|null }} bureau
  * @param {Date|string} value
  * @param {Date} [now] - Real time.
- * @returns {number|null}
+ * @returns {string|null}
  */
 export function settingYear(bureau, value, now = new Date()) {
   const time = timestampOf(value);
   if (!Number.isFinite(time)) return null;
   const timeZone = isValidTimeZone(bureau.timezone) ? bureau.timezone : undefined;
-  const { year } = zonedParts(new Date(time), timeZone);
-  return year !== zonedParts(now, timeZone).year ? year : null;
+  const parts = zonedParts(new Date(time), timeZone);
+  if (yearOf(parts) === yearOf(zonedParts(now, timeZone))) return null;
+  return parts.era === 'BC' ? `${parts.year} BC` : parts.year;
 }
 
 /**

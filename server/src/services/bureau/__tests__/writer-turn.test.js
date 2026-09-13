@@ -288,8 +288,29 @@ describe('generateWriterTurn', () => {
     await generate(client, { action: 'continue' });
 
     expect(client.calls[0].messages[1].content).toContain(
-      'This chapter begins on a Tuesday, a little past midnight, late October.',
+      'This chapter begins at exactly 12:30 AM on Tuesday, October 27, 2026.',
     );
+  });
+
+  it("regenerates a passage at the chapter's time as of that passage", async () => {
+    stores.bureaus.updateBureau(bureau.id, { timezone: 'UTC' });
+    const addProse = (content) =>
+      stores.stories.addTurn(story.id, { kind: 'prose', source: 'generated', content });
+    const passTo = (bureauTime) =>
+      stores.stories.addTurn(story.id, { kind: 'time_passes', source: 'user', bureauTime });
+    addProse('Night fell.');
+    passTo('2026-10-28T08:00:00.000Z');
+    const morning = addProse('Morning came grey.');
+    passTo('2026-10-31T08:00:00.000Z');
+    const client = streamingClient([{ type: 'content', text: 'Fog.' }, done('Fog.')]);
+
+    await generate(client, { action: 'continue' }, { regenerateTurnId: morning.id });
+
+    const user = client.calls[0].messages[1].content;
+    expect(user).toContain(
+      "Time has just passed: it's now exactly 8:00 AM on Wednesday, October 28, 2026.",
+    );
+    expect(user).not.toContain('October 31');
   });
 
   it('restores images the model refers to', async () => {
@@ -414,7 +435,7 @@ describe('generateWriterTurn', () => {
     const recorded = stores.bureaus.getRun(bureau.id, turn.runId).steps[0].request.messages[1];
     expect(recorded.content).toContain('earlier characters not recorded');
     expect(recorded.content).toContain('The end of the page.');
-    expect(recorded.content.length).toBeLessThan(RECORDED_STORY_TAIL + 1000);
+    expect(recorded.content.length).toBeLessThan(RECORDED_STORY_TAIL + 1500);
   });
 
   it('marks the run failed when the turn cannot be saved', async () => {

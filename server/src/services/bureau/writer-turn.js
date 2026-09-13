@@ -13,7 +13,7 @@
 
 import { ImagePreserver } from '../image-preserver.js';
 import { LorebookActivator } from '../lorebook-activator.js';
-import { describeBureauTime, settingYear } from './bureau-time.js';
+import { chapterTime, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { runDirector } from './director.js';
 import { runEditor } from './editor.js';
@@ -149,7 +149,6 @@ export async function generateWriterTurn({
     ]),
   );
 
-  const openingTime = describeBureauTime(story.startTime, bureau.timezone);
   const promptRequest = {
     action: request.action,
     direction: request.direction,
@@ -177,7 +176,6 @@ export async function generateWriterTurn({
         cast,
         turns,
         request: promptRequest,
-        openingTime,
         client,
         recorder,
         signal,
@@ -210,8 +208,9 @@ export async function generateWriterTurn({
       arcNotesByCast,
       turns,
       request: { ...promptRequest, brief },
-      openingTime,
-      settingYear: settingYear(bureau, story.startTime),
+      // Turns stop before a turn being regenerated, so the time is the chapter's as of that turn.
+      startTime: story.startTime,
+      settingYear: settingYear(bureau, chapterTime(story, turns).time),
       imagePreserver,
     }));
   } catch (error) {

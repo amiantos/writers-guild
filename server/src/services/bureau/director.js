@@ -7,6 +7,7 @@
  * and in the run record, so the Writer's prompt stays prose.
  */
 
+import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
 import { generateCharacter } from './character-generator.js';
 import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { runToolLoop } from './tool-loop.js';
@@ -168,11 +169,11 @@ function findMember(members, name) {
 
 /**
  * @param {Object} params
- * @param {Object} params.story - Uses title.
+ * @param {Object} params.story - Uses title and startTime.
  * @param {Array<Object>} params.cast - The story's cast members, with seed cards.
  * @param {Array<Object>} params.turns - Turns before the one being written.
  * @param {Object} params.request - { action, direction }.
- * @param {string|null} [params.openingTime] - Loose start time, for an opening.
+ * @param {string|null} [params.timeZone] - The Bureau's, for the chapter's time.
  * @param {boolean} [params.canCreateCharacters] - Whether create_character is offered.
  */
 export function buildDirectorMessages({
@@ -180,7 +181,7 @@ export function buildDirectorMessages({
   cast,
   turns,
   request,
-  openingTime = null,
+  timeZone = null,
   canCreateCharacters = false,
 }) {
   const persona = cast.find((member) => member.isPersona) ?? null;
@@ -217,8 +218,14 @@ export function buildDirectorMessages({
   });
 
   const storyText = turns
-    .filter((turn) => turn.kind === 'prose' || turn.kind === 'scene_break')
-    .map((turn) => (turn.kind === 'scene_break' ? '---' : turn.content))
+    .filter((turn) => ['prose', 'scene_break', 'time_passes'].includes(turn.kind))
+    .map((turn) => {
+      if (turn.kind === 'scene_break') return '---';
+      if (turn.kind === 'time_passes') {
+        return `---\n\n${describeTimePassing(turn.bureauTime, timeZone)}`;
+      }
+      return turn.content;
+    })
     .join('\n\n');
   const recent =
     storyText.length > RECENT_STORY_CHARACTERS
@@ -226,11 +233,23 @@ export function buildDirectorMessages({
       : storyText;
 
   const next = [];
+  const clock = story.startTime ? chapterTime(story, turns) : null;
+  const exactly = clock ? describeBureauTime(clock.time, timeZone) : null;
   if (!turns.some((turn) => turn.kind === 'prose')) {
     next.push(
-      openingTime
-        ? `This is the opening of "${story.title}", which begins on ${openingTime}.`
+      clock
+        ? `This is the opening of "${story.title}", which begins at exactly ${exactly}.`
         : `This is the opening of "${story.title}".`,
+    );
+  } else if (clock?.justPassed) {
+    next.push(
+      `Time has just passed: it's now exactly ${exactly}. Plan the passage from this time.`,
+    );
+  } else if (clock) {
+    next.push(
+      clock.passed
+        ? `When time last passed in the chapter, it was exactly ${exactly}.`
+        : `When the chapter began, the time was exactly ${exactly}.`,
     );
   }
   if (request.action === 'direct' && request.direction) {
@@ -517,7 +536,6 @@ function toolHandlers({
  *   Director creates is added to it.
  * @param {Array<Object>} params.turns - Turns before the one being written.
  * @param {Object} params.request - { action, direction }.
- * @param {string|null} [params.openingTime]
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {import('./run-recorder.js').RunRecorder} params.recorder
  * @param {AbortSignal} [params.signal]
@@ -531,7 +549,6 @@ export async function runDirector({
   cast,
   turns,
   request,
-  openingTime = null,
   client,
   recorder,
   signal,
@@ -549,7 +566,7 @@ export async function runDirector({
       cast,
       turns,
       request,
-      openingTime,
+      timeZone: bureau.timezone,
       canCreateCharacters: createCharacters,
     }),
     tools,

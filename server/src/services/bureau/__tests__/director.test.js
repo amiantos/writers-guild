@@ -539,18 +539,49 @@ describe('buildDirectorMessages', () => {
     );
   });
 
-  it('marks an opening with its loose start time', () => {
+  it('marks an opening with its exact start time, in the Bureau time zone', () => {
     const [, user] = buildDirectorMessages({
-      story: { title: 'Lamplight' },
+      story: { title: 'Lamplight', startTime: START },
       cast,
       turns: [],
       request: { action: 'continue' },
-      openingTime: 'a Tuesday, late evening, late October',
+      timeZone: 'America/Los_Angeles',
     });
 
     expect(user.content).toContain('(Nothing has been written yet.)');
     expect(user.content).toContain(
-      'This is the opening of "Lamplight", which begins on a Tuesday, late evening, late October.',
+      'This is the opening of "Lamplight", which begins at exactly 12:30 AM on Tuesday, October 27, 2026.',
+    );
+  });
+
+  it("gives later passages the chapter's time, and marks time passing", () => {
+    const prose = { kind: 'prose', source: 'generated', content: 'The lamp was lit.' };
+    const passes = {
+      kind: 'time_passes',
+      source: 'user',
+      content: '',
+      bureauTime: '2026-10-28T15:00:00.000Z',
+    };
+    const next = (turns) =>
+      buildDirectorMessages({
+        story: { title: 'Lamplight', startTime: START },
+        cast,
+        turns,
+        request: { action: 'continue' },
+        timeZone: 'America/Los_Angeles',
+      })[1].content;
+
+    expect(next([prose])).toContain(
+      '=== NEXT ===\nWhen the chapter began, the time was exactly 12:30 AM on Tuesday, October 27, 2026.\nContinue the story naturally from where it left off.',
+    );
+    expect(next([prose, passes])).toContain(
+      "The lamp was lit.\n\n---\n\n[Time passes. It's now exactly 8:00 AM on Wednesday, October 28, 2026.]",
+    );
+    expect(next([prose, passes])).toContain(
+      "Time has just passed: it's now exactly 8:00 AM on Wednesday, October 28, 2026. Plan the passage from this time.",
+    );
+    expect(next([prose, passes, prose])).toContain(
+      'When time last passed in the chapter, it was exactly 8:00 AM on Wednesday, October 28, 2026.',
     );
   });
 });

@@ -17,7 +17,9 @@ import { sseChannel } from '../utils/sse.js';
 import { DeepSeekError } from '../services/bureau/deepseek-client.js';
 import {
   BureauTimeError,
+  chapterTime,
   isValidTimeZone,
+  passTime,
   resolveStoryEndTime,
   resolveStoryStartTime,
 } from '../services/bureau/bureau-time.js';
@@ -35,7 +37,7 @@ import {
 const router = express.Router({ mergeParams: true });
 
 const GENERATE_ACTIONS = ['write', 'direct', 'continue'];
-const READER_TURN_KINDS = ['prose', 'direction', 'scene_break'];
+const READER_TURN_KINDS = ['prose', 'direction', 'scene_break', 'time_passes'];
 
 function resolveTime(resolve) {
   try {
@@ -409,13 +411,16 @@ router.delete(
 
 // ==================== Turns ====================
 
-// Add a turn from the reader without generating a reply (for example, a scene break)
+// Add a turn from the reader without generating a reply, such as a scene break. Time passing in
+// the chapter (kind time_passes) takes { step } or a later { to }, as letting Bureau time pass
+// does: it moves on from the chapter's time (its last time passing, or its start), and the
+// Bureau's clock follows, as when a chapter starts. Answers with the Bureau too.
 router.post(
   '/:storyId/turns',
   asyncHandler(async (req, res) => {
     const { bureaus, stories } = res.locals.stores;
     const { bureauId, storyId } = req.params;
-    requireBureau(bureaus, bureauId);
+    const bureau = requireBureau(bureaus, bureauId);
     const story = requireStory(stories, bureauId, storyId);
     requireActive(story);
 
@@ -424,6 +429,28 @@ router.post(
     if (!READER_TURN_KINDS.includes(kind)) {
       throw new AppError(`kind must be one of: ${READER_TURN_KINDS.join(', ')}`, 400);
     }
+
+    if (kind === 'time_passes') {
+      const from = chapterTime(story, stories.listTurns(storyId)).time;
+      const bureauTime = resolveTime(() =>
+        passTime(from, { step: body.step, to: body.to }, bureau.timezone),
+      );
+      if (Date.parse(bureauTime) <= Date.parse(from)) {
+        throw new AppError(
+          "Time only moves forward in a chapter: to must be later than the chapter's time.",
+          400,
+        );
+      }
+      // No offscreen life: the chapter covers this time.
+      let turn;
+      bureaus.db.transaction(() => {
+        turn = stories.addTurn(storyId, { kind, source: 'user', bureauTime });
+        bureaus.setBureauTime(bureauId, bureauTime);
+      })();
+      res.status(201).json({ turn, bureau: bureaus.getBureau(bureauId) });
+      return;
+    }
+
     const content = optionalString(body, 'content') ?? '';
     if (kind !== 'scene_break' && !content) {
       throw new AppError('content is required', 400);
@@ -448,6 +475,9 @@ router.put(
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
     const turn = requireTurn(stories, storyId, turnId);
+    if (turn.kind === 'time_passes') {
+      throw new AppError("Time passing can't be edited. Delete it and let time pass again.", 400);
+    }
 
     const content = optionalString(req.body ?? {}, 'content');
     if (content === undefined || (!content && turn.kind !== 'scene_break')) {

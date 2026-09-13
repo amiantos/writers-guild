@@ -2,11 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   advanceBureauTime,
   BureauTimeError,
-  describeDayPart,
+  chapterTime,
+  describeBureauTime,
+  describeExactTime,
   describeGap,
-  describeTime,
   isValidTimeZone,
   parseBureauTime,
+  passTime,
   resolveStoryEndTime,
   resolveStoryStartTime,
   settingYear,
@@ -130,9 +132,14 @@ describe('settingYear', () => {
   const now = new Date('2026-09-12T22:15:00Z');
 
   it('names the year of a moment in another year, however far back', () => {
-    expect(settingYear({ timezone: 'UTC' }, '1996-06-01T12:00:00Z', now)).toBe(1996);
-    expect(settingYear({ timezone: 'UTC' }, '1350-06-01T12:00:00Z', now)).toBe(1350);
-    expect(settingYear({ timezone: 'UTC' }, '0050-03-01T12:00:00Z', now)).toBe(50);
+    expect(settingYear({ timezone: 'UTC' }, '1996-06-01T12:00:00Z', now)).toBe('1996');
+    expect(settingYear({ timezone: 'UTC' }, '1350-06-01T12:00:00Z', now)).toBe('1350');
+    expect(settingYear({ timezone: 'UTC' }, '0050-03-01T12:00:00Z', now)).toBe('50');
+  });
+
+  it('names years before 1 AD as BC', () => {
+    expect(settingYear({ timezone: 'UTC' }, '-000043-03-15T12:00:00Z', now)).toBe('44 BC');
+    expect(settingYear({ timezone: 'UTC' }, '0000-06-01T12:00:00Z', now)).toBe('1 BC');
   });
 
   it('leaves the year out for the real year', () => {
@@ -157,54 +164,106 @@ describe('the year 1 on a time zone clock', () => {
   });
 });
 
-describe('describeTime', () => {
-  it('describes a moment loosely, in the given time zone', () => {
-    // 07:30 UTC is 00:30 on Tuesday, October 27 in Los Angeles.
-    expect(describeTime('2026-10-27T07:30:00Z', { timeZone: 'America/Los_Angeles' })).toBe(
-      'a Tuesday, a little past midnight, late October',
+describe('describeExactTime', () => {
+  it('gives the exact time and date, in the given time zone', () => {
+    // 07:10 UTC is 00:10 on Monday, September 13 in Los Angeles.
+    expect(describeExactTime('2027-09-13T07:10:00Z', { timeZone: 'America/Los_Angeles' })).toBe(
+      '12:10 AM on Monday, September 13, 2027',
     );
   });
 
-  it('adds the year when asked', () => {
-    expect(
-      describeTime('2026-10-27T07:30:00Z', { timeZone: 'America/Los_Angeles', includeYear: true }),
-    ).toBe('a Tuesday, a little past midnight, late October 2026');
+  it('counts midnight and noon as 12 AM and 12 PM', () => {
+    expect(describeExactTime('2027-09-13T00:00:00Z', { timeZone: 'UTC' })).toBe(
+      '12:00 AM on Monday, September 13, 2027',
+    );
+    expect(describeExactTime(new Date('2027-09-13T12:05:00Z'), { timeZone: 'UTC' })).toBe(
+      '12:05 PM on Monday, September 13, 2027',
+    );
+    expect(describeExactTime('2027-09-13T23:59:00Z', { timeZone: 'UTC' })).toBe(
+      '11:59 PM on Monday, September 13, 2027',
+    );
   });
 
-  it('uses early, mid, and late parts of the month', () => {
-    expect(describeTime(new Date('2026-06-03T09:00:00Z'), { timeZone: 'UTC' })).toBe(
-      'a Wednesday, mid-morning, early June',
+  it('writes early years as they are, and years before 1 AD with BC', () => {
+    expect(describeExactTime('0950-03-01T09:00:00Z', { timeZone: 'UTC' })).toBe(
+      '9:00 AM on Sunday, March 1, 950',
     );
-    expect(describeTime('2026-03-15T15:00:00Z', { timeZone: 'UTC' })).toBe(
-      'a Sunday, late afternoon, mid-March',
+    expect(describeExactTime('-000043-03-15T12:00:00Z', { timeZone: 'UTC' })).toBe(
+      '12:00 PM on Friday, March 15, 44 BC',
     );
   });
 
   it('rejects invalid times and time zones', () => {
-    expect(() => describeTime('not a date', { timeZone: 'UTC' })).toThrow(BureauTimeError);
-    expect(() => describeTime('2026-06-03T09:00:00Z', { timeZone: 'Not/AZone' })).toThrow(
+    expect(() => describeExactTime('not a date', { timeZone: 'UTC' })).toThrow(BureauTimeError);
+    expect(() => describeExactTime('2026-06-03T09:00:00Z', { timeZone: 'Not/AZone' })).toThrow(
       /Unknown time zone/,
     );
   });
 });
 
-describe('describeDayPart', () => {
-  it.each([
-    [0, 'a little past midnight'],
-    [2, 'the middle of the night'],
-    [5, 'the hours before dawn'],
-    [7, 'early morning'],
-    [10, 'mid-morning'],
-    [11, 'late morning'],
-    [12, 'around midday'],
-    [14, 'early afternoon'],
-    [16, 'late afternoon'],
-    [18, 'early evening'],
-    [20, 'evening'],
-    [22, 'late evening'],
-    [23, 'nearly midnight'],
-  ])('hour %i is %s', (hour, label) => {
-    expect(describeDayPart(hour)).toBe(label);
+describe('describeBureauTime', () => {
+  it("uses the Bureau's time zone, or the server's for one it doesn't know", () => {
+    expect(describeBureauTime('2027-09-13T07:10:00Z', 'America/Los_Angeles')).toBe(
+      '12:10 AM on Monday, September 13, 2027',
+    );
+    expect(describeBureauTime('2027-09-13T07:10:00Z', 'Not/AZone')).toBe(
+      describeExactTime('2027-09-13T07:10:00Z'),
+    );
+  });
+});
+
+function passes(bureauTime) {
+  return { kind: 'time_passes', bureauTime };
+}
+
+describe('chapterTime', () => {
+  const story = { startTime: '2026-10-27T22:15:00.000Z' };
+
+  it('is the start until time passes in the chapter', () => {
+    const atStart = { time: story.startTime, passed: false, justPassed: false };
+    expect(chapterTime(story, [])).toEqual(atStart);
+    expect(chapterTime(story, [{ kind: 'prose' }, { kind: 'scene_break' }])).toEqual(atStart);
+  });
+
+  it('goes by the last time passing, and says whether anything was written since', () => {
+    const turns = [
+      { kind: 'prose' },
+      passes('2026-10-28T08:00:00.000Z'),
+      { kind: 'prose' },
+      passes('2026-10-31T08:00:00.000Z'),
+    ];
+
+    // A direction isn't part of the chapter's text.
+    expect(chapterTime(story, [...turns, { kind: 'direction' }])).toEqual({
+      time: '2026-10-31T08:00:00.000Z',
+      passed: true,
+      justPassed: true,
+    });
+    expect(chapterTime(story, [...turns, { kind: 'prose' }])).toMatchObject({
+      time: '2026-10-31T08:00:00.000Z',
+      justPassed: false,
+    });
+    expect(chapterTime(story, turns.slice(0, 3)).time).toBe('2026-10-28T08:00:00.000Z');
+  });
+});
+
+describe('passTime', () => {
+  const from = '2026-09-12T22:15:00.000Z';
+
+  it('moves by a step or to a time', () => {
+    expect(passTime(from, { step: 'hour' }, 'UTC')).toBe('2026-09-12T23:15:00.000Z');
+    expect(passTime(from, { to: '2026-09-20T12:00:00Z' }, 'UTC')).toBe('2026-09-20T12:00:00.000Z');
+    // Whether an earlier time is allowed is up to the caller.
+    expect(passTime(from, { to: '2026-09-01T12:00:00Z' }, 'UTC')).toBe('2026-09-01T12:00:00.000Z');
+  });
+
+  it('needs exactly one valid move', () => {
+    expect(() => passTime(from, { step: 'fortnight' }, 'UTC')).toThrow(/step must be one of/);
+    expect(() => passTime(from, { to: 'soon' }, 'UTC')).toThrow(/to must be a valid date/);
+    expect(() => passTime(from, { step: 'hour', to: '2026-09-20T12:00:00Z' })).toThrow(
+      /either step or to/,
+    );
+    expect(() => passTime(from, {})).toThrow(/either step or to/);
   });
 });
 

@@ -86,11 +86,11 @@ describe('buildOffscreenMessages', () => {
     });
 
     expect(system.content).toContain('Leave Theo out entirely');
-    expect(user.content).toContain("=== NOW ===\nIt's a Thursday, evening, early October.");
+    expect(user.content).toContain("=== NOW ===\nIt's 8:00 PM on Thursday, October 8, 2026.");
     expect(user.content).toContain(
       [
         '=== MARA ===',
-        'Last seen: a Thursday, evening, early October (about a week ago)',
+        'Last seen: 8:00 PM on Thursday, October 1, 2026 (about a week ago)',
         'Description: Keeps the light.',
         'Usual routine: Nights at the light.',
         'How Mara has changed:',

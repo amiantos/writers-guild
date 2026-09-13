@@ -13,11 +13,10 @@ import { archiveSettledSessions } from '../services/bureau/archivist.js';
 import { CastConflictError } from '../services/bureau/bureau-storage.js';
 import { BureauSettingsError, DEFAULT_SETTINGS } from '../services/bureau/bureau-settings.js';
 import {
-  advanceBureauTime,
   BureauTimeError,
   isValidTimeZone,
   parseBureauTime,
-  TIME_STEPS,
+  passTime,
 } from '../services/bureau/bureau-time.js';
 import { DEFAULT_MODEL, DeepSeekError } from '../services/bureau/deepseek-client.js';
 import { exportedCard } from '../services/bureau/character-export.js';
@@ -204,26 +203,15 @@ router.post(
     const { bureaus } = stores;
     const { bureauId } = req.params;
     const bureau = requireBureau(bureaus, bureauId);
-    const { step, to } = req.body ?? {};
 
-    let bureauTime;
-    if (step !== undefined && to === undefined) {
-      if (!TIME_STEPS.includes(step)) {
-        throw new AppError(`step must be one of: ${TIME_STEPS.join(', ')}`, 400);
-      }
-      bureauTime = withBureauTime(() =>
-        advanceBureauTime(bureau.bureauTime, step, bureau.timezone),
+    const bureauTime = withBureauTime(() =>
+      passTime(bureau.bureauTime, req.body ?? {}, bureau.timezone),
+    );
+    if (Date.parse(bureauTime) < Date.parse(bureau.bureauTime)) {
+      throw new AppError(
+        "Time only moves forward here: to can't be earlier than Bureau time. Set an earlier time in the Bureau's settings.",
+        400,
       );
-    } else if (to !== undefined && step === undefined) {
-      bureauTime = withBureauTime(() => parseBureauTime(to, 'to'));
-      if (Date.parse(bureauTime) < Date.parse(bureau.bureauTime)) {
-        throw new AppError(
-          "Time only moves forward here: to can't be earlier than Bureau time. Set an earlier time in the Bureau's settings.",
-          400,
-        );
-      }
-    } else {
-      throw new AppError('Send either step or to', 400);
     }
 
     bureaus.setBureauTime(bureauId, bureauTime);

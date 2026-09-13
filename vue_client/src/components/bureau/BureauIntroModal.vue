@@ -89,7 +89,7 @@ const TERMS = [
   {
     name: 'Bureau time',
     description:
-      'One clock for the Bureau, and only you move it: let time pass between messages, set it in settings, or choose when a chapter starts and ends. Messages happen at Bureau time, in any year from 1 to 9999. A chapter only remembers what came before its start, so starting earlier works as a flashback.',
+      'One clock for the Bureau, and only you move it: let time pass between messages or within a chapter, set it in settings, or choose when a chapter starts and ends. Messages happen at Bureau time, in any year from 1 to 9999. A chapter only remembers what came before its start, so starting earlier works as a flashback.',
   },
   {
     name: 'Offscreen life',

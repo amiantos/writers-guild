@@ -220,7 +220,7 @@ export function buildCorrespondenceMessages({
     system.push(section('WORLD', world.join('\n\n')));
   }
 
-  // The conversation, with a loose time at the start and after each long gap.
+  // The conversation, with the exact time at the start and after each long gap.
   const { kept, truncated } = latestThatFit(history, characterBudget);
   const lines = truncated ? ['(Earlier messages are omitted.)'] : [];
   let previous = null;
@@ -236,7 +236,7 @@ export function buildCorrespondenceMessages({
 
   const last = history.at(-1);
   const silence = last ? describeGap(last.bureauTime, time) : null;
-  const instructions = [`It's ${describeBureauTime(time, bureau.timezone)}.`];
+  const instructions = [`It's exactly ${describeBureauTime(time, bureau.timezone)}.`];
   if (silence) instructions.push(`It has been ${silence} since the last message.`);
   if (!last) {
     instructions.push(`Write the first message ${name} sends ${personaName}.`);

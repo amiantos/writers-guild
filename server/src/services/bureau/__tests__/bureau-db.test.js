@@ -108,6 +108,8 @@ describe('bureau-db', () => {
       VALUES ('shifted', 'Shifted', 'deepseek-flash', '2020-01-01T00:00:00.000Z', -365, 'now', 'now'),
              ('plain', 'Plain', 'deepseek-flash', '2020-01-01T00:00:00.000Z', 0, 'now', 'now');
     `);
+    // Back to the turns table version 6 had, before time could pass in a chapter.
+    db.exec('ALTER TABLE turns DROP COLUMN bureau_time');
     db.pragma('user_version = 6');
     closeBureauDb(tempDir);
 
@@ -124,6 +126,12 @@ describe('bureau-db', () => {
     expect(rows.shifted.bureau_time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(rows.plain.bureau_time).toBe('2020-01-01T00:00:00.000Z');
     expect([rows.shifted.present_offset_days, rows.plain.present_offset_days]).toEqual([0, 0]);
+    expect(
+      upgraded
+        .prepare('PRAGMA table_info(turns)')
+        .all()
+        .map((column) => column.name),
+    ).toContain('bureau_time');
   });
 
   it('refuses a database written by a newer build', () => {

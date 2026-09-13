@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import TurnBlock from '../TurnBlock.vue';
+import { formatDateTime } from '../../../composables/bureau/format';
 
 // happy-dom's DOM trips up DOMPurify; renderProse's own tests cover sanitizing.
 vi.mock('dompurify', () => ({ default: { sanitize: (html) => html } }));
@@ -56,6 +57,23 @@ describe('TurnBlock', () => {
     expect(direction.find('.direction-note').text()).toBe('Rain starts.');
     expect(sceneBreak.find('[role="separator"]').exists()).toBe(true);
     expect(buttonTitled(sceneBreak, 'Edit').exists()).toBe(false);
+  });
+
+  it('shows time passing as a divider with the new time, in the Bureau time zone', () => {
+    const bureauTime = '2026-10-28T15:00:00.000Z';
+    const wrapper = mount(TurnBlock, {
+      props: {
+        turn: turn({ kind: 'time_passes', source: 'user', content: '', bureauTime, variants: [] }),
+        timeZone: 'America/Los_Angeles',
+      },
+    });
+
+    const divider = wrapper.find('.time-passes-divider');
+    expect(divider.attributes('role')).toBe('separator');
+    expect(divider.text()).toBe(formatDateTime(bureauTime, 'America/Los_Angeles'));
+    expect(divider.text()).toContain('8:00');
+    expect(buttonTitled(wrapper, 'Edit').exists()).toBe(false);
+    expect(buttonTitled(wrapper, 'Delete').exists()).toBe(true);
   });
 
   it('switches to the neighboring version', async () => {

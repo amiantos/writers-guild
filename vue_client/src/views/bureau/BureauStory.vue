@@ -23,8 +23,12 @@
         <span v-if="story?.status === 'ended'" class="status-badge">Ended</span>
       </div>
       <div class="header-right">
-        <span v-if="story" class="story-time">
-          <i class="fas fa-clock"></i> {{ formatDateTime(story.startTime, bureau?.timezone) }}
+        <span
+          v-if="story"
+          class="story-time"
+          :title="`The chapter began ${formatDateTime(story.startTime, bureau?.timezone)}`"
+        >
+          <i class="fas fa-clock"></i> {{ formatDateTime(chapterTime, bureau?.timezone) }}
         </span>
         <button
           class="icon-btn"
@@ -86,6 +90,7 @@
               :data-turn-id="turn.id"
               :class="{ 'is-highlighted': highlightTurnId === turn.id }"
               :turn="turn"
+              :time-zone="bureau.timezone"
               :override-content="pending?.regenerateTurnId === turn.id ? pending.content : null"
               :busy="generating"
               :can-regenerate="story.status === 'active' && bureau.hasApiKey"
@@ -113,6 +118,7 @@
         :has-api-key="bureau.hasApiKey"
         @generate="generate"
         @scene-break="addSceneBreak"
+        @time-passes="showTimePasses = true"
         @stop="stop"
       />
       <div v-else class="ended-bar">
@@ -127,6 +133,16 @@
       :story="story"
       @close="showEnd = false"
       @ended="handleEnded"
+    />
+    <TimePassesPicker
+      v-if="showTimePasses"
+      :from="chapterTime"
+      :time-zone="bureau.timezone"
+      :passing="passingTime"
+      :intro="`The chapter's time is ${formatDateTime(chapterTime, bureau.timezone)}. Time passes from there, and Bureau time moves with it.`"
+      pick-help="Later than the chapter's time."
+      @pass="passTimeInChapter"
+      @close="showTimePasses = false"
     />
     <StoryCastModal
       v-if="showCast"
@@ -156,6 +172,7 @@ import TurnSeam from '../../components/bureau/TurnSeam.vue';
 import StoryComposer from '../../components/bureau/StoryComposer.vue';
 import EndStoryModal from '../../components/bureau/EndStoryModal.vue';
 import StoryCastModal from '../../components/bureau/StoryCastModal.vue';
+import TimePassesPicker from '../../components/bureau/TimePassesPicker.vue';
 
 const props = defineProps({
   bureauId: { type: String, required: true },
@@ -191,6 +208,8 @@ let abortController = null;
 
 const showEnd = ref(false);
 const showCast = ref(false);
+const showTimePasses = ref(false);
+const passingTime = ref(false);
 const editingTitle = ref(false);
 const titleDraft = ref('');
 const titleInput = ref(null);
@@ -213,6 +232,14 @@ const hasUnarchived = computed(
 
 const castById = computed(() =>
   Object.fromEntries(cast.value.map((member) => [member.id, member])),
+);
+
+// The chapter's time: when time last passed in it, or when it began.
+const chapterTime = computed(
+  () =>
+    turns.value.findLast((turn) => turn.kind === 'time_passes')?.bureauTime ??
+    story.value?.startTime ??
+    null,
 );
 // ==================== Loading ====================
 
@@ -436,6 +463,29 @@ async function addSceneBreak() {
   }
 }
 
+// Time passing marks the chapter and moves Bureau time with it.
+async function passTimeInChapter(move) {
+  if (passingTime.value) return;
+  passingTime.value = true;
+  try {
+    const { turn, bureau: updated } = await bureauStoriesAPI.addTurn(
+      props.bureauId,
+      props.storyId,
+      { kind: 'time_passes', ...move },
+    );
+    bureau.value = updated;
+    turns.value = [...turns.value, turn];
+    showTimePasses.value = false;
+    scrollToEnd();
+  } catch (error) {
+    toast.error('Failed to let time pass: ' + error.message);
+  } finally {
+    passingTime.value = false;
+  }
+}
+
+const DELETED_KIND_LABELS = { scene_break: 'scene break', time_passes: 'time skip' };
+
 async function saveTurn(turn, content) {
   try {
     const { turn: updated } = await bureauStoriesAPI.editTurn(
@@ -453,7 +503,10 @@ async function saveTurn(turn, content) {
 async function deleteTurn(turn) {
   const versions = turn.variants.length > 1 ? ` and all ${turn.variants.length} versions` : '';
   const confirmed = await confirm({
-    message: `Delete this ${turn.kind === 'scene_break' ? 'scene break' : 'passage'}${versions}?`,
+    message:
+      turn.kind === 'time_passes'
+        ? 'Delete this time skip? Bureau time stays where it is.'
+        : `Delete this ${DELETED_KIND_LABELS[turn.kind] ?? 'passage'}${versions}?`,
     confirmText: 'Delete',
     variant: 'danger',
   });

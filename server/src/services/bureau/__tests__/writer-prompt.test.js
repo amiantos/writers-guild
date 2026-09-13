@@ -14,6 +14,10 @@ function prose(content, source = 'generated') {
   return { kind: 'prose', source, content };
 }
 
+function timePasses(bureauTime) {
+  return { kind: 'time_passes', source: 'user', content: '', bureauTime };
+}
+
 const MARA = member('Mara', {
   description: '{{char}} keeps the *Greywater* lighthouse and trusts {{user}}.',
   personality: 'Wry and stubborn.',
@@ -68,7 +72,7 @@ describe('buildWriterMessages', () => {
 
   it('names the year as setting for a story set in another year', () => {
     const { system } = build({
-      settingYear: 1996,
+      settingYear: '1996',
       loreEntries: [{ content: 'The lighthouse went dark in 1971.' }],
     });
 
@@ -139,24 +143,59 @@ describe('buildWriterMessages', () => {
     expect(system).not.toContain('MEMORIES');
   });
 
-  it('writes an opening, set at the story start time, when nothing has been written', () => {
-    const { user } = build({ openingTime: 'a Tuesday, a little past midnight, late October' });
+  it('writes an opening at exactly the chapter start time when nothing has been written', () => {
+    const { user } = build({
+      bureau: { houseStyle: '', timezone: 'America/Los_Angeles' },
+      startTime: '2026-10-27T07:30:00.000Z',
+    });
 
     expect(user).toContain('(Nothing has been written yet.)');
     expect(user).toContain('Write the opening of this chapter');
     expect(user).toContain(
-      'This chapter begins on a Tuesday, a little past midnight, late October.',
+      'This chapter begins at exactly 12:30 AM on Tuesday, October 27, 2026.\nLet the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this.',
     );
   });
 
-  it('keeps the start time until the story has generated prose', () => {
-    const openingTime = 'a Tuesday, late evening, late October';
+  it('gives every later passage the exact time the chapter began', () => {
+    const bureau = { houseStyle: '', timezone: 'UTC' };
+    const startTime = '2026-10-27T22:15:00.000Z';
 
-    const afterUserOpening = build({ turns: [prose('Theo knocked.', 'user')], openingTime });
-    expect(afterUserOpening.user).toContain(openingTime);
+    const afterUserOpening = build({ bureau, startTime, turns: [prose('Theo knocked.', 'user')] });
+    const later = build({ bureau, startTime, turns: [prose('The lamp was lit.')] });
 
-    const later = build({ turns: [prose('The lamp was lit.')], openingTime });
-    expect(later.user).not.toContain(openingTime);
+    for (const { user } of [afterUserOpening, later]) {
+      expect(user).toContain(
+        'When the chapter began, the time was exactly 10:15 PM on Tuesday, October 27, 2026.\nLet the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this and with how much has happened since.',
+      );
+      expect(user).not.toContain('This chapter begins');
+    }
+    expect(build({ bureau, turns: [prose('The lamp was lit.')] }).user).not.toContain('exactly');
+  });
+
+  it('marks time passing in the chapter and goes by the last time it passed to', () => {
+    const bureau = { houseStyle: '', timezone: 'UTC' };
+    const startTime = '2026-10-27T22:15:00.000Z';
+    const turns = [
+      prose('The lamp was lit.'),
+      timePasses('2026-10-28T08:00:00.000Z'),
+      prose('Morning came grey.'),
+      timePasses('2026-10-31T08:00:00.000Z'),
+    ];
+
+    const justPassed = build({ bureau, startTime, turns });
+    expect(justPassed.user).toContain(
+      "=== CHAPTER SO FAR ===\nThe lamp was lit.\n\n---\n\n[Time passes. It's now exactly 8:00 AM on Wednesday, October 28, 2026.]\n\nMorning came grey.\n\n---\n\n[Time passes. It's now exactly 8:00 AM on Saturday, October 31, 2026.]",
+    );
+    expect(justPassed.user).toContain(
+      "Time has just passed: it's now exactly 8:00 AM on Saturday, October 31, 2026. Pick the story up at this time.",
+    );
+    expect(justPassed.user).not.toContain('When the chapter began');
+
+    const afterward = build({ bureau, startTime, turns: [...turns, prose('Rain again.')] });
+    expect(afterward.user).toContain(
+      'When time last passed in the chapter, it was exactly 8:00 AM on Saturday, October 31, 2026.\nLet the time shape the scene',
+    );
+    expect(afterward.user).not.toContain('Time has just passed');
   });
 
   it('tells the Writer to respond to the reader without writing for them', () => {

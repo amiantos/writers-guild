@@ -504,6 +504,26 @@ describe('archiveStory', () => {
     expect(stores.bureaus.listRuns(bureau.id)).toEqual([]);
   });
 
+  it('reads time passing in the chapter as a scene break with the new time', async () => {
+    stores.bureaus.updateBureau(bureau.id, { timezone: 'UTC' });
+    addProse('Theo knocked.');
+    stores.stories.addTurn(story.id, {
+      kind: 'time_passes',
+      source: 'user',
+      bureauTime: '2026-10-28T08:00:00.000Z',
+    });
+    addProse('Morning came grey.');
+    const client = archivistClient([record()]);
+
+    await archive(client);
+
+    const user = client.calls[0].messages[1].content;
+    expect(user).toContain(
+      "Theo knocked.\n\n---\n\n[Time passes. It's now exactly 8:00 AM on Wednesday, October 28, 2026.]\n\n",
+    );
+    expect(user).toContain('Morning came grey.');
+  });
+
   it('runs one archive at a time per story', async () => {
     addProse('Theo knocked.');
     const client = archivistClient([record()]);

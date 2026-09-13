@@ -13,7 +13,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { openBureauDb } from './bureau-db.js';
 
-export const TURN_KINDS = ['prose', 'direction', 'scene_break'];
+// A time_passes turn marks time passing in the chapter, to its bureauTime.
+export const TURN_KINDS = ['prose', 'direction', 'scene_break', 'time_passes'];
 export const TURN_SOURCES = ['user', 'generated'];
 
 function timestamp() {
@@ -51,6 +52,7 @@ function turnFromRow(row, variants) {
     source: row.source,
     authorCastId: row.author_cast_id,
     content: row.content,
+    bureauTime: row.bureau_time,
     runId: row.run_id,
     edited: row.edited === 1,
     activeVariantId: row.active_variant_id,
@@ -113,10 +115,10 @@ export class StoryStorage {
         ) + 1 AS next
       `),
       insertTurn: this.db.prepare(`
-        INSERT INTO turns (id, story_id, position, kind, source, author_cast_id, content, run_id,
-                           edited, active_variant_id, created, modified)
-        VALUES (@id, @storyId, @position, @kind, @source, @authorCastId, @content, @runId,
-                0, @activeVariantId, @created, @modified)
+        INSERT INTO turns (id, story_id, position, kind, source, author_cast_id, content,
+                           bureau_time, run_id, edited, active_variant_id, created, modified)
+        VALUES (@id, @storyId, @position, @kind, @source, @authorCastId, @content,
+                @bureauTime, @runId, 0, @activeVariantId, @created, @modified)
       `),
       editTurn: this.db.prepare(
         'UPDATE turns SET content = ?, edited = 1, modified = ? WHERE id = ?',
@@ -276,19 +278,26 @@ export class StoryStorage {
    *
    * @param {string} storyId
    * @param {Object} turn
-   * @param {'prose'|'direction'|'scene_break'} turn.kind
+   * @param {'prose'|'direction'|'scene_break'|'time_passes'} turn.kind
    * @param {'user'|'generated'} turn.source
    * @param {string} [turn.content]
+   * @param {string|null} [turn.bureauTime] - The time it passes to (ISO), for time_passes.
    * @param {string|null} [turn.authorCastId] - The persona for user prose.
    * @param {string|null} [turn.runId] - The run that generated it.
    * @returns {Object} The new turn.
    */
-  addTurn(storyId, { kind, source, content = '', authorCastId = null, runId = null }) {
+  addTurn(
+    storyId,
+    { kind, source, content = '', bureauTime = null, authorCastId = null, runId = null },
+  ) {
     if (!TURN_KINDS.includes(kind)) {
       throw new Error(`Unknown turn kind: ${kind}`);
     }
     if (!TURN_SOURCES.includes(source)) {
       throw new Error(`Unknown turn source: ${source}`);
+    }
+    if ((kind === 'time_passes') !== Boolean(bureauTime)) {
+      throw new Error('Only a time_passes turn has a bureauTime, and it needs one');
     }
 
     const id = uuidv4();
@@ -304,6 +313,7 @@ export class StoryStorage {
         source,
         authorCastId,
         content,
+        bureauTime,
         runId,
         activeVariantId: variantId,
         created,

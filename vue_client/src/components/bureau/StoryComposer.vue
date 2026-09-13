@@ -26,6 +26,14 @@
         >
           <i class="fas fa-grip-lines"></i> Scene break
         </button>
+        <button
+          class="btn btn-secondary btn-small"
+          title="Move the chapter's time forward"
+          :disabled="generating"
+          @click="$emit('time-passes')"
+        >
+          <i class="fas fa-hourglass-half"></i> Time passes
+        </button>
       </div>
 
       <div class="composer-actions">
@@ -71,7 +79,7 @@ const props = defineProps({
   hasApiKey: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['generate', 'scene-break', 'stop']);
+const emit = defineEmits(['generate', 'scene-break', 'time-passes', 'stop']);
 
 const text = ref('');
 const inputRef = ref(null);
