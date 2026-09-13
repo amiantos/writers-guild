@@ -13,6 +13,12 @@ AI-powered short story writing application that supports Tavern character cards 
 - **Generation Control** - Continue the story from a specific character's perspective; open-ended generation based on story context; or request specific events to occur.
 - **Bureau (experimental)** - Write an ongoing story, chapter by chapter, with characters who remember, change over time, and can be messaged between chapters. See [Bureau](#bureau-experimental).
 
+## Motivations
+
+After years of using SillyTavern, I realized the character cards I enjoyed interacting with the most were very prose-like, and I started to suspect that the "chat" oriented nature of SillyTavern was actually preventing LLMs from fulfilling their potential as interactive story writers, and likely causing a lot of common issues (like repetitive messages, low creativity, etc).
+
+So I decided to make Writers Guild, which uses the same character cards and lorebooks as SillyTavern, but uses them to write in a format more akin to a short story or novel. Writers Guild also attempts to enforce a consistent perspective (third) and tense (past), which is something a lot of character card authors struggle with, so it has a button to automatically rewrite the original greeting from the character into a consistent style (the most useful feature, imho).
+
 ## Bureau (experimental)
 
 Bureau is a separate mode for an ongoing story with living characters, written in chapters. Each Bureau has a cast, a world of attached lorebooks, an ordered series of chapters, and one clock: Bureau time, a story clock that only you move. Any year from 1 to 9999 works.
@@ -24,12 +30,6 @@ Bureau is a separate mode for an ongoing story with living characters, written i
 - **Character generator** - Generate characters from an idea, or let the Director create them when someone new walks into a chapter.
 
 Bureau keeps its data in `data/bureau.db`, apart from story mode, and each Bureau has its own DeepSeek API key (DeepSeek V4.1 Flash by default). The Bureaus tab explains the terms the first time you open it, and the full design is in [docs/bureau-design.md](docs/bureau-design.md).
-
-## Motivations
-
-After years of using SillyTavern, I realized the character cards I enjoyed interacting with the most were very prose-like, and I started to suspect that the "chat" oriented nature of SillyTavern was actually preventing LLMs from fulfilling their potential as interactive story writers, and likely causing a lot of common issues (like repetitive messages, low creativity, etc).
-
-So I decided to make Writers Guild, which uses the same character cards and lorebooks as SillyTavern, but uses them to write in a format more akin to a short story or novel. Writers Guild also attempts to enforce a consistent perspective (third) and tense (past), which is something a lot of character card authors struggle with, so it has a button to automatically rewrite the original greeting from the character into a consistent style (the most useful feature, imho).
 
 ## Quick Start
 
