@@ -1,5 +1,12 @@
 <template>
-  <DataTable :columns="columns" :data="presets" default-sort="name" row-key="id">
+  <DataTable
+    :columns="columns"
+    :data="presets"
+    default-sort="name"
+    row-key="id"
+    row-clickable
+    @row-click="$emit('edit', $event.id)"
+  >
     <!-- Provider column -->
     <template #cell-provider="{ row }">
       <span class="provider-badge">
@@ -77,6 +84,7 @@ const columns = [
     label: 'Actions',
     sortable: false,
     headerClass: 'actions-col-wide',
+    noRowClick: true,
   },
 ];
 </script>

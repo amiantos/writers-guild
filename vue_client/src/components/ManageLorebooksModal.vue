@@ -12,7 +12,14 @@
         Select lorebooks to include in this story. Lorebook entries will be automatically injected
         when their keywords are detected.
       </p>
-      <DataTable :columns="columns" :data="lorebooks" default-sort="name" row-key="id">
+      <DataTable
+        :columns="columns"
+        :data="lorebooks"
+        default-sort="name"
+        row-key="id"
+        row-clickable
+        @row-click="toggleLorebook($event.id)"
+      >
         <!-- Checkbox column -->
         <template #cell-selected="{ row }">
           <div class="checkbox-cell">
@@ -63,6 +70,7 @@ const columns = [
     sortable: false,
     cellClass: 'checkbox-cell',
     headerClass: 'checkbox-col',
+    noRowClick: true,
   },
   {
     key: 'name',
