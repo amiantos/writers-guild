@@ -67,13 +67,20 @@ export class ArcNoteStorage {
 
     this.stmts = {
       // Oldest first by Bureau time, with notes that have no time (written by the reader) first.
-      list: this.db.prepare(`
-        SELECT ${columns} FROM arc_notes n ${withSource}
+      // Built with string concatenation (not template interpolation) since `columns` and
+      // `withSource` are fixed fragments, not query parameters — those stay as `?` placeholders.
+      list: this.db.prepare(
+        'SELECT ' +
+          columns +
+          ' FROM arc_notes n ' +
+          withSource +
+          `
         WHERE n.bureau_id = ? AND n.cast_member_id = ?
         ORDER BY (n.world_time IS NOT NULL), n.world_time, s.position, n.id
-      `),
+      `,
+      ),
       get: this.db.prepare(
-        `SELECT ${columns} FROM arc_notes n ${withSource} WHERE n.bureau_id = ? AND n.id = ?`,
+        'SELECT ' + columns + ' FROM arc_notes n ' + withSource + ' WHERE n.bureau_id = ? AND n.id = ?',
       ),
       insert: this.db.prepare(`
         INSERT INTO arc_notes (bureau_id, cast_member_id, content, proposed_content, rationale,
