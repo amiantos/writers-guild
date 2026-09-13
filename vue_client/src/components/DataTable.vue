@@ -20,7 +20,12 @@
       </thead>
       <tbody>
         <tr v-for="row in sortedData" :key="row[rowKey]" class="data-row">
-          <td v-for="column in columns" :key="column.key" :class="column.cellClass">
+          <td
+            v-for="column in columns"
+            :key="column.key"
+            :class="[column.cellClass, { 'click-target': isClickTarget(column) }]"
+            @click="isClickTarget(column) && $emit('row-click', row)"
+          >
             <slot :name="`cell-${column.key}`" :row="row" :value="getCellValue(row, column.key)">
               {{ formatCell(row, column) }}
             </slot>
@@ -59,7 +64,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  rowClickable: {
+    type: Boolean,
+    default: false,
+  },
 });
+
+defineEmits(['row-click']);
 
 const sortColumn = ref(props.defaultSort || props.columns.find((c) => c.sortable)?.key);
 const sortAsc = ref(props.defaultSortAsc);
@@ -151,6 +162,10 @@ function sortBy(columnKey) {
   }
 }
 
+function isClickTarget(column) {
+  return props.rowClickable && !column.noRowClick;
+}
+
 function getCellValue(row, key) {
   // Support nested keys like 'user.name'
   return key.split('.').reduce((obj, k) => obj?.[k], row);
@@ -215,6 +230,10 @@ function formatCell(row, column) {
 
 .data-row:hover {
   background-color: var(--bg-secondary);
+}
+
+.click-target {
+  cursor: pointer;
 }
 
 .data-table td {
