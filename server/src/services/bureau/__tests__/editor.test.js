@@ -88,13 +88,13 @@ describe('buildEditorMessages', () => {
     const [system, user] = buildEditorMessages({
       houseStyle: 'Third person, past tense.',
       text: TEXT,
+      // A retired rule, as in an old run, gets no guidance.
       findings: [...FINDINGS, { paragraph: 1, rule: 'speaking_for_reader', reason: 'Theo speaks' }],
-      readerName: 'Theo',
     });
 
     expect(system.content).toContain('=== HOUSE STYLE ===\nThird person, past tense.');
     expect(system.content).toContain('multiple_speakers: split the paragraph');
-    expect(system.content).toContain("remove Theo's dialogue");
+    expect(system.content).not.toContain('speaking_for_reader:');
     expect(user.content).toContain('[Paragraph 1]\n"Coming?" Mara asked. "No," Theo said.');
     expect(user.content).toContain(
       '- Paragraph 1 (multiple_speakers): Mara and Theo both speak in one paragraph',

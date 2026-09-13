@@ -184,16 +184,11 @@ export function buildDirectorMessages({
   timeZone = null,
   canCreateCharacters = false,
 }) {
-  const persona = cast.find((member) => member.isPersona) ?? null;
-  const personaName = persona ? nameOf(persona) : null;
-
   const system = [
     'You are the Director for an ongoing story. Before the Writer writes the next passage, decide what should happen in it and gather anything the Writer needs.',
     [
       '- Use recall when the passage turns on earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for more about someone. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
-      personaName
-        ? `- Follow the request below. Keep the beats to what fits in one passage, and end at the first moment that waits on ${personaName}${request.action === 'direct' ? " once the author's direction is carried out" : ''}, such as someone asking ${personaName} something. Don't plan past it.`
-        : '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
+      '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
       '- Plan what happens and leave how it reads to the Writer. Each beat is a plain sentence about what someone does or what changes, without lines of dialogue, jokes, imagery, or explanations of what anyone feels underneath.',
       "- A passage can follow any of the characters in the chapter, often several at once as they interact; don't build it around one character's point of view.",
       '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
@@ -201,9 +196,6 @@ export function buildDirectorMessages({
       "- The Writer has the character cards, so don't restate anyone's traits or habits in the notes.",
       canCreateCharacters
         ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this chapter.'
-        : null,
-      personaName
-        ? `- ${personaName}'s words and choices belong to the reader. Don't plan what ${personaName} says or decides${request.action === 'direct' ? " beyond what the author's direction asks for" : ''}.`
         : null,
       '- Finish by calling submit_brief once.',
     ]

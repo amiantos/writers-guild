@@ -180,9 +180,7 @@ describe('generateWriterTurn', () => {
       usage: { prompt_tokens: 120, completion_tokens: 20 },
       response: { content: 'Mara opened the door.', finishReason: 'stop' },
     });
-    expect(run.steps[0].request.messages[1].content).toContain(
-      "Leave Theo's words and choices to Theo.",
-    );
+    expect(run.steps[0].request.messages[1].content).not.toContain('words and choices');
   });
 
   it("uses the Bureau's writer settings and the story's cast", async () => {
@@ -528,7 +526,7 @@ describe('generateWriterTurn', () => {
       expect(events.find((event) => event.type === 'edits').edits).toMatchObject([
         {
           paragraph: 0,
-          rules: ['multiple_speakers', 'speaking_for_reader'],
+          rules: ['multiple_speakers'],
           original: TWO_SPEAKERS,
           replacement: SPLIT_SPEAKERS,
         },
@@ -540,11 +538,10 @@ describe('generateWriterTurn', () => {
         ['editor', 'model'],
         ['editor', 'tool'],
       ]);
-      // On Continue, Theo's line is flagged too: the reader's character is the reader's.
-      expect(run.steps[1].response.findings).toHaveLength(2);
+      expect(run.steps[1].response.findings).toHaveLength(1);
     });
 
-    it("lets only a direction have the reader's character speak", async () => {
+    it("doesn't flag the reader's character speaking, on any action", async () => {
       stores.bureaus.updateSettings(bureau.id, { editor: { enabled: false } });
       const rulesFor = async (request) => {
         const client = withChat(
@@ -561,10 +558,7 @@ describe('generateWriterTurn', () => {
       expect(await rulesFor({ action: 'direct', direction: 'Theo says no' })).toEqual([
         'multiple_speakers',
       ]);
-      expect(await rulesFor({ action: 'continue' })).toEqual([
-        'multiple_speakers',
-        'speaking_for_reader',
-      ]);
+      expect(await rulesFor({ action: 'continue' })).toEqual(['multiple_speakers']);
     });
 
     it('keeps the unedited text when the Editor is off or fails', async () => {

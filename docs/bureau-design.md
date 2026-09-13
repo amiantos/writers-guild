@@ -165,8 +165,7 @@ actions:
   preview bar). Its instructions are the same as Continue's.
   Ctrl or ⌘ + Enter also writes.
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate. The
-  Director and Writer treat a direction as something that hasn't happened yet and write it happening,
-  including anything it has the reader's character say or do, and nothing more of theirs.
+  Director and Writer treat a direction as something that hasn't happened yet and write it happening.
 - **Continue:** generate with no new input.
 - **Scene break** adds a divider without generating, and **Stop** ends a generation early while
   keeping whatever was already written.
@@ -174,10 +173,10 @@ actions:
   Time passes elsewhere, and adds a divider showing the new time (see
   [Bureau time](#bureau-time)).
 
-On Write and Continue, the reader's character's words and choices stay the reader's; only a
-direction can have them speak or act. Otherwise, a passage ends once someone asks the reader's
-character something or waits for them to respond, even if that makes it shorter than asked (on
-Direct, once the direction is carried out).
+The Director and Writer write the reader's character like anyone else in the chapter, on every
+action. An earlier rule left their words and choices to the reader, with a style check whose fix cut
+their dialogue after it was written, and ended passages once someone asked them something. It held
+scenes back more than it helped, so it's gone.
 
 Editing a turn opens a textarea for just that turn, which recovers most of the feel of editing
 directly.
@@ -284,8 +283,6 @@ recorded in its run even with the Editor off, so Writer-only runs can be compare
   if they're named in this paragraph or the one before.
 - **First-person narration:** three or more of "I", "me", "my", or "myself" outside dialogue and
   thoughts ("…, she thought") when the house style asks for third person.
-- **Speaking for the reader's character:** on Write and Continue turns, dialogue attributed to the
-  persona.
 - **Repeated phrasing:** seven-word stretches of narration repeated from the last three generated
   turns or earlier in the passage, plus a per-Bureau list of banned phrases.
 
@@ -386,8 +383,8 @@ participants. Offscreen life belongs to the character who lived it until they sh
 tracked per chapter at first; per-turn presence (someone leaving mid-scene) can come later.
 
 The reader's character remembers like everyone else: the Archivist records what the passages show
-them saying, doing, or learning, and the Writer and Director see it. Only the prompts that keep
-their words and choices the reader's treat them differently, and offscreen life leaves them out.
+them saying, doing, or learning, and the Writer and Director see it. They differ only in being the
+character the reader writes as, and in being left out of offscreen life.
 
 Phase 3 built seed cards, knowledge, and episodes. In the Writer prompt, each character gets their
 pinned knowledge, then the most important knowledge that fits a budget (4,000 characters by default),
@@ -776,7 +773,8 @@ Each phase ends with something usable.
    them, since only the reader moves the clock?
 7. Should chapters support branching, or only per-turn variants?
 8. Does the persona keep memories of its own? _Yes, since 2026-09-12: they remember like everyone
-   else. Only writing as them is restricted, and offscreen life leaves them out._
+   else. Since 2026-09-13 the Writer writes them like anyone else too; only offscreen life leaves
+   them out._
 9. Can a Bureau have more than one unfinished chapter at a time?
 
 ## References

@@ -499,9 +499,9 @@ describe('buildDirectorMessages', () => {
     });
 
     expect(system.content).toContain(
-      "Theo's words and choices belong to the reader. Don't plan what Theo says or decides beyond what the author's direction asks for.",
+      '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
     );
-    expect(system.content).toContain("waits on Theo once the author's direction is carried out");
+    expect(system.content).not.toMatch(/belong to the reader|waits on Theo|Don't plan what Theo/);
     expect(system.content).toContain(
       "- A passage can follow any of the characters in the chapter, often several at once as they interact; don't build it around one character's point of view.",
     );
@@ -517,7 +517,7 @@ describe('buildDirectorMessages', () => {
     expect(user.content).not.toContain('Center the passage');
   });
 
-  it("leaves the reader's character to the reader when there's no direction", () => {
+  it("continues the story when there's no direction, without holding back the reader's character", () => {
     const [system, user] = buildDirectorMessages({
       story: { title: 'Lamplight' },
       cast,
@@ -525,10 +525,7 @@ describe('buildDirectorMessages', () => {
       request: { action: 'write' },
     });
 
-    expect(system.content).toContain("Don't plan what Theo says or decides.\n");
-    expect(system.content).toContain(
-      "end at the first moment that waits on Theo, such as someone asking Theo something. Don't plan past it.",
-    );
+    expect(system.content).not.toMatch(/Don't plan what Theo|waits on Theo/);
     // Who wrote the latest passage doesn't matter: the story just continues.
     expect(user.content).toContain(
       '=== NEXT ===\nContinue the story naturally from where it left off.',

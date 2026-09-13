@@ -56,11 +56,9 @@ describe('lintProse: multiple speakers', () => {
 
   it("doesn't take the person spoken to, or a second name in a beat, for the speaker", () => {
     expect(
-      rules('Mara turned to Theo and said, "Let\'s go." She took his hand. "Now," she added.', {
-        readerName: 'Theo',
-      }),
+      rules('Mara turned to Theo and said, "Let\'s go." She took his hand. "Now," she added.'),
     ).toEqual([]);
-    expect(rules('Theo hesitated, and Mara pressed. "Well?"', { readerName: 'Theo' })).toEqual([]);
+    expect(rules('Theo hesitated, and Mara pressed. "Well?" "Tell me," she said.')).toEqual([]);
   });
 
   it("doesn't count a capitalized sentence opener as a speaker", () => {
@@ -68,15 +66,17 @@ describe('lintProse: multiple speakers', () => {
     expect(rules('"Hi," Harold said. "Hey," Theo said.')).toEqual([[0, 'multiple_speakers']]);
   });
 
-  it("recognizes the reader's character by pronoun when they were just named", () => {
+  it('takes a pronoun for the cast member just named', () => {
+    const reasonFor = (text) => lintProse(text, { names: CAST })[0]?.reason;
+
     expect(
-      rules('Theo lowered the map.\n\n"Three nights running," he said.', { readerName: 'Theo' }),
-    ).toEqual([[1, 'speaking_for_reader']]);
+      reasonFor('Theo lowered the map.\n\n"Three nights running," he said. "Four," Mara said.'),
+    ).toBe('Mara Quinn and Theo both speak in one paragraph');
     expect(
-      rules('The harbormaster shrugged.\n\n"Three nights running," he said.', {
-        readerName: 'Theo',
-      }),
-    ).toEqual([]);
+      reasonFor(
+        'The harbormaster shrugged.\n\n"Three nights running," he said. "Four," Mara said.',
+      ),
+    ).toBe('Mara Quinn and "he" both speak in one paragraph');
   });
 
   it('reads tags before quotes, "said Mara" order, and curly quotes', () => {
@@ -145,11 +145,10 @@ describe('lintProse: other rules', () => {
     expect(rules('Mara looked up. I suppose she was tired.')).toEqual([]);
   });
 
-  it("flags the reader's character speaking only when asked to", () => {
-    expect(rules('"Fine," Theo said.', { readerName: 'Theo' })).toEqual([
-      [0, 'speaking_for_reader'],
-    ]);
-    expect(rules('"Fine," Theo said.')).toEqual([]);
+  it("doesn't flag the reader's character speaking", () => {
+    expect(rules('Mara looked up.\n\n"Fine," Theo said.')).toEqual([]);
+    // An old caller's readerName option is ignored.
+    expect(rules('"Fine," Theo said.', { readerName: 'Theo' })).toEqual([]);
   });
 
   it('flags narration repeated from earlier passages or paragraphs, not dialogue', () => {

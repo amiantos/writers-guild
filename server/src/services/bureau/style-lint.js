@@ -14,7 +14,6 @@
 export const LINT_RULES = [
   'multiple_speakers',
   'first_person_narration',
-  'speaking_for_reader',
   'repeated_phrase',
   'banned_phrase',
 ];
@@ -363,7 +362,6 @@ function escapeRegExp(text) {
  * @param {Object} [options]
  * @param {Array<{ name: string, pronoun?: string|null }>} [options.names] - Cast members,
  *   with pronouns where known (see inferPronoun).
- * @param {string|null} [options.readerName] - Set when the reader's character must not speak.
  * @param {boolean} [options.thirdPerson] - Flag first-person narration.
  * @param {string} [options.recentText] - Earlier passages, to catch repeated narration.
  * @param {string[]} [options.bannedPhrases]
@@ -371,7 +369,7 @@ function escapeRegExp(text) {
  */
 export function lintProse(
   text,
-  { names = [], readerName = null, thirdPerson = true, recentText = '', bannedPhrases = [] } = {},
+  { names = [], thirdPerson = true, recentText = '', bannedPhrases = [] } = {},
 ) {
   const cast = castFrom(names);
   const properNouns = new Set(text.match(MID_SENTENCE_CAPITAL) ?? []);
@@ -413,13 +411,6 @@ export function lintProse(
 
     if (drifted && firstPersonCounts[number] > 0) {
       flag('first_person_narration', 'The narration slips into first person');
-    }
-
-    if (readerName && named.includes(readerName)) {
-      flag(
-        'speaking_for_reader',
-        `${readerName} speaks, but their words are the reader's to write`,
-      );
     }
 
     const phrases = phrasesOf(narration);

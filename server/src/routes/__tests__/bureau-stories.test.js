@@ -622,9 +622,7 @@ describe('Bureau story routes', () => {
         content: 'The lamp guttered out.',
       });
       expect(regenerated.turn.variants).toHaveLength(2);
-      expect(client.calls[0].messages[1].content).toContain(
-        "Leave Theo's words and choices to Theo.",
-      );
+      expect(client.calls[0].messages[1].content).toContain('refer to Theo by name');
 
       const { body: switched } = await request(app)
         .put(`${turnUrl}/variant`)

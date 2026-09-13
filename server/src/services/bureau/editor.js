@@ -39,14 +39,12 @@ export const EDIT_PARAGRAPHS_TOOL = {
   },
 };
 
-function guidanceFor(rule, readerName) {
+function guidanceFor(rule) {
   switch (rule) {
     case 'multiple_speakers':
       return "multiple_speakers: split the paragraph so each character's dialogue, with that character's own actions, is in a paragraph of its own. Keep every line of dialogue.";
     case 'first_person_narration':
       return 'first_person_narration: rewrite the narration in the third person, using names. Leave dialogue as it is.';
-    case 'speaking_for_reader':
-      return `speaking_for_reader: remove ${readerName ?? "the reader's character"}'s dialogue and decisions, ending the paragraph where they would respond.`;
     case 'repeated_phrase':
       return "repeated_phrase: reword the repeated narration so it doesn't echo earlier passages.";
     case 'banned_phrase':
@@ -61,15 +59,14 @@ function guidanceFor(rule, readerName) {
  * @param {string} params.houseStyle
  * @param {string} params.text - The generated passage.
  * @param {Array<{ paragraph: number, rule: string, reason: string }>} params.findings
- * @param {string|null} [params.readerName]
  */
-export function buildEditorMessages({ houseStyle, text, findings, readerName = null }) {
+export function buildEditorMessages({ houseStyle, text, findings }) {
   const rules = [...new Set(findings.map((finding) => finding.rule))];
   const system = [
     'You are the Editor for an ongoing story. Fix only the problems flagged in the numbered paragraphs, changing as little as possible: keep every event, line of dialogue, and detail, and keep the voice and tense. Call edit_paragraphs once, with a replacement for each flagged paragraph.',
     `=== HOUSE STYLE ===\n${houseStyle}`,
     `=== HOW TO FIX EACH PROBLEM ===\n${rules
-      .map((rule) => guidanceFor(rule, readerName))
+      .map((rule) => guidanceFor(rule))
       .filter(Boolean)
       .join('\n')}`,
   ];
@@ -140,20 +137,11 @@ export function applyEdits(text, findings, edits) {
  * @param {string} params.houseStyle
  * @param {string} params.text
  * @param {Array<Object>} params.findings - From lintProse; at least one.
- * @param {string|null} [params.readerName]
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<{ text: string, edits: Array<Object> }>}
  */
-export async function runEditor({
-  client,
-  recorder,
-  houseStyle,
-  text,
-  findings,
-  readerName = null,
-  signal,
-}) {
-  const messages = buildEditorMessages({ houseStyle, text, findings, readerName });
+export async function runEditor({ client, recorder, houseStyle, text, findings, signal }) {
+  const messages = buildEditorMessages({ houseStyle, text, findings });
   const recordedRequest = {
     model: client.model,
     thinking: false,
