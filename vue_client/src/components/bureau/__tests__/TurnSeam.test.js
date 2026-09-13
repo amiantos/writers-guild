@@ -82,7 +82,7 @@ describe('TurnSeam', () => {
   it('stays closed until clicked, then shows how a generated turn was made', async () => {
     bureausAPI.getRun.mockResolvedValue({ run: RUN });
     const wrapper = mount(TurnSeam, {
-      props: { bureauId: 'b1', turn: turn({ authorCastId: 'cast-mara' }), castById: CAST },
+      props: { bureauId: 'b1', turn: turn({}), castById: CAST },
     });
 
     expect(wrapper.find('.seam-panel').exists()).toBe(false);
@@ -92,7 +92,7 @@ describe('TurnSeam', () => {
     expect(bureausAPI.getRun).toHaveBeenCalledWith('b1', 'run-1');
     const panel = wrapper.find('.seam-panel').text();
     expect(panel).toContain('Written');
-    expect(panel).toContain('centered on Mara');
+    expect(panel).not.toContain('centered on');
     expect(panel).toContain('2.4s');
     expect(panel).toContain('1,204 in (512 cached) · 310 out');
     expect(panel).toContain('deepseek-flash · temperature 1 · up to 4000 tokens');
@@ -194,7 +194,9 @@ describe('TurnSeam', () => {
     expect(panel).toContain('Director · recall');
     expect(panel).toContain('"query": "swim"');
     expect(panel).toContain('Mara offers a lesson');
-    expect(panel).toContain('Point of view: Mara · Tone: wry · Length: short');
+    // An older brief may still carry a point of view; it isn't shown.
+    expect(panel).toContain('Tone: wry · Length: short');
+    expect(panel).not.toContain('Point of view');
     expect(panel).toContain("Theo can't swim. (He is afraid)");
     expect(panel).toContain(`Paragraph 1: ${reason}`);
 

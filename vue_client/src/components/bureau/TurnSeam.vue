@@ -187,7 +187,6 @@ const runMeta = computed(() => {
     STATUS_LABELS[run.value.status] ?? run.value.status,
     formatDateTime(run.value.started),
   ];
-  if (authorName.value) parts.push(`centered on ${authorName.value}`);
   if (props.turn.edited) parts.push('edited afterward');
   return parts.join(' · ');
 });
@@ -233,11 +232,7 @@ function briefOf(step) {
 }
 
 function briefDetails(brief) {
-  return [
-    brief.pov ? `Point of view: ${brief.pov}` : '',
-    brief.tone ? `Tone: ${brief.tone}` : '',
-    brief.length ? `Length: ${brief.length}` : '',
-  ]
+  return [brief.tone ? `Tone: ${brief.tone}` : '', brief.length ? `Length: ${brief.length}` : '']
     .filter(Boolean)
     .join(' · ');
 }

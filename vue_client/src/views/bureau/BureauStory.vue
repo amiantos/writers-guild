@@ -109,7 +109,6 @@
       <StoryComposer
         v-if="story.status === 'active'"
         ref="composerRef"
-        :cast="storyCast"
         :generating="generating"
         :has-api-key="bureau.hasApiKey"
         @generate="generate"
@@ -209,10 +208,6 @@ const hasUnarchived = computed(
 const castById = computed(() =>
   Object.fromEntries(cast.value.map((member) => [member.id, member])),
 );
-const storyCast = computed(() =>
-  (story.value?.castIds ?? []).map((castId) => castById.value[castId]).filter(Boolean),
-);
-
 // ==================== Loading ====================
 
 async function load() {
@@ -355,15 +350,9 @@ async function runStream(start, { regenerateTurnId = null, composerText = '' } =
   }
 }
 
-function generate({ action, text, leadCastId }) {
+function generate({ action, text }) {
   runStream(
-    (signal) =>
-      bureauStoriesAPI.generate(
-        props.bureauId,
-        props.storyId,
-        { action, text, leadCastId },
-        signal,
-      ),
+    (signal) => bureauStoriesAPI.generate(props.bureauId, props.storyId, { action, text }, signal),
     { composerText: text },
   );
 }

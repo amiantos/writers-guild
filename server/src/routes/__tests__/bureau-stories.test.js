@@ -444,7 +444,7 @@ describe('Bureau story routes', () => {
 
       const { body } = await request(app)
         .post(`${storiesUrl()}/${story.id}/generate`)
-        .send({ action: 'write', text: 'Theo knocked.', leadCastId: mara.id })
+        .send({ action: 'write', text: 'Theo knocked.' })
         .expect(201);
 
       expect(body.userTurn).toMatchObject({
@@ -457,7 +457,7 @@ describe('Bureau story routes', () => {
         kind: 'prose',
         source: 'generated',
         content: 'The lamp was lit.',
-        authorCastId: mara.id,
+        authorCastId: null,
       });
       expect(client.calls[0].messages[1].content).toContain('Theo knocked.');
     });
@@ -519,7 +519,6 @@ describe('Bureau story routes', () => {
 
       await request(app).post(url).send({ action: 'sing' }).expect(400);
       await request(app).post(url).send({ action: 'write' }).expect(400);
-      await request(app).post(url).send({ action: 'continue', leadCastId: mara.id }).expect(400);
 
       stores.bureaus.updateBureau(bureau.id, { apiKey: '' });
       const { body } = await request(app).post(url).send({ action: 'continue' }).expect(400);

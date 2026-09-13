@@ -279,7 +279,7 @@ export class StoryStorage {
    * @param {'prose'|'direction'|'scene_break'} turn.kind
    * @param {'user'|'generated'} turn.source
    * @param {string} [turn.content]
-   * @param {string|null} [turn.authorCastId] - The persona for user prose; the lead for generated turns.
+   * @param {string|null} [turn.authorCastId] - The persona for user prose.
    * @param {string|null} [turn.runId] - The run that generated it.
    * @returns {Object} The new turn.
    */

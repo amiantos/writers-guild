@@ -287,7 +287,7 @@ export const bureauStoriesAPI = {
   /**
    * Stream the next turn. Events: turn (the reader's new turn), run, stage (directing,
    * writing, or editing), brief, reasoning, content, edits, and done (with userTurn and turn).
-   * @param {{ action: 'write'|'direct'|'continue', text?: string, leadCastId?: string|null }} generation
+   * @param {{ action: 'write'|'direct'|'continue', text?: string }} generation
    */
   generate(bureauId, storyId, generation, signal) {
     return streamEvents(`/${bureauId}/stories/${storyId}/generate`, generation, signal);

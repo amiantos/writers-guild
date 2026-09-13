@@ -132,7 +132,6 @@ describe('runDirector', () => {
         return modelTurn([
           toolCall('c2', 'submit_brief', {
             beats: ['Mara offers a lesson', ' '],
-            pov: 'Mara',
             tone: 'wry',
             length: 'enormous',
             memories: [
@@ -152,7 +151,6 @@ describe('runDirector', () => {
     ]);
     expect(brief).toEqual({
       beats: ['Mara offers a lesson'],
-      pov: 'Mara',
       tone: 'wry',
       length: 'medium',
       memories: [
@@ -166,46 +164,6 @@ describe('runDirector', () => {
       notes: '',
     });
     expect(client.calls[0]).toMatchObject({ strict: true, thinking: true, reasoningEffort: 'low' });
-  });
-
-  it("keeps the brief's point of view to whose view, leaving person to the house style", async () => {
-    const briefWithPov = (pov) =>
-      scriptedClient(
-        modelTurn([
-          toolCall('c1', 'submit_brief', {
-            beats: ['Mara comes in'],
-            pov,
-            tone: 'warm',
-            length: 'short',
-            memories: [],
-            notes: '',
-          }),
-        ]),
-      );
-
-    const cases = [
-      ['Mara, first person, close on her voice', 'Mara, close on her voice'],
-      ['Mara (2nd-person)', 'Mara'],
-      [
-        'Mara — third person, close to her read on the room',
-        'Mara — close to her read on the room',
-      ],
-      ['Mara, close third', 'Mara'],
-      ['First person: Mara', 'Mara'],
-      ['Mara, first thing in the morning', 'Mara, first thing in the morning'],
-    ];
-    for (const [pov, expected] of cases) {
-      expect((await direct(briefWithPov(pov))).pov).toBe(expected);
-    }
-
-    // The same goes for a first-person house style, and the prompt never takes a side.
-    stores.bureaus.updateBureau(bureau.id, { houseStyle: 'Write in first person, present tense.' });
-    const client = briefWithPov('Mara, close third');
-    expect((await direct(client)).pov).toBe('Mara');
-    expect(client.calls[0].messages[0].content).toContain(
-      'name only the character the passage stays closest to',
-    );
-    expect(client.calls[0].messages[0].content).not.toMatch(/first- or second-person/);
   });
 
   it('looks up lore and character files', async () => {
@@ -537,13 +495,17 @@ describe('buildDirectorMessages', () => {
         { kind: 'prose', source: 'user', content: 'Theo knocked.' },
         { kind: 'direction', source: 'user', content: 'An old direction' },
       ],
-      request: { action: 'direct', direction: 'Make it rain', leadName: 'Mara' },
+      request: { action: 'direct', direction: 'Make it rain' },
     });
 
     expect(system.content).toContain(
       "Theo's words and choices belong to the reader. Don't plan what Theo says or decides beyond what the author's direction asks for.",
     );
     expect(system.content).toContain("waits on Theo once the author's direction is carried out");
+    expect(system.content).toContain(
+      "- A passage can follow any of the characters in the chapter, often several at once as they interact; don't build it around one character's point of view.",
+    );
+    expect(system.content).not.toContain('name only the character the passage stays closest to');
     expect(user.content).toContain(
       "=== CAST ===\n- Mara: She keeps the Greywater light.\n- Theo (the reader's character)",
     );
@@ -552,7 +514,7 @@ describe('buildDirectorMessages', () => {
     expect(user.content).toContain(
       "The author's direction for the next passage (not part of the story yet): Make it rain\nPlan a passage that carries it out.",
     );
-    expect(user.content).toContain('Center the passage on Mara.');
+    expect(user.content).not.toContain('Center the passage');
   });
 
   it("leaves the reader's character to the reader when there's no direction", () => {
@@ -572,17 +534,6 @@ describe('buildDirectorMessages', () => {
       '=== NEXT ===\nContinue the story naturally from where it left off.',
     );
     expect(user.content).not.toContain('wrote the latest passage');
-
-    // Centering the passage on the reader's character lets the Director plan them.
-    const [centered] = buildDirectorMessages({
-      story: { title: 'Lamplight' },
-      cast,
-      turns: [{ kind: 'prose', source: 'user', content: 'Theo knocked.' }],
-      request: { action: 'continue', leadName: 'Theo', leadIsReader: true },
-    });
-    expect(centered.content).toContain('so you may plan what Theo says and does');
-    expect(centered.content).not.toContain('belong to the reader');
-    expect(centered.content).not.toContain('waits on Theo');
     expect(system.content).toContain(
       "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have",
     );

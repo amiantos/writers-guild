@@ -39,18 +39,17 @@ export const RECORDED_STORY_TAIL = 4000;
  *
  * @param {Array<Object>} turns - The story's turns in order.
  * @param {number} index - Index of the generated turn in `turns`.
- * @returns {{ action: string, direction?: string, leadCastId: string|null }}
+ * @returns {{ action: string, direction?: string }}
  */
 export function requestForRegeneration(turns, index) {
-  const leadCastId = turns[index]?.authorCastId ?? null;
   const previous = turns[index - 1];
   if (previous?.kind === 'direction') {
-    return { action: 'direct', direction: previous.content, leadCastId };
+    return { action: 'direct', direction: previous.content };
   }
   if (previous?.kind === 'prose' && previous.source === 'user') {
-    return { action: 'write', leadCastId };
+    return { action: 'write' };
   }
-  return { action: 'continue', leadCastId };
+  return { action: 'continue' };
 }
 
 function recordableMessages(messages, storySection) {
@@ -97,7 +96,6 @@ function pronounOf(member) {
  * @param {Object} params.request
  * @param {'write'|'direct'|'continue'} params.request.action
  * @param {string} [params.request.direction] - For 'direct'.
- * @param {string|null} [params.request.leadCastId] - Cast member to center the passage on.
  * @param {string|null} [params.regenerateTurnId] - Add a variant to this turn, writing from
  *   the turns before it, instead of appending a new turn.
  * @param {(event: Object) => void} [params.onEvent] - Receives events as they happen: `run`,
@@ -131,7 +129,6 @@ export async function generateWriterTurn({
   const cast = story.castIds
     .map((castId) => bureaus.getCastMember(bureau.id, castId))
     .filter(Boolean);
-  const lead = request.leadCastId ? cast.find((member) => member.id === request.leadCastId) : null;
 
   // What each character, the reader's included, remembers from before this chapter.
   const memoriesByCast = new Map(
@@ -156,9 +153,6 @@ export async function generateWriterTurn({
   const promptRequest = {
     action: request.action,
     direction: request.direction,
-    leadName: lead?.name,
-    // Centering a passage on the reader's character asks the Writer to write them.
-    leadIsReader: Boolean(lead?.isPersona),
   };
   const isCancellation = (error) => error?.name === 'AbortError' || Boolean(signal?.aborted);
 
@@ -245,7 +239,6 @@ export async function generateWriterTurn({
           kind: 'prose',
           source: 'generated',
           content: text,
-          authorCastId: lead?.id ?? null,
           runId: recorder.runId,
         });
 
@@ -338,10 +331,8 @@ export async function generateWriterTurn({
   // Lint runs and is recorded even with the Editor off, so runs can be compared.
   const houseStyle = bureau.houseStyle?.trim() || DEFAULT_HOUSE_STYLE;
   const persona = cast.find((member) => member.isPersona) ?? null;
-  // The reader's character speaks only when a direction has them speak, or the passage centers on
-  // them.
-  const readerName =
-    request.action !== 'direct' && !lead?.isPersona && persona ? nameOf(persona) : null;
+  // The reader's character speaks only when a direction has them speak.
+  const readerName = request.action !== 'direct' && persona ? nameOf(persona) : null;
   const findings = lintProse(finalContent, {
     names: cast.map((member) => ({ name: nameOf(member), pronoun: pronounOf(member) })),
     readerName,

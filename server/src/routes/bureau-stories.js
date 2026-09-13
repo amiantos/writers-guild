@@ -553,8 +553,7 @@ router.post(
 // ==================== Generation ====================
 
 // Generate the next turn. action 'write' adds the reader's text as prose first,
-// 'direct' adds it as a direction, and 'continue' ignores text. leadCastId
-// centers the passage on a cast member in the story.
+// 'direct' adds it as a direction, and 'continue' ignores text.
 router.post(
   '/:storyId/generate',
   asyncHandler(async (req, res) => {
@@ -566,16 +565,13 @@ router.post(
     requireApiKey(bureau);
 
     const body = req.body ?? {};
-    const { action, leadCastId = null } = body;
+    const { action } = body;
     if (!GENERATE_ACTIONS.includes(action)) {
       throw new AppError(`action must be one of: ${GENERATE_ACTIONS.join(', ')}`, 400);
     }
     const text = optionalString(body, 'text') ?? '';
     if (action !== 'continue' && !text) {
       throw new AppError(`text is required to ${action}`, 400);
-    }
-    if (leadCastId !== null && !story.castIds.includes(leadCastId)) {
-      throw new AppError('leadCastId must be a cast member in this chapter', 400);
     }
 
     let userTurn = null;
@@ -593,7 +589,7 @@ router.post(
     await respondWithWriterTurn(req, res, {
       bureau,
       story,
-      request: { action, direction: action === 'direct' ? text : undefined, leadCastId },
+      request: { action, direction: action === 'direct' ? text : undefined },
       regenerateTurnId: null,
       userTurn,
     });
@@ -620,16 +616,10 @@ router.post(
       throw new AppError('Only generated turns can be regenerated', 400);
     }
 
-    const request = requestForRegeneration(turns, index);
-    if (request.leadCastId && !story.castIds.includes(request.leadCastId)) {
-      // The lead has left the story since.
-      request.leadCastId = null;
-    }
-
     await respondWithWriterTurn(req, res, {
       bureau,
       story,
-      request,
+      request: requestForRegeneration(turns, index),
       regenerateTurnId: turnId,
       userTurn: null,
     });

@@ -119,8 +119,8 @@ function instructionFor({
         : "Some passages may be written in first or second person; write in the house style's perspective.",
     );
   }
-  // The reader's character is written only when a direction asks, or the passage centers on them.
-  if (request.action !== 'direct' && !request.leadIsReader && readerName) {
+  // The reader's character is written only when a direction asks.
+  if (request.action !== 'direct' && readerName) {
     lines.push(
       `Leave ${readerName}'s words and choices to ${readerName}. What ${readerName} remembers is there for continuity, not for you to act on.`,
     );
@@ -129,14 +129,9 @@ function instructionFor({
   if (request.action === 'direct' && request.direction) {
     lines.push(
       `The author's direction for this passage (not part of the story yet): ${request.direction}`,
-      readerName && !request.leadIsReader
+      readerName
         ? `Carry it out in the passage itself: write what it describes as happening, including anything it has ${readerName} say or do. Beyond that, leave ${readerName}'s words and choices to ${readerName}.`
         : 'Carry it out in the passage itself: write what it describes as happening.',
-    );
-  }
-  if (request.leadName) {
-    lines.push(
-      `Center this passage on ${request.leadName}: their thoughts, actions, and dialogue.`,
     );
   }
   if (openingTime && !hasGeneratedProse) {
@@ -150,13 +145,7 @@ function instructionFor({
     lines.push(
       `Scene brief from the Director:\n${brief.beats.map((beat) => `- ${beat}`).join('\n')}`,
     );
-    const details = [
-      brief.pov
-        ? `Point of view: ${brief.pov}, narrated in the house style's person and tense.`
-        : '',
-      brief.tone ? `Tone: ${brief.tone}.` : '',
-    ].filter(Boolean);
-    if (details.length > 0) lines.push(details.join(' '));
+    if (brief.tone) lines.push(`Tone: ${brief.tone}.`);
     if (brief.memories?.length > 0) {
       const memories = brief.memories.map(
         (memory) => `- ${memory.content}${memory.reason ? ` (${memory.reason})` : ''}`,
@@ -180,7 +169,7 @@ function instructionFor({
       "Keep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it.",
     );
   }
-  if (readerName && !request.leadIsReader) {
+  if (readerName) {
     lines.push(
       `${request.action === 'direct' ? 'Once the direction is carried out, if' : 'If'} someone asks ${readerName} something or waits for ${readerName} to respond, end the passage right there, even if it's shorter than asked.`,
     );
@@ -204,7 +193,6 @@ function instructionFor({
  * @param {Object} params.request
  * @param {'write'|'direct'|'continue'} params.request.action
  * @param {string} [params.request.direction] - The direction text, for 'direct'.
- * @param {string} [params.request.leadName] - Cast member to center the passage on.
  * @param {Object|null} [params.request.brief] - The Director's scene brief (see director.js).
  * @param {string|null} [params.openingTime] - Loose start-time description; used until the
  *   story has generated prose.

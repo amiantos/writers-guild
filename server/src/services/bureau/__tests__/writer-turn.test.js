@@ -53,7 +53,6 @@ function withChat(client, answers) {
 
 const BRIEF = {
   beats: ['Mara answers the door'],
-  pov: 'Mara',
   tone: 'warm',
   length: 'short',
   memories: [],
@@ -144,7 +143,7 @@ describe('generateWriterTurn', () => {
 
     const turn = await generate(
       client,
-      { action: 'write', leadCastId: mara.id },
+      { action: 'write' },
       { onEvent: (event) => events.push(event) },
     );
 
@@ -152,7 +151,7 @@ describe('generateWriterTurn', () => {
       kind: 'prose',
       source: 'generated',
       content: 'Mara opened the door.',
-      authorCastId: mara.id,
+      authorCastId: null,
     });
     expect(events).toEqual([
       { type: 'run', runId: turn.runId },
@@ -524,7 +523,7 @@ describe('generateWriterTurn', () => {
       expect(run.steps[1].response.findings).toHaveLength(2);
     });
 
-    it("lets a direction, or a passage centered on the reader's character, have them speak", async () => {
+    it("lets only a direction have the reader's character speak", async () => {
       stores.bureaus.updateSettings(bureau.id, { editor: { enabled: false } });
       const rulesFor = async (request) => {
         const client = withChat(
@@ -539,9 +538,6 @@ describe('generateWriterTurn', () => {
       };
 
       expect(await rulesFor({ action: 'direct', direction: 'Theo says no' })).toEqual([
-        'multiple_speakers',
-      ]);
-      expect(await rulesFor({ action: 'continue', leadCastId: theo.id })).toEqual([
         'multiple_speakers',
       ]);
       expect(await rulesFor({ action: 'continue' })).toEqual([
@@ -577,7 +573,6 @@ describe('requestForRegeneration', () => {
     kind: 'prose',
     source: 'generated',
     content: 'Reply.',
-    authorCastId: 'cast-1',
   };
 
   it('regenerates a reply to a direction as a direction', () => {
@@ -586,24 +581,17 @@ describe('requestForRegeneration', () => {
     expect(requestForRegeneration(turns, 1)).toEqual({
       action: 'direct',
       direction: 'Rain starts.',
-      leadCastId: 'cast-1',
     });
   });
 
   it("regenerates a reply to the reader's prose as a write", () => {
     const turns = [{ kind: 'prose', source: 'user', content: 'Theo waved.' }, generated];
 
-    expect(requestForRegeneration(turns, 1)).toEqual({ action: 'write', leadCastId: 'cast-1' });
+    expect(requestForRegeneration(turns, 1)).toEqual({ action: 'write' });
   });
 
   it('regenerates anything else as a continue', () => {
-    expect(requestForRegeneration([generated], 0)).toEqual({
-      action: 'continue',
-      leadCastId: 'cast-1',
-    });
-    expect(requestForRegeneration([{ ...generated, authorCastId: null }, generated], 1)).toEqual({
-      action: 'continue',
-      leadCastId: 'cast-1',
-    });
+    expect(requestForRegeneration([generated], 0)).toEqual({ action: 'continue' });
+    expect(requestForRegeneration([generated, generated], 1)).toEqual({ action: 'continue' });
   });
 });

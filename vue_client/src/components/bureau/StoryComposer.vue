@@ -18,18 +18,6 @@
 
     <div class="composer-bar">
       <div class="composer-options">
-        <label class="focus-label" for="composer-focus">Focus</label>
-        <select
-          id="composer-focus"
-          v-model="leadCastId"
-          class="focus-select"
-          :disabled="generating"
-        >
-          <option :value="null">Whoever fits</option>
-          <option v-for="member in cast" :key="member.id" :value="member.id">
-            {{ member.name }}
-          </option>
-        </select>
         <button
           class="btn btn-secondary btn-small"
           title="Add a scene break"
@@ -76,11 +64,9 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 
 const props = defineProps({
-  /** Cast members in the story, any of whom the next passage can center on. */
-  cast: { type: Array, default: () => [] },
   generating: { type: Boolean, default: false },
   hasApiKey: { type: Boolean, default: true },
 });
@@ -88,17 +74,7 @@ const props = defineProps({
 const emit = defineEmits(['generate', 'scene-break', 'stop']);
 
 const text = ref('');
-const leadCastId = ref(null);
 const inputRef = ref(null);
-
-watch(
-  () => props.cast,
-  (cast) => {
-    if (leadCastId.value && !cast.some((member) => member.id === leadCastId.value)) {
-      leadCastId.value = null;
-    }
-  },
-);
 
 function submit(action) {
   const trimmed = text.value.trim();
@@ -108,7 +84,6 @@ function submit(action) {
   emit('generate', {
     action,
     text: action === 'continue' ? '' : trimmed,
-    leadCastId: leadCastId.value,
   });
   if (action !== 'continue') {
     text.value = '';
@@ -186,22 +161,6 @@ defineExpose({
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
-}
-
-.focus-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.focus-select {
-  padding: 0.375rem 0.5rem;
-  font: inherit;
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
 }
 
 @media (max-width: 700px) {

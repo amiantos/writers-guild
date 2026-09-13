@@ -245,26 +245,6 @@ describe('buildWriterMessages', () => {
     expect(user).not.toContain('end the passage right there');
   });
 
-  it('centers the passage on a chosen cast member', () => {
-    const { user } = build({
-      turns: [prose('The lamp was lit.')],
-      request: { action: 'continue', leadName: 'Mara' },
-    });
-
-    expect(user).toContain('Center this passage on Mara');
-  });
-
-  it("writes the reader's character when the passage centers on them", () => {
-    const { user } = build({
-      turns: [prose('The lamp was lit.')],
-      request: { action: 'continue', leadName: 'Theo', leadIsReader: true },
-    });
-
-    expect(user).toContain('Center this passage on Theo');
-    expect(user).not.toContain("Leave Theo's words and choices to Theo");
-    expect(user).not.toContain('end the passage right there');
-  });
-
   it("follows the Director's brief, including its length", () => {
     const { user } = build({
       turns: [prose('The lamp was lit.')],
@@ -284,9 +264,11 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain(
-      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nPoint of view: Mara, narrated in the house style's person and tense. Tone: uneasy.\nStay consistent with:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
+      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nTone: uneasy.\nStay consistent with:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
     );
     expect(user).not.toContain('Write the next 3 to 6 paragraphs');
+    // An older brief may still carry a point of view; the Writer doesn't get it.
+    expect(user).not.toContain('Point of view');
   });
 
   it('keeps the scene moving once the story has prose', () => {

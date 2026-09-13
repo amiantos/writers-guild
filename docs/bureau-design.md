@@ -168,15 +168,13 @@ actions:
   Director and Writer treat a direction as something that hasn't happened yet and write it happening,
   including anything it has the reader's character say or do, and nothing more of theirs.
 - **Continue:** generate with no new input.
-- **Focus:** choose which cast member the next passage centers on, for any of the three actions
-  (like story mode's character button). "Whoever fits" leaves it to the Writer.
 - **Scene break** adds a divider without generating, and **Stop** ends a generation early while
   keeping whatever was already written.
 
 On Write and Continue, the reader's character's words and choices stay the reader's; only a
-direction, or centering the passage on them with Focus, can have them speak or act. Otherwise, a
-passage ends once someone asks the reader's character something or waits for them to respond, even
-if that makes it shorter than asked (on Direct, once the direction is carried out).
+direction can have them speak or act. Otherwise, a passage ends once someone asks the reader's
+character something or waits for them to respond, even if that makes it shorter than asked (on
+Direct, once the direction is carried out).
 
 Editing a turn opens a textarea for just that turn, which recovers most of the feel of editing
 directly.
@@ -233,12 +231,12 @@ gather what the next turn needs.
 | `submit_brief(...)`                   | Hand the Writer the scene brief, which ends the Director's turn                                            |
 | `create_character(name, role, notes)` | Generate a draft cast member and add them to the chapter (see [Character generator](#character-generator)) |
 
-Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, point of view
-(whose view only: the house style sets the narration's person and tense, so any narrative person a
-brief names, such as "first person" or "close third", is dropped),
-tone, target length, memories (only ones the Director found and the passage depends on, each with a
+Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, tone, target
+length, memories (only ones the Director found and the passage depends on, each with a
 one-line reason; usually none), and notes on continuity the Writer could get wrong. Beats say plainly
-what happens and leave dialogue and wording to the Writer. The brief doesn't restate the cards or
+what happens and leave dialogue and wording to the Writer. A passage isn't built around one
+character's point of view: it can follow several characters at once as they interact. The brief
+doesn't restate the cards or
 plan callbacks to earlier events unless the scene is about them: memories are background, and
 characters who keep bringing up the past read as talky and artificial. Beats also don't repeat an
 action or bit of business the recent passages already have unless something new comes of it, and
