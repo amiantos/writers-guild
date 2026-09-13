@@ -5,8 +5,11 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "dev:lan": "concurrently \"npm run server:dev:lan\" \"npm run client:dev:lan\"",
     "server:dev": "cd server && npm run dev",
+    "server:dev:lan": "cd server && npm run dev:lan",
     "client:dev": "cd vue_client && npm run dev",
+    "client:dev:lan": "cd vue_client && npm run dev:lan",
     "build": "cd vue_client && npm run build",
     "server:start": "cd server && npm start",
     "test": "npm run test:server && npm run test:client",

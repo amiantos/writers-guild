@@ -40,7 +40,7 @@ const config = yaml.parse(fs.readFileSync(configPath, 'utf8'));
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || config.server.port || 8000;
-const HOST = config.server.host || '0.0.0.0';
+const HOST = process.env.HOST || config.server.host || '0.0.0.0';
 
 // Resolve data directory path
 const DATA_ROOT = path.resolve(__dirname, config.data.root);
@@ -117,6 +117,10 @@ app.use('/api/presets', presetsRouter);
 app.use('/api/onboarding', onboardingRouter);
 app.use('/api/assets', assetsRouter);
 
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: `Not found: ${req.method} ${req.originalUrl}` });
+});
+
 // Check if we're in production (built client exists)
 const publicPath = path.join(__dirname, 'public');
 const isProduction = fsSync.existsSync(publicPath);
@@ -131,11 +135,12 @@ if (isProduction) {
   });
 } else {
   // Development: Redirect to Vite dev server
-  console.log('Development mode: Redirecting to Vite dev server at http://localhost:5173');
+  console.log('Development mode: Redirecting to Vite dev server on port 5173');
 
   app.get('*', (req, res) => {
-    // Redirect any HTML page requests to Vite dev server
-    res.redirect(301, 'http://localhost:5173' + req.url);
+    // Redirect any HTML page requests to the Vite dev server on the same host the
+    // request came in on, so the app also works from other devices on the LAN.
+    res.redirect(302, `http://${req.hostname}:5173${req.url}`);
   });
 }
 

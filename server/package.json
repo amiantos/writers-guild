@@ -14,7 +14,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "HOST=127.0.0.1 node --watch server.js",
+    "dev:lan": "HOST=0.0.0.0 node --watch server.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
