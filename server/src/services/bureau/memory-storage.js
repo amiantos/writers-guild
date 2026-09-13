@@ -59,6 +59,7 @@ function memoryFromRow(row) {
     sourceId: row.source_id,
     sourceTitle: row.source_title ?? null,
     sourcePosition: row.source_position ?? null,
+    sourceCreated: row.source_created ?? null,
     sourceTurnIds: parseIds(row.source_turn_ids),
     runId: row.run_id,
     supersededBy: row.superseded_by,
@@ -77,7 +78,16 @@ export class MemoryStorage {
   }
 
   prepareStatements() {
-    const columns = 'm.*, s.title AS source_title, s.position AS source_position';
+    // When a memory's source was written: its chapter was created, or the earliest message it
+    // cites was written. At the same Bureau time, memory.js puts what was written first first.
+    const sourceCreated = `CASE m.source_type
+        WHEN 'story' THEN s.created
+        WHEN 'correspondence' THEN (
+          SELECT MIN(cited_message.created) FROM json_each(m.source_turn_ids) AS cited
+          JOIN messages cited_message ON cited_message.id = cited.value
+        )
+      END AS source_created`;
+    const columns = `m.*, s.title AS source_title, s.position AS source_position, ${sourceCreated}`;
     const withSource = `LEFT JOIN stories s ON m.source_type = 'story' AND s.id = m.source_id`;
     // Newest first by Bureau time; memories with no time (backstory) last.
     const newestFirst = 'ORDER BY (m.world_time IS NULL), m.world_time DESC, m.id DESC';

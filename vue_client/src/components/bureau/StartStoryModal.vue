@@ -38,8 +38,8 @@
           v-if="choice === 'custom'"
           v-model="customTime"
           type="datetime-local"
-          min="0001-01-01T00:00"
-          max="9999-12-31T23:59"
+          min="0001-01-02T00:00"
+          max="9999-12-30T23:59"
           class="text-input"
           aria-label="Start time"
         />
@@ -87,12 +87,13 @@ const toast = useToast();
 const title = ref('');
 const castIds = ref(props.cast.map((member) => member.id));
 const choice = ref(rememberedChoice(CHOICE_KEY, ['bureau', 'custom'], 'bureau'));
-const customTime = ref(toDatetimeLocal(props.bureau.bureauTime));
+const customTime = ref(toDatetimeLocal(props.bureau.bureauTime, props.bureau.timezone));
 const starting = ref(false);
 
+// The picked time, read on the Bureau's clock (the browser's until the Bureau has a time zone).
+const pickedTime = computed(() => fromDatetimeLocal(customTime.value, props.bureau.timezone));
 const canStart = computed(
-  () =>
-    castIds.value.length > 0 && (choice.value !== 'custom' || fromDatetimeLocal(customTime.value)),
+  () => castIds.value.length > 0 && (choice.value !== 'custom' || pickedTime.value),
 );
 
 watch(choice, (value) => rememberChoice(CHOICE_KEY, value));
@@ -106,7 +107,7 @@ async function start() {
       castIds: castIds.value,
       start: {
         choice: choice.value,
-        customTime: choice.value === 'custom' ? fromDatetimeLocal(customTime.value) : undefined,
+        customTime: choice.value === 'custom' ? pickedTime.value : undefined,
       },
       timeZone: browserTimeZone(),
     });

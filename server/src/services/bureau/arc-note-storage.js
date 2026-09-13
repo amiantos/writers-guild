@@ -37,6 +37,7 @@ function noteFromRow(row) {
     sourceId: row.source_id,
     sourceTitle: row.source_title ?? null,
     sourcePosition: row.source_position ?? null,
+    sourceCreated: row.source_created ?? null,
     sourceTurnIds: parseIds(row.source_turn_ids),
     runId: row.run_id,
     needsReview: row.needs_review === 1,
@@ -53,7 +54,15 @@ export class ArcNoteStorage {
   }
 
   prepareStatements() {
-    const columns = 'n.*, s.title AS source_title, s.position AS source_position';
+    // When a note's source was written (see memory-storage.js).
+    const sourceCreated = `CASE n.source_type
+        WHEN 'story' THEN s.created
+        WHEN 'correspondence' THEN (
+          SELECT MIN(cited_message.created) FROM json_each(n.source_turn_ids) AS cited
+          JOIN messages cited_message ON cited_message.id = cited.value
+        )
+      END AS source_created`;
+    const columns = `n.*, s.title AS source_title, s.position AS source_position, ${sourceCreated}`;
     const withSource = `LEFT JOIN stories s ON n.source_type = 'story' AND s.id = n.source_id`;
 
     this.stmts = {

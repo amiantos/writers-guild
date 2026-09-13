@@ -9,6 +9,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
+import { archiveSettledSessions } from '../services/bureau/archivist.js';
 import { CastConflictError } from '../services/bureau/bureau-storage.js';
 import { BureauSettingsError, DEFAULT_SETTINGS } from '../services/bureau/bureau-settings.js';
 import {
@@ -178,12 +179,29 @@ router.put(
   }),
 );
 
+/**
+ * Start background passes over each thread's finished sessions, as after a reply. Failures are
+ * logged, never thrown.
+ */
+function commitFinishedSessions(req, stores, bureau) {
+  try {
+    const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureau.id));
+    for (const thread of stores.threads.listThreads(bureau.id)) {
+      archiveSettledSessions({ stores, bureauId: bureau.id, threadId: thread.id, client });
+    }
+  } catch (error) {
+    console.error('[Bureau] Committing finished messages to memory failed:', error.message);
+  }
+}
+
 // Let time pass: move the Bureau's clock forward by a step ({ step }: hour, later, morning, days,
 // or week) or to a later time ({ to }). An earlier time is set in the Bureau's settings instead.
+// Exchanges of messages this leaves finished go into memory in the background.
 router.post(
   '/:bureauId/time',
   asyncHandler(async (req, res) => {
-    const { bureaus } = res.locals.stores;
+    const { stores } = res.locals;
+    const { bureaus } = stores;
     const { bureauId } = req.params;
     const bureau = requireBureau(bureaus, bureauId);
     const { step, to } = req.body ?? {};
@@ -209,7 +227,17 @@ router.post(
     }
 
     bureaus.setBureauTime(bureauId, bureauTime);
-    res.json({ bureau: bureaus.getBureau(bureauId) });
+    const moved = bureaus.getBureau(bureauId);
+    res.json({ bureau: moved });
+
+    // Tests turn this off with app.locals.bureauAutoArchive.
+    if (
+      moved.hasApiKey &&
+      moved.settings.memory.autoArchive &&
+      (req.app.locals.bureauAutoArchive ?? true)
+    ) {
+      commitFinishedSessions(req, stores, moved);
+    }
   }),
 );
 

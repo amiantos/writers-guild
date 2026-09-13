@@ -169,26 +169,69 @@ export function chunkTurns(turns, budget = ARCHIVE_CHUNK_CHARACTERS) {
   return chunks;
 }
 
+function timestampOf(value) {
+  return value instanceof Date ? value.getTime() : Date.parse(value);
+}
+
 /**
- * A thread's messages split into sessions: runs with no gap longer than SESSION_GAP_MS.
+ * Whether a message starts a new session after the previous one: Bureau time went back or moved
+ * on more than SESSION_GAP_MS, or a chapter started after the previous message was written and
+ * no later than this one. A message with no created time counts as written after every chapter
+ * start.
+ * @param {Object} previous - Uses bureauTime and created.
+ * @param {{ bureauTime: Date|string, created?: string }} next
+ * @param {Array<number>} breakTimes - When chapters started, as timestamps.
+ */
+function startsSession(previous, { bureauTime, created }, breakTimes) {
+  const gap = timestampOf(bureauTime) - Date.parse(previous.bureauTime);
+  if (!(gap >= 0 && gap <= SESSION_GAP_MS)) return true;
+  const written = Date.parse(previous.created);
+  const nextWritten = created === undefined ? Infinity : Date.parse(created);
+  return breakTimes.some((time) => written < time && time <= nextWritten);
+}
+
+/**
+ * A thread's messages split into sessions. A new session starts when Bureau time moves on more
+ * than SESSION_GAP_MS or goes back between two messages, or when a chapter started between them,
+ * so messages from before a chapter never share a session with messages from after it.
  * @param {Array<Object>} messages - Oldest first.
+ * @param {Object} [options]
+ * @param {Array<string>} [options.breaks] - When the Bureau's chapters started (see chapterBreaks).
  * @returns {Array<Array<Object>>}
  */
-export function threadSessions(messages) {
+export function threadSessions(messages, { breaks = [] } = {}) {
+  const breakTimes = breaks.map((time) => Date.parse(time));
   const sessions = [];
   for (const message of messages) {
     const session = sessions.at(-1);
-    const previous = session?.at(-1);
-    if (
-      previous &&
-      Date.parse(message.bureauTime) - Date.parse(previous.bureauTime) <= SESSION_GAP_MS
-    ) {
+    if (session && !startsSession(session.at(-1), message, breakTimes)) {
       session.push(message);
     } else {
       sessions.push([message]);
     }
   }
   return sessions;
+}
+
+/**
+ * Whether a session is over at a Bureau time, so a message sent now would start a new one: Bureau
+ * time has moved on more than SESSION_GAP_MS past its last message or back before it, or a chapter
+ * started after it.
+ * @param {Array<Object>} session - From threadSessions.
+ * @param {Date|string} bureauTime
+ * @param {Array<string>} [breaks] - When the Bureau's chapters started (see chapterBreaks).
+ */
+export function isSessionOver(session, bureauTime, breaks = []) {
+  return startsSession(
+    session.at(-1),
+    { bureauTime },
+    breaks.map((time) => Date.parse(time)),
+  );
+}
+
+/** When each of the Bureau's chapters started, in real time: the sessions breaks between. */
+export function chapterBreaks(stores, bureauId) {
+  return stores.stories.listStories(bureauId).map((story) => story.created);
 }
 
 // ==================== Prompt ====================
@@ -870,8 +913,8 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
  * @param {string} params.bureauId
  * @param {string} params.threadId
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
- * @param {boolean} [params.settledOnly] - Leave the last session while it may still be going: until
- *   Bureau time is more than SESSION_GAP_MS past its last message.
+ * @param {boolean} [params.settledOnly] - Leave the last session while it may still be going (see
+ *   isSessionOver).
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} Totals like archiveStory's, or null when there was nothing to
  *   read.
@@ -882,14 +925,14 @@ export function archiveThread({ stores, bureauId, threadId, client, settledOnly 
     const thread = bureau ? stores.threads.getThread(bureauId, threadId) : null;
     if (!thread) return null;
 
-    const sessions = threadSessions(stores.threads.listMessages(threadId));
-    const clock = Date.parse(bureau.bureauTime);
+    const breaks = chapterBreaks(stores, bureauId);
+    const sessions = threadSessions(stores.threads.listMessages(threadId), { breaks });
     const toRead = sessions
       .filter(
         (session, index) =>
           !settledOnly ||
           index < sessions.length - 1 ||
-          clock - Date.parse(session.at(-1).bureauTime) > SESSION_GAP_MS,
+          isSessionOver(session, bureau.bureauTime, breaks),
       )
       .map((session) => ({
         session,

@@ -13,7 +13,7 @@
 
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
-import { SESSION_GAP_MS, threadSessions } from './archivist.js';
+import { chapterBreaks, isSessionOver, threadSessions } from './archivist.js';
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
@@ -111,14 +111,17 @@ function memoryBlock(name, { knowledge, episodes, offscreen = null }) {
 
 /**
  * When the current session of messages began: its first message, or the Bureau
- * time when the last message belongs to an earlier session (or there are none).
+ * time when a message now would start a new session (or there are none).
+ * @param {Array<Object>} history - Oldest first.
+ * @param {Date} time - The Bureau's current time.
+ * @param {Array<string>} breaks - When the Bureau's chapters started (see chapterBreaks).
  */
-function sessionStartOf(history, time) {
-  const session = threadSessions(history).at(-1);
-  if (!session || time.getTime() - Date.parse(session.at(-1).bureauTime) > SESSION_GAP_MS) {
+function sessionStartOf(history, time, breaks) {
+  const session = threadSessions(history, { breaks }).at(-1);
+  if (!session || isSessionOver(session, time, breaks)) {
     return time;
   }
-  return new Date(Math.min(Date.parse(session[0].bureauTime), time.getTime()));
+  return new Date(session[0].bureauTime);
 }
 
 /** The latest messages that fit the budget, always keeping at least the last one. */
@@ -304,7 +307,8 @@ export async function generateReply({
   try {
     // After a quiet stretch, the character first gets an account of what they did meanwhile,
     // dated just before this session of messages began, so the session's episode takes over.
-    const sessionStart = sessionStartOf(history, time).toISOString();
+    const breaks = chapterBreaks(stores, bureau.id);
+    const sessionStart = sessionStartOf(history, time, breaks).toISOString();
     const gaps = bureau.settings.memory.offscreenLife
       ? findOffscreenGaps(stores, bureau, [member], sessionStart)
       : [];

@@ -34,8 +34,8 @@
             id="time-passes-to"
             v-model="customTime"
             type="datetime-local"
-            min="0001-01-01T00:00"
-            max="9999-12-31T23:59"
+            min="0001-01-02T00:00"
+            max="9999-12-30T23:59"
             class="text-input"
           />
           <p class="help-text">
@@ -89,14 +89,14 @@ const showing = ref(false);
 const passing = ref(false);
 const customTime = ref('');
 
-// The picked time, while it's later than Bureau time.
+// The picked time, read on the Bureau's clock, while it's later than Bureau time.
 const laterTime = computed(() => {
-  const time = fromDatetimeLocal(customTime.value);
+  const time = fromDatetimeLocal(customTime.value, props.bureau.timezone);
   return time && Date.parse(time) > Date.parse(props.bureau.bureauTime) ? time : null;
 });
 
 function open() {
-  customTime.value = toDatetimeLocal(props.bureau.bureauTime);
+  customTime.value = toDatetimeLocal(props.bureau.bureauTime, props.bureau.timezone);
   showing.value = true;
 }
 

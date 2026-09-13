@@ -303,9 +303,9 @@ paragraphs.
 turns have settled. A turn is settled when six newer turns follow it; after each generated turn, a
 pass starts if at least six settled prose turns are waiting. A Bureau can turn automatic archiving
 off, and then the Archivist runs only on demand. Threads are read the same way, one session of
-messages at a time: in the background once a session is over (a newer one started, or Bureau time
-is more than three hours past its last message), from "Commit to memory" in the thread, and for a
-chapter's cast before the chapter starts.
+messages at a time: in the background once a session is over (checked after each reply and each
+time you let time pass), from "Commit to memory" in the thread, and for a chapter's cast before the
+chapter starts.
 
 **Input:** the turns it hasn't read, in passes of about 60,000 characters; the chapter's running
 summary; who was present; and what each present character already knows, as numbered memories.
@@ -319,9 +319,11 @@ Direction turns are left out.
   point of view, in the third person
 - `story_summary`: the whole chapter so far, shown in the Bureau's chapter list
 
-A thread's memories are dated to the start of their session and cite its messages, and each session
-gets its own episode, rewritten if the session grows. The reader's side of a session is whoever sent
-its messages, even if the reader has picked another character since.
+A new session starts when Bureau time moves on more than three hours or goes back between two
+messages, or when a chapter was started between them. The last session is over once a message sent
+now would start a new one. A thread's memories are dated to the start of their session and cite its
+messages, and each session gets its own episode, rewritten if the session grows. The reader's side of
+a session is whoever sent its messages, even if the reader has picked another character since.
 
 Memory operations apply automatically because they are visible, sourced, and reversible. The
 Archivist can supersede memories but can't retire or delete them, and it leaves alone pinned
@@ -480,8 +482,12 @@ chose last time.
 - **Time passes** sits in the message thread's header and next to Bureau time in the Bureau's
   Chapters section. The next morning is 8:00 on the following day, and days count on the Bureau's
   clock in its time zone (the server's until one is saved), so a daylight saving change doesn't
-  move the hour. A picked time must be later than Bureau time.
+  move the hour. A picked time must be later than Bureau time. Like a reply, Time passes commits
+  the exchanges of messages it leaves finished to memory, in the background.
 - The Bureau's settings edit Bureau time directly, earlier or later. Going back happens there.
+- The date and time fields (in settings, Time passes, and the chapter dialogs) show and read times
+  on the Bureau's clock, in its time zone (this browser's until one is saved), matching the times
+  shown beside them.
 - Any year from 1 to 9999 works, so a Bureau can be set in 1350 or 1996.
 - When a moment falls in a year other than the real one, the year goes into the world section of
   prompts as setting ("The year is 1350."), not as a timestamp, so the Writer avoids anachronisms.
@@ -508,8 +514,13 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
   chapter at an earlier time works as a flashback: characters don't know what happens later.
 - Memories from a chapter are dated to its start time. Memories from correspondence are dated to the
   start of the session they came from.
-- When two chapters start at the same time (say, one ended without moving the clock and the next
-  started at Bureau time), the one earlier in the Bureau's order comes first.
+- At the same Bureau time, what was written first comes first. Messages don't move the clock, so a
+  conversation often shares its time with the next chapter: messages written before the chapter
+  started count as before it, and messages written after it don't leak in. Starting a chapter also
+  ends the session of messages before it. When two chapters start at the same time (say, one ended
+  without moving the clock and the next started at Bureau time), the one earlier in the Bureau's
+  order comes first. Prompts list memories that share a time in the same order, so a conversation
+  after a chapter reads as coming after it.
 - A chapter sees each memory as it stood when the chapter starts. A memory replaced by a later
   chapter still counts in a flashback set before the change.
 - A chapter's own memories stay out of its Writer prompt, because its text is already there.
@@ -531,8 +542,8 @@ Exact timestamps aren't sent with every generation, because models tend to fixat
   and their last time away. It leaves out the reader's character, whose doings belong to the reader.
 - Moving time forward when a chapter **ends** doesn't generate offscreen life. That span counts as
   time the chapter covered.
-- Time passes doesn't write anything by itself. Accounts are written when they're needed: before
-  the next reply or chapter start.
+- Time passes doesn't write accounts by itself. They're written when they're needed: before the next
+  reply or chapter start.
 - Nothing runs in the background: a month away produces one summary, not thirty days of invented
   drama. Prompts ask for mostly mundane events and cap the notable ones.
 - The Writer and reply prompts include the latest account ("Mara lately: ..."), until an episode

@@ -142,6 +142,21 @@ describe('settingYear', () => {
   });
 });
 
+describe('the year 1 on a time zone clock', () => {
+  // 03:00 UTC on January 1 of the year 1 was still the evening of December 31, 1 BC, in Los
+  // Angeles, whose clock then ran on local mean time, 7:52:58 behind UTC.
+  const start = '0001-01-01T03:00:00.000Z';
+
+  it('lets time pass into the year 1, not a year past it', () => {
+    expect(advanceBureauTime(start, 'morning', 'America/Los_Angeles')).toBe(
+      '0001-01-01T15:52:58.000Z',
+    );
+    expect(advanceBureauTime(start, 'days', 'America/Los_Angeles')).toBe(
+      '0001-01-04T03:00:00.000Z',
+    );
+  });
+});
+
 describe('describeTime', () => {
   it('describes a moment loosely, in the given time zone', () => {
     // 07:30 UTC is 00:30 on Tuesday, October 27 in Los Angeles.

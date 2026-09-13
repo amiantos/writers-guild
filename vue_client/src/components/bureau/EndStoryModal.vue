@@ -26,8 +26,8 @@
           v-if="choice === 'custom'"
           v-model="customTime"
           type="datetime-local"
-          min="0001-01-01T00:00"
-          max="9999-12-31T23:59"
+          min="0001-01-02T00:00"
+          max="9999-12-30T23:59"
           class="text-input"
           aria-label="End time"
         />
@@ -68,10 +68,14 @@ const emit = defineEmits(['close', 'ended']);
 const toast = useToast();
 
 const choice = ref(rememberedChoice(CHOICE_KEY, ['unchanged', 'custom'], 'unchanged'));
-const customTime = ref(toDatetimeLocal(new Date(Date.parse(props.story.startTime) + TWO_HOURS)));
+const customTime = ref(
+  toDatetimeLocal(new Date(Date.parse(props.story.startTime) + TWO_HOURS), props.bureau.timezone),
+);
 const ending = ref(false);
 
-const canEnd = computed(() => choice.value !== 'custom' || fromDatetimeLocal(customTime.value));
+// The picked time, read on the Bureau's clock.
+const pickedTime = computed(() => fromDatetimeLocal(customTime.value, props.bureau.timezone));
+const canEnd = computed(() => choice.value !== 'custom' || pickedTime.value);
 const commitsToMemory = computed(
   () => props.bureau.hasApiKey && props.bureau.settings?.memory?.autoArchive !== false,
 );
@@ -88,7 +92,7 @@ async function end() {
   try {
     const result = await bureauStoriesAPI.end(props.bureau.id, props.story.id, {
       choice: choice.value,
-      customTime: choice.value === 'custom' ? fromDatetimeLocal(customTime.value) : undefined,
+      customTime: choice.value === 'custom' ? pickedTime.value : undefined,
     });
     emit('ended', result);
   } catch (error) {

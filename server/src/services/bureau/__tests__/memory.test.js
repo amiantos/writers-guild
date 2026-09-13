@@ -41,6 +41,44 @@ const second = { id: 's2', position: 1, startTime: '2026-10-08T20:00:00.000Z' };
 const flashback = { id: 's3', position: 2, startTime: '2026-09-01T20:00:00.000Z' };
 const sameTime = { id: 's4', position: 3, startTime: second.startTime };
 
+describe('memories at the same Bureau time', () => {
+  it('are listed in the order they were written', () => {
+    // Recorded out of order, as when a chapter goes into memory after later messages.
+    const messages = memory({
+      layer: 'episode',
+      content: 'Theo wrote about the pier.',
+      worldTime: second.startTime,
+      sourceType: 'correspondence',
+      sourceId: 'thread-1',
+      sourceCreated: '2026-09-12T10:00:00.000Z',
+      created: '2026-09-12T10:10:00.000Z',
+    });
+    const laterChapter = fromStory(sameTime, {
+      layer: 'episode',
+      content: 'They rebuilt the pier.',
+      sourceCreated: '2026-09-12T11:00:00.000Z',
+      created: '2026-09-12T11:30:00.000Z',
+    });
+    const earlierChapter = fromStory(second, {
+      layer: 'episode',
+      content: 'The storm took the pier.',
+      sourceCreated: '2026-09-12T09:00:00.000Z',
+      created: '2026-09-12T12:00:00.000Z',
+    });
+
+    const { episodes } = selectForPrompt([laterChapter, messages, earlierChapter], {
+      knowledgeCharacters: 1000,
+      recentEpisodes: 5,
+    });
+
+    expect(episodes.map((episode) => episode.content)).toEqual([
+      'The storm took the pier.',
+      'Theo wrote about the pier.',
+      'They rebuilt the pier.',
+    ]);
+  });
+});
+
 describe('isBeforeStory', () => {
   it('always counts backstory', () => {
     expect(isBeforeStory(memory(), flashback)).toBe(true);
@@ -54,6 +92,29 @@ describe('isBeforeStory', () => {
   it('breaks a tie in time by story order', () => {
     expect(isBeforeStory(fromStory(second), sameTime)).toBe(true);
     expect(isBeforeStory(fromStory(sameTime), second)).toBe(false);
+  });
+
+  it('counts messages at the same time only if they were written before the story started', () => {
+    const story = { ...second, created: '2026-09-12T10:00:00.000Z' };
+    const fromMessages = (sourceCreated) =>
+      memory({
+        sourceType: 'correspondence',
+        sourceId: 'thread-1',
+        worldTime: second.startTime,
+        sourceCreated,
+      });
+
+    expect(isBeforeStory(fromMessages('2026-09-12T09:59:00.000Z'), story)).toBe(true);
+    expect(isBeforeStory(fromMessages('2026-09-12T10:01:00.000Z'), story)).toBe(false);
+    // Nothing cited to go on.
+    expect(isBeforeStory(fromMessages(null), story)).toBe(false);
+    // An earlier time still counts, whenever the messages were written.
+    expect(
+      isBeforeStory(
+        { ...fromMessages('2026-09-12T10:01:00.000Z'), worldTime: first.startTime },
+        story,
+      ),
+    ).toBe(true);
   });
 
   it("leaves out the story's own memories", () => {

@@ -272,13 +272,13 @@
           id="bureau-settings-time"
           v-model="form.bureauTime"
           type="datetime-local"
-          min="0001-01-01T00:00"
-          max="9999-12-31T23:59"
+          min="0001-01-02T00:00"
+          max="9999-12-30T23:59"
           class="text-input"
         />
         <p class="help-text">
-          The Bureau's current date and time. Only you move it: here, with Time passes, or when a
-          chapter starts or ends. Any year from 1 to 9999.
+          The Bureau's current date and time, in its time zone. Only you move it: here, with Time
+          passes, or when a chapter starts or ends. Any year from 1 to 9999.
         </p>
       </div>
 
@@ -339,8 +339,8 @@ function snapshot(bureau) {
     description: bureau.description,
     model: bureau.model,
     houseStyle: bureau.houseStyle,
-    // To the minute in the browser's time zone, as the date field shows it.
-    bureauTime: toDatetimeLocal(bureau.bureauTime),
+    // To the minute on the Bureau's clock, as the date field shows it.
+    bureauTime: toDatetimeLocal(bureau.bureauTime, bureau.timezone),
     writer: { ...bureau.settings.writer },
     director: { ...bureau.settings.director },
     editor: { ...bureau.settings.editor },
@@ -419,8 +419,8 @@ async function save() {
     updates.apiKey = form.apiKey.trim();
   }
   // Bureau time goes only when it was changed, so saving other settings never moves the clock.
-  if (form.bureauTime !== toDatetimeLocal(props.bureau.bureauTime)) {
-    updates.bureauTime = fromDatetimeLocal(form.bureauTime);
+  if (form.bureauTime !== toDatetimeLocal(props.bureau.bureauTime, props.bureau.timezone)) {
+    updates.bureauTime = fromDatetimeLocal(form.bureauTime, props.bureau.timezone);
     if (!updates.bureauTime) {
       toast.error('Bureau time needs a whole date and time, in the years 1 to 9999.');
       return;
@@ -435,7 +435,7 @@ async function save() {
       // A style saved as its default comes back empty, so it keeps following the default.
       houseStyle: saved.houseStyle,
       correspondence: { ...saved.settings.correspondence },
-      bureauTime: toDatetimeLocal(saved.bureauTime),
+      bureauTime: toDatetimeLocal(saved.bureauTime, saved.timezone),
       apiKey: '',
     });
   }

@@ -9,6 +9,7 @@ import bureausRouter from '../bureaus.js';
 import { errorHandler } from '../../middleware/error-handler.js';
 import { getBureauStores } from '../../services/bureau/stores.js';
 import { closeBureauDb } from '../../services/bureau/bureau-db.js';
+import { settleBackgroundArchives } from '../../services/bureau/archivist.js';
 import { DeepSeekError } from '../../services/bureau/deepseek-client.js';
 
 function card(name) {
@@ -236,6 +237,36 @@ describe('Bureau correspondence routes', () => {
       stores.memories.listMemories(bureau.id, mara.id, { layer: 'knowledge' })[0],
     ).toMatchObject({ sourceType: 'correspondence', content: 'The ferry runs late.' });
     await request(app).post(`${threadsUrl()}/${theo.id}/archive`).send({}).expect(404);
+  });
+
+  it('commits a finished exchange to memory when time passes', async () => {
+    app.locals.bureauAutoArchive = true;
+    stores.bureaus.setBureauTime(bureau.id, '2026-10-01T20:00:00.000Z');
+    await request(app)
+      .post(`${threadsUrl()}/${mara.id}/messages`)
+      .send({ text: 'The ferry is late again.', reply: false })
+      .expect(201);
+    client.archiveRecord = {
+      knowledge: [],
+      episodes: [{ character: 'Mara', content: 'Theo grumbled about the ferry.' }],
+      arc_notes: [],
+      story_summary: '',
+    };
+    const pass = (step) =>
+      request(app).post(`/api/bureaus/${bureau.id}/time`).send({ step }).expect(200);
+
+    // An hour later, the exchange may still be going.
+    await pass('hour');
+    await settleBackgroundArchives();
+    expect(client.calls).toHaveLength(0);
+
+    await pass('later');
+    await settleBackgroundArchives();
+    expect(
+      stores.memories
+        .listMemories(bureau.id, mara.id, { layer: 'episode' })
+        .map((memory) => memory.content),
+    ).toEqual(['Theo grumbled about the ferry.']);
   });
 
   it('keeps the message when the reply fails', async () => {

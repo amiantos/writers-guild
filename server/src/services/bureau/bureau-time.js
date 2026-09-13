@@ -69,6 +69,12 @@ export function describeDayPart(hour) {
   return label;
 }
 
+/** The year in Intl date parts that include the era, counting 1 BC as 0, 2 BC as -1, and so on. */
+function yearOf(parts) {
+  const year = Number(parts.year);
+  return parts.era === 'BC' ? 1 - year : year;
+}
+
 function zonedParts(date, timeZone) {
   if (timeZone !== undefined && !isValidTimeZone(timeZone)) {
     throw new BureauTimeError(`Unknown time zone: ${timeZone}`);
@@ -79,6 +85,7 @@ function zonedParts(date, timeZone) {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+    era: 'short',
     hour: 'numeric',
     hourCycle: 'h23',
   });
@@ -89,7 +96,7 @@ function zonedParts(date, timeZone) {
     weekday: parts.weekday,
     month: parts.month,
     day: Number(parts.day),
-    year: Number(parts.year),
+    year: yearOf(parts),
     hour: Number(parts.hour),
   };
 }
@@ -170,6 +177,7 @@ function wallClock(date, timeZone) {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-US', {
       timeZone,
+      era: 'short',
       year: 'numeric',
       month: 'numeric',
       day: 'numeric',
@@ -179,15 +187,15 @@ function wallClock(date, timeZone) {
       hourCycle: 'h23',
     })
       .formatToParts(date)
-      .map((part) => [part.type, Number(part.value)]),
+      .map((part) => [part.type, part.value]),
   );
   return utcTime(
-    parts.year,
-    parts.month - 1,
-    parts.day,
-    parts.hour,
-    parts.minute,
-    parts.second,
+    yearOf(parts),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
     date.getUTCMilliseconds(),
   );
 }

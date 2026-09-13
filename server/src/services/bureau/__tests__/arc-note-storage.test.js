@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { ArcNoteStorage } from '../arc-note-storage.js';
 import { BureauStorage } from '../bureau-storage.js';
 import { StoryStorage } from '../story-storage.js';
+import { ThreadStorage } from '../thread-storage.js';
 import { closeBureauDb } from '../bureau-db.js';
 
 const START = '2026-10-27T07:30:00.000Z';
@@ -70,6 +71,36 @@ describe('ArcNoteStorage', () => {
       decided: null,
       needsReview: false,
     });
+  });
+
+  it('gives a note the time its source was written', () => {
+    const threads = new ThreadStorage(tempDir);
+    const thread = threads.getOrCreateThread(bureau.id, mara.id);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    let message;
+    try {
+      vi.setSystemTime('2026-09-12T10:00:00.000Z');
+      message = threads.addMessage(thread.id, {
+        source: 'generated',
+        senderCastId: mara.id,
+        content: 'I kept the lamp lit for you.',
+        bureauTime: START,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const fromThread = propose('Mara has started waiting up for Theo.', {
+      sourceType: 'correspondence',
+      sourceId: thread.id,
+      sourceTurnIds: [message.id],
+    });
+
+    expect(arcNotes.getNote(bureau.id, fromThread.id).sourceCreated).toBe(
+      '2026-09-12T10:00:00.000Z',
+    );
+    // A note from a chapter: when the chapter was created.
+    expect(propose('Mara trusts Theo with the boat.').sourceCreated).toBe(story.created);
   });
 
   it('accepts a note the reader writes as it is written', () => {

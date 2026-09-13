@@ -25,22 +25,33 @@ function currentAmong(memories, isVisible) {
   );
 }
 
-/** Oldest first: by Bureau time (backstory first), then story order, then when recorded. */
-export function compareChronological(a, b) {
-  return (
-    timeOf(a) - timeOf(b) || (a.sourcePosition ?? -1) - (b.sourcePosition ?? -1) || a.id - b.id
-  );
+/**
+ * When a memory's source was written: its chapter was created, the earliest message it cites was
+ * written, or else the memory itself was recorded.
+ */
+function writtenOf(memory) {
+  return Date.parse(memory.sourceCreated ?? memory.created);
 }
 
 /**
- * Whether a memory comes from before a story starts. Backstory always does. A
- * memory from another story does if that story starts earlier, or at the same
- * time but earlier in the Bureau's order (the usual case when a story ends
- * without moving the clock). A story's own memories never do: its text is
- * already in the prompt.
+ * Oldest first: by Bureau time (backstory first), then what was written first, then when
+ * recorded. Messages don't move the clock, so a conversation often shares its time with the
+ * chapters around it.
+ */
+export function compareChronological(a, b) {
+  return timeOf(a) - timeOf(b) || writtenOf(a) - writtenOf(b) || a.id - b.id;
+}
+
+/**
+ * Whether a memory comes from before a story starts. Backstory always does, and
+ * so does anything dated earlier. At the same Bureau time, what was written first
+ * comes first: a memory from another story does if that story is earlier in the
+ * Bureau's order (the usual case when a story ends without moving the clock), and
+ * one from messages does if they were written before the story started. A story's
+ * own memories never do: its text is already in the prompt.
  *
- * @param {Object} memory
- * @param {Object} story - Uses id, startTime, and position.
+ * @param {Object} memory - A memory or arc note.
+ * @param {Object} story - Uses id, startTime, position, and created.
  */
 export function isBeforeStory(memory, story) {
   if (memory.sourceType === 'story' && memory.sourceId === story.id) return false;
@@ -49,6 +60,9 @@ export function isBeforeStory(memory, story) {
   const memoryTime = Date.parse(memory.worldTime);
   const storyTime = Date.parse(story.startTime);
   if (memoryTime !== storyTime) return memoryTime < storyTime;
+  if (memory.sourceType === 'correspondence') {
+    return Date.parse(memory.sourceCreated) < Date.parse(story.created);
+  }
   return memory.sourcePosition !== null && memory.sourcePosition < story.position;
 }
 
@@ -58,7 +72,7 @@ export function isBeforeStory(memory, story) {
  *
  * @param {Array<Object>} memories - All of the character's memories, retired and replaced
  *   ones included (listMemories with status 'all').
- * @param {Object} story - Uses id, startTime, and position.
+ * @param {Object} story - Uses id, startTime, position, and created.
  * @param {Object} [options]
  * @param {boolean} [options.includeOwnStory] - Count memories from this story too, for the
  *   Archivist, which updates them as the story goes on.
@@ -94,7 +108,7 @@ export function memoriesAtTime(memories, time) {
  * Accepted arc notes a story can draw on: written by the reader, or from stories
  * before it (see isBeforeStory). A story's own notes are left out, like its memories.
  * @param {Array<Object>} notes - A character's arc notes (see arc-note-storage.js).
- * @param {Object} story - Uses id, startTime, and position.
+ * @param {Object} story - Uses id, startTime, position, and created.
  */
 export function notesAsOf(notes, story) {
   return notes.filter((note) => note.status === 'accepted' && isBeforeStory(note, story));

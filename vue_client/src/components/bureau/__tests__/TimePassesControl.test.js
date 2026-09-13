@@ -55,7 +55,7 @@ describe('TimePassesControl', () => {
     expect(toast.success).toHaveBeenCalled();
   });
 
-  it('moves to a picked time only when it is later than Bureau time', async () => {
+  it("moves to a picked time, read on the Bureau's clock, only when it is later", async () => {
     bureausAPI.passTime.mockResolvedValue({ bureau: BUREAU });
     const wrapper = mountControl();
     await button(wrapper, 'Time passes').trigger('click');
@@ -70,9 +70,8 @@ describe('TimePassesControl', () => {
     await move().trigger('click');
     await flushPromises();
 
-    expect(bureausAPI.passTime).toHaveBeenCalledWith('b1', {
-      to: new Date('2026-09-20T12:00').toISOString(),
-    });
+    // The Bureau keeps UTC, whatever the browser's zone.
+    expect(bureausAPI.passTime).toHaveBeenCalledWith('b1', { to: '2026-09-20T12:00:00.000Z' });
   });
 
   it("keeps the dialog open and says why when time can't move", async () => {

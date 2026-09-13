@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { MemoryStorage, clampImportance, toFtsQuery } from '../memory-storage.js';
 import { BureauStorage } from '../bureau-storage.js';
 import { StoryStorage } from '../story-storage.js';
+import { ThreadStorage } from '../thread-storage.js';
 import { closeBureauDb } from '../bureau-db.js';
 
 const START = '2026-10-27T07:30:00.000Z';
@@ -213,6 +214,53 @@ describe('MemoryStorage', () => {
     );
     expect(memories.getMemory(bureau.id, fromThread.id).needsReview).toBe(true);
     expect(memories.getMemory(bureau.id, fromStory.id).needsReview).toBe(false);
+  });
+
+  it('gives a memory the time its source was written', () => {
+    const threads = new ThreadStorage(tempDir);
+    const thread = threads.getOrCreateThread(bureau.id, mara.id);
+    const send = (content, written) => {
+      vi.setSystemTime(written);
+      return threads.addMessage(thread.id, {
+        source: 'generated',
+        senderCastId: mara.id,
+        content,
+        bureauTime: START,
+      });
+    };
+    vi.useFakeTimers({ toFake: ['Date'] });
+    let earlier;
+    let later;
+    try {
+      earlier = send('The ferry is late.', '2026-09-12T10:00:00.000Z');
+      later = send('Still late.', '2026-09-12T10:05:00.000Z');
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const fromThread = remember('The ferry runs late.', {
+      sourceType: 'correspondence',
+      sourceId: thread.id,
+      sourceTurnIds: [later.id, earlier.id],
+    });
+    const citingNothing = remember('Theo waved.', {
+      sourceType: 'correspondence',
+      sourceId: thread.id,
+    });
+    const fromStory = remember('Theo knocked twice.', { sourceTurnIds: [earlier.id] });
+
+    expect(fromThread.sourceCreated).toBe('2026-09-12T10:00:00.000Z');
+    expect(citingNothing.sourceCreated).toBeNull();
+    // A memory from a chapter: when the chapter was created, whatever it cites.
+    expect(fromStory.sourceCreated).toBe(story.created);
+    expect(
+      memories
+        .listMemories(bureau.id, mara.id, { status: 'all' })
+        .map((memory) => memory.sourceCreated),
+    ).toEqual([story.created, null, '2026-09-12T10:00:00.000Z']);
+    expect(memories.searchMemories(bureau.id, mara.id, 'ferry')[0].sourceCreated).toBe(
+      '2026-09-12T10:00:00.000Z',
+    );
   });
 
   it('flags memories citing changed turns until they are reviewed', () => {

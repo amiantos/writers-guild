@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -10,9 +10,11 @@ import {
   archiveThread,
   autoArchiveThrough,
   chunkTurns,
+  isSessionOver,
   settleBackgroundArchives,
   threadSessions,
 } from '../archivist.js';
+import { memoriesAsOf } from '../memory.js';
 import { getBureauStores } from '../stores.js';
 import { closeBureauDb } from '../bureau-db.js';
 import { DeepSeekError, assertStrictSchema } from '../deepseek-client.js';
@@ -709,6 +711,64 @@ describe('archiveThread', () => {
     expect(await archive(client, { settledOnly: true })).toMatchObject({ passes: 1 });
   });
 
+  it('ends a session when Bureau time is set back before it', async () => {
+    stores.bureaus.setBureauTime(bureau.id, '2026-10-01T20:00:00.000Z');
+    const message = send('user', 'Lamp lit?', '2026-10-01T20:00:00.000Z');
+    const client = archivistClient([record()]);
+
+    expect(await archive(client, { settledOnly: true })).toBeNull();
+    stores.bureaus.setBureauTime(bureau.id, '2026-10-01T19:00:00.000Z');
+    expect(await archive(client, { settledOnly: true })).toMatchObject({
+      passes: 1,
+      archivedThrough: message.position,
+    });
+  });
+
+  it('keeps messages before a chapter apart from those after it, at the same Bureau time', async () => {
+    const at = '2026-10-01T20:00:00.000Z';
+    stores.bureaus.setBureauTime(bureau.id, at);
+    const client = archivistClient([
+      record({ episodes: [{ character: 'Mara', content: 'Theo said the ferry was in.' }] }),
+      record({ episodes: [{ character: 'Mara', content: 'Theo said he got home.' }] }),
+    ]);
+    // The messages and the chapter are written a few minutes apart.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    let before;
+    let story;
+    try {
+      vi.setSystemTime('2026-09-12T10:00:00.000Z');
+      before = send('user', 'Ferry is in.', at);
+      expect(await archive(client, { settledOnly: true })).toBeNull();
+
+      vi.setSystemTime('2026-09-12T10:05:00.000Z');
+      story = stores.stories.createStory(bureau.id, { startTime: at, castIds: [mara.id, theo.id] });
+      vi.setSystemTime('2026-09-12T10:10:00.000Z');
+      send('user', 'Home now.', at);
+
+      // The chapter starting ended the first session, though the clock never moved.
+      expect(await archive(client, { settledOnly: true })).toMatchObject({
+        passes: 1,
+        archivedThrough: before.position,
+      });
+      expect(await archive(client)).toMatchObject({ passes: 1 });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const episodes = stores.memories.listMemories(bureau.id, mara.id, {
+      status: 'all',
+      layer: 'episode',
+    });
+    expect(episodes.map((memory) => memory.content).toSorted()).toEqual([
+      'Theo said he got home.',
+      'Theo said the ferry was in.',
+    ]);
+    // The chapter remembers the exchange written before it started, not the one after.
+    expect(memoriesAsOf(episodes, story).map((memory) => memory.content)).toEqual([
+      'Theo said the ferry was in.',
+    ]);
+  });
+
   it("rewrites a session's episode when the session grows", async () => {
     const opening = send('user', 'Lamp lit?', '2026-10-01T20:00:00.000Z');
     const client = archivistClient([
@@ -761,6 +821,11 @@ describe('archiveThread', () => {
   });
 });
 
+const idsOf = (sessions) => sessions.map((session) => session.map((message) => message.id));
+
+/** A message sent at a Bureau time and written at a real time. */
+const messageAt = (id, bureauTime, created) => ({ id, bureauTime, created });
+
 describe('threadSessions', () => {
   it('splits messages at gaps over three hours', () => {
     const sessions = threadSessions([
@@ -769,10 +834,41 @@ describe('threadSessions', () => {
       { id: 'c', bureauTime: '2026-10-01T12:01:00Z' },
     ]);
 
-    expect(sessions.map((session) => session.map((message) => message.id))).toEqual([
-      ['a', 'b'],
-      ['c'],
-    ]);
+    expect(idsOf(sessions)).toEqual([['a', 'b'], ['c']]);
+  });
+
+  it('splits messages where a chapter started between them or Bureau time went back', () => {
+    const sessions = threadSessions(
+      [
+        messageAt('a', '2026-10-01T06:00:00Z', '2026-09-12T10:00:00Z'),
+        messageAt('b', '2026-10-01T06:00:00Z', '2026-09-12T10:10:00Z'),
+        // A chapter started at 10:20, at the same Bureau time.
+        messageAt('c', '2026-10-01T06:00:00Z', '2026-09-12T10:30:00Z'),
+        // Then the clock was set back an hour.
+        messageAt('d', '2026-10-01T05:00:00Z', '2026-09-12T10:40:00Z'),
+        messageAt('e', '2026-10-01T05:30:00Z', '2026-09-12T10:50:00Z'),
+      ],
+      { breaks: ['2026-09-12T10:20:00Z', '2026-09-12T11:00:00Z'] },
+    );
+
+    expect(idsOf(sessions)).toEqual([['a', 'b'], ['c'], ['d', 'e']]);
+  });
+});
+
+describe('isSessionOver', () => {
+  const session = [
+    { id: 'a', bureauTime: '2026-10-01T06:00:00Z', created: '2026-09-12T10:00:00Z' },
+  ];
+
+  it('ends a session once Bureau time moves on more than three hours, or back before it', () => {
+    expect(isSessionOver(session, '2026-10-01T09:00:00Z')).toBe(false);
+    expect(isSessionOver(session, '2026-10-01T09:01:00Z')).toBe(true);
+    expect(isSessionOver(session, '2026-10-01T05:59:00Z')).toBe(true);
+  });
+
+  it('ends a session once a chapter starts after it, at any Bureau time', () => {
+    expect(isSessionOver(session, '2026-10-01T06:00:00Z', ['2026-09-12T09:00:00Z'])).toBe(false);
+    expect(isSessionOver(session, '2026-10-01T06:00:00Z', ['2026-09-12T10:05:00Z'])).toBe(true);
   });
 });
 
