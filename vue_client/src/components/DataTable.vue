@@ -1,5 +1,5 @@
 <template>
-  <div class="table-container">
+  <ScrollShadows class="table-container">
     <table class="data-table">
       <thead>
         <tr>
@@ -28,11 +28,12 @@
         </tr>
       </tbody>
     </table>
-  </div>
+  </ScrollShadows>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import ScrollShadows from './ScrollShadows.vue';
 
 const props = defineProps({
   columns: {
@@ -175,7 +176,6 @@ function formatCell(row, column) {
 
 <style scoped>
 .table-container {
-  overflow-x: auto;
   border-radius: 4px;
   border: 1px solid var(--border-color);
 }
