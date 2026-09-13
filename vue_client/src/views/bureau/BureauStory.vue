@@ -96,13 +96,13 @@
             />
           </template>
 
-          <template v-if="pending && !pending.regenerateTurnId">
+          <div v-if="pending && !pending.regenerateTurnId" ref="pendingRef">
             <TurnSeam :bureau-id="bureauId" :live="pending" />
             <article class="pending-turn">
               <div v-if="pending.content" class="prose" v-html="renderProse(pending.content)"></div>
               <p v-else class="pending-placeholder">{{ pending.status }}</p>
             </article>
-          </template>
+          </div>
         </div>
       </main>
 
@@ -149,6 +149,7 @@ import { useToast } from '../../composables/useToast';
 import { useConfirm } from '../../composables/useConfirm';
 import { setPageTitle } from '../../router';
 import { renderProse } from '../../composables/bureau/renderProse';
+import { followScroll } from '../../composables/bureau/followScroll';
 import { formatDateTime } from '../../composables/bureau/format';
 import TurnBlock from '../../components/bureau/TurnBlock.vue';
 import TurnSeam from '../../components/bureau/TurnSeam.vue';
@@ -162,6 +163,9 @@ const props = defineProps({
 });
 
 const HIGHLIGHT_DURATION = 2500;
+
+// Reading-area events that mean the reader has taken over scrolling from a generation.
+const READER_SCROLL_EVENTS = ['wheel', 'touchmove', 'pointerdown', 'keydown'];
 
 const STAGE_LABELS = {
   directing: 'Planning the scene...',
@@ -191,6 +195,8 @@ const editingTitle = ref(false);
 const titleDraft = ref('');
 const titleInput = ref(null);
 const readingRef = ref(null);
+// The passage being written, while it streams in.
+const pendingRef = ref(null);
 const composerRef = ref(null);
 const archiving = ref(false);
 const reverting = ref(false);
@@ -265,6 +271,33 @@ async function scrollToEnd() {
   }
 }
 
+/**
+ * Follow a passage as it streams in, until its seam reaches the top of the reading area (see
+ * followScroll). A regeneration starts at the seam above the turn it replaces. Returns whether to
+ * keep following.
+ */
+async function followGeneration(regenerateTurnId) {
+  await nextTick();
+  const container = readingRef.value;
+  const block = regenerateTurnId
+    ? container?.querySelector(`[data-turn-id="${regenerateTurnId}"]`)
+    : pendingRef.value;
+  const anchor = regenerateTurnId ? (block?.previousElementSibling ?? block) : block;
+  if (!container || !anchor) return true;
+
+  const { scrollTop, following } = followScroll({
+    scrollTop: container.scrollTop,
+    scrollHeight: container.scrollHeight,
+    clientHeight: container.clientHeight,
+    anchorTop:
+      anchor.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop,
+  });
+  container.scrollTop = scrollTop;
+  return following;
+}
+
 /** Scroll a turn into view and highlight it briefly. Returns whether the turn was found. */
 async function revealTurn(turnId) {
   if (typeof turnId !== 'string' || !turns.value.some((turn) => turn.id === turnId)) {
@@ -304,9 +337,18 @@ async function runStream(start, { regenerateTurnId = null, composerText = '' } =
   let readerTurnSaved = false;
   let stopped = false;
 
+  // Follow the new passage only if the reader was already at the end, and only until they scroll.
+  let following = isNearBottom();
+  const reading = readingRef.value;
+  const stopFollowing = () => {
+    following = false;
+  };
+  for (const type of READER_SCROLL_EVENTS) {
+    reading?.addEventListener(type, stopFollowing, { passive: true });
+  }
+
   try {
     for await (const event of start(abortController.signal)) {
-      const follow = isNearBottom();
       if (event.type === 'turn') {
         readerTurnSaved = true;
         turns.value = [...turns.value, event.turn];
@@ -323,7 +365,7 @@ async function runStream(start, { regenerateTurnId = null, composerText = '' } =
         pending.value.content += event.text;
         pending.value.status = 'Writing...';
       }
-      if (follow) scrollToEnd();
+      if (following && !(await followGeneration(regenerateTurnId))) following = false;
     }
   } catch (error) {
     if (error.name === 'AbortError') {
@@ -338,12 +380,20 @@ async function runStream(start, { regenerateTurnId = null, composerText = '' } =
       }
     }
   } finally {
-    generating.value = false;
-    pending.value = null;
+    for (const type of READER_SCROLL_EVENTS) {
+      reading?.removeEventListener(type, stopFollowing);
+    }
     abortController = null;
   }
 
+  // Swap the passage being written for the saved turn in one update, keeping the reader's place, so
+  // the page doesn't jump when the stream ends.
+  const scrollTop = readingRef.value?.scrollTop ?? 0;
   await refreshStory();
+  generating.value = false;
+  pending.value = null;
+  await nextTick();
+  if (readingRef.value) readingRef.value.scrollTop = scrollTop;
   if (stopped) {
     // The server saves the partial text once it notices the disconnect.
     setTimeout(refreshStory, 1000);
