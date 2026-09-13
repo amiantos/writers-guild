@@ -384,7 +384,7 @@ tracked per chapter at first; per-turn presence (someone leaving mid-scene) can 
 
 The reader's character remembers like everyone else: the Archivist records what the passages show
 them saying, doing, or learning, and the Writer and Director see it. They differ only in being the
-character the reader writes as, and in being left out of offscreen life.
+character the reader writes as.
 
 Phase 3 built seed cards, knowledge, and episodes. In the Writer prompt, each character gets their
 pinned knowledge, then the most important knowledge that fits a budget (4,000 characters by default),
@@ -559,7 +559,8 @@ reader moves the clock, the time is deliberate, so the prompts say it exactly:
     messages began, so the session's episode takes over from it once recorded. A failure there
     doesn't stop the reply.
 - The call sees each character's routine, what they know, recent episodes, how they have changed,
-  and their last time away. It leaves out the reader's character, whose doings belong to the reader.
+  and their last time away. The reader's character gets accounts too, and like any memory, an
+  account can be edited or retired.
 - Moving time forward when a chapter **ends** doesn't generate offscreen life. That span counts as
   time the chapter covered.
 - Time passes doesn't write accounts by itself, and time passing in a chapter never does, since the
@@ -773,8 +774,7 @@ Each phase ends with something usable.
    them, since only the reader moves the clock?
 7. Should chapters support branching, or only per-turn variants?
 8. Does the persona keep memories of its own? _Yes, since 2026-09-12: they remember like everyone
-   else. Since 2026-09-13 the Writer writes them like anyone else too; only offscreen life leaves
-   them out._
+   else. Since 2026-09-13 they're written like anyone else too, offscreen life included._
 9. Can a Bureau have more than one unfinished chapter at a time?
 
 ## References

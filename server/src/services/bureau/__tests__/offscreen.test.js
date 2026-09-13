@@ -58,7 +58,7 @@ describe('isOffscreenGap', () => {
 });
 
 describe('buildOffscreenMessages', () => {
-  it("describes each character's time away, and leaves the reader's character out", () => {
+  it("describes each character's time away", () => {
     const mara = {
       id: 'c1',
       name: 'Mara',
@@ -66,10 +66,9 @@ describe('buildOffscreenMessages', () => {
       routine: { text: 'Nights at the light.' },
     };
 
-    const [system, user] = buildOffscreenMessages({
+    const [, user] = buildOffscreenMessages({
       bureau: { timezone: 'UTC' },
       gaps: [{ member: mara, from: FROM }],
-      persona: { name: 'Theo' },
       to: TO,
       now: new Date('2026-10-08T21:00:00Z'),
       memoriesByCast: new Map([
@@ -85,7 +84,6 @@ describe('buildOffscreenMessages', () => {
       notesByCast: new Map([['c1', [{ content: 'Mara lets Theo help now.' }]]]),
     });
 
-    expect(system.content).toContain('Leave Theo out entirely');
     expect(user.content).toContain("=== NOW ===\nIt's 8:00 PM on Thursday, October 8, 2026.");
     expect(user.content).toContain(
       [
@@ -164,6 +162,14 @@ describe('offscreen life in a Bureau', () => {
       );
 
       expect(gaps.map((gap) => [gap.member.id, gap.from])).toEqual([[mara.id, FROM]]);
+    });
+
+    it("gives the reader's character an account like anyone else", () => {
+      seen(theo, FROM);
+
+      expect(findOffscreenGaps(stores, bureau, [member(theo)], TO)).toEqual([
+        { member: member(theo), from: FROM },
+      ]);
     });
 
     it('counts their messages, and has nothing to go on for someone never seen', () => {
