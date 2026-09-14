@@ -32,6 +32,14 @@
         </span>
         <button
           class="icon-btn"
+          title="Show a character's avatar"
+          :disabled="!story || cast.length === 0"
+          @click="addAvatarWindow"
+        >
+          <i class="fas fa-image"></i>
+        </button>
+        <button
+          class="icon-btn"
           title="Who's in this chapter"
           :disabled="!story"
           @click="showCast = true"
@@ -73,8 +81,9 @@
       <main ref="readingRef" class="story-reading">
         <div class="story-column">
           <p v-if="turns.length === 0 && !pending" class="story-empty">
-            This chapter hasn't started. Write the opening yourself, give the Writer a direction, or
-            press Continue and the Writer will set the scene.
+            This chapter hasn't started. Write the opening yourself, open with a character's
+            greeting, give the Writer a direction, or press Continue and the Writer will set the
+            scene.
           </p>
 
           <template v-for="turn in turns" :key="turn.id">
@@ -116,7 +125,9 @@
         ref="composerRef"
         :generating="generating"
         :has-api-key="bureau.hasApiKey"
+        :can-use-greeting="!hasProse"
         @generate="generate"
+        @greeting="showGreetings = true"
         @scene-break="addSceneBreak"
         @time-passes="showTimePasses = true"
         @stop="stop"
@@ -153,6 +164,25 @@
       @close="showCast = false"
       @updated="handleStoryUpdated"
     />
+    <GreetingPickerModal
+      v-if="showGreetings"
+      :bureau-id="bureauId"
+      :story-id="storyId"
+      @close="showGreetings = false"
+      @added="handleGreetingAdded"
+    />
+
+    <FloatingAvatarWindow
+      v-for="win in avatarWindows"
+      :key="win.id"
+      :window-id="win.id"
+      :characters="avatarCharacters"
+      :initial-character-id="win.castId"
+      :initial-position="{ x: win.x, y: win.y }"
+      :initial-size="{ width: win.width, height: win.height }"
+      @close="closeAvatarWindow(win.id)"
+      @update="updateAvatarWindow"
+    />
   </div>
 </template>
 
@@ -160,6 +190,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { bureausAPI, bureauStoriesAPI } from '../../services/bureauApi';
+import { charactersAPI } from '../../services/api';
 import { describeArchive } from '../../composables/bureau/memories';
 import { useToast } from '../../composables/useToast';
 import { useConfirm } from '../../composables/useConfirm';
@@ -167,12 +198,15 @@ import { setPageTitle } from '../../router';
 import { renderProse } from '../../composables/bureau/renderProse';
 import { followScroll } from '../../composables/bureau/followScroll';
 import { formatDateTime } from '../../composables/bureau/format';
+import { newAvatarWindow, windowCharacters } from '../../composables/bureau/avatarWindows';
 import TurnBlock from '../../components/bureau/TurnBlock.vue';
 import TurnSeam from '../../components/bureau/TurnSeam.vue';
 import StoryComposer from '../../components/bureau/StoryComposer.vue';
 import EndStoryModal from '../../components/bureau/EndStoryModal.vue';
 import StoryCastModal from '../../components/bureau/StoryCastModal.vue';
 import TimePassesPicker from '../../components/bureau/TimePassesPicker.vue';
+import GreetingPickerModal from '../../components/bureau/GreetingPickerModal.vue';
+import FloatingAvatarWindow from '../../components/FloatingAvatarWindow.vue';
 
 const props = defineProps({
   bureauId: { type: String, required: true },
@@ -208,6 +242,7 @@ let abortController = null;
 
 const showEnd = ref(false);
 const showCast = ref(false);
+const showGreetings = ref(false);
 const showTimePasses = ref(false);
 const passingTime = ref(false);
 const editingTitle = ref(false);
@@ -220,6 +255,12 @@ const composerRef = ref(null);
 const archiving = ref(false);
 const reverting = ref(false);
 const highlightTurnId = ref(null);
+// Portraits floating over the chapter. The Bureau keeps them, so they carry over between chapters.
+const avatarWindows = ref([]);
+// Library characters by id, for the windows' portraits, loaded once a window is open.
+const libraryCharacters = ref(new Map());
+let libraryCharactersRequested = false;
+let saveWindowsTimer = null;
 
 // Prose the Archivist hasn't read yet.
 const hasUnarchived = computed(
@@ -241,6 +282,13 @@ const chapterTime = computed(
     story.value?.startTime ??
     null,
 );
+
+// A greeting opens a chapter, so it's offered only until the chapter has prose.
+const hasProse = computed(() => turns.value.some((turn) => turn.kind === 'prose'));
+
+const avatarCharacters = computed(() =>
+  windowCharacters(cast.value, story.value?.castIds ?? [], libraryCharacters.value),
+);
 // ==================== Loading ====================
 
 async function load() {
@@ -256,6 +304,8 @@ async function load() {
     story.value = storyData.story;
     turns.value = storyData.turns;
     cast.value = castData.cast;
+    avatarWindows.value = bureauData.bureau.avatarWindows ?? [];
+    if (avatarWindows.value.length > 0) loadLibraryCharacters();
     setPageTitle(story.value.title);
   } catch (error) {
     console.error('Failed to load story:', error);
@@ -552,6 +602,72 @@ async function selectVariant(turn, variantId) {
   }
 }
 
+function handleGreetingAdded(turn) {
+  showGreetings.value = false;
+  turns.value = [...turns.value, turn];
+  scrollToEnd();
+}
+
+// ==================== Avatar windows ====================
+
+const SAVE_WINDOWS_DELAY = 500;
+
+async function loadLibraryCharacters() {
+  if (libraryCharactersRequested) return;
+  libraryCharactersRequested = true;
+  try {
+    const { characters } = await charactersAPI.list();
+    libraryCharacters.value = new Map(characters.map((character) => [character.id, character]));
+  } catch (error) {
+    // The windows go without portraits for now, and the next window opened tries again.
+    libraryCharactersRequested = false;
+    console.error('Failed to load portraits:', error);
+  }
+}
+
+function addAvatarWindow() {
+  const win = newAvatarWindow({
+    cast: cast.value,
+    chapterCastIds: story.value?.castIds ?? [],
+    windows: avatarWindows.value,
+  });
+  if (!win) return;
+  avatarWindows.value = [...avatarWindows.value, win];
+  loadLibraryCharacters();
+  saveAvatarWindows();
+}
+
+function closeAvatarWindow(windowId) {
+  avatarWindows.value = avatarWindows.value.filter((win) => win.id !== windowId);
+  saveAvatarWindows();
+}
+
+// A window moved, changed size, or switched characters.
+function updateAvatarWindow({ windowId, characterId, x, y, width, height }) {
+  avatarWindows.value = avatarWindows.value.map((win) =>
+    win.id === windowId
+      ? { id: win.id, castId: characterId ?? win.castId, x, y, width, height }
+      : win,
+  );
+  saveAvatarWindows();
+}
+
+// Saved after a short pause, so a burst of changes, such as every window fitting a smaller
+// browser, is saved once.
+function saveAvatarWindows() {
+  clearTimeout(saveWindowsTimer);
+  saveWindowsTimer = setTimeout(sendAvatarWindows, SAVE_WINDOWS_DELAY);
+}
+
+async function sendAvatarWindows() {
+  saveWindowsTimer = null;
+  try {
+    await bureausAPI.updateAvatarWindows(props.bureauId, avatarWindows.value);
+  } catch (error) {
+    toast.error('Failed to save the avatar windows: ' + error.message);
+  }
+}
+
 // ==================== Story ====================
 
 function startTitleEdit() {
@@ -616,7 +732,14 @@ function backToBureau() {
 }
 
 onMounted(load);
-onBeforeUnmount(() => abortController?.abort());
+onBeforeUnmount(() => {
+  abortController?.abort();
+  // Save a window that just changed instead of dropping it.
+  if (saveWindowsTimer) {
+    clearTimeout(saveWindowsTimer);
+    sendAvatarWindows();
+  }
+});
 </script>
 
 <style scoped src="../../components/bureau/bureau-ui.css"></style>
@@ -765,6 +888,16 @@ onBeforeUnmount(() => abortController?.abort());
 
 .pending-turn .prose :deep(p) {
   margin: 0 0 1em;
+}
+
+.pending-turn .prose :deep(.story-image) {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  height: auto;
+  margin: 1rem auto;
+  border-radius: 8px;
+  object-fit: contain;
 }
 
 .pending-placeholder {

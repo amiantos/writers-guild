@@ -1,9 +1,9 @@
 # Bureau — Design Doc
 
 - **Status:** Experimental; phases 1–7 are built
-- **Started:** 2026-09-11 (last updated 2026-09-12)
+- **Started:** 2026-09-11 (last updated 2026-09-13)
 - **Working name:** Bureau (not final)
-- **Branch:** built on `feature/bureau`, not yet merged into `main`
+- **Branch:** built on `feature/bureau` and merged into `main` in PR #51
 - **Discussion:** [#49 Chat Mode + Memories](https://github.com/amiantos/writers-guild/discussions/49)
 
 ## Summary
@@ -167,6 +167,10 @@ actions:
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate. The
   Director and Writer treat a direction as something that hasn't happened yet and write it happening.
 - **Continue:** generate with no new input.
+- **Greeting**, while the chapter has no prose yet, opens it with a greeting from the card of
+  someone in it (their first message or an alternate greeting), as story mode offers greetings for
+  a new story. The reader's character fills in `{{user}}`. The greeting is added as prose credited
+  to that character, and it can be edited like any passage.
 - **Scene break** adds a divider without generating, and **Stop** ends a generation early while
   keeping whatever was already written.
 - **Time passes** moves the chapter's time forward without generating, with the same choices as
@@ -186,13 +190,25 @@ directly.
 Bureau ports story mode's preview pipeline into its own composable instead of extracting it from
 `StoryEditor.vue`: pull out `<img>` tags, escape HTML, convert markdown images using the shared
 patterns in `shared/regex-patterns.js`, split paragraphs, restore images, and sanitize with
-DOMPurify. Rendering is per turn, so streaming only re-renders the active turn.
+DOMPurify. Rendering is per turn, so streaming only re-renders the active turn. A passage being
+written shows each image as soon as the Writer finishes its marker (see [Images](#images)).
 
 ### Prose stays prose
 
 Turns are storage and UI structure. The Writer still reads the story as continuous prose, never as a
 chat transcript. Writers Guild's core bet, that novel-style context produces better writing than chat
 formatting, still holds.
+
+### Avatar windows
+
+As in story mode, character portraits can float over a chapter. The picture button in the chapter's
+header opens a window (story mode's `FloatingAvatarWindow`) that can be dragged, resized, and
+clicked to show someone else. A portrait is the library character's image, so drafts have none.
+
+- The Bureau keeps its windows, not the chapter, so they stay where they were from one chapter to
+  the next.
+- A window can show anyone in the cast, the chapter's cast first. A new one shows the first
+  character in the chapter who isn't the reader's.
 
 ## Generation pipeline
 
@@ -265,7 +281,23 @@ context caching:
 6. The scene brief and composer input, plus the chapter's exact time: when it began, or when time
    last passed in it (see [Time in prompts](#time-in-prompts))
 
-Output streams into the active turn. Images pass through `ImagePreserver` exactly as in story mode.
+Output streams into the active turn. Images pass through `ImagePreserver` as in story mode (see
+[Images](#images)).
+
+### Images
+
+Cards, lorebooks, and chapters can carry images, as markdown or `<img>` tags, just as in story
+mode. A greeting might open with a picture, or a lorebook entry might hold pictures for the Writer
+to show when something happens.
+
+- The Writer sees each image as a `[WG_IMAGE_n]` marker from `ImagePreserver`, and a marker it
+  writes comes back as that image. While a passage streams, each marker shows as its image as soon
+  as it's complete.
+- The other roles only read images. The Director, Editor, Archivist, replies, offscreen life, and
+  the character generator get each one as a short label from its alt text, such as
+  `[image: the harbor at dawn]`. A cached asset URL is long and no use to a model, and it would
+  crowd out the words around it, as in a lorebook entry the Director looks up.
+- Messages don't show images, so a reply can't send one.
 
 ### Style lint and Editor
 
@@ -619,7 +651,7 @@ later phases add the rest as migrations:
 
 ```text
 bureaus        (id, name, description, api_key, model, bureau_time, present_offset_days [unused],
-                timezone, house_style, settings JSON, created, modified)
+                timezone, house_style, settings JSON, avatar_windows JSON, created, modified)
 cast_members   (id, bureau_id, library_character_id NULL, name, is_persona, is_draft,
                 seed_card JSON, routine JSON, created, modified)
 arc_notes      (id, bureau_id, cast_member_id, content, proposed_content, rationale,
@@ -682,12 +714,14 @@ server/src/services/bureau/
   correspondence.js                      # replies
   offscreen.js                           # what characters did while time jumped forward
   character-generator.js
+  greetings.js                           # card greetings a chapter can open with
+  images.js                              # image labels, and images shown as a passage streams
   run-recorder.js                        # agent_runs and agent_steps
 server/scripts/bureau-smoke.js           # tool-loop smoke test against the real API
 
 vue_client/src/views/bureau/             # Bureau list and home, story, correspondence
 vue_client/src/components/bureau/        # TurnBlock, TurnSeam, Composer, MemoryBrowser, ...
-vue_client/src/composables/bureau/       # turn rendering, streaming, ...
+vue_client/src/composables/bureau/       # turn rendering, streaming, avatar windows, ...
 ```
 
 Tests are colocated in `__tests__/` as usual. Bureau database tests create temporary directories and
@@ -701,6 +735,7 @@ never touch `data/`.
 - `image-preserver.js`, `shared/regex-patterns.js`
 - `asset-manager.js` (with a new `bureaus` entity type), `image-cacher.js`
 - `character-parser.js`
+- `FloatingAvatarWindow.vue`, for avatar windows in the chapter view
 
 ### Touch points in existing code
 

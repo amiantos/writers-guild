@@ -217,6 +217,37 @@ describe('runDirector', () => {
     });
   });
 
+  it('looks up lore with images as labels, so their URLs take up no room', async () => {
+    const url = `/api/assets/lorebooks/lb-1/${'a'.repeat(64)}.webp`;
+    stores.library = {
+      close() {},
+      async getLorebook() {
+        return {
+          entries: [
+            {
+              keys: ['pier'],
+              content: `Photos of the pier:\n![Mara at the pier](${url})\n![](${url})`,
+              enabled: true,
+            },
+          ],
+        };
+      },
+    };
+    stores.bureaus.attachLorebook(bureau.id, 'lb-1');
+    const client = scriptedClient(
+      modelTurn([toolCall('c1', 'lookup_lore', { query: 'pier photos' })]),
+      modelTurn([], 'Done.'),
+    );
+
+    await direct(client);
+
+    expect(toolResults(client.calls[1])[0]).toEqual({
+      entries: [
+        { keys: ['pier'], content: 'Photos of the pier:\n[image: Mara at the pier]\n[image]' },
+      ],
+    });
+  });
+
   it("reports lookups for anyone who isn't in the chapter, and recalls the reader's character too", async () => {
     const client = scriptedClient(
       modelTurn([
@@ -580,5 +611,30 @@ describe('buildDirectorMessages', () => {
     expect(next([prose, passes, prose])).toContain(
       'When time last passed in the chapter, it was exactly 8:00 AM on Wednesday, October 28, 2026.',
     );
+  });
+
+  it('gives images in the cast and the chapter as labels', () => {
+    const [, user] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast: [
+        {
+          name: 'June',
+          isPersona: false,
+          seedCard: card('June', 'A regular. ![June](/api/assets/characters/c3/june.webp)'),
+        },
+      ],
+      turns: [
+        {
+          kind: 'prose',
+          source: 'user',
+          content: 'June waved.\n\n![June waving](/api/assets/characters/c3/wave.webp)',
+        },
+      ],
+      request: { action: 'continue' },
+    });
+
+    expect(user.content).toContain('- June: A regular. [image: June]');
+    expect(user.content).toContain('June waved.\n\n[image: June waving]');
+    expect(user.content).not.toContain('/api/assets/');
   });
 });

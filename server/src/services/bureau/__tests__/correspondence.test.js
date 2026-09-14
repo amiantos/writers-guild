@@ -166,6 +166,30 @@ describe('buildCorrespondenceMessages', () => {
     expect(user.content).toContain('=== CONVERSATION ===\n(No messages yet.)');
     expect(user.content).toContain('Write the first message Mara sends Theo.');
   });
+
+  it('gives images in cards, lore, and messages as labels', () => {
+    const [system, user] = buildCorrespondenceMessages({
+      bureau,
+      member: {
+        ...mara,
+        seedCard: card('Mara', 'Keeps the light. ![Mara](/api/assets/characters/c1/mara.webp)'),
+      },
+      persona: theo,
+      time: now,
+      now,
+      loreEntries: [
+        { content: 'The lamp room: ![the lens](/api/assets/lorebooks/lb-1/lens.webp)' },
+      ],
+      history: [
+        message('user', 'Look ![a gull](https://example.com/gull.png)', '2026-10-27T22:00:00Z'),
+      ],
+    });
+
+    expect(system.content).toContain('Keeps the light. [image: Mara]');
+    expect(system.content).toContain('The lamp room: [image: the lens]');
+    expect(user.content).toContain('Theo: Look [image: a gull]');
+    expect(system.content + user.content).not.toMatch(/\/api\/assets\/|example\.com/);
+  });
 });
 
 describe('generateReply', () => {

@@ -120,6 +120,20 @@ describe('archiveStory', () => {
     expect(() => assertStrictSchema(RECORD_MEMORIES_TOOL.parameters)).not.toThrow();
   });
 
+  it('reads images in passages as labels', async () => {
+    addProse(
+      'Theo unrolled the chart.\n\n![the harbor chart](/api/assets/lorebooks/lb-1/chart.webp)',
+      'user',
+    );
+    const client = archivistClient([record({ story_summary: 'Theo unrolls a chart.' })]);
+
+    await archive(client);
+
+    const user = client.calls[0].messages[1].content;
+    expect(user).toContain('Theo unrolled the chart.\n\n[image: the harbor chart]');
+    expect(user).not.toContain('/api/assets/');
+  });
+
   it('records knowledge, episodes, and the summary from a pass', async () => {
     const confession = addProse("Theo admitted he couldn't swim.", 'user');
     stores.stories.addTurn(story.id, {

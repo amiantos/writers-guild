@@ -9,6 +9,7 @@
 
 import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
 import { generateCharacter } from './character-generator.js';
+import { labelImages } from './images.js';
 import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { runToolLoop } from './tool-loop.js';
 
@@ -205,7 +206,7 @@ export function buildDirectorMessages({
 
   const castLines = cast.map((member) => {
     const label = member.isPersona ? `${nameOf(member)} (the reader's character)` : nameOf(member);
-    const description = text(member.seedCard?.data?.description);
+    const description = labelImages(text(member.seedCard?.data?.description));
     return description ? `- ${label}: ${truncate(description, PROFILE_CHARACTERS)}` : `- ${label}`;
   });
 
@@ -216,7 +217,7 @@ export function buildDirectorMessages({
       if (turn.kind === 'time_passes') {
         return `---\n\n${describeTimePassing(turn.bureauTime, timeZone)}`;
       }
-      return turn.content;
+      return labelImages(turn.content);
     })
     .join('\n\n');
   const recent =
@@ -370,23 +371,25 @@ function toolHandlers({
         }
         for (const entry of lorebook.entries ?? []) {
           if (entry.enabled === false || !entry.content) continue;
+          // With images as labels, an asset URL neither matches a word nor fills an entry's room.
+          const content = labelImages(entry.content);
           const keys = (entry.keys ?? []).join(' ').toLowerCase();
-          const content = entry.content.toLowerCase();
+          const lowered = content.toLowerCase();
           const score = words.reduce(
             (total, word) =>
-              total + (keys.includes(word) ? 2 : 0) + (content.includes(word) ? 1 : 0),
+              total + (keys.includes(word) ? 2 : 0) + (lowered.includes(word) ? 1 : 0),
             0,
           );
-          if (score > 0) scored.push({ score, entry });
+          if (score > 0) scored.push({ score, keys: entry.keys ?? [], content });
         }
       }
       return {
         entries: scored
           .toSorted((a, b) => b.score - a.score)
           .slice(0, LORE_LIMIT)
-          .map(({ entry }) => ({
-            keys: entry.keys ?? [],
-            content: truncate(entry.content, LORE_ENTRY_CHARACTERS),
+          .map(({ keys, content }) => ({
+            keys,
+            content: truncate(content, LORE_ENTRY_CHARACTERS),
           })),
       };
     },
@@ -401,9 +404,9 @@ function toolHandlers({
       const file = {
         name: nameOf(member),
         readersCharacter: member.isPersona,
-        description: text(data.description),
-        personality: text(data.personality),
-        scenario: text(data.scenario),
+        description: labelImages(text(data.description)),
+        personality: labelImages(text(data.personality)),
+        scenario: labelImages(text(data.scenario)),
       };
       const { knowledge, episodes } = selectForPrompt(visibleMemories(member), {
         knowledgeCharacters: bureau.settings.memory.knowledgeCharacters,
@@ -478,7 +481,10 @@ function toolHandlers({
         cast.push(member);
         return {
           name: nameOf(member),
-          description: truncate(text(member.seedCard?.data?.description), PROFILE_CHARACTERS),
+          description: truncate(
+            labelImages(text(member.seedCard?.data?.description)),
+            PROFILE_CHARACTERS,
+          ),
           addedToStory: true,
         };
       };

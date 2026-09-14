@@ -443,6 +443,57 @@ describe('Bureau story routes', () => {
       await request(app).put(`${turnsUrl}/missing`).send({ content: 'x' }).expect(404);
     });
 
+    it("lists greetings from the chapter's cast and opens the chapter with one", async () => {
+      const june = stores.bureaus.addCastMember(bureau.id, {
+        seedCard: {
+          spec: 'chara_card_v2',
+          spec_version: '2.0',
+          data: {
+            name: 'June',
+            first_mes: 'June looks up at {{user}}.',
+            alternate_greetings: ['![June](/api/assets/characters/c3/june.webp)\n\nJune waves.'],
+          },
+        },
+        libraryCharacterId: 'c3',
+      });
+      const story = await startStory({ castIds: [june.id, mara.id, theo.id] });
+      const url = `${storiesUrl()}/${story.id}/greetings`;
+
+      const { body } = await request(app).get(url).expect(200);
+      expect(body.greetings).toEqual([
+        {
+          castId: june.id,
+          name: 'June',
+          index: 0,
+          label: 'First message',
+          content: 'June looks up at Theo.',
+        },
+        {
+          castId: june.id,
+          name: 'June',
+          index: 1,
+          label: 'Alternate greeting 1',
+          content: '![June](/api/assets/characters/c3/june.webp)\n\nJune waves.',
+        },
+      ]);
+
+      const { body: added } = await request(app)
+        .post(url)
+        .send({ castId: june.id, content: body.greetings[1].content })
+        .expect(201);
+      expect(added.turn).toMatchObject({
+        kind: 'prose',
+        source: 'user',
+        authorCastId: june.id,
+        content: body.greetings[1].content,
+      });
+
+      await request(app).post(url).send({ castId: june.id, content: ' ' }).expect(400);
+      await request(app).post(url).send({ castId: 'someone-else', content: 'Hi.' }).expect(400);
+      await request(app).post(`${storiesUrl()}/${story.id}/end`).send({}).expect(200);
+      await request(app).post(url).send({ castId: june.id, content: 'Hi.' }).expect(409);
+    });
+
     it('lets time pass in a chapter, moving the Bureau clock forward with it', async () => {
       stores.bureaus.updateBureau(bureau.id, { timezone: 'UTC' });
       const story = await startStory({

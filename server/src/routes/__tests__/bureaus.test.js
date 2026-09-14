@@ -194,6 +194,38 @@ describe('Bureau routes', () => {
       await request(app).post('/api/bureaus/missing/time').send({ step: 'hour' }).expect(404);
     });
 
+    it('saves avatar windows, checking each one', async () => {
+      const bureau = await createBureau();
+      const url = `/api/bureaus/${bureau.id}/avatar-windows`;
+      const win = { id: 'w1', castId: 'c1', x: -40, y: 100, width: 300, height: 400 };
+
+      const { body } = await request(app)
+        .put(url)
+        .send({ avatarWindows: [{ ...win, characterId: 'stray' }] })
+        .expect(200);
+      expect(body.avatarWindows).toEqual([win]);
+      const { body: fetched } = await request(app).get(`/api/bureaus/${bureau.id}`).expect(200);
+      expect(fetched.bureau.avatarWindows).toEqual([win]);
+
+      for (const bad of [
+        'windows',
+        [null],
+        [{ ...win, castId: '' }],
+        [{ ...win, x: '20' }],
+        [{ ...win, width: 0 }],
+        [{ ...win, height: 5001 }],
+        [{ ...win, y: 10001 }],
+        Array.from({ length: 21 }, (_, index) => ({ ...win, id: `w${index}` })),
+      ]) {
+        await request(app).put(url).send({ avatarWindows: bad }).expect(400);
+      }
+      expect(bureaus.getBureau(bureau.id).avatarWindows).toEqual([win]);
+      await request(app)
+        .put('/api/bureaus/missing/avatar-windows')
+        .send({ avatarWindows: [] })
+        .expect(404);
+    });
+
     it('returns 404 for a Bureau that does not exist', async () => {
       await request(app).get('/api/bureaus/missing').expect(404);
       await request(app).put('/api/bureaus/missing').send({ name: 'Nope' }).expect(404);

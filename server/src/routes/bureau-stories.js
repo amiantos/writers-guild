@@ -24,6 +24,7 @@ import {
   resolveStoryStartTime,
 } from '../services/bureau/bureau-time.js';
 import { archiveSettledTurns, archiveStory, archiveThread } from '../services/bureau/archivist.js';
+import { listGreetings } from '../services/bureau/greetings.js';
 import { findOffscreenGaps, generateOffscreenLife } from '../services/bureau/offscreen.js';
 import { generateWriterTurn, requestForRegeneration } from '../services/bureau/writer-turn.js';
 import {
@@ -577,6 +578,55 @@ router.post(
     );
     flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
     res.json({ turn: updated });
+  }),
+);
+
+// ==================== Greetings ====================
+
+// The greetings on the cards of everyone in the chapter but the reader's character, to open it
+// with. A macro such as {{random}} picks again each time they're listed.
+router.get(
+  '/:storyId/greetings',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    requireBureau(bureaus, bureauId);
+    const story = requireStory(stories, bureauId, storyId);
+
+    const cast = story.castIds
+      .map((castId) => bureaus.getCastMember(bureauId, castId))
+      .filter(Boolean);
+    res.json({ greetings: listGreetings(cast) });
+  }),
+);
+
+// Open the chapter with a greeting: { castId, content }, with the content as it was listed, so
+// the reader gets the greeting they saw. It's added as prose by that cast member.
+router.post(
+  '/:storyId/greetings',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    requireBureau(bureaus, bureauId);
+    const story = requireStory(stories, bureauId, storyId);
+    requireActive(story);
+
+    const body = req.body ?? {};
+    const content = optionalString(body, 'content');
+    if (typeof body.castId !== 'string' || !content) {
+      throw new AppError('castId and content are required', 400);
+    }
+    if (!story.castIds.includes(body.castId)) {
+      throw new AppError('castId must be someone in this chapter', 400);
+    }
+
+    const turn = stories.addTurn(storyId, {
+      kind: 'prose',
+      source: 'user',
+      content,
+      authorCastId: body.castId,
+    });
+    res.status(201).json({ turn });
   }),
 );
 

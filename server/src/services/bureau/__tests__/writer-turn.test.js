@@ -328,6 +328,27 @@ describe('generateWriterTurn', () => {
     expect(turn.content).toBe('Mara traced ![map](https://example.com/map.png) with a finger.');
   });
 
+  it('streams images as soon as their markers are written', async () => {
+    stores.stories.addTurn(story.id, {
+      kind: 'prose',
+      source: 'user',
+      content: 'Theo unrolled the map. ![map](https://example.com/map.png)',
+    });
+    const client = streamingClient([
+      { type: 'content', text: 'Mara traced [WG_IMA' },
+      { type: 'content', text: 'GE_0] with a finger.' },
+      done('Mara traced [WG_IMAGE_0] with a finger.'),
+    ]);
+    const events = [];
+
+    await generate(client, { action: 'write' }, { onEvent: (event) => events.push(event) });
+
+    expect(events.filter((event) => event.type === 'content').map((event) => event.text)).toEqual([
+      'Mara traced ',
+      '![map](https://example.com/map.png) with a finger.',
+    ]);
+  });
+
   it('regenerates a turn as a new variant, writing from the turns before it', async () => {
     stores.stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Before.' });
     const original = stores.stories.addTurn(story.id, {

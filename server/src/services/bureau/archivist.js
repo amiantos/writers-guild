@@ -17,6 +17,7 @@
  */
 
 import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
+import { labelImages } from './images.js';
 import {
   isBeforeStory,
   memoriesAsOf,
@@ -373,7 +374,7 @@ export function buildArchivistMessages({
       if (turn.kind === 'time_passes') {
         return `---\n\n${describeTimePassing(turn.bureauTime, source.timeZone)}`;
       }
-      return `[${wording.unit} ${turn.position}]\n${turn.speaker ? `${turn.speaker}: ` : ''}${turn.content}`;
+      return `[${wording.unit} ${turn.position}]\n${turn.speaker ? `${turn.speaker}: ` : ''}${labelImages(turn.content)}`;
     });
 
   let user;

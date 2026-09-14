@@ -17,6 +17,7 @@ import { chapterTime, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { runDirector } from './director.js';
 import { runEditor } from './editor.js';
+import { imageStream } from './images.js';
 import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 import { inferPronoun, lintProse, usesThirdPerson } from './style-lint.js';
@@ -99,7 +100,8 @@ function pronounOf(member) {
  * @param {string|null} [params.regenerateTurnId] - Add a variant to this turn, writing from
  *   the turns before it, instead of appending a new turn.
  * @param {(event: Object) => void} [params.onEvent] - Receives events as they happen: `run`,
- *   `stage` (directing, writing, or editing), `brief`, `reasoning`, `content`, and `edits`.
+ *   `stage` (directing, writing, or editing), `brief`, `reasoning`, `content` (with images in
+ *   place of their markers), and `edits`.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} The saved turn. When cancelled, the text written so far is
  *   saved, or null is returned if nothing was written yet.
@@ -259,6 +261,8 @@ export async function generateWriterTurn({
   let reasoning = '';
   let done = null;
   const started = Date.now();
+  // What the reader sees streaming in, with each image in place as soon as its marker is written.
+  const shown = imageStream(imagePreserver);
 
   try {
     const stream = client.chatStream({
@@ -277,11 +281,14 @@ export async function generateWriterTurn({
         // Like story mode, prose never uses asterisks for actions.
         const text = event.text.replace(/\*/g, '');
         content += text;
-        if (text) onEvent({ type: 'content', text });
+        const next = shown.push(text);
+        if (next) onEvent({ type: 'content', text: next });
       } else if (event.type === 'done') {
         done = event;
       }
     }
+    const rest = shown.finish();
+    if (rest) onEvent({ type: 'content', text: rest });
   } catch (error) {
     const cancelled = error.name === 'AbortError' || Boolean(signal?.aborted);
     const partial = restore(content);

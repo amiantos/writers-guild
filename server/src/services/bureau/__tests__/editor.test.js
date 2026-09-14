@@ -100,6 +100,17 @@ describe('buildEditorMessages', () => {
       '- Paragraph 1 (multiple_speakers): Mara and Theo both speak in one paragraph',
     );
   });
+
+  it('shows images in the passage as labels', () => {
+    const [, user] = buildEditorMessages({
+      houseStyle: 'Third person, past tense.',
+      text: 'Mara unrolled the chart.\n\n![the harbor chart](/api/assets/lorebooks/lb-1/chart.webp)\n\nI traced the coast.',
+      findings: [{ paragraph: 2, rule: 'first_person_narration', reason: 'First person' }],
+    });
+
+    expect(user.content).toMatch(/\[Paragraph \d\]\n\[image: the harbor chart\]/);
+    expect(user.content).not.toContain('/api/assets/');
+  });
 });
 
 describe('runEditor', () => {

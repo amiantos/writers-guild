@@ -7,6 +7,7 @@
  * it and a bad fix can be reverted.
  */
 
+import { labelImages } from './images.js';
 import { joinParagraphs, splitParagraphs } from './style-lint.js';
 
 export const EDITOR_MAX_TOKENS = 4000;
@@ -71,9 +72,10 @@ export function buildEditorMessages({ houseStyle, text, findings }) {
       .join('\n')}`,
   ];
 
+  // Lint never flags a paragraph with an image, so the Editor only needs to know one is there.
   const passage = splitParagraphs(text)
     .paragraphs.map((paragraph, number) =>
-      paragraph.trim() ? `[Paragraph ${number}]\n${paragraph.trim()}` : null,
+      paragraph.trim() ? `[Paragraph ${number}]\n${labelImages(paragraph.trim())}` : null,
     )
     .filter(Boolean);
   const flagged = findings.map(

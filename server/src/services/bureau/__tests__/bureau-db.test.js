@@ -73,6 +73,7 @@ describe('bureau-db', () => {
       DROP TABLE story_cast;
       DROP TABLE stories;
       DROP TABLE bureau_lorebooks;
+      ALTER TABLE bureaus DROP COLUMN avatar_windows;
     `);
     db.pragma('user_version = 1');
     closeBureauDb(tempDir);
@@ -101,6 +102,24 @@ describe('bureau-db', () => {
     expect(upgraded.prepare('SELECT archived_through, summary FROM stories').all()).toEqual([]);
   });
 
+  it('gives Bureaus from before avatar windows none', () => {
+    const db = openBureauDb(tempDir);
+    db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
+    db.prepare(
+      `INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
+       VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now')`,
+    ).run();
+    db.pragma('user_version = 8');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+
+    expect(upgraded.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+    expect(upgraded.prepare('SELECT avatar_windows FROM bureaus').get()).toEqual({
+      avatar_windows: '[]',
+    });
+  });
+
   it("moves a shifted Bureau's clock to the date it showed, and stops counting the offset", () => {
     const db = openBureauDb(tempDir);
     db.exec(`
@@ -108,8 +127,10 @@ describe('bureau-db', () => {
       VALUES ('shifted', 'Shifted', 'deepseek-flash', '2020-01-01T00:00:00.000Z', -365, 'now', 'now'),
              ('plain', 'Plain', 'deepseek-flash', '2020-01-01T00:00:00.000Z', 0, 'now', 'now');
     `);
-    // Back to the turns table version 6 had, before time could pass in a chapter.
+    // Back to the tables version 6 had, before time could pass in a chapter and before avatar
+    // windows.
     db.exec('ALTER TABLE turns DROP COLUMN bureau_time');
+    db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
     db.pragma('user_version = 6');
     closeBureauDb(tempDir);
 

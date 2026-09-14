@@ -16,6 +16,7 @@ import { PromptBuilder } from '../prompt-builder.js';
 import { chapterBreaks, isSessionOver, threadSessions } from './archivist.js';
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
+import { labelImages } from './images.js';
 import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
 import { findOffscreenGaps, generateOffscreenLife } from './offscreen.js';
 import { RunRecorder } from './run-recorder.js';
@@ -169,10 +170,13 @@ export function buildCorrespondenceMessages({
   const name = nameOf(member);
   const personaName = nameOf(persona);
   const macros = new MacroProcessor({ userName: personaName, charName: name });
+  // Messages don't show images, so images reach replies as labels.
   const cardText = (text, card) =>
     text
-      ? stripAsterisks(
-          macros.process(placeholders.replacePlaceholders(text, card, { name: personaName })),
+      ? labelImages(
+          stripAsterisks(
+            macros.process(placeholders.replacePlaceholders(text, card, { name: personaName })),
+          ),
         )
       : '';
 
@@ -212,7 +216,9 @@ export function buildCorrespondenceMessages({
     );
   }
   const world = loreEntries
-    .map((entry) => (entry.content ? stripAsterisks(macros.process(entry.content)) : ''))
+    .map((entry) =>
+      entry.content ? labelImages(stripAsterisks(macros.process(entry.content))) : '',
+    )
     .filter(Boolean);
   const year = settingYear(bureau, time, now);
   if (year) world.unshift(`The year is ${year}.`);
@@ -230,7 +236,9 @@ export function buildCorrespondenceMessages({
       const when = describeBureauTime(message.bureauTime, bureau.timezone);
       lines.push(previous ? `(${gap} later: ${when})` : `(${when})`);
     }
-    lines.push(`${message.source === 'user' ? personaName : name}: ${message.content}`);
+    lines.push(
+      `${message.source === 'user' ? personaName : name}: ${labelImages(message.content)}`,
+    );
     previous = message;
   }
 

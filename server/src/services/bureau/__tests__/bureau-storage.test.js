@@ -145,6 +145,22 @@ describe('BureauStorage', () => {
         .get();
       expect(counts).toEqual({ cast: 0, runs: 0, steps: 0 });
     });
+
+    it('saves avatar windows without counting it as a change to the Bureau', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-13T10:00:00Z'));
+      const bureau = storage.createBureau({ name: 'Harbor' });
+      const windows = [{ id: 'w1', castId: 'c1', x: 20, y: 100, width: 300, height: 400 }];
+      vi.setSystemTime(new Date('2026-09-13T11:00:00Z'));
+
+      expect(bureau.avatarWindows).toEqual([]);
+      expect(storage.setAvatarWindows(bureau.id, windows)).toBe(true);
+      expect(storage.getBureau(bureau.id)).toMatchObject({
+        avatarWindows: windows,
+        modified: '2026-09-13T10:00:00.000Z',
+      });
+      expect(storage.setAvatarWindows('missing', windows)).toBe(false);
+    });
   });
 
   describe('cast', () => {

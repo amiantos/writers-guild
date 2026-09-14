@@ -19,6 +19,15 @@
     <div class="composer-bar">
       <div class="composer-options">
         <button
+          v-if="canUseGreeting"
+          class="btn btn-secondary btn-small"
+          title="Open the chapter with a greeting from a character's card"
+          :disabled="generating"
+          @click="$emit('greeting')"
+        >
+          <i class="fas fa-message"></i> Greeting
+        </button>
+        <button
           class="btn btn-secondary btn-small"
           title="Add a scene break"
           :disabled="generating"
@@ -77,9 +86,11 @@ import { ref } from 'vue';
 const props = defineProps({
   generating: { type: Boolean, default: false },
   hasApiKey: { type: Boolean, default: true },
+  /** Offer to open the chapter with a greeting, before it has any prose. */
+  canUseGreeting: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['generate', 'scene-break', 'time-passes', 'stop']);
+const emit = defineEmits(['generate', 'greeting', 'scene-break', 'time-passes', 'stop']);
 
 const text = ref('');
 const inputRef = ref(null);

@@ -220,6 +220,15 @@ export const bureausAPI = {
   promoteCast(bureauId, castId) {
     return request(`/${bureauId}/cast/${castId}/promote`, { method: 'POST', body: {} });
   },
+
+  /**
+   * Save the avatar windows floating over the Bureau's chapters, replacing the ones saved before.
+   * @param {Array<{ id: string, castId: string, x: number, y: number, width: number,
+   *   height: number }>} avatarWindows
+   */
+  updateAvatarWindows(bureauId, avatarWindows) {
+    return request(`/${bureauId}/avatar-windows`, { method: 'PUT', body: { avatarWindows } });
+  },
 };
 
 export const bureauStoriesAPI = {
@@ -274,6 +283,22 @@ export const bureauStoriesAPI = {
    */
   addTurn(bureauId, storyId, turn) {
     return request(`/${bureauId}/stories/${storyId}/turns`, { method: 'POST', body: turn });
+  },
+
+  /**
+   * Greetings from the cards of the chapter's cast, other than the reader's character. Each is
+   * { castId, name, index, label, content }.
+   */
+  listGreetings(bureauId, storyId) {
+    return request(`/${bureauId}/stories/${storyId}/greetings`);
+  },
+
+  /** Open the chapter with a greeting as it was listed, added as prose by that cast member. */
+  addGreeting(bureauId, storyId, { castId, content }) {
+    return request(`/${bureauId}/stories/${storyId}/greetings`, {
+      method: 'POST',
+      body: { castId, content },
+    });
   },
 
   editTurn(bureauId, storyId, turnId, content) {
