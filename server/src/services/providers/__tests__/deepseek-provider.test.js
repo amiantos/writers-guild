@@ -8,19 +8,35 @@ function silentFetch(_url, { signal }) {
   });
 }
 
+/**
+ * A request whose streamed body sends `next()` every `every` ms, closing when it
+ * returns null. Aborting fails the body, as real fetch does.
+ */
+function streamingFetch(next, every) {
+  return async (_url, { signal }) => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        signal.addEventListener('abort', () => controller.error(signal.reason), { once: true });
+      },
+      async pull(controller) {
+        await new Promise((resolve) => setTimeout(resolve, every));
+        if (signal.aborted) return;
+        const piece = next();
+        if (piece === null) controller.close();
+        else controller.enqueue(encoder.encode(piece));
+      },
+    });
+    return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } });
+  };
+}
+
 /** A request whose response sends keep-alive comments and never any data. */
-async function keepAliveFetch(_url, { signal }) {
-  const encoder = new TextEncoder();
-  const body = new ReadableStream({
-    start(controller) {
-      signal.addEventListener('abort', () => controller.error(signal.reason), { once: true });
-    },
-    async pull(controller) {
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      if (!signal.aborted) controller.enqueue(encoder.encode(': keep-alive\n\n'));
-    },
-  });
-  return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } });
+const keepAliveFetch = streamingFetch(() => ': keep-alive\n\n', 5);
+
+/** One SSE event carrying `delta`. */
+function sseEvent(delta) {
+  return `data: ${JSON.stringify({ choices: [{ delta, finish_reason: null }] })}\n\n`;
 }
 
 async function drain(stream) {
@@ -325,6 +341,28 @@ describe('DeepSeekProvider', () => {
       const { stream } = await provider.generateStreaming('System', 'User');
 
       await expect(drain(stream)).rejects.toThrow(/^DeepSeek stopped responding: nothing arrived/);
+      logSpy.mockRestore();
+    });
+
+    it('keeps a slow stream going as long as text keeps arriving', async () => {
+      const pieces = [...'ABCDEFGHIJ'].map((text) => sseEvent({ content: text }));
+      mockFetch.mockImplementation(streamingFetch(() => pieces.shift() ?? null, 20));
+      provider = new DeepSeekProvider({ apiKey: 'test-api-key', idleTimeoutMs: 150 });
+
+      const { stream } = await provider.generateStreaming('System', 'User');
+      const chunks = await drain(stream);
+
+      expect(chunks.map((chunk) => chunk.content).join('')).toBe('ABCDEFGHIJ');
+    });
+
+    it('fails a stream whose events carry no text or reasoning', async () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      mockFetch.mockImplementation(streamingFetch(() => sseEvent({}), 5));
+      provider = new DeepSeekProvider({ apiKey: 'test-api-key', idleTimeoutMs: 50 });
+
+      const { stream } = await provider.generateStreaming('System', 'User');
+
+      await expect(drain(stream)).rejects.toThrow(/^DeepSeek stopped responding/);
       logSpy.mockRestore();
     });
 

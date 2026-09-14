@@ -284,6 +284,32 @@ describe('DeepSeekClient', () => {
       expect(error.message).toMatch(/^DeepSeek stopped responding/);
     });
 
+    it('fails a response whose body never finishes arriving', async () => {
+      client = new DeepSeekClient({
+        apiKey: 'sk-test',
+        fetch: streamingFetch(() => '\n', 5),
+        responseTimeoutMs: 50,
+      });
+
+      const error = await client.chat({ messages: MESSAGES }).catch((caught) => caught);
+
+      expect(error).toMatchObject({ name: 'DeepSeekError', timedOut: true });
+      expect(error.message).toMatch(/^DeepSeek did not respond within/);
+    });
+
+    it('fails a stream whose events carry no text, reasoning, or tool calls', async () => {
+      client = new DeepSeekClient({
+        apiKey: 'sk-test',
+        fetch: streamingFetch(() => delta({}), 5),
+        idleTimeoutMs: 50,
+      });
+
+      await expect(collect(client.chatStream({ messages: MESSAGES }))).rejects.toMatchObject({
+        name: 'DeepSeekError',
+        timedOut: true,
+      });
+    });
+
     it('fails a stream that sends only keep-alive comments', async () => {
       client = new DeepSeekClient({
         apiKey: 'sk-test',

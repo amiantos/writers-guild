@@ -163,7 +163,7 @@ export class DeepSeekProvider extends LLMProvider {
 
     const controller = new AbortController();
     const requestBody = this.buildRequestBody(messages, options, true);
-    // Runs from the request until the stream ends. Chunks reset it; keep-alive comments don't.
+    // Runs from the request until the stream ends. Text and reasoning reset it; keep-alives don't.
     const timeout = createRequestTimeout(this.idleTimeoutMs, options.signal || controller.signal);
 
     let response;
@@ -200,12 +200,13 @@ export class DeepSeekProvider extends LLMProvider {
   /**
    * Parse SSE stream response using shared parser
    * @param {ReadableStream} body
-   * @param {Object} [timeout] - The request's timeout, reset as chunks arrive.
+   * @param {Object} [timeout] - The request's timeout, reset as text or reasoning arrives.
    */
   async *parseStreamResponse(body, timeout) {
     try {
       for await (const chunk of parseSSEStream(body, transformers.deepseek, 'DeepSeek')) {
-        timeout?.reset();
+        // Only text and reasoning count as progress, not empty or finish-only events.
+        if (chunk.content || chunk.reasoning) timeout?.reset();
         yield chunk;
       }
     } catch (error) {

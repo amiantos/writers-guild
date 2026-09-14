@@ -436,7 +436,7 @@ export class DeepSeekClient {
     }
   }
 
-  /** The body of chatStream(), resetting its timeout as each chunk arrives. */
+  /** The body of chatStream(), resetting its timeout as text, reasoning, or tool calls arrive. */
   async *streamEvents(options, timeout) {
     const { url, body } = this.buildRequest(options, true);
     const response = await this.post(url, body, timeout.signal);
@@ -449,13 +449,14 @@ export class DeepSeekClient {
     const toolCalls = [];
 
     for await (const chunk of readServerSentEvents(response.body)) {
-      timeout.reset();
       if (chunk.usage) usage = chunk.usage;
       if (chunk.model) model = chunk.model;
 
       const choice = chunk.choices?.[0];
       if (!choice) continue;
       const delta = choice.delta ?? {};
+      // Only generation counts as progress, not empty or metadata-only events.
+      if (delta.reasoning_content || delta.content || delta.tool_calls?.length) timeout.reset();
 
       if (delta.reasoning_content) {
         reasoning += delta.reasoning_content;
