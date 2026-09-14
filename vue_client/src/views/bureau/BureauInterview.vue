@@ -390,8 +390,10 @@ async function refresh() {
 /**
  * Stream a question. `request` receives the abort signal and returns the event stream. The
  * interview is reloaded afterward so it matches what was saved.
+ * @param {Object} [options]
+ * @param {string} [options.draft] - An answer the reader typed, given back if it isn't saved.
  */
-async function runQuestion(request, { answer = '' } = {}) {
+async function runQuestion(request, { draft = '' } = {}) {
   if (sending.value) return;
 
   abortController = new AbortController();
@@ -420,8 +422,8 @@ async function runQuestion(request, { answer = '' } = {}) {
       console.error('Interview question failed:', error);
       toast.error('The question failed: ' + error.message);
       // Nothing was saved, so give the reader their words back.
-      if (!answerSaved && answer) {
-        text.value = answer;
+      if (!answerSaved && draft) {
+        text.value = draft;
       }
     }
   } finally {
@@ -450,11 +452,12 @@ function start() {
   );
 }
 
-function answerWith(answer) {
+/** Answer the latest question. Only a typed answer goes back in the box if it fails, not Skip. */
+function answerWith(answer, { typed = false } = {}) {
   if (!answer || !canAnswer.value) return;
   runQuestion(
     (signal) => bureauInterviewsAPI.answer(props.bureauId, props.castId, answer, signal),
-    { answer },
+    { draft: typed ? answer : '' },
   );
 }
 
@@ -462,7 +465,7 @@ function send() {
   const answer = text.value.trim();
   if (!answer || !canAnswer.value) return;
   text.value = '';
-  answerWith(answer);
+  answerWith(answer, { typed: true });
 }
 
 function askAgain() {

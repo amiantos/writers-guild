@@ -130,13 +130,18 @@ describe('interviews', () => {
         interview: { focus: 'routine', note: ' Her nights ', messages: [] },
         cast: [current(theo), current(ines)],
         persona: current(theo),
-        memories: { knowledge: [{ content: 'Theo hates the cold.' }], episodes: [] },
+        memories: {
+          knowledge: [{ content: 'Theo hates the cold.' }],
+          episodes: [],
+          offscreen: { content: 'Took the ferry to the mainland for parts.' },
+        },
         arcNotes: [{ content: 'Sleeps better now.' }],
         world: ['Harbor lore: the light'],
       });
 
       expect(system.role).toBe('system');
       expect(system.content).toContain('Focus on their routine');
+      expect(system.content).toContain('Mara lately: Took the ferry to the mainland for parts.');
       expect(system.content).toContain("The author's note: Her nights");
       expect(system.content).toContain('Description: Mara keeps the lighthouse for Theo.');
       expect(system.content).toContain('Usual routine: (not described yet)');
@@ -332,10 +337,19 @@ describe('interviews', () => {
       });
     });
 
-    it('refuses a write-up that drops the description', () => {
-      expect(() =>
-        proposalFrom({ ...WRITTEN, description: ' ' }, { member: current(mara), cast: [] }),
-      ).toThrow('without a description');
+    it('keeps what the profile had in a field the write-up left empty', () => {
+      stores.bureaus.updateProfile(bureau.id, mara.id, { routine: 'Nights at the light.' });
+
+      const proposal = proposalFrom(
+        { ...WRITTEN, description: ' ', routine: '' },
+        { member: current(mara), cast: [] },
+      );
+
+      expect(proposal).toMatchObject({
+        description: '{{char}} keeps the lighthouse for {{user}}.',
+        personality: WRITTEN.personality,
+        routine: 'Nights at the light.',
+      });
     });
 
     it('saves the write-up as a proposal and records the run', async () => {

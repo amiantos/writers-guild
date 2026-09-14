@@ -273,6 +273,9 @@ router.post(
     const member = requireCastMember(bureaus, bureauId, castId);
     requireApiKey(bureau);
     const interview = requireOpenInterview(interviews, bureauId, castId);
+    if (interview.messages.at(-1)?.source !== 'generated') {
+      throw new AppError('There is no question waiting for an answer. Ask for one first.', 409);
+    }
 
     const answer = optionalString(req.body ?? {}, 'text');
     if (!answer) {
@@ -361,6 +364,12 @@ router.post(
     const edits = Object.fromEntries(
       WRITE_UP_FIELDS.map((field) => [field, profileField(body, field)]),
     );
+    // Fields left out are accepted as written up, so they need the same limits.
+    for (const field of WRITE_UP_FIELDS) {
+      if (edits[field] === undefined) {
+        profileField({ [field]: interview.proposal[field] }, field);
+      }
+    }
     if (body.relationships !== undefined) {
       const valid =
         Array.isArray(body.relationships) &&

@@ -179,7 +179,7 @@ function castLines(cast, { personaName, limit }) {
   return lines.join('\n') || '(No one else yet.)';
 }
 
-/** What the character knows and remembers, or '' when they have no memories. */
+/** What the character knows, remembers, and did lately, or '' when they have no memories. */
 function memoryLines(name, memories) {
   const lines = [];
   if (memories.knowledge.length > 0) {
@@ -188,6 +188,10 @@ function memoryLines(name, memories) {
   if (memories.episodes.length > 0) {
     if (lines.length > 0) lines.push('');
     lines.push(`${name} remembers:`, ...memories.episodes.map((memory) => `- ${memory.content}`));
+  }
+  if (memories.offscreen) {
+    if (lines.length > 0) lines.push('');
+    lines.push(`${name} lately: ${memories.offscreen.content}`);
   }
   return labelImages(lines.join('\n'));
 }
@@ -595,9 +599,10 @@ export function proposalFrom(
     }
   }
 
+  // A field the write-up left empty keeps what the profile had, rather than wiping it on accept.
   const base = profileOf(member);
-  if (!fields.description && base.description.trim()) {
-    throw new Error('The write-up came back without a description');
+  for (const field of WRITE_UP_FIELDS) {
+    if (!written[field]) fields[field] = base[field].trim();
   }
 
   const relationships = [];

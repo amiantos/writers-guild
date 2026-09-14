@@ -110,6 +110,24 @@ describe('BureauInterview', () => {
     expect(wrapper.find('.composer-input').element.value).toBe('');
   });
 
+  it('gives back a typed answer that failed, but never Skip', async () => {
+    bureauInterviewsAPI.get.mockResolvedValue(loaded(ASKED));
+    bureauInterviewsAPI.answer.mockImplementation(() => {
+      throw new Error('DeepSeek is down');
+    });
+    const wrapper = mountInterview();
+    await flushPromises();
+
+    await button(wrapper, 'Skip').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.composer-input').element.value).toBe('');
+
+    await wrapper.find('.composer-input').setValue('Mornings.');
+    await button(wrapper, 'Answer').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.composer-input').element.value).toBe('Mornings.');
+  });
+
   it('writes it up, then accepts it as edited, with only the lines kept', async () => {
     const answered = interview([
       message('m1', 'generated', 'When does Mara sleep?'),

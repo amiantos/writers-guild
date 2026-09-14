@@ -497,7 +497,8 @@ change who a character is, one character at a time.
   version, so nothing is lost.
 - The routine used to have its own button on the cast row. It lives in the profile now, since
   replies and offscreen life depend on it and interviews can fill it in.
-- The library character is never touched, and Export to library carries the profile as it stands.
+- The library character is never touched. Export to library carries the profile's card as it
+  stands; the routine stays in the Bureau, since a library card has no place for it.
 
 ### Interview
 

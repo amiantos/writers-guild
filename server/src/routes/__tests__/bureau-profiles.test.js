@@ -244,6 +244,25 @@ describe('Bureau profile routes', () => {
       await request(app).post(`${interviewUrl()}/answers`).send({ text: ' ' }).expect(400);
       await request(app).post(`${interviewUrl()}/write-up`).expect(400);
       await request(app).post(`${interviewUrl()}/accept`).send({}).expect(400);
+
+      // An answer needs a question waiting for it.
+      const { id } = stores.interviews.getOpenInterview(bureau.id, mara.id);
+      stores.interviews.addMessage(bureau.id, id, { source: 'user', content: 'Her father.' });
+      await request(app).post(`${interviewUrl()}/answers`).send({ text: 'Hi' }).expect(409);
+    });
+
+    it('holds a write-up accepted as it came to the same limits', async () => {
+      client.profile = { ...client.profile, routine: 'x'.repeat(MAX_ROUTINE_CHARACTERS + 1) };
+      await request(app).post(interviewUrl()).send({}).expect(201);
+      await request(app)
+        .post(`${interviewUrl()}/answers`)
+        .send({ text: 'Her father.' })
+        .expect(201);
+      await request(app).post(`${interviewUrl()}/write-up`).expect(200);
+
+      await request(app).post(`${interviewUrl()}/accept`).send({}).expect(400);
+      const { body } = await request(app).get(profileUrl()).expect(200);
+      expect(body.profile.routine).toBe('');
     });
 
     it("won't accept a write-up once the profile has changed", async () => {
