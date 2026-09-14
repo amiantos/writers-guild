@@ -1,6 +1,22 @@
 <template>
-  <Modal title="Open with a greeting" max-width="640px" @close="$emit('close')">
-    <div v-if="loading" class="loading">Loading greetings...</div>
+  <Modal
+    :title="choosing ? 'Rewrite the greeting?' : 'Open with a greeting'"
+    max-width="640px"
+    @close="$emit('close')"
+  >
+    <div v-if="choosing" class="rewrite-prompt">
+      <p class="prompt-message">Rewrite {{ current.name }}'s greeting for this chapter?</p>
+      <p class="help-text">
+        The Writer rewrites it as the chapter's opening, in the house style and with everything a
+        passage gets: the cast's cards, the world, what everyone remembers, and the chapter's time.
+        Keep it as written to use the card's text as it is.
+      </p>
+      <p v-if="!hasApiKey" class="notice">
+        <i class="fas fa-key"></i> Rewriting needs an API key in the Bureau's settings.
+      </p>
+    </div>
+
+    <div v-else-if="loading" class="loading">Loading greetings...</div>
     <p v-else-if="loadError" class="empty-hint">{{ loadError }}</p>
     <p v-else-if="greetings.length === 0" class="empty-hint">
       No one in this chapter has a greeting on their card.
@@ -28,10 +44,21 @@
     </div>
 
     <template #footer>
-      <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
-      <button class="btn btn-primary" :disabled="!current || adding" @click="add">
-        <i class="fas fa-check"></i> {{ adding ? 'Adding...' : 'Use this greeting' }}
-      </button>
+      <template v-if="choosing">
+        <button class="btn btn-secondary" :disabled="adding" @click="choosing = false">Back</button>
+        <button class="btn btn-secondary" :disabled="adding" @click="keep">
+          {{ adding ? 'Adding...' : 'Keep as written' }}
+        </button>
+        <button class="btn btn-primary" :disabled="!hasApiKey || adding" @click="rewrite">
+          <i class="fas fa-repeat"></i> Rewrite
+        </button>
+      </template>
+      <template v-else>
+        <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
+        <button class="btn btn-primary" :disabled="!current" @click="choosing = true">
+          <i class="fas fa-check"></i> Use this greeting
+        </button>
+      </template>
     </template>
   </Modal>
 </template>
@@ -46,15 +73,19 @@ import { renderProse } from '../../composables/bureau/renderProse';
 const props = defineProps({
   bureauId: { type: String, required: true },
   storyId: { type: String, required: true },
+  /** Rewriting a greeting needs the Bureau's API key. */
+  hasApiKey: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['close', 'added']);
+const emit = defineEmits(['close', 'added', 'rewrite']);
 const toast = useToast();
 
 const greetings = ref([]);
 const index = ref(0);
 const loading = ref(true);
 const loadError = ref('');
+// Whether the reader has picked a greeting and is deciding whether to rewrite it.
+const choosing = ref(false);
 const adding = ref(false);
 
 const current = computed(() => greetings.value[index.value] ?? null);
@@ -73,15 +104,21 @@ onMounted(async () => {
   }
 });
 
-async function add() {
+// Both use the text as shown, since a macro such as {{random}} picks again each time greetings load.
+function rewrite() {
+  if (!current.value || !props.hasApiKey) return;
+  emit('rewrite', { castId: current.value.castId, content: current.value.content });
+}
+
+async function keep() {
   if (!current.value || adding.value) return;
   adding.value = true;
   try {
-    // The text as shown, since a macro such as {{random}} picks again each time greetings load.
-    const { turn } = await bureauStoriesAPI.addGreeting(props.bureauId, props.storyId, {
-      castId: current.value.castId,
-      content: current.value.content,
-    });
+    const { turn } = await bureauStoriesAPI.addGreeting(
+      props.bureauId,
+      props.storyId,
+      current.value.content,
+    );
     emit('added', turn);
   } catch (error) {
     toast.error('Failed to add the greeting: ' + error.message);
@@ -94,6 +131,19 @@ async function add() {
 <style scoped src="./bureau-ui.css"></style>
 
 <style scoped>
+.rewrite-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.prompt-message {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
 .greeting-picker {
   display: flex;
   flex-direction: column;

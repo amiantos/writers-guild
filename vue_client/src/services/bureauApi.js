@@ -293,11 +293,14 @@ export const bureauStoriesAPI = {
     return request(`/${bureauId}/stories/${storyId}/greetings`);
   },
 
-  /** Open the chapter with a greeting as it was listed, added as prose by that cast member. */
-  addGreeting(bureauId, storyId, { castId, content }) {
+  /**
+   * Open the chapter with a greeting kept as written, as it was listed. To have the Writer rewrite
+   * it instead, generate with action 'greeting'.
+   */
+  addGreeting(bureauId, storyId, content) {
     return request(`/${bureauId}/stories/${storyId}/greetings`, {
       method: 'POST',
-      body: { castId, content },
+      body: { content },
     });
   },
 
@@ -330,7 +333,9 @@ export const bureauStoriesAPI = {
   /**
    * Stream the next turn. Events: turn (the reader's new turn), run, stage (directing,
    * writing, or editing), brief, reasoning, content, edits, and done (with userTurn and turn).
-   * @param {{ action: 'write'|'direct'|'continue', text?: string }} generation
+   * @param {{ action: 'write'|'direct'|'continue'|'greeting', text?: string, castId?: string }}
+   *   generation - 'greeting' has the Writer rewrite text, a greeting from castId's card, as the
+   *   chapter's opening.
    */
   generate(bureauId, storyId, generation, signal) {
     return streamEvents(`/${bureauId}/stories/${storyId}/generate`, generation, signal);

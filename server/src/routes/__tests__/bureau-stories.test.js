@@ -477,21 +477,21 @@ describe('Bureau story routes', () => {
         },
       ]);
 
+      // Kept as written, a greeting is prose from the reader, credited to no one.
       const { body: added } = await request(app)
         .post(url)
-        .send({ castId: june.id, content: body.greetings[1].content })
+        .send({ content: body.greetings[1].content })
         .expect(201);
       expect(added.turn).toMatchObject({
         kind: 'prose',
         source: 'user',
-        authorCastId: june.id,
+        authorCastId: null,
         content: body.greetings[1].content,
       });
 
-      await request(app).post(url).send({ castId: june.id, content: ' ' }).expect(400);
-      await request(app).post(url).send({ castId: 'someone-else', content: 'Hi.' }).expect(400);
+      await request(app).post(url).send({ content: ' ' }).expect(400);
       await request(app).post(`${storiesUrl()}/${story.id}/end`).send({}).expect(200);
-      await request(app).post(url).send({ castId: june.id, content: 'Hi.' }).expect(409);
+      await request(app).post(url).send({ content: 'Hi.' }).expect(409);
     });
 
     it('lets time pass in a chapter, moving the Bureau clock forward with it', async () => {
@@ -623,6 +623,41 @@ describe('Bureau story routes', () => {
         content: 'The lamp was lit.',
         runId: events[1].runId,
       });
+    });
+
+    it('rewrites a greeting as the opening, and rewrites it again for another version', async () => {
+      const story = await startStory();
+      const url = `${storiesUrl()}/${story.id}/generate`;
+
+      await request(app).post(url).send({ action: 'greeting', text: 'Mara waves.' }).expect(400);
+      await request(app)
+        .post(url)
+        .send({ action: 'greeting', castId: 'someone-else', text: 'Mara waves.' })
+        .expect(400);
+      const { body } = await request(app)
+        .post(url)
+        .send({ action: 'greeting', castId: mara.id, text: 'Mara looks up as you come in.' })
+        .expect(201);
+
+      expect(body.userTurn).toBeNull();
+      expect(body.turn).toMatchObject({
+        kind: 'prose',
+        source: 'generated',
+        content: 'The lamp was lit.',
+        authorCastId: null,
+      });
+      expect(client.calls[0].messages[1].content).toContain(
+        "rewriting Mara's greeting below in the house style",
+      );
+
+      client = fakeClient('The lamp guttered out.');
+      await request(app)
+        .post(`${storiesUrl()}/${story.id}/turns/${body.turn.id}/regenerate`)
+        .send({})
+        .expect(200);
+      expect(client.calls[0].messages[1].content).toContain(
+        'Greeting:\nMara looks up as you come in.',
+      );
     });
 
     it('validates generation requests', async () => {

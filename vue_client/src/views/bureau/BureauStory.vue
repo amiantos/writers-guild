@@ -168,8 +168,10 @@
       v-if="showGreetings"
       :bureau-id="bureauId"
       :story-id="storyId"
+      :has-api-key="bureau.hasApiKey"
       @close="showGreetings = false"
       @added="handleGreetingAdded"
+      @rewrite="rewriteGreeting"
     />
 
     <FloatingAvatarWindow
@@ -481,6 +483,19 @@ function generate({ action, text }) {
   runStream(
     (signal) => bureauStoriesAPI.generate(props.bureauId, props.storyId, { action, text }, signal),
     { composerText: text },
+  );
+}
+
+// The Writer rewrites a picked greeting as the chapter's opening, streaming in like any passage.
+function rewriteGreeting({ castId, content }) {
+  showGreetings.value = false;
+  runStream((signal) =>
+    bureauStoriesAPI.generate(
+      props.bureauId,
+      props.storyId,
+      { action: 'greeting', castId, text: content },
+      signal,
+    ),
   );
 }
 

@@ -530,6 +530,37 @@ describe('generateWriterTurn', () => {
       expect(run.steps[0]).toMatchObject({ role: 'director', error: 'DeepSeek API error 503' });
     });
 
+    it('rewrites a greeting without the Director, keeping an image the Writer leaves out', async () => {
+      stores.bureaus.updateSettings(bureau.id, {
+        director: { enabled: true, skipOnContinue: false },
+      });
+      const greeting = {
+        name: 'Mara',
+        content:
+          '![Mara at the lamp](/api/assets/characters/c1/lamp.webp)\n\nMara looks up as you come in.',
+      };
+      const client = withChat(
+        streamingClient([
+          { type: 'content', text: 'Mara looked up as Theo came in.' },
+          done('Mara looked up as Theo came in.'),
+        ]),
+        [],
+      );
+
+      const turn = await generate(client, { action: 'greeting', greeting });
+
+      expect(client.chatCalls).toHaveLength(0);
+      expect(client.calls[0].messages[1].content).toContain(
+        'Greeting:\n[WG_IMAGE_0]\n\nMara looks up as you come in.',
+      );
+      expect(turn.content).toBe(
+        'Mara looked up as Theo came in.\n\n![Mara at the lamp](/api/assets/characters/c1/lamp.webp)',
+      );
+      const run = stores.bureaus.getRun(bureau.id, turn.runId);
+      expect(run.steps.map((step) => step.role)).toEqual(['greeting', 'writer', 'lint']);
+      expect(requestForRegeneration([turn], 0, run)).toEqual({ action: 'greeting', greeting });
+    });
+
     it('fixes flagged paragraphs with the Editor and records each fix', async () => {
       const client = withChat(
         streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
@@ -629,5 +660,18 @@ describe('requestForRegeneration', () => {
   it('regenerates anything else as a continue', () => {
     expect(requestForRegeneration([generated], 0)).toEqual({ action: 'continue' });
     expect(requestForRegeneration([generated, generated], 1)).toEqual({ action: 'continue' });
+  });
+
+  it('rewrites a greeting again, from the one its run recorded', () => {
+    const greeting = { name: 'Mara', content: 'Mara waves.' };
+    const run = {
+      steps: [
+        { role: 'greeting', kind: 'tool', response: greeting },
+        { role: 'writer', kind: 'model' },
+      ],
+    };
+
+    expect(requestForRegeneration([generated], 0, run)).toEqual({ action: 'greeting', greeting });
+    expect(requestForRegeneration([generated], 0, { steps: [] })).toEqual({ action: 'continue' });
   });
 });

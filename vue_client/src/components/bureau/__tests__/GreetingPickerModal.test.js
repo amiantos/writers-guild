@@ -34,23 +34,23 @@ function buttonNamed(wrapper, name) {
   return wrapper.findAll('button').find((button) => button.text().includes(name));
 }
 
-function mountPicker() {
-  return mount(GreetingPickerModal, {
-    props: { bureauId: 'b1', storyId: 's1' },
+async function mountPicker(props = {}) {
+  const wrapper = mount(GreetingPickerModal, {
+    props: { bureauId: 'b1', storyId: 's1', ...props },
     global: { stubs: { Modal: ModalStub } },
   });
+  await flushPromises();
+  return wrapper;
 }
 
 describe('GreetingPickerModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bureauStoriesAPI.listGreetings.mockResolvedValue({ greetings: GREETINGS });
   });
 
-  it('pages through greetings and opens the chapter with the one shown', async () => {
-    bureauStoriesAPI.listGreetings.mockResolvedValue({ greetings: GREETINGS });
-    bureauStoriesAPI.addGreeting.mockResolvedValue({ turn: { id: 't1' } });
-    const wrapper = mountPicker();
-    await flushPromises();
+  it('pages through greetings, then asks whether the Writer should rewrite the one picked', async () => {
+    const wrapper = await mountPicker();
 
     expect(bureauStoriesAPI.listGreetings).toHaveBeenCalledWith('b1', 's1');
     expect(wrapper.find('.greeting-name').text()).toBe('June');
@@ -63,22 +63,46 @@ describe('GreetingPickerModal', () => {
     expect(wrapper.find('.greeting-text img').attributes('src')).toBe(
       '/api/assets/characters/l2/june.webp',
     );
-    expect(buttonNamed(wrapper, 'Next').attributes('disabled')).toBeDefined();
 
     await buttonNamed(wrapper, 'Use this greeting').trigger('click');
+    expect(wrapper.find('h2').text()).toBe('Rewrite the greeting?');
+    expect(wrapper.find('.prompt-message').text()).toBe(
+      "Rewrite June's greeting for this chapter?",
+    );
+
+    await buttonNamed(wrapper, 'Rewrite').trigger('click');
+
+    expect(wrapper.emitted('rewrite')).toEqual([[{ castId: 'c2', content: GREETINGS[1].content }]]);
+    expect(bureauStoriesAPI.addGreeting).not.toHaveBeenCalled();
+  });
+
+  it('keeps a greeting as written', async () => {
+    bureauStoriesAPI.addGreeting.mockResolvedValue({ turn: { id: 't1' } });
+    const wrapper = await mountPicker();
+
+    await buttonNamed(wrapper, 'Use this greeting').trigger('click');
+    await buttonNamed(wrapper, 'Keep as written').trigger('click');
     await flushPromises();
 
-    expect(bureauStoriesAPI.addGreeting).toHaveBeenCalledWith('b1', 's1', {
-      castId: 'c2',
-      content: GREETINGS[1].content,
-    });
+    expect(bureauStoriesAPI.addGreeting).toHaveBeenCalledWith('b1', 's1', 'June looks up.');
     expect(wrapper.emitted('added')).toEqual([[{ id: 't1' }]]);
+    expect(wrapper.emitted('rewrite')).toBeUndefined();
+  });
+
+  it("can't rewrite without an API key, and goes back to the greetings", async () => {
+    const wrapper = await mountPicker({ hasApiKey: false });
+
+    await buttonNamed(wrapper, 'Use this greeting').trigger('click');
+
+    expect(wrapper.find('.notice').text()).toContain('needs an API key');
+    expect(buttonNamed(wrapper, 'Rewrite').attributes('disabled')).toBeDefined();
+    await buttonNamed(wrapper, 'Back').trigger('click');
+    expect(wrapper.find('.greeting-text').text()).toBe('June looks up.');
   });
 
   it('says when no one in the chapter has a greeting', async () => {
     bureauStoriesAPI.listGreetings.mockResolvedValue({ greetings: [] });
-    const wrapper = mountPicker();
-    await flushPromises();
+    const wrapper = await mountPicker();
 
     expect(wrapper.text()).toContain('No one in this chapter has a greeting on their card.');
     expect(buttonNamed(wrapper, 'Use this greeting').attributes('disabled')).toBeDefined();

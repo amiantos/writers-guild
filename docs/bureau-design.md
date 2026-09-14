@@ -167,10 +167,15 @@ actions:
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate. The
   Director and Writer treat a direction as something that hasn't happened yet and write it happening.
 - **Continue:** generate with no new input.
-- **Greeting**, while the chapter has no prose yet, opens it with a greeting from the card of
-  someone in it (their first message or an alternate greeting), as story mode offers greetings for
-  a new story. The reader's character fills in `{{user}}`. The greeting is added as prose credited
-  to that character, and it can be edited like any passage.
+- **Greeting**, while the chapter has no prose yet, offers the greetings on the cards of everyone in
+  it (first messages and alternate greetings), with the reader's character as `{{user}}`. As in
+  story mode, picking one asks whether to rewrite it:
+  - **Rewrite** has the Writer write the chapter's opening from the greeting, in the house style
+    and with everything a passage gets: the cast's cards, the world, memories, and the chapter's
+    time. It keeps the greeting's events, dialogue, and images, and follows the chapter where they
+    disagree. The Director sits it out, the seam shows the greeting, and writing another version
+    rewrites the same greeting.
+  - **Keep as written** adds the greeting as it is on the card.
 - **Scene break** adds a divider without generating, and **Stop** ends a generation early while
   keeping whatever was already written.
 - **Time passes** moves the chapter's time forward without generating, with the same choices as
@@ -292,7 +297,8 @@ to show when something happens.
 
 - The Writer sees each image as a `[WG_IMAGE_n]` marker from `ImagePreserver`, and a marker it
   writes comes back as that image. While a passage streams, each marker shows as its image as soon
-  as it's complete.
+  as it's complete. A rewritten greeting keeps its images: any the Writer leaves out go at the end,
+  as in story mode's rewrite.
 - The other roles only read images. The Director, Editor, Archivist, replies, offscreen life, and
   the character generator get each one as a short label from its alt text, such as
   `[image: the harbor at dawn]`. A cached asset URL is long and no use to a model, and it would

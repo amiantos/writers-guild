@@ -42,6 +42,11 @@
             <p v-if="step.error" class="seam-error">{{ step.error }}</p>
             <p v-if="stepSettings(step)" class="seam-meta">{{ stepSettings(step) }}</p>
 
+            <div v-if="greetingOf(step)" class="seam-block">
+              <div class="block-label">{{ greetingOf(step).label }}</div>
+              <pre class="block-text">{{ greetingOf(step).content }}</pre>
+            </div>
+
             <div v-if="briefOf(step)" class="seam-brief">
               <ol class="seam-list">
                 <li v-for="(beat, index) in briefOf(step).beats" :key="index">{{ beat }}</li>
@@ -192,9 +197,16 @@ const runMeta = computed(() => {
   return parts.join(' · ');
 });
 
+/** The greeting a rewrite started from, as its run recorded it. */
+function greetingOf(step) {
+  if (step.role !== 'greeting' || !step.response?.content) return null;
+  const { name, content } = step.response;
+  return { label: name ? `From ${name}'s card` : 'From a character card', content };
+}
+
 function stepLabel(step) {
   const role = ROLE_LABELS[step.role] ?? step.role.charAt(0).toUpperCase() + step.role.slice(1);
-  if (step.kind !== 'tool' || step.role === 'lint') return role;
+  if (step.kind !== 'tool' || step.role === 'lint' || step.role === 'greeting') return role;
   const name = step.request?.name ?? 'tool';
   return `${role} · ${TOOL_LABELS[name] ?? name}`;
 }

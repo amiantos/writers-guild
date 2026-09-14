@@ -35,14 +35,24 @@ const LOREBOOK_SETTINGS = {
 export const RECORDED_STORY_TAIL = 4000;
 
 /**
- * The request that produced a generated turn, inferred from the turn before
- * it: a direction means 'direct', and the reader's own prose means 'write'.
+ * The request that produced a generated turn. A rewritten greeting is known by the greeting its run
+ * recorded. Otherwise the request is inferred from the turn before it: a direction means 'direct',
+ * and the reader's own prose means 'write'.
  *
  * @param {Array<Object>} turns - The story's turns in order.
  * @param {number} index - Index of the generated turn in `turns`.
- * @returns {{ action: string, direction?: string }}
+ * @param {Object|null} [run] - The run that wrote the version shown, with its steps.
+ * @returns {{ action: string, direction?: string, greeting?: { name: string, content: string } }}
  */
-export function requestForRegeneration(turns, index) {
+export function requestForRegeneration(turns, index, run = null) {
+  const greeting = run?.steps?.find((step) => step.role === 'greeting')?.response;
+  if (greeting?.content) {
+    return {
+      action: 'greeting',
+      greeting: { name: greeting.name ?? '', content: greeting.content },
+    };
+  }
+
   const previous = turns[index - 1];
   if (previous?.kind === 'direction') {
     return { action: 'direct', direction: previous.content };
@@ -95,8 +105,10 @@ function pronounOf(member) {
  * @param {Object} params.story
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {Object} params.request
- * @param {'write'|'direct'|'continue'} params.request.action
+ * @param {'write'|'direct'|'continue'|'greeting'} params.request.action
  * @param {string} [params.request.direction] - For 'direct'.
+ * @param {{ name: string, content: string }} [params.request.greeting] - For 'greeting': the
+ *   greeting from a character card to rewrite as the chapter's opening.
  * @param {string|null} [params.regenerateTurnId] - Add a variant to this turn, writing from
  *   the turns before it, instead of appending a new turn.
  * @param {(event: Object) => void} [params.onEvent] - Receives events as they happen: `run`,
@@ -154,6 +166,7 @@ export async function generateWriterTurn({
   const promptRequest = {
     action: request.action,
     direction: request.direction,
+    greeting: request.greeting,
   };
   const isCancellation = (error) => error?.name === 'AbortError' || Boolean(signal?.aborted);
 
@@ -165,10 +178,25 @@ export async function generateWriterTurn({
   });
   onEvent({ type: 'run', runId: recorder.runId });
 
-  // The Director plans the passage, unless it's off or this is a plain Continue.
+  // A rewrite keeps its greeting in the run, for the seam and for writing another version.
+  if (request.action === 'greeting') {
+    recorder.recordStep({
+      role: 'greeting',
+      kind: 'tool',
+      request: { name: 'greeting' },
+      response: { name: request.greeting.name, content: request.greeting.content },
+    });
+  }
+
+  // The Director plans the passage, unless it's off, this is a plain Continue, or the passage
+  // rewrites a greeting, which already says what happens.
   let brief = null;
   const director = bureau.settings.director;
-  if (director.enabled && !(director.skipOnContinue && request.action === 'continue')) {
+  if (
+    director.enabled &&
+    request.action !== 'greeting' &&
+    !(director.skipOnContinue && request.action === 'continue')
+  ) {
     onEvent({ type: 'stage', stage: 'directing' });
     try {
       brief = await runDirector({
@@ -313,7 +341,14 @@ export async function generateWriterTurn({
     return saveAndFinish(partial, () => recorder.finish('cancelled', 'Cancelled'));
   }
 
-  const finalContent = restore(content);
+  // A rewritten greeting keeps its images: any the Writer left out go at the end, as story mode's
+  // rewrite does.
+  const leftOut = imagePreserver.saved
+    .filter((image) => image.source === 'greeting' && !content.includes(image.placeholder))
+    .map((image) => image.original);
+  const restored = restore(content);
+  const finalContent =
+    restored && leftOut.length > 0 ? [restored, ...leftOut].join('\n\n') : restored;
   recorder.recordStep({
     role: 'writer',
     kind: 'model',
