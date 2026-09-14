@@ -225,7 +225,12 @@ export async function generateWriterTurn({
   }
 
   onEvent({ type: 'stage', stage: 'writing' });
-  const scanText = [...turns.map((turn) => turn.content), request.direction ?? ''].join('\n\n');
+  // A greeting being rewritten activates lore too; it's often all the chapter has so far.
+  const scanText = [
+    ...turns.map((turn) => turn.content),
+    request.direction ?? '',
+    request.greeting?.content ?? '',
+  ].join('\n\n');
   const imagePreserver = new ImagePreserver();
   let messages;
   let storySection;

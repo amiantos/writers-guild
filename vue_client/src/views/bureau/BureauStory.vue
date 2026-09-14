@@ -33,7 +33,7 @@
         <button
           class="icon-btn"
           title="Show a character's avatar"
-          :disabled="!story || cast.length === 0"
+          :disabled="!story || cast.length === 0 || avatarWindows.length >= MAX_AVATAR_WINDOWS"
           @click="addAvatarWindow"
         >
           <i class="fas fa-image"></i>
@@ -200,7 +200,11 @@ import { setPageTitle } from '../../router';
 import { renderProse } from '../../composables/bureau/renderProse';
 import { followScroll } from '../../composables/bureau/followScroll';
 import { formatDateTime } from '../../composables/bureau/format';
-import { newAvatarWindow, windowCharacters } from '../../composables/bureau/avatarWindows';
+import {
+  MAX_AVATAR_WINDOWS,
+  newAvatarWindow,
+  windowCharacters,
+} from '../../composables/bureau/avatarWindows';
 import TurnBlock from '../../components/bureau/TurnBlock.vue';
 import TurnSeam from '../../components/bureau/TurnSeam.vue';
 import StoryComposer from '../../components/bureau/StoryComposer.vue';

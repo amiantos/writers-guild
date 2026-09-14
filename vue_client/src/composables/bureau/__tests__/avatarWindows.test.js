@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newAvatarWindow, windowCharacters } from '../avatarWindows';
+import { MAX_AVATAR_WINDOWS, newAvatarWindow, windowCharacters } from '../avatarWindows';
 
 const CAST = [
   { id: 'c1', name: 'Theo', isPersona: true, libraryCharacterId: 'l1' },
@@ -56,5 +56,17 @@ describe('newAvatarWindow', () => {
     expect(second).toMatchObject({ x: 110, y: 190 });
     expect(second.id).toEqual(expect.any(String));
     expect(second.id).not.toBe(first.id);
+  });
+
+  it('opens no more windows than a Bureau can keep', () => {
+    const windows = Array.from({ length: MAX_AVATAR_WINDOWS }, (_, index) => ({
+      id: `w${index}`,
+      x: 20,
+    }));
+
+    expect(newAvatarWindow({ cast: CAST, chapterCastIds: ['c2'], windows })).toBeNull();
+    expect(
+      newAvatarWindow({ cast: CAST, chapterCastIds: ['c2'], windows: windows.slice(1) }),
+    ).not.toBeNull();
   });
 });

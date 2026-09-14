@@ -238,6 +238,36 @@ describe('generateWriterTurn', () => {
     );
   });
 
+  it('adds lore activated by a greeting being rewritten', async () => {
+    stores.library = {
+      close: () => {},
+      getLorebook: async () => ({
+        id: 'lb-1',
+        name: 'Harbor Lore',
+        entries: [
+          {
+            id: 1,
+            keys: ['lighthouse'],
+            content: 'The lighthouse went dark in 1971.',
+            enabled: true,
+            insertionOrder: 0,
+          },
+        ],
+      }),
+    };
+    stores.bureaus.attachLorebook(bureau.id, 'lb-1');
+    const client = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
+
+    await generate(client, {
+      action: 'greeting',
+      greeting: { name: 'Mara', content: 'Mara waves you up to the lighthouse.' },
+    });
+
+    expect(client.calls[0].messages[0].content).toContain(
+      '=== WORLD ===\nThe lighthouse went dark in 1971.',
+    );
+  });
+
   it('reminds characters of earlier stories, but not of this one', async () => {
     const earlier = stores.stories.createStory(bureau.id, {
       startTime: '2026-10-01T20:00:00.000Z',

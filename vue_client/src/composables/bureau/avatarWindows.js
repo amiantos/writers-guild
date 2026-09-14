@@ -6,6 +6,8 @@
  */
 
 export const DEFAULT_WINDOW_SIZE = { width: 300, height: 400 };
+// The most windows the server saves for a Bureau, as for a story in story mode.
+export const MAX_AVATAR_WINDOWS = 20;
 
 const FIRST_POSITION = { x: 20, y: 100 };
 // Each new window opens this far down and to the right of the furthest one.
@@ -53,9 +55,11 @@ export function windowCharacters(cast, chapterCastIds, libraryCharacters) {
  * @param {string[]} params.chapterCastIds
  * @param {Array<Object>} params.windows - The windows already open.
  * @returns {{ id: string, castId: string, x: number, y: number, width: number,
- *   height: number } | null} Null when the cast is empty.
+ *   height: number } | null} Null when the cast is empty, or when as many windows are open as the
+ *   Bureau can keep.
  */
 export function newAvatarWindow({ cast, chapterCastIds, windows }) {
+  if (windows.length >= MAX_AVATAR_WINDOWS) return null;
   const inChapter = cast.filter((member) => chapterCastIds.includes(member.id));
   const shown = inChapter.find((member) => !member.isPersona) ?? inChapter[0] ?? cast[0];
   if (!shown) return null;
