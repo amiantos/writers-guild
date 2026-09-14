@@ -173,7 +173,7 @@ export function cardFromCharacter(character, { bureauName, name = '' }) {
 }
 
 /** Short notes about the Bureau's world: each attached lorebook and the topics of its entries. */
-async function worldNotes(stores, bureauId) {
+export async function worldNotes(stores, bureauId) {
   const notes = [];
   for (const lorebookId of stores.bureaus.listLorebookIds(bureauId)) {
     let lorebook;

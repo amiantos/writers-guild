@@ -84,6 +84,48 @@ function castMemberFromRow(row, { includeSeedCard = false } = {}) {
   return member;
 }
 
+/**
+ * What a cast member's profile holds: the card fields a Bureau lets you change, and their routine.
+ * Name, portrait, and greetings stay as they joined.
+ */
+export const PROFILE_FIELDS = [
+  'description',
+  'personality',
+  'scenario',
+  'first_mes',
+  'mes_example',
+  'routine',
+];
+
+/** original: the profile as it was before its first change. */
+export const PROFILE_SOURCES = ['original', 'manual', 'interview', 'restore'];
+
+/**
+ * A cast member's profile, with every field as a string.
+ * @param {Object} member - A cast member with their seed card.
+ * @returns {Object<string, string>}
+ */
+export function profileOf(member) {
+  const data = member.seedCard?.data ?? {};
+  return Object.fromEntries(
+    PROFILE_FIELDS.map((field) => {
+      const value = field === 'routine' ? member.routine?.text : data[field];
+      return [field, typeof value === 'string' ? value : ''];
+    }),
+  );
+}
+
+function profileVersionFromRow(row) {
+  return {
+    id: row.id,
+    castMemberId: row.cast_member_id,
+    fields: parseJson(row.fields, {}),
+    source: row.source,
+    sourceId: row.source_id,
+    created: row.created,
+  };
+}
+
 function runFromRow(row) {
   return {
     id: row.id,
@@ -189,11 +231,26 @@ export class BureauStorage {
         UPDATE cast_members SET is_persona = 0, modified = @modified
         WHERE bureau_id = @bureauId AND is_persona = 1 AND id != @id
       `),
-      updateCastRoutine: this.db.prepare(`
-        UPDATE cast_members SET routine = @routine, modified = @modified
+      updateCastProfile: this.db.prepare(`
+        UPDATE cast_members SET seed_card = @seedCard, routine = @routine, modified = @modified
         WHERE bureau_id = @bureauId AND id = @id
       `),
       deleteCastMember: this.db.prepare('DELETE FROM cast_members WHERE bureau_id = ? AND id = ?'),
+
+      // Profile versions
+      listProfileVersions: this.db.prepare(
+        'SELECT * FROM profile_versions WHERE bureau_id = ? AND cast_member_id = ? ORDER BY id',
+      ),
+      getProfileVersion: this.db.prepare(
+        'SELECT * FROM profile_versions WHERE bureau_id = ? AND cast_member_id = ? AND id = ?',
+      ),
+      hasProfileVersions: this.db.prepare(
+        'SELECT 1 FROM profile_versions WHERE cast_member_id = ? LIMIT 1',
+      ),
+      insertProfileVersion: this.db.prepare(`
+        INSERT INTO profile_versions (bureau_id, cast_member_id, fields, source, source_id, created)
+        VALUES (@bureauId, @castId, @fields, @source, @sourceId, @created)
+      `),
 
       // Run records
       insertRun: this.db.prepare(`
@@ -401,21 +458,11 @@ export class BureauStorage {
    * @param {Object} updates
    * @param {boolean} [updates.isPersona] - Marking a member unmarks the previous reader's
    *   character.
-   * @param {string} [updates.routine] - How they usually spend their days, for replies and
-   *   offscreen life.
    * @returns {Object|null} The updated member, or null if it doesn't exist.
    */
-  updateCastMember(bureauId, castId, { isPersona, routine }) {
+  updateCastMember(bureauId, castId, { isPersona }) {
     if (!this.stmts.getCastMember.get(bureauId, castId)) return null;
 
-    if (routine !== undefined) {
-      this.stmts.updateCastRoutine.run({
-        bureauId,
-        id: castId,
-        routine: JSON.stringify({ text: routine }),
-        modified: new Date().toISOString(),
-      });
-    }
     if (isPersona !== undefined) {
       const modified = new Date().toISOString();
       this.db.transaction(() => {
@@ -460,6 +507,109 @@ export class BureauStorage {
       this.stmts.touchBureau.run(new Date().toISOString(), bureauId);
     }
     return removed;
+  }
+
+  // ==================== Profiles ====================
+
+  /**
+   * A cast member's profile versions, oldest first, each with the fields it changed from the one
+   * before. The first is the profile as it was before anything changed, and there are none until
+   * something does.
+   */
+  listProfileVersions(bureauId, castId) {
+    let previous = null;
+    return this.stmts.listProfileVersions.all(bureauId, castId).map((row) => {
+      const version = profileVersionFromRow(row);
+      version.changed = previous
+        ? PROFILE_FIELDS.filter(
+            (field) => (version.fields[field] ?? '') !== (previous.fields[field] ?? ''),
+          )
+        : [];
+      previous = version;
+      return version;
+    });
+  }
+
+  /**
+   * Change a cast member's profile: the Bureau's copy of their card, and their routine. The
+   * library character is never touched. Each change is kept as a version, and the first change
+   * also keeps the profile as it was, so any version can be restored.
+   *
+   * @param {string} bureauId
+   * @param {string} castId
+   * @param {Object} updates - Any of PROFILE_FIELDS, as strings; anything else is left alone.
+   * @param {Object} [options]
+   * @param {'manual'|'interview'|'restore'} [options.source]
+   * @param {string|null} [options.sourceId] - The interview, or the version restored.
+   * @returns {Object|null} The member, or null if they don't exist. Nothing is kept when nothing
+   *   changes.
+   */
+  updateProfile(bureauId, castId, updates, { source = 'manual', sourceId = null } = {}) {
+    if (!PROFILE_SOURCES.includes(source) || source === 'original') {
+      throw new Error(`Unknown profile source: ${source}`);
+    }
+    const row = this.stmts.getCastMember.get(bureauId, castId);
+    if (!row) return null;
+
+    const member = castMemberFromRow(row, { includeSeedCard: true });
+    const before = profileOf(member);
+    const after = { ...before };
+    for (const field of PROFILE_FIELDS) {
+      if (typeof updates[field] === 'string') after[field] = updates[field];
+    }
+    const changed = PROFILE_FIELDS.filter((field) => after[field] !== before[field]);
+    if (changed.length === 0) return member;
+
+    const seedCard = structuredClone(member.seedCard ?? {});
+    seedCard.data ??= {};
+    for (const field of changed) {
+      if (field !== 'routine') seedCard.data[field] = after[field];
+    }
+
+    const now = new Date().toISOString();
+    this.db.transaction(() => {
+      if (!this.stmts.hasProfileVersions.get(castId)) {
+        this.stmts.insertProfileVersion.run({
+          bureauId,
+          castId,
+          fields: JSON.stringify(before),
+          source: 'original',
+          sourceId: null,
+          created: member.created,
+        });
+      }
+      this.stmts.updateCastProfile.run({
+        bureauId,
+        id: castId,
+        seedCard: JSON.stringify(seedCard),
+        routine: changed.includes('routine')
+          ? JSON.stringify({ text: after.routine })
+          : row.routine,
+        modified: now,
+      });
+      this.stmts.insertProfileVersion.run({
+        bureauId,
+        castId,
+        fields: JSON.stringify(after),
+        source,
+        sourceId,
+        created: now,
+      });
+    })();
+    return this.getCastMember(bureauId, castId);
+  }
+
+  /**
+   * Put a cast member's profile back as it was at an earlier version, kept as a new version.
+   * @returns {Object|null} The member, or null if they or the version don't exist.
+   */
+  restoreProfileVersion(bureauId, castId, versionId) {
+    const row = this.stmts.getProfileVersion.get(bureauId, castId, versionId);
+    if (!row) return null;
+    return this.updateProfile(bureauId, castId, profileVersionFromRow(row).fields, {
+      source: 'restore',
+      sourceId: String(versionId),
+    });
   }
 
   // ==================== World ====================

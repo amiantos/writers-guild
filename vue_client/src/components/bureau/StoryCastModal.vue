@@ -3,11 +3,20 @@
     <div class="form">
       <p class="help-text">The Writer only sees the cards of characters who are in the chapter.</p>
       <div class="form-group">
-        <label v-for="member in cast" :key="member.id" class="checkbox-label">
-          <input v-model="castIds" type="checkbox" :value="member.id" :disabled="readonly" />
-          {{ member.name }}
-          <span v-if="member.isPersona" class="persona-tag">Reader's character</span>
-        </label>
+        <div v-for="member in cast" :key="member.id" class="cast-option">
+          <label class="checkbox-label">
+            <input v-model="castIds" type="checkbox" :value="member.id" :disabled="readonly" />
+            {{ member.name }}
+            <span v-if="member.isPersona" class="persona-tag">Reader's character</span>
+          </label>
+          <button
+            class="icon-btn"
+            :title="`${member.name}'s profile`"
+            @click="$emit('profile', member)"
+          >
+            <i class="fas fa-id-card"></i>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -40,7 +49,7 @@ const props = defineProps({
   readonly: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['close', 'updated']);
+const emit = defineEmits(['close', 'updated', 'profile']);
 const toast = useToast();
 
 const castIds = ref([...props.story.castIds]);
@@ -62,3 +71,12 @@ async function save() {
 </script>
 
 <style scoped src="./bureau-ui.css"></style>
+
+<style scoped>
+.cast-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+</style>

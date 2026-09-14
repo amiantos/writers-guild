@@ -163,6 +163,14 @@
       :readonly="story.status !== 'active'"
       @close="showCast = false"
       @updated="handleStoryUpdated"
+      @profile="profileCastId = $event.id"
+    />
+    <ProfileModal
+      v-if="profileCastId"
+      :bureau-id="bureauId"
+      :cast-id="profileCastId"
+      :has-api-key="bureau.hasApiKey"
+      @close="profileCastId = null"
     />
     <GreetingPickerModal
       v-if="showGreetings"
@@ -210,6 +218,7 @@ import TurnSeam from '../../components/bureau/TurnSeam.vue';
 import StoryComposer from '../../components/bureau/StoryComposer.vue';
 import EndStoryModal from '../../components/bureau/EndStoryModal.vue';
 import StoryCastModal from '../../components/bureau/StoryCastModal.vue';
+import ProfileModal from '../../components/bureau/ProfileModal.vue';
 import TimePassesPicker from '../../components/bureau/TimePassesPicker.vue';
 import GreetingPickerModal from '../../components/bureau/GreetingPickerModal.vue';
 import FloatingAvatarWindow from '../../components/FloatingAvatarWindow.vue';
@@ -248,6 +257,8 @@ let abortController = null;
 
 const showEnd = ref(false);
 const showCast = ref(false);
+// The cast member whose profile is open, from "Who's in this chapter".
+const profileCastId = ref(null);
 const showGreetings = ref(false);
 const showTimePasses = ref(false);
 const passingTime = ref(false);

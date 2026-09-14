@@ -12,6 +12,7 @@ const SettingsPage = () => import('../views/SettingsPage.vue');
 const BureauHome = () => import('../views/bureau/BureauHome.vue');
 const BureauStory = () => import('../views/bureau/BureauStory.vue');
 const BureauThread = () => import('../views/bureau/BureauThread.vue');
+const BureauInterview = () => import('../views/bureau/BureauInterview.vue');
 const OnboardingWizard = () => import('../views/OnboardingWizard.vue');
 
 const routes = [
@@ -68,6 +69,13 @@ const routes = [
     component: BureauThread,
     props: true,
     meta: { title: 'Bureau Messages - Writers Guild', dynamicTitle: true },
+  },
+  {
+    path: '/bureaus/:bureauId/cast/:castId/interview',
+    name: 'bureau-interview',
+    component: BureauInterview,
+    props: true,
+    meta: { title: 'Bureau Interview - Writers Guild', dynamicTitle: true },
   },
   {
     path: '/settings',

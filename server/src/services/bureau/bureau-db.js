@@ -262,6 +262,40 @@ const MIGRATIONS = [
   `
     ALTER TABLE bureaus ADD COLUMN avatar_windows TEXT NOT NULL DEFAULT '[]';
   `,
+
+  // 10: Profiles and interviews. A cast member's profile (the Bureau's copy of their card, and
+  // their routine) changes by hand or from an interview the reader accepts, keeping every version.
+  `
+    CREATE TABLE profile_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bureau_id TEXT NOT NULL REFERENCES bureaus(id) ON DELETE CASCADE,
+      cast_member_id TEXT NOT NULL REFERENCES cast_members(id) ON DELETE CASCADE,
+      -- The whole profile at this version (PROFILE_FIELDS in bureau-storage.js).
+      fields TEXT NOT NULL,
+      source TEXT NOT NULL,
+      -- The interview it came from, or the version it restored.
+      source_id TEXT,
+      created TEXT NOT NULL
+    );
+    CREATE INDEX idx_profile_versions_cast ON profile_versions(cast_member_id, id);
+
+    CREATE TABLE interviews (
+      id TEXT PRIMARY KEY,
+      bureau_id TEXT NOT NULL REFERENCES bureaus(id) ON DELETE CASCADE,
+      cast_member_id TEXT NOT NULL REFERENCES cast_members(id) ON DELETE CASCADE,
+      focus TEXT NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open',
+      -- Questions and answers in order.
+      messages TEXT NOT NULL DEFAULT '[]',
+      -- The write-up waiting for review, or once accepted, what the reader accepted.
+      proposal TEXT,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+    -- One open interview per character.
+    CREATE UNIQUE INDEX idx_interviews_open ON interviews(cast_member_id) WHERE status = 'open';
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;
