@@ -443,6 +443,57 @@ describe('Bureau story routes', () => {
       await request(app).put(`${turnsUrl}/missing`).send({ content: 'x' }).expect(404);
     });
 
+    it("lists greetings from the chapter's cast and opens the chapter with one", async () => {
+      const june = stores.bureaus.addCastMember(bureau.id, {
+        seedCard: {
+          spec: 'chara_card_v2',
+          spec_version: '2.0',
+          data: {
+            name: 'June',
+            first_mes: 'June looks up at {{user}}.',
+            alternate_greetings: ['![June](/api/assets/characters/c3/june.webp)\n\nJune waves.'],
+          },
+        },
+        libraryCharacterId: 'c3',
+      });
+      const story = await startStory({ castIds: [june.id, mara.id, theo.id] });
+      const url = `${storiesUrl()}/${story.id}/greetings`;
+
+      const { body } = await request(app).get(url).expect(200);
+      expect(body.greetings).toEqual([
+        {
+          castId: june.id,
+          name: 'June',
+          index: 0,
+          label: 'First message',
+          content: 'June looks up at Theo.',
+        },
+        {
+          castId: june.id,
+          name: 'June',
+          index: 1,
+          label: 'Alternate greeting 1',
+          content: '![June](/api/assets/characters/c3/june.webp)\n\nJune waves.',
+        },
+      ]);
+
+      // Kept as written, a greeting is prose from the reader, credited to no one.
+      const { body: added } = await request(app)
+        .post(url)
+        .send({ content: body.greetings[1].content })
+        .expect(201);
+      expect(added.turn).toMatchObject({
+        kind: 'prose',
+        source: 'user',
+        authorCastId: null,
+        content: body.greetings[1].content,
+      });
+
+      await request(app).post(url).send({ content: ' ' }).expect(400);
+      await request(app).post(`${storiesUrl()}/${story.id}/end`).send({}).expect(200);
+      await request(app).post(url).send({ content: 'Hi.' }).expect(409);
+    });
+
     it('lets time pass in a chapter, moving the Bureau clock forward with it', async () => {
       stores.bureaus.updateBureau(bureau.id, { timezone: 'UTC' });
       const story = await startStory({
@@ -572,6 +623,41 @@ describe('Bureau story routes', () => {
         content: 'The lamp was lit.',
         runId: events[1].runId,
       });
+    });
+
+    it('rewrites a greeting as the opening, and rewrites it again for another version', async () => {
+      const story = await startStory();
+      const url = `${storiesUrl()}/${story.id}/generate`;
+
+      await request(app).post(url).send({ action: 'greeting', text: 'Mara waves.' }).expect(400);
+      await request(app)
+        .post(url)
+        .send({ action: 'greeting', castId: 'someone-else', text: 'Mara waves.' })
+        .expect(400);
+      const { body } = await request(app)
+        .post(url)
+        .send({ action: 'greeting', castId: mara.id, text: 'Mara looks up as you come in.' })
+        .expect(201);
+
+      expect(body.userTurn).toBeNull();
+      expect(body.turn).toMatchObject({
+        kind: 'prose',
+        source: 'generated',
+        content: 'The lamp was lit.',
+        authorCastId: null,
+      });
+      expect(client.calls[0].messages[1].content).toContain(
+        "rewriting Mara's greeting below in the house style",
+      );
+
+      client = fakeClient('The lamp guttered out.');
+      await request(app)
+        .post(`${storiesUrl()}/${story.id}/turns/${body.turn.id}/regenerate`)
+        .send({})
+        .expect(200);
+      expect(client.calls[0].messages[1].content).toContain(
+        'Greeting:\nMara looks up as you come in.',
+      );
     });
 
     it('validates generation requests', async () => {

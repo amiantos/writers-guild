@@ -8,6 +8,7 @@
  * appearance block gives portraits a stable description to work from later.
  */
 
+import { labelImages } from './images.js';
 import { RunRecorder } from './run-recorder.js';
 
 export const GENERATOR_MAX_TOKENS = 4000;
@@ -112,7 +113,7 @@ export function buildGeneratorMessages({ idea, name = '', role = '', cast, world
   if (role) user.push(section('ROLE IN THE CURRENT CHAPTER', role));
   const castLines = cast.map((member) => {
     const data = member.seedCard?.data ?? {};
-    const description = text(data.description);
+    const description = labelImages(text(data.description));
     const label = data.name || member.name;
     return description
       ? `- ${label}: ${truncate(description, CAST_DESCRIPTION_CHARACTERS)}`

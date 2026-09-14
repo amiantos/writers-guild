@@ -229,6 +229,59 @@ router.post(
   }),
 );
 
+const MAX_AVATAR_WINDOWS = 20;
+// Story mode's limits for a window's size and position, in pixels.
+const MAX_WINDOW_SIZE = 5000;
+const MAX_WINDOW_OFFSET = 10000;
+
+/** An avatar window as saved, from avatarWindows[index] in a request. */
+function avatarWindowFrom(value, index) {
+  const at = `avatarWindows[${index}]`;
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new AppError(`${at} must be an object`, 400);
+  }
+  const { id, castId, x, y, width, height } = value;
+  for (const [field, string] of Object.entries({ id, castId })) {
+    if (typeof string !== 'string' || !string) {
+      throw new AppError(`${at}.${field} must be a non-empty string`, 400);
+    }
+  }
+  for (const [field, number] of Object.entries({ x, y, width, height })) {
+    if (!Number.isFinite(number)) {
+      throw new AppError(`${at}.${field} must be a finite number`, 400);
+    }
+  }
+  if (width <= 0 || height <= 0 || width > MAX_WINDOW_SIZE || height > MAX_WINDOW_SIZE) {
+    throw new AppError(`${at} must be more than 0 and at most ${MAX_WINDOW_SIZE} across`, 400);
+  }
+  if (Math.abs(x) > MAX_WINDOW_OFFSET || Math.abs(y) > MAX_WINDOW_OFFSET) {
+    throw new AppError(`${at} must be within ${MAX_WINDOW_OFFSET} of the corner`, 400);
+  }
+  return { id, castId, x, y, width, height };
+}
+
+// Save the avatar windows floating over the Bureau's chapters, replacing the ones saved before.
+// Each is { id, castId, x, y, width, height }; castId is whom it shows.
+router.put(
+  '/:bureauId/avatar-windows',
+  asyncHandler(async (req, res) => {
+    const { bureaus } = res.locals.stores;
+    const { bureauId } = req.params;
+    requireBureau(bureaus, bureauId);
+
+    const { avatarWindows } = req.body ?? {};
+    if (!Array.isArray(avatarWindows)) {
+      throw new AppError('avatarWindows must be an array', 400);
+    }
+    if (avatarWindows.length > MAX_AVATAR_WINDOWS) {
+      throw new AppError(`A Bureau can have at most ${MAX_AVATAR_WINDOWS} avatar windows`, 400);
+    }
+    const windows = avatarWindows.map(avatarWindowFrom);
+    bureaus.setAvatarWindows(bureauId, windows);
+    res.json({ avatarWindows: windows });
+  }),
+);
+
 // Delete a Bureau, with everything in it
 router.delete(
   '/:bureauId',

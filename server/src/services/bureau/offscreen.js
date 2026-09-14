@@ -11,6 +11,7 @@
  */
 
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
+import { labelImages } from './images.js';
 import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 
@@ -175,7 +176,7 @@ export function buildOffscreenMessages({
     const lines = [
       `Last seen: ${describeBureauTime(from, bureau.timezone)} (${describeGap(from, to) ?? 'a few hours'} ago)`,
     ];
-    const description = text(member.seedCard?.data?.description);
+    const description = labelImages(text(member.seedCard?.data?.description));
     if (description) lines.push(`Description: ${truncate(description, DESCRIPTION_CHARACTERS)}`);
     const routine = text(member.routine?.text);
     if (routine) lines.push(`Usual routine: ${routine}`);

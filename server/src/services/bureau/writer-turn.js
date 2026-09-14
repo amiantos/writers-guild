@@ -17,6 +17,7 @@ import { chapterTime, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { runDirector } from './director.js';
 import { runEditor } from './editor.js';
+import { imageStream } from './images.js';
 import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 import { inferPronoun, lintProse, usesThirdPerson } from './style-lint.js';
@@ -34,14 +35,24 @@ const LOREBOOK_SETTINGS = {
 export const RECORDED_STORY_TAIL = 4000;
 
 /**
- * The request that produced a generated turn, inferred from the turn before
- * it: a direction means 'direct', and the reader's own prose means 'write'.
+ * The request that produced a generated turn. A rewritten greeting is known by the greeting its run
+ * recorded. Otherwise the request is inferred from the turn before it: a direction means 'direct',
+ * and the reader's own prose means 'write'.
  *
  * @param {Array<Object>} turns - The story's turns in order.
  * @param {number} index - Index of the generated turn in `turns`.
- * @returns {{ action: string, direction?: string }}
+ * @param {Object|null} [run] - The run that wrote the version shown, with its steps.
+ * @returns {{ action: string, direction?: string, greeting?: { name: string, content: string } }}
  */
-export function requestForRegeneration(turns, index) {
+export function requestForRegeneration(turns, index, run = null) {
+  const greeting = run?.steps?.find((step) => step.role === 'greeting')?.response;
+  if (greeting?.content) {
+    return {
+      action: 'greeting',
+      greeting: { name: greeting.name ?? '', content: greeting.content },
+    };
+  }
+
   const previous = turns[index - 1];
   if (previous?.kind === 'direction') {
     return { action: 'direct', direction: previous.content };
@@ -94,12 +105,15 @@ function pronounOf(member) {
  * @param {Object} params.story
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {Object} params.request
- * @param {'write'|'direct'|'continue'} params.request.action
+ * @param {'write'|'direct'|'continue'|'greeting'} params.request.action
  * @param {string} [params.request.direction] - For 'direct'.
+ * @param {{ name: string, content: string }} [params.request.greeting] - For 'greeting': the
+ *   greeting from a character card to rewrite as the chapter's opening.
  * @param {string|null} [params.regenerateTurnId] - Add a variant to this turn, writing from
  *   the turns before it, instead of appending a new turn.
  * @param {(event: Object) => void} [params.onEvent] - Receives events as they happen: `run`,
- *   `stage` (directing, writing, or editing), `brief`, `reasoning`, `content`, and `edits`.
+ *   `stage` (directing, writing, or editing), `brief`, `reasoning`, `content` (with images in
+ *   place of their markers), and `edits`.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} The saved turn. When cancelled, the text written so far is
  *   saved, or null is returned if nothing was written yet.
@@ -152,6 +166,7 @@ export async function generateWriterTurn({
   const promptRequest = {
     action: request.action,
     direction: request.direction,
+    greeting: request.greeting,
   };
   const isCancellation = (error) => error?.name === 'AbortError' || Boolean(signal?.aborted);
 
@@ -163,10 +178,25 @@ export async function generateWriterTurn({
   });
   onEvent({ type: 'run', runId: recorder.runId });
 
-  // The Director plans the passage, unless it's off or this is a plain Continue.
+  // A rewrite keeps its greeting in the run, for the seam and for writing another version.
+  if (request.action === 'greeting') {
+    recorder.recordStep({
+      role: 'greeting',
+      kind: 'tool',
+      request: { name: 'greeting' },
+      response: { name: request.greeting.name, content: request.greeting.content },
+    });
+  }
+
+  // The Director plans the passage, unless it's off, this is a plain Continue, or the passage
+  // rewrites a greeting, which already says what happens.
   let brief = null;
   const director = bureau.settings.director;
-  if (director.enabled && !(director.skipOnContinue && request.action === 'continue')) {
+  if (
+    director.enabled &&
+    request.action !== 'greeting' &&
+    !(director.skipOnContinue && request.action === 'continue')
+  ) {
     onEvent({ type: 'stage', stage: 'directing' });
     try {
       brief = await runDirector({
@@ -195,7 +225,12 @@ export async function generateWriterTurn({
   }
 
   onEvent({ type: 'stage', stage: 'writing' });
-  const scanText = [...turns.map((turn) => turn.content), request.direction ?? ''].join('\n\n');
+  // A greeting being rewritten activates lore too; it's often all the chapter has so far.
+  const scanText = [
+    ...turns.map((turn) => turn.content),
+    request.direction ?? '',
+    request.greeting?.content ?? '',
+  ].join('\n\n');
   const imagePreserver = new ImagePreserver();
   let messages;
   let storySection;
@@ -259,6 +294,8 @@ export async function generateWriterTurn({
   let reasoning = '';
   let done = null;
   const started = Date.now();
+  // What the reader sees streaming in, with each image in place as soon as its marker is written.
+  const shown = imageStream(imagePreserver);
 
   try {
     const stream = client.chatStream({
@@ -277,11 +314,14 @@ export async function generateWriterTurn({
         // Like story mode, prose never uses asterisks for actions.
         const text = event.text.replace(/\*/g, '');
         content += text;
-        if (text) onEvent({ type: 'content', text });
+        const next = shown.push(text);
+        if (next) onEvent({ type: 'content', text: next });
       } else if (event.type === 'done') {
         done = event;
       }
     }
+    const rest = shown.finish();
+    if (rest) onEvent({ type: 'content', text: rest });
   } catch (error) {
     const cancelled = error.name === 'AbortError' || Boolean(signal?.aborted);
     const partial = restore(content);
@@ -306,7 +346,14 @@ export async function generateWriterTurn({
     return saveAndFinish(partial, () => recorder.finish('cancelled', 'Cancelled'));
   }
 
-  const finalContent = restore(content);
+  // A rewritten greeting keeps its images: any the Writer left out go at the end, as story mode's
+  // rewrite does.
+  const leftOut = imagePreserver.saved
+    .filter((image) => image.source === 'greeting' && !content.includes(image.placeholder))
+    .map((image) => image.original);
+  const restored = restore(content);
+  const finalContent =
+    restored && leftOut.length > 0 ? [restored, ...leftOut].join('\n\n') : restored;
   recorder.recordStep({
     role: 'writer',
     kind: 'model',

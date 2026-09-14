@@ -109,6 +109,20 @@ describe('buildGeneratorMessages', () => {
     expect(user.content).toContain('=== EXISTING CAST ===\n- Mara: Keeper of the light.');
     expect(user.content).toContain('=== WORLD ===\n- Greywater: lighthouse, harbor');
   });
+
+  it("gives images in the cast's descriptions as labels", () => {
+    const [, user] = buildGeneratorMessages({
+      idea: 'A new regular at the pub',
+      cast: [
+        {
+          name: 'June',
+          seedCard: card('June', '![June](/api/assets/characters/c3/june.webp) A regular.'),
+        },
+      ],
+    });
+
+    expect(user.content).toContain('=== EXISTING CAST ===\n- June: [image: June] A regular.');
+  });
 });
 
 describe('generateCharacter', () => {

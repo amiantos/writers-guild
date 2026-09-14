@@ -126,7 +126,44 @@ function timeInstructions({ startTime, turns, timeZone, hasProse }) {
   ];
 }
 
-function instructionFor({ request, readerName, timeLines, hasProse, hasReaderProse }) {
+/**
+ * Rewriting a greeting from a character's card as the chapter's opening, as story mode rewrites a
+ * greeting, but with everything else a passage gets.
+ */
+function greetingInstruction({ greeting, greetingText, readerName, timeLines }) {
+  const lines = [
+    `Write the opening of this chapter by rewriting ${greeting.name ? `${greeting.name}'s greeting` : 'a greeting'} below in the house style. It comes from a character card and isn't part of the story yet.`,
+    `Greeting:\n${greetingText}`,
+    'Keep its events, dialogue, and details.',
+  ];
+  if (/\[WG_IMAGE_\d+\]/.test(greetingText)) {
+    lines.push(
+      'Keep each image marker, such as [WG_IMAGE_0], exactly as written and where it belongs.',
+    );
+  }
+  lines.push(
+    readerName
+      ? `Where the greeting says "you", it means ${readerName}: refer to ${readerName} by name, in the house style's perspective.`
+      : `Where the greeting says "you", write in the house style's perspective without inventing a name.`,
+    ...timeLines,
+    "Where the greeting disagrees with the chapter's time or with what the characters know, follow the chapter.",
+    'Write about as much as the greeting.',
+  );
+  return lines.join('\n');
+}
+
+function instructionFor({
+  request,
+  readerName,
+  timeLines,
+  hasProse,
+  hasReaderProse,
+  greetingText,
+}) {
+  if (request.action === 'greeting' && request.greeting) {
+    return greetingInstruction({ greeting: request.greeting, greetingText, readerName, timeLines });
+  }
+
   const lines = [];
 
   // Who wrote the latest passage doesn't matter: every passage continues the story, as in story mode.
@@ -198,8 +235,10 @@ function instructionFor({ request, readerName, timeLines, hasProse, hasReaderPro
  * @param {Array<Object>} params.turns - The story's turns in order, including any turn just
  *   added from the composer. Uses kind, source, content, and bureauTime.
  * @param {Object} params.request
- * @param {'write'|'direct'|'continue'} params.request.action
+ * @param {'write'|'direct'|'continue'|'greeting'} params.request.action
  * @param {string} [params.request.direction] - The direction text, for 'direct'.
+ * @param {{ name: string, content: string }} [params.request.greeting] - For 'greeting': the
+ *   greeting from a character card to rewrite as the chapter's opening.
  * @param {Object|null} [params.request.brief] - The Director's scene brief (see director.js).
  * @param {string|null} [params.startTime] - When the chapter began (ISO), so the Writer knows
  *   the exact time.
@@ -312,6 +351,10 @@ export function buildWriterMessages({
     timeLines: timeInstructions({ startTime, turns, timeZone: bureau.timezone, hasProse }),
     hasProse,
     hasReaderProse: storyTurns.some((turn) => turn.kind === 'prose' && turn.source === 'user'),
+    // Its images become markers to keep; writer-turn.js puts back any the Writer leaves out.
+    greetingText: request.greeting
+      ? preserve(stripAsterisks(request.greeting.content), 'greeting')
+      : '',
   });
 
   const storySection = storyText ? preserve(storyText, 'story') : '(Nothing has been written yet.)';

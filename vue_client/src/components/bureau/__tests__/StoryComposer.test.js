@@ -53,6 +53,15 @@ describe('StoryComposer', () => {
     });
   });
 
+  it('offers a greeting only when the chapter can open with one', async () => {
+    expect(buttonNamed(mount(StoryComposer), 'Greeting')).toBeUndefined();
+
+    const wrapper = mount(StoryComposer, { props: { canUseGreeting: true } });
+    await buttonNamed(wrapper, 'Greeting').trigger('click');
+
+    expect(wrapper.emitted('greeting')).toHaveLength(1);
+  });
+
   it('offers Stop while generating', async () => {
     const wrapper = mount(StoryComposer, { props: { generating: true } });
 

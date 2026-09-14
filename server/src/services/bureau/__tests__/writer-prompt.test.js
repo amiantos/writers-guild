@@ -347,6 +347,61 @@ describe('buildWriterMessages', () => {
     expect(user).toContain(`${'B'.repeat(50)}\n\n${'C'.repeat(50)}`);
   });
 
+  it("rewrites a greeting as the chapter's opening", () => {
+    const { user } = build({
+      request: {
+        action: 'greeting',
+        greeting: { name: 'Mara', content: 'Mara *looks up* as you come in. "Late again."' },
+      },
+    });
+
+    expect(user).toContain('=== CHAPTER SO FAR ===\n(Nothing has been written yet.)');
+    expect(user).toContain(
+      [
+        '=== NEXT ===',
+        "Write the opening of this chapter by rewriting Mara's greeting below in the house style. It comes from a character card and isn't part of the story yet.",
+        'Greeting:',
+        'Mara looks up as you come in. "Late again."',
+        'Keep its events, dialogue, and details.',
+        'Where the greeting says "you", it means Theo: refer to Theo by name, in the house style\'s perspective.',
+        "Where the greeting disagrees with the chapter's time or with what the characters know, follow the chapter.",
+        'Write about as much as the greeting.',
+      ].join('\n'),
+    );
+    expect(user).not.toMatch(/set the scene|Write 3 to 5 paragraphs|image marker/);
+  });
+
+  it("keeps a greeting's images as markers, at the chapter's time", () => {
+    const imagePreserver = {
+      preserve: (text, source) =>
+        source === 'greeting' ? text.replace('![Mara](mara.webp)', '[WG_IMAGE_0]') : text,
+    };
+
+    const { user } = build({
+      cast: [MARA],
+      bureau: { houseStyle: '', timezone: 'UTC' },
+      request: {
+        action: 'greeting',
+        greeting: { name: 'Mara', content: '![Mara](mara.webp)\n\nMara waves at you.' },
+      },
+      startTime: '2026-10-27T07:30:00.000Z',
+      imagePreserver,
+    });
+
+    expect(user).toContain(
+      [
+        'Greeting:',
+        '[WG_IMAGE_0]',
+        '',
+        'Mara waves at you.',
+        'Keep its events, dialogue, and details.',
+        'Keep each image marker, such as [WG_IMAGE_0], exactly as written and where it belongs.',
+        `Where the greeting says "you", write in the house style's perspective without inventing a name.`,
+        'This chapter begins at exactly 7:30 AM on Tuesday, October 27, 2026.',
+      ].join('\n'),
+    );
+  });
+
   it('runs card, lore, and story text through the image preserver', () => {
     const sources = [];
     const imagePreserver = {

@@ -24,6 +24,7 @@ import {
   resolveStoryStartTime,
 } from '../services/bureau/bureau-time.js';
 import { archiveSettledTurns, archiveStory, archiveThread } from '../services/bureau/archivist.js';
+import { listGreetings } from '../services/bureau/greetings.js';
 import { findOffscreenGaps, generateOffscreenLife } from '../services/bureau/offscreen.js';
 import { generateWriterTurn, requestForRegeneration } from '../services/bureau/writer-turn.js';
 import {
@@ -36,7 +37,7 @@ import {
 
 const router = express.Router({ mergeParams: true });
 
-const GENERATE_ACTIONS = ['write', 'direct', 'continue'];
+const GENERATE_ACTIONS = ['write', 'direct', 'continue', 'greeting'];
 const READER_TURN_KINDS = ['prose', 'direction', 'scene_break', 'time_passes'];
 
 function resolveTime(resolve) {
@@ -580,10 +581,51 @@ router.post(
   }),
 );
 
+// ==================== Greetings ====================
+
+// The greetings on the cards of everyone in the chapter but the reader's character, to open it
+// with. A macro such as {{random}} picks again each time they're listed.
+router.get(
+  '/:storyId/greetings',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    requireBureau(bureaus, bureauId);
+    const story = requireStory(stories, bureauId, storyId);
+
+    const cast = story.castIds
+      .map((castId) => bureaus.getCastMember(bureauId, castId))
+      .filter(Boolean);
+    res.json({ greetings: listGreetings(cast) });
+  }),
+);
+
+// Open the chapter with a greeting kept as written: { content }, the text as it was listed, since a
+// macro such as {{random}} picks again each time. It's added as prose from the reader. To have the
+// Writer rewrite a greeting instead, generate with action 'greeting'.
+router.post(
+  '/:storyId/greetings',
+  asyncHandler(async (req, res) => {
+    const { bureaus, stories } = res.locals.stores;
+    const { bureauId, storyId } = req.params;
+    requireBureau(bureaus, bureauId);
+    const story = requireStory(stories, bureauId, storyId);
+    requireActive(story);
+
+    const content = optionalString(req.body ?? {}, 'content');
+    if (!content) {
+      throw new AppError('content is required', 400);
+    }
+    const turn = stories.addTurn(storyId, { kind: 'prose', source: 'user', content });
+    res.status(201).json({ turn });
+  }),
+);
+
 // ==================== Generation ====================
 
 // Generate the next turn. action 'write' adds the reader's text as prose first,
-// 'direct' adds it as a direction, and 'continue' ignores text.
+// 'direct' adds it as a direction, and 'continue' ignores text. 'greeting' has the Writer rewrite
+// text, a greeting from the card of castId, as the chapter's opening.
 router.post(
   '/:storyId/generate',
   asyncHandler(async (req, res) => {
@@ -605,6 +647,7 @@ router.post(
     }
 
     let userTurn = null;
+    let greeting;
     if (action === 'write') {
       userTurn = stories.addTurn(storyId, {
         kind: 'prose',
@@ -614,19 +657,28 @@ router.post(
       });
     } else if (action === 'direct') {
       userTurn = stories.addTurn(storyId, { kind: 'direction', source: 'user', content: text });
+    } else if (action === 'greeting') {
+      const member = story.castIds.includes(body.castId)
+        ? bureaus.getCastMember(bureauId, body.castId)
+        : null;
+      if (!member) {
+        throw new AppError('castId must be someone in this chapter', 400);
+      }
+      greeting = { name: member.seedCard?.data?.name || member.name, content: text };
     }
 
     await respondWithWriterTurn(req, res, {
       bureau,
       story,
-      request: { action, direction: action === 'direct' ? text : undefined },
+      request: { action, direction: action === 'direct' ? text : undefined, greeting },
       regenerateTurnId: null,
       userTurn,
     });
   }),
 );
 
-// Regenerate a generated turn as a new variant, from the turns before it
+// Regenerate a generated turn as a new variant, from the turns before it. A rewritten greeting is
+// rewritten again.
 router.post(
   '/:storyId/turns/:turnId/regenerate',
   asyncHandler(async (req, res) => {
@@ -649,7 +701,7 @@ router.post(
     await respondWithWriterTurn(req, res, {
       bureau,
       story,
-      request: requestForRegeneration(turns, index),
+      request: requestForRegeneration(turns, index, bureaus.getRun(bureauId, turns[index].runId)),
       regenerateTurnId: turnId,
       userTurn: null,
     });

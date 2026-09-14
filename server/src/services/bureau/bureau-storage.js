@@ -59,6 +59,7 @@ function bureauFromRow(row) {
     timezone: row.timezone,
     houseStyle: row.house_style,
     settings: resolveSettings(parseJson(row.settings, {})),
+    avatarWindows: parseJson(row.avatar_windows, []),
     castCount: row.cast_count,
     created: row.created,
     modified: row.modified,
@@ -146,6 +147,7 @@ export class BureauStorage {
       setBureauTime: this.db.prepare(
         'UPDATE bureaus SET bureau_time = ?, modified = ? WHERE id = ?',
       ),
+      setAvatarWindows: this.db.prepare('UPDATE bureaus SET avatar_windows = ? WHERE id = ?'),
       touchBureau: this.db.prepare('UPDATE bureaus SET modified = ? WHERE id = ?'),
 
       // World
@@ -313,6 +315,18 @@ export class BureauStorage {
   setBureauTime(bureauId, bureauTime) {
     const now = new Date().toISOString();
     return this.stmts.setBureauTime.run(bureauTime, now, bureauId).changes > 0;
+  }
+
+  /**
+   * Save the avatar windows floating over the Bureau's chapters. Moving a window isn't a change to
+   * the Bureau, so it doesn't move the Bureau up the list.
+   * @param {string} bureauId
+   * @param {Array<{ id: string, castId: string, x: number, y: number, width: number,
+   *   height: number }>} avatarWindows
+   * @returns {boolean} Whether the Bureau exists.
+   */
+  setAvatarWindows(bureauId, avatarWindows) {
+    return this.stmts.setAvatarWindows.run(JSON.stringify(avatarWindows), bureauId).changes > 0;
   }
 
   /** Deletes the Bureau with its cast and run records. */

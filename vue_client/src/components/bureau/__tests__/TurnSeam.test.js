@@ -264,6 +264,35 @@ describe('TurnSeam', () => {
     expect(panel).not.toContain('thinking mode');
   });
 
+  it('shows the greeting a rewrite started from', async () => {
+    bureausAPI.getRun.mockResolvedValue({
+      run: {
+        ...RUN,
+        steps: [
+          runStep(0, {
+            role: 'greeting',
+            kind: 'tool',
+            request: { name: 'greeting' },
+            response: { name: 'Mara', content: 'Mara looks up as you come in.' },
+          }),
+          ...RUN.steps,
+        ],
+      },
+    });
+    const wrapper = mount(TurnSeam, { props: { bureauId: 'b1', turn: turn({}), castById: CAST } });
+
+    await wrapper.find('.seam-toggle').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.findAll('.step-role').map((role) => role.text())).toEqual([
+      'Greeting',
+      'Writer',
+    ]);
+    const panel = wrapper.find('.seam-panel').text();
+    expect(panel).toContain("From Mara's card");
+    expect(panel).toContain('Mara looks up as you come in.');
+  });
+
   it('reports a run that cannot be loaded', async () => {
     bureausAPI.getRun.mockRejectedValue(new Error('Run not found'));
     const wrapper = mount(TurnSeam, { props: { bureauId: 'b1', turn: turn({}), castById: CAST } });

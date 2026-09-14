@@ -257,6 +257,11 @@ const MIGRATIONS = [
   `
     ALTER TABLE turns ADD COLUMN bureau_time TEXT;
   `,
+
+  // 9: Avatar windows, the character portraits a Bureau floats over its chapters.
+  `
+    ALTER TABLE bureaus ADD COLUMN avatar_windows TEXT NOT NULL DEFAULT '[]';
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

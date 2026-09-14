@@ -220,6 +220,15 @@ export const bureausAPI = {
   promoteCast(bureauId, castId) {
     return request(`/${bureauId}/cast/${castId}/promote`, { method: 'POST', body: {} });
   },
+
+  /**
+   * Save the avatar windows floating over the Bureau's chapters, replacing the ones saved before.
+   * @param {Array<{ id: string, castId: string, x: number, y: number, width: number,
+   *   height: number }>} avatarWindows
+   */
+  updateAvatarWindows(bureauId, avatarWindows) {
+    return request(`/${bureauId}/avatar-windows`, { method: 'PUT', body: { avatarWindows } });
+  },
 };
 
 export const bureauStoriesAPI = {
@@ -276,6 +285,25 @@ export const bureauStoriesAPI = {
     return request(`/${bureauId}/stories/${storyId}/turns`, { method: 'POST', body: turn });
   },
 
+  /**
+   * Greetings from the cards of the chapter's cast, other than the reader's character. Each is
+   * { castId, name, index, label, content }.
+   */
+  listGreetings(bureauId, storyId) {
+    return request(`/${bureauId}/stories/${storyId}/greetings`);
+  },
+
+  /**
+   * Open the chapter with a greeting kept as written, as it was listed. To have the Writer rewrite
+   * it instead, generate with action 'greeting'.
+   */
+  addGreeting(bureauId, storyId, content) {
+    return request(`/${bureauId}/stories/${storyId}/greetings`, {
+      method: 'POST',
+      body: { content },
+    });
+  },
+
   editTurn(bureauId, storyId, turnId, content) {
     return request(`/${bureauId}/stories/${storyId}/turns/${turnId}`, {
       method: 'PUT',
@@ -305,7 +333,9 @@ export const bureauStoriesAPI = {
   /**
    * Stream the next turn. Events: turn (the reader's new turn), run, stage (directing,
    * writing, or editing), brief, reasoning, content, edits, and done (with userTurn and turn).
-   * @param {{ action: 'write'|'direct'|'continue', text?: string }} generation
+   * @param {{ action: 'write'|'direct'|'continue'|'greeting', text?: string, castId?: string }}
+   *   generation - 'greeting' has the Writer rewrite text, a greeting from castId's card, as the
+   *   chapter's opening.
    */
   generate(bureauId, storyId, generation, signal) {
     return streamEvents(`/${bureauId}/stories/${storyId}/generate`, generation, signal);

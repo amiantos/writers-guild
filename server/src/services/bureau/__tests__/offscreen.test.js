@@ -102,6 +102,23 @@ describe('buildOffscreenMessages', () => {
     );
     expect(user.content).not.toContain('The year is');
   });
+
+  it("gives images in a character's description as labels", () => {
+    const june = {
+      id: 'c3',
+      name: 'June',
+      seedCard: card('June', 'A regular. ![June](/api/assets/characters/c3/june.webp)'),
+    };
+
+    const [, user] = buildOffscreenMessages({
+      bureau: { timezone: 'UTC' },
+      gaps: [{ member: june, from: FROM }],
+      to: TO,
+      now: new Date('2026-10-08T21:00:00Z'),
+    });
+
+    expect(user.content).toContain('Description: A regular. [image: June]');
+  });
 });
 
 describe('offscreen life in a Bureau', () => {
