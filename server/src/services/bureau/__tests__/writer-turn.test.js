@@ -5,7 +5,7 @@ import path from 'path';
 import { generateWriterTurn, requestForRegeneration, RECORDED_STORY_TAIL } from '../writer-turn.js';
 import { getBureauStores } from '../stores.js';
 import { closeBureauDb } from '../bureau-db.js';
-import { DeepSeekError } from '../deepseek-client.js';
+import { DeepSeekClient, DeepSeekError } from '../deepseek-client.js';
 
 const START = '2026-10-27T07:30:00.000Z';
 
@@ -461,6 +461,29 @@ describe('generateWriterTurn', () => {
     expect(stores.bureaus.getRun(bureau.id, runId)).toMatchObject({
       status: 'failed',
       error: failure.message,
+    });
+  });
+
+  it('fails the run, rather than cancelling it, when DeepSeek stops responding', async () => {
+    // A real client, whose request never gets a response.
+    const client = new DeepSeekClient({
+      apiKey: 'sk-test',
+      idleTimeoutMs: 20,
+      fetch: (_url, { signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+        }),
+    });
+    let runId;
+
+    await expect(
+      generate(client, { action: 'continue' }, { onEvent: (event) => (runId ??= event.runId) }),
+    ).rejects.toThrow(DeepSeekError);
+
+    expect(stores.stories.listTurns(story.id)).toEqual([]);
+    expect(stores.bureaus.getRun(bureau.id, runId)).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/^DeepSeek stopped responding/),
     });
   });
 

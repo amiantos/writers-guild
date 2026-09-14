@@ -19,6 +19,13 @@
  *   can start with blank keep-alive lines.
  */
 
+import {
+  RESPONSE_TIMEOUT_MS,
+  STREAM_IDLE_TIMEOUT_MS,
+  createRequestTimeout,
+  formatTimeout,
+} from '../providers/shared/request-timeout.js';
+
 export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com';
 export const DEEPSEEK_BETA_BASE_URL = 'https://api.deepseek.com/beta';
 export const DEFAULT_MODEL = 'deepseek-flash';
@@ -197,6 +204,8 @@ export class DeepSeekClient {
    * @param {string} [config.baseURL]
    * @param {string} [config.betaBaseURL]
    * @param {typeof fetch} [config.fetch] - Injected by tests; defaults to global fetch.
+   * @param {number} [config.idleTimeoutMs] - How long a stream may go without data.
+   * @param {number} [config.responseTimeoutMs] - How long a non-streaming request may take.
    */
   constructor({
     apiKey,
@@ -204,6 +213,8 @@ export class DeepSeekClient {
     baseURL = DEEPSEEK_BASE_URL,
     betaBaseURL = DEEPSEEK_BETA_BASE_URL,
     fetch: fetchImpl,
+    idleTimeoutMs = STREAM_IDLE_TIMEOUT_MS,
+    responseTimeoutMs = RESPONSE_TIMEOUT_MS,
   } = {}) {
     if (!apiKey || !apiKey.trim()) {
       throw new DeepSeekError('A DeepSeek API key is required');
@@ -213,6 +224,8 @@ export class DeepSeekClient {
     this.baseURL = baseURL;
     this.betaBaseURL = betaBaseURL;
     this.fetch = fetchImpl ?? ((...args) => globalThis.fetch(...args));
+    this.idleTimeoutMs = idleTimeoutMs;
+    this.responseTimeoutMs = responseTimeoutMs;
   }
 
   /**
@@ -338,9 +351,23 @@ export class DeepSeekClient {
    */
   async chat(options) {
     const { url, body } = this.buildRequest(options, false);
-    const response = await this.post(url, body, options.signal);
+    // Nothing arrives until the whole response is ready, so the timeout covers all of it.
+    const timeout = createRequestTimeout(this.responseTimeoutMs, options.signal);
 
-    const text = await response.text();
+    let response;
+    let text;
+    try {
+      response = await this.post(url, body, timeout.signal);
+      text = await response.text();
+    } catch (error) {
+      if (!timeout.timedOut) throw error;
+      throw new DeepSeekError(
+        `DeepSeek did not respond within ${formatTimeout(this.responseTimeoutMs)}`,
+      );
+    } finally {
+      timeout.clear();
+    }
+
     const data = parseJsonSafely(text.trim());
     if (!data) {
       throw new DeepSeekError('DeepSeek returned a response that was not valid JSON', {
@@ -377,8 +404,24 @@ export class DeepSeekClient {
    * @param {Object} options - See buildRequest(), plus `signal`.
    */
   async *chatStream(options) {
+    // Keep-alive comments don't reset it: a stalled request can send them for a long time.
+    const timeout = createRequestTimeout(this.idleTimeoutMs, options.signal);
+    try {
+      yield* this.streamEvents(options, timeout);
+    } catch (error) {
+      if (!timeout.timedOut) throw error;
+      throw new DeepSeekError(
+        `DeepSeek stopped responding: nothing arrived for ${formatTimeout(this.idleTimeoutMs)}`,
+      );
+    } finally {
+      timeout.clear();
+    }
+  }
+
+  /** The body of chatStream(), resetting its timeout as each chunk arrives. */
+  async *streamEvents(options, timeout) {
     const { url, body } = this.buildRequest(options, true);
-    const response = await this.post(url, body, options.signal);
+    const response = await this.post(url, body, timeout.signal);
 
     let content = '';
     let reasoning = '';
@@ -388,6 +431,7 @@ export class DeepSeekClient {
     const toolCalls = [];
 
     for await (const chunk of readServerSentEvents(response.body)) {
+      timeout.reset();
       if (chunk.usage) usage = chunk.usage;
       if (chunk.model) model = chunk.model;
 

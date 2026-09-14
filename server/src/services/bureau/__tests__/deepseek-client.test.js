@@ -66,6 +66,39 @@ async function collect(iterable) {
   return items;
 }
 
+/** A request that never gets a response, failing only when aborted, as real fetch does. */
+function silentFetch() {
+  return vi.fn(
+    (_url, { signal }) =>
+      new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      }),
+  );
+}
+
+/**
+ * A request whose streamed body sends `next()` every `every` ms, closing when
+ * it returns null. Aborting fails the body, as real fetch does.
+ */
+function streamingFetch(next, every) {
+  return vi.fn(async (_url, { signal }) => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        signal.addEventListener('abort', () => controller.error(signal.reason), { once: true });
+      },
+      async pull(controller) {
+        await new Promise((resolve) => setTimeout(resolve, every));
+        if (signal.aborted) return;
+        const piece = next();
+        if (piece === null) controller.close();
+        else controller.enqueue(encoder.encode(piece));
+      },
+    });
+    return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } });
+  });
+}
+
 describe('DeepSeekClient', () => {
   let fetchMock;
   let client;
@@ -209,11 +242,79 @@ describe('DeepSeekClient', () => {
       });
     });
 
-    it('passes the abort signal to fetch', async () => {
+    it('passes cancellation through to fetch', async () => {
       const controller = new AbortController();
       await client.chat({ messages: MESSAGES, signal: controller.signal });
 
-      expect(sentRequest().init.signal).toBe(controller.signal);
+      const { signal } = sentRequest().init;
+      expect(signal.aborted).toBe(false);
+      controller.abort();
+      expect(signal.aborted).toBe(true);
+    });
+  });
+
+  describe('timeouts', () => {
+    it('fails a request that gets no response in time', async () => {
+      client = new DeepSeekClient({
+        apiKey: 'sk-test',
+        fetch: silentFetch(),
+        responseTimeoutMs: 20,
+      });
+
+      const error = await client.chat({ messages: MESSAGES }).catch((caught) => caught);
+
+      expect(error).toBeInstanceOf(DeepSeekError);
+      expect(error.message).toMatch(/^DeepSeek did not respond within/);
+    });
+
+    it('fails a stream that sends only keep-alive comments', async () => {
+      client = new DeepSeekClient({
+        apiKey: 'sk-test',
+        fetch: streamingFetch(() => ': keep-alive\n\n', 5),
+        idleTimeoutMs: 50,
+      });
+
+      const error = await collect(client.chatStream({ messages: MESSAGES })).catch(
+        (caught) => caught,
+      );
+
+      expect(error).toBeInstanceOf(DeepSeekError);
+      expect(error.message).toMatch(/^DeepSeek stopped responding: nothing arrived for/);
+    });
+
+    it('fails a stream that never starts', async () => {
+      client = new DeepSeekClient({ apiKey: 'sk-test', fetch: silentFetch(), idleTimeoutMs: 20 });
+
+      await expect(collect(client.chatStream({ messages: MESSAGES }))).rejects.toThrow(
+        /^DeepSeek stopped responding/,
+      );
+    });
+
+    it('keeps a slow stream going as long as data keeps arriving', async () => {
+      const pieces = [...'ABCDEFGHIJ'].map((text) => delta({ content: text }));
+      client = new DeepSeekClient({
+        apiKey: 'sk-test',
+        fetch: streamingFetch(() => pieces.shift() ?? null, 20),
+        idleTimeoutMs: 150,
+      });
+
+      const events = await collect(client.chatStream({ messages: MESSAGES }));
+
+      expect(events.at(-1).content).toBe('ABCDEFGHIJ');
+    });
+
+    it('leaves a cancellation as an AbortError', async () => {
+      client = new DeepSeekClient({
+        apiKey: 'sk-test',
+        fetch: streamingFetch(() => ': keep-alive\n\n', 5),
+        idleTimeoutMs: 5000,
+      });
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 20);
+
+      await expect(
+        collect(client.chatStream({ messages: MESSAGES, signal: controller.signal })),
+      ).rejects.toMatchObject({ name: 'AbortError' });
     });
   });
 
