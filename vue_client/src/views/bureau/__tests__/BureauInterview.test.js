@@ -175,4 +175,24 @@ describe('BureauInterview', () => {
     ]);
     expect(wrapper.find('.composer-note').text()).toContain('A write-up is waiting');
   });
+
+  it("won't accept a routine longer than a profile holds", async () => {
+    const proposal = {
+      description: 'Keeps the light.',
+      personality: 'Dry.',
+      routine: 'Nights. '.repeat(300),
+      changes: '',
+      relationships: [],
+      base: { description: 'Keeps the light.', personality: 'Dry.', routine: '' },
+    };
+    bureauInterviewsAPI.get.mockResolvedValue(loaded(interview(ASKED.messages, proposal)));
+    const wrapper = mountInterview();
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Trim it to 2000 characters or fewer');
+    expect(button(wrapper, 'Accept').attributes('disabled')).toBeDefined();
+
+    await wrapper.find('#review-routine').setValue('Nights.');
+    expect(button(wrapper, 'Accept').attributes('disabled')).toBeUndefined();
+  });
 });

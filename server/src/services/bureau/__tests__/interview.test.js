@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
+  InterviewChangedError,
   ProfileChangedError,
   WRITE_PROFILE_TOOL,
   acceptProposal,
@@ -279,14 +280,17 @@ describe('interviews', () => {
       ]);
     });
 
-    it("keeps {{user}} as written when the Bureau has no reader's character", () => {
+    it("keeps card placeholders as written, since the reader's character can change", () => {
       const [system, user] = buildWriteUpMessages({
         member: current(mara),
         interview: { focus: 'flesh_out', note: '', messages: [] },
+        persona: current(theo),
       });
 
-      expect(system.content).toContain('keep {{user}} as written');
-      expect(user.content).toContain('Description: Mara keeps the lighthouse for {{user}}.');
+      expect(system.content).toContain(
+        "The profile writes {{char}} for Mara and {{user}} for the reader's character (now Theo).",
+      );
+      expect(user.content).toContain('Description: {{char}} keeps the lighthouse for {{user}}.');
     });
 
     it('puts images back, keeps any left out, and matches relationship lines to the cast', () => {
@@ -367,6 +371,29 @@ describe('interviews', () => {
 
       expect(stores.interviews.getInterview(bureau.id, interview.id).proposal).toBeNull();
       expect(stores.bureaus.listRuns(bureau.id)[0].status).toBe('failed');
+    });
+
+    it("won't save a write-up that misses answers given while it was being written", async () => {
+      const interview = startWith([
+        ['generated', 'Who taught her?'],
+        ['user', 'Her father.'],
+      ]);
+      const client = interviewClient();
+      const writeProfile = client.chat;
+      client.chat = async (options) => {
+        stores.interviews.addMessage(bureau.id, interview.id, {
+          source: 'generated',
+          content: 'And her mother?',
+        });
+        stores.interviews.addMessage(bureau.id, interview.id, { source: 'user', content: 'Gone.' });
+        return writeProfile(options);
+      };
+
+      await expect(
+        writeUp({ stores, bureau, interview, member: current(mara), client }),
+      ).rejects.toThrow(InterviewChangedError);
+
+      expect(stores.interviews.getInterview(bureau.id, interview.id).proposal).toBeNull();
     });
   });
 

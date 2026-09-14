@@ -16,6 +16,7 @@ import { DeepSeekError } from '../services/bureau/deepseek-client.js';
 import {
   DEFAULT_FOCUS,
   INTERVIEW_FOCUSES,
+  InterviewChangedError,
   ProfileChangedError,
   WRITE_UP_FIELDS,
   acceptProposal,
@@ -334,6 +335,9 @@ router.post(
     } catch (error) {
       if (error instanceof DeepSeekError) {
         throw new AppError(error.message, 502);
+      }
+      if (error instanceof InterviewChangedError) {
+        throw new AppError(error.message, 409);
       }
       throw error;
     }

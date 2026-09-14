@@ -517,6 +517,7 @@ material yours: the model asks and writes up, but the facts come from your answe
   other cast members' descriptions when the interview revealed a relationship their descriptions
   don't cover, since they may appear in scenes without this character. It changes only what the
   interview changed, keeps the rest in its own wording, and adds nothing the author didn't say.
+  Placeholders like `{{user}}` stay as written, since the reader's character can change.
   Images in the profile come back where they were, or at the end of their field if the model drops
   their markers.
 - **Review:** edit any field, keep or drop each relationship line, then accept. Nothing changes

@@ -112,6 +112,10 @@
                 :rows="field.rows"
                 :maxlength="field.maxLength"
               ></textarea>
+              <p v-if="tooLong(field)" class="composer-warning">
+                The {{ field.label.toLowerCase() }} is {{ drafts[field.key].length }} characters.
+                Trim it to {{ field.maxLength }} characters or fewer to accept.
+              </p>
               <details class="current-version">
                 <summary>Current {{ field.label.toLowerCase() }}</summary>
                 <p>{{ interview.proposal.base[field.key] || 'Empty.' }}</p>
@@ -155,7 +159,11 @@
                 <i class="fas fa-rotate"></i>
                 {{ writingUp ? 'Writing it up...' : 'Write it again' }}
               </button>
-              <button class="btn btn-primary" :disabled="busy" @click="accept">
+              <button
+                class="btn btn-primary"
+                :disabled="busy || REVIEW_FIELDS.some(tooLong)"
+                @click="accept"
+              >
                 <i class="fas fa-check"></i> {{ accepting ? 'Saving...' : 'Accept' }}
               </button>
             </div>
@@ -487,8 +495,13 @@ async function writeUpAnswers() {
   }
 }
 
+/** Whether a reviewed field is longer than the profile holds. */
+function tooLong(field) {
+  return Boolean(field.maxLength) && drafts[field.key].length > field.maxLength;
+}
+
 async function accept() {
-  if (busy.value) return;
+  if (busy.value || REVIEW_FIELDS.some(tooLong)) return;
   accepting.value = true;
   try {
     const { updated } = await bureauInterviewsAPI.accept(props.bureauId, props.castId, {

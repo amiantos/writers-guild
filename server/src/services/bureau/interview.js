@@ -115,6 +115,21 @@ export class ProfileChangedError extends Error {
   }
 }
 
+export class InterviewChangedError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'InterviewChangedError';
+  }
+}
+
+// Card placeholders for the character and the reader's character.
+const PLACEHOLDER_RE = /\{\{(?:char|character|user)\}\}/i;
+
+/** The id of the reader's latest answer, or null before the first. */
+function lastAnswerId(interview) {
+  return interview.messages.findLast((message) => message.source === 'user')?.id ?? null;
+}
+
 function text(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -474,10 +489,11 @@ export function buildWriteUpMessages({
   const name = nameOf(member);
   const personaName = persona ? nameOf(persona) : null;
   const profile = profileOf(member);
+  // Placeholders stay as written, since the reader's character can change.
   const current = Object.fromEntries(
     WRITE_UP_FIELDS.map((field) => {
-      const named = withNames(profile[field], name, personaName).trim();
-      return [field, imagePreserver ? imagePreserver.preserve(named, field) : named];
+      const value = profile[field].trim();
+      return [field, imagePreserver ? imagePreserver.preserve(value, field) : value];
     }),
   );
 
@@ -493,9 +509,10 @@ export function buildWriteUpMessages({
       '- Keep each image marker, such as [WG_IMAGE_0], exactly as written, in the field it came from.',
     );
   }
-  if (!personaName) {
+  if (WRITE_UP_FIELDS.some((field) => PLACEHOLDER_RE.test(profile[field]))) {
+    const reader = personaName ? ` (now ${personaName})` : '';
     rules.push(
-      "- Where the profile says {{user}}, it means the reader's character; keep {{user}} as written.",
+      `- The profile writes {{char}} for ${name} and {{user}} for the reader's character${reader}. Keep each one as written wherever the profile has it, since the reader's character can change.`,
     );
   }
   rules.push('- Write in the same language as the profile.');
@@ -506,7 +523,7 @@ export function buildWriteUpMessages({
     `Personality: ${current.personality || '(empty)'}`,
     `Usual routine: ${current.routine || '(empty)'}`,
   ];
-  const scenario = labelImages(withNames(profile.scenario, name, personaName)).trim();
+  const scenario = labelImages(profile.scenario).trim();
   if (scenario) profileLines.push(`Scenario, for context: ${scenario}`);
   if (arcNotes.length > 0) {
     const changes = arcNotes.map((note) => `- ${note.content}`);
@@ -699,10 +716,18 @@ export async function writeUp({ stores, bureau, interview, member, client, signa
       response: { proposal },
     });
 
-    const saved = stores.interviews.setProposal(bureau.id, interview.id, proposal);
-    if (!saved) {
-      throw new Error('The interview ended while it was being written up');
+    // Answers given while this was being written (say, in another tab) aren't in it, so saving it
+    // would pass it off as current.
+    const latest = stores.interviews.getInterview(bureau.id, interview.id);
+    if (latest?.status !== 'open') {
+      throw new InterviewChangedError('The interview ended while it was being written up');
     }
+    if (lastAnswerId(latest) !== lastAnswerId(interview)) {
+      throw new InterviewChangedError(
+        'New answers came in while this was being written up. Write it up again to include them.',
+      );
+    }
+    const saved = stores.interviews.setProposal(bureau.id, interview.id, proposal);
     run.complete();
     return saved;
   } catch (error) {
