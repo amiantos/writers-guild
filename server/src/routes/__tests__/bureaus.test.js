@@ -331,19 +331,10 @@ describe('Bureau routes', () => {
         .expect(200);
       expect(updated.castMember.isPersona).toBe(true);
 
-      const { body: withRoutine } = await request(app)
-        .put(memberUrl)
-        .send({ routine: '  Nights at the light.  ' })
-        .expect(200);
-      expect(withRoutine.castMember).toMatchObject({
-        isPersona: true,
-        routine: { text: 'Nights at the light.' },
-      });
       await request(app).put(memberUrl).send({}).expect(400);
-      await request(app)
-        .put(memberUrl)
-        .send({ routine: 'x'.repeat(2001) })
-        .expect(400);
+      await request(app).put(memberUrl).send({ isPersona: 'yes' }).expect(400);
+      // The routine changes through the profile (see bureau-profiles.test.js).
+      await request(app).put(memberUrl).send({ routine: 'Nights at the light.' }).expect(400);
 
       await request(app).delete(memberUrl).expect(200);
       await request(app).get(memberUrl).expect(404);

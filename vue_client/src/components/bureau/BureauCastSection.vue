@@ -47,6 +47,13 @@
           </div>
 
           <button
+            class="btn btn-secondary btn-small"
+            :title="`Read or change ${member.name}'s card and routine, or interview them`"
+            @click="profileMember = member"
+          >
+            <i class="fas fa-id-card"></i> Profile
+          </button>
+          <button
             class="btn btn-secondary btn-small memories-button"
             :title="`Browse and correct what ${member.name} remembers`"
             @click="memoryMember = member"
@@ -56,18 +63,6 @@
               {{ memoryCounts[member.id].current }}
             </span>
             <span v-if="reviewTitle(member)" class="review-dot" :title="reviewTitle(member)"></span>
-          </button>
-          <button
-            class="icon-btn"
-            :class="{ active: member.routine?.text }"
-            :title="
-              member.routine?.text
-                ? `${member.name}'s routine: ${member.routine.text}`
-                : `Describe ${member.name}'s usual routine`
-            "
-            @click="routineMember = member"
-          >
-            <i class="fas fa-calendar-day"></i>
           </button>
           <label class="checkbox-label reader-toggle" :title="readerToggleTitle">
             <input
@@ -128,12 +123,13 @@
       @close="memoryMember = null"
       @changed="emit('changed')"
     />
-    <RoutineModal
-      v-if="routineMember"
+    <ProfileModal
+      v-if="profileMember"
       :bureau-id="bureauId"
-      :member="routineMember"
-      @close="routineMember = null"
-      @saved="handleRoutineSaved"
+      :cast-id="profileMember.id"
+      :has-api-key="hasApiKey"
+      @close="profileMember = null"
+      @changed="emit('changed')"
     />
   </section>
 </template>
@@ -146,7 +142,7 @@ import { useConfirm } from '../../composables/useConfirm';
 import AddCastModal from './AddCastModal.vue';
 import GenerateCharacterModal from './GenerateCharacterModal.vue';
 import MemoryBrowserModal from './MemoryBrowserModal.vue';
-import RoutineModal from './RoutineModal.vue';
+import ProfileModal from './ProfileModal.vue';
 
 const props = defineProps({
   bureauId: { type: String, required: true },
@@ -167,7 +163,7 @@ const readerToggleTitle = "The reader's character is the one you write for in ch
 const showAdd = ref(false);
 const showGenerate = ref(false);
 const memoryMember = ref(null);
-const routineMember = ref(null);
+const profileMember = ref(null);
 // Cast member ids with a request in flight.
 const busy = reactive({});
 const brokenImages = reactive({});
@@ -202,12 +198,6 @@ async function exportMember(member) {
   } finally {
     delete busy[member.id];
   }
-}
-
-function handleRoutineSaved(castMember) {
-  routineMember.value = null;
-  toast.success(`Saved ${castMember.name}'s routine`);
-  emit('changed');
 }
 
 async function saveDraft(member) {

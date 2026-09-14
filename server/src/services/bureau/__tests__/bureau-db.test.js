@@ -33,7 +33,14 @@ describe('bureau-db', () => {
       .all()
       .map((table) => table.name);
     expect(tables).toEqual(
-      expect.arrayContaining(['bureaus', 'cast_members', 'agent_runs', 'agent_steps']),
+      expect.arrayContaining([
+        'bureaus',
+        'cast_members',
+        'agent_runs',
+        'agent_steps',
+        'profile_versions',
+        'interviews',
+      ]),
     );
   });
 
@@ -63,6 +70,8 @@ describe('bureau-db', () => {
   it('upgrades an older database to the current schema', () => {
     const db = openBureauDb(tempDir);
     db.exec(`
+      DROP TABLE interviews;
+      DROP TABLE profile_versions;
       DROP TABLE messages;
       DROP TABLE threads;
       DROP TABLE arc_notes;
@@ -97,13 +106,37 @@ describe('bureau-db', () => {
         'arc_notes',
         'threads',
         'messages',
+        'profile_versions',
+        'interviews',
       ]),
     );
     expect(upgraded.prepare('SELECT archived_through, summary FROM stories').all()).toEqual([]);
   });
 
+  it('adds profile versions and interviews, with no history for existing cast members', () => {
+    const db = openBureauDb(tempDir);
+    db.exec(`
+      DROP TABLE interviews;
+      DROP TABLE profile_versions;
+      INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
+      VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
+      INSERT INTO cast_members (id, bureau_id, name, seed_card, created, modified)
+      VALUES ('c1', 'b1', 'Mara', '{"data":{"name":"Mara"}}', 'now', 'now');
+    `);
+    db.pragma('user_version = 9');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+
+    expect(upgraded.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+    expect(upgraded.prepare('SELECT COUNT(*) AS count FROM profile_versions').get().count).toBe(0);
+    expect(upgraded.prepare('SELECT COUNT(*) AS count FROM interviews').get().count).toBe(0);
+    expect(upgraded.prepare('SELECT name FROM cast_members').get().name).toBe('Mara');
+  });
+
   it('gives Bureaus from before avatar windows none', () => {
     const db = openBureauDb(tempDir);
+    db.exec('DROP TABLE interviews; DROP TABLE profile_versions;');
     db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
     db.prepare(
       `INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
@@ -127,8 +160,9 @@ describe('bureau-db', () => {
       VALUES ('shifted', 'Shifted', 'deepseek-flash', '2020-01-01T00:00:00.000Z', -365, 'now', 'now'),
              ('plain', 'Plain', 'deepseek-flash', '2020-01-01T00:00:00.000Z', 0, 'now', 'now');
     `);
-    // Back to the tables version 6 had, before time could pass in a chapter and before avatar
-    // windows.
+    // Back to the tables version 6 had, before time could pass in a chapter, avatar windows, and
+    // profiles.
+    db.exec('DROP TABLE interviews; DROP TABLE profile_versions;');
     db.exec('ALTER TABLE turns DROP COLUMN bureau_time');
     db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
     db.pragma('user_version = 6');

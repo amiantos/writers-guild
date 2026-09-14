@@ -17,6 +17,14 @@
       </div>
       <div class="header-right">
         <button
+          v-if="castMember"
+          class="icon-btn"
+          :title="`${castMember.name}'s profile`"
+          @click="showProfile = true"
+        >
+          <i class="fas fa-id-card"></i>
+        </button>
+        <button
           v-if="bureau?.hasApiKey && hasUnarchived"
           class="btn btn-secondary btn-small"
           :disabled="archiving || sending"
@@ -128,6 +136,14 @@
         </div>
       </div>
     </template>
+
+    <ProfileModal
+      v-if="showProfile"
+      :bureau-id="bureauId"
+      :cast-id="castId"
+      :has-api-key="Boolean(bureau?.hasApiKey)"
+      @close="showProfile = false"
+    />
   </div>
 </template>
 
@@ -144,6 +160,7 @@ import { groupSessions, splitReply } from '../../composables/bureau/messages';
 import TurnSeam from '../../components/bureau/TurnSeam.vue';
 import MessageBubble from '../../components/bureau/MessageBubble.vue';
 import TimePassesControl from '../../components/bureau/TimePassesControl.vue';
+import ProfileModal from '../../components/bureau/ProfileModal.vue';
 
 const props = defineProps({
   bureauId: { type: String, required: true },
@@ -171,6 +188,7 @@ let abortController = null;
 const listRef = ref(null);
 const inputRef = ref(null);
 const brokenAvatar = ref(false);
+const showProfile = ref(false);
 
 const sessions = computed(() => groupSessions(messages.value));
 const pendingParts = computed(() => (pending.value ? splitReply(pending.value.content) : []));

@@ -25,6 +25,7 @@ import { DEFAULT_CORRESPONDENCE_STYLE } from '../services/bureau/correspondence.
 import { DEFAULT_HOUSE_STYLE } from '../services/bureau/writer-prompt.js';
 import bureauCorrespondenceRouter from './bureau-correspondence.js';
 import bureauMemoriesRouter from './bureau-memories.js';
+import bureauProfilesRouter from './bureau-profiles.js';
 import bureauStoriesRouter from './bureau-stories.js';
 import {
   attachBureauStores,
@@ -397,9 +398,8 @@ router.get(
   }),
 );
 
-const MAX_ROUTINE_CHARACTERS = 2000;
-
-// Update a cast member: whether they're the reader's character, and their usual routine
+// Update a cast member: whether they're the reader's character. Their card and routine change
+// through their profile (see bureau-profiles.js).
 router.put(
   '/:bureauId/cast/:castId',
   asyncHandler(async (req, res) => {
@@ -407,24 +407,15 @@ router.put(
     const { bureauId, castId } = req.params;
     requireBureau(bureaus, bureauId);
 
-    const { isPersona, routine } = req.body ?? {};
-    if (isPersona === undefined && routine === undefined) {
+    const { isPersona } = req.body ?? {};
+    if (isPersona === undefined) {
       throw new AppError('No updates provided', 400);
     }
-    if (isPersona !== undefined && typeof isPersona !== 'boolean') {
+    if (typeof isPersona !== 'boolean') {
       throw new AppError('isPersona must be a boolean', 400);
     }
-    if (
-      routine !== undefined &&
-      (typeof routine !== 'string' || routine.length > MAX_ROUTINE_CHARACTERS)
-    ) {
-      throw new AppError(`routine must be text of up to ${MAX_ROUTINE_CHARACTERS} characters`, 400);
-    }
 
-    const castMember = bureaus.updateCastMember(bureauId, castId, {
-      isPersona,
-      routine: routine?.trim(),
-    });
+    const castMember = bureaus.updateCastMember(bureauId, castId, { isPersona });
     if (!castMember) {
       throw new AppError('Cast member not found', 404);
     }
@@ -645,6 +636,7 @@ router.get(
 // ==================== Stories ====================
 
 router.use('/:bureauId', bureauMemoriesRouter);
+router.use('/:bureauId', bureauProfilesRouter);
 router.use('/:bureauId/stories', bureauStoriesRouter);
 router.use('/:bureauId/threads', bureauCorrespondenceRouter);
 

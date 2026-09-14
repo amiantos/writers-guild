@@ -284,7 +284,7 @@ describe('generateReply', () => {
   });
 
   it('first writes what the character did during a long silence', async () => {
-    stores.bureaus.updateCastMember(bureau.id, mara.id, { routine: 'Nights at the light.' });
+    stores.bureaus.updateProfile(bureau.id, mara.id, { routine: 'Nights at the light.' });
     stores.threads.addMessage(thread.id, {
       source: 'generated',
       senderCastId: mara.id,

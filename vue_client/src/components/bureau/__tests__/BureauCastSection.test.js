@@ -51,6 +51,29 @@ describe('BureauCastSection', () => {
     expect(wrapper.emitted('changed')).toHaveLength(1);
   });
 
+  it("opens a cast member's profile, which holds their routine", async () => {
+    const wrapper = mount(BureauCastSection, {
+      props: { bureauId: 'b1', cast: CAST, hasApiKey: false },
+      global: {
+        stubs: {
+          ProfileModal: {
+            props: ['castId', 'hasApiKey'],
+            template: '<div class="profile-stub">{{ castId }} {{ hasApiKey }}</div>',
+          },
+        },
+      },
+    });
+    const [, saved] = wrapper.findAll('.cast-row');
+
+    expect(saved.find('.fa-calendar-day').exists()).toBe(false);
+    await saved
+      .findAll('button')
+      .find((button) => button.text().includes('Profile'))
+      .trigger('click');
+
+    expect(wrapper.find('.profile-stub').text()).toBe('c2 false');
+  });
+
   it("can't generate a character without an API key", () => {
     const wrapper = mountSection({ hasApiKey: false });
     const generate = wrapper

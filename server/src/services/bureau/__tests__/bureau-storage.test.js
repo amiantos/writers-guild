@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { BureauStorage, CastConflictError, maskApiKey } from '../bureau-storage.js';
+import { BureauStorage, CastConflictError, maskApiKey, profileOf } from '../bureau-storage.js';
 import { closeBureauDb } from '../bureau-db.js';
 import { DEFAULT_MODEL } from '../deepseek-client.js';
 import { resolveSettings } from '../bureau-settings.js';
@@ -301,6 +301,96 @@ describe('BureauStorage', () => {
       expect(storage.getCastMember(other.id, member.id)).toBeNull();
       expect(storage.updateCastMember(other.id, member.id, { isPersona: true })).toBeNull();
       expect(storage.removeCastMember(other.id, member.id)).toBe(false);
+    });
+  });
+
+  describe('profiles', () => {
+    let bureau;
+    let mara;
+
+    beforeEach(() => {
+      bureau = storage.createBureau({ name: 'Harbor' });
+      const source = card('Mara');
+      source.data.personality = 'Dry.';
+      source.data.alternate_greetings = ['Evening.'];
+      mara = storage.addCastMember(bureau.id, { seedCard: source, libraryCharacterId: 'char-1' });
+    });
+
+    const history = () =>
+      storage
+        .listProfileVersions(bureau.id, mara.id)
+        .map((version) => [version.source, version.sourceId, version.changed]);
+
+    it("changes the Bureau's copy of the card and the routine, keeping every version", () => {
+      expect(profileOf(mara)).toEqual({
+        description: 'Mara from the library',
+        personality: 'Dry.',
+        scenario: '',
+        first_mes: '',
+        mes_example: '',
+        routine: '',
+      });
+      expect(storage.listProfileVersions(bureau.id, mara.id)).toEqual([]);
+
+      const updated = storage.updateProfile(bureau.id, mara.id, {
+        description: 'Keeps the light.',
+        routine: 'Nights at the light.',
+        name: 'Not a profile field',
+      });
+
+      expect(updated.seedCard.data).toEqual({
+        name: 'Mara',
+        description: 'Keeps the light.',
+        personality: 'Dry.',
+        alternate_greetings: ['Evening.'],
+      });
+      expect(updated.routine).toEqual({ text: 'Nights at the light.' });
+      expect(history()).toEqual([
+        ['original', null, []],
+        ['manual', null, ['description', 'routine']],
+      ]);
+      const [original] = storage.listProfileVersions(bureau.id, mara.id);
+      expect(original.fields).toMatchObject({ description: 'Mara from the library', routine: '' });
+      expect(original.created).toBe(mara.created);
+    });
+
+    it('keeps no version when nothing changes', () => {
+      expect(profileOf(storage.updateProfile(bureau.id, mara.id, { personality: 'Dry.' }))).toEqual(
+        profileOf(mara),
+      );
+      expect(storage.listProfileVersions(bureau.id, mara.id)).toEqual([]);
+    });
+
+    it('restores an earlier version as a new one', () => {
+      storage.updateProfile(bureau.id, mara.id, { description: 'Keeps the light.' });
+      storage.updateProfile(
+        bureau.id,
+        mara.id,
+        { personality: 'Warm.' },
+        { source: 'interview', sourceId: 'interview-1' },
+      );
+      const [original] = storage.listProfileVersions(bureau.id, mara.id);
+
+      const restored = storage.restoreProfileVersion(bureau.id, mara.id, original.id);
+
+      expect(profileOf(restored)).toMatchObject({
+        description: 'Mara from the library',
+        personality: 'Dry.',
+      });
+      expect(history()).toEqual([
+        ['original', null, []],
+        ['manual', null, ['description']],
+        ['interview', 'interview-1', ['personality']],
+        ['restore', String(original.id), ['description', 'personality']],
+      ]);
+      expect(storage.restoreProfileVersion(bureau.id, mara.id, 9999)).toBeNull();
+    });
+
+    it('refuses unknown sources and people outside the cast', () => {
+      expect(() =>
+        storage.updateProfile(bureau.id, mara.id, { routine: 'x' }, { source: 'original' }),
+      ).toThrow('Unknown profile source');
+      expect(storage.updateProfile(bureau.id, 'nobody', { routine: 'x' })).toBeNull();
     });
   });
 

@@ -125,8 +125,33 @@ export const bureausAPI = {
     return request(`/${bureauId}/cast`, { method: 'POST', body: { characterId, isPersona } });
   },
 
+  /** @param {{ isPersona: boolean }} updates */
   updateCast(bureauId, castId, updates) {
     return request(`/${bureauId}/cast/${castId}`, { method: 'PUT', body: updates });
+  },
+
+  /**
+   * A cast member's profile (the Bureau's copy of their card, and their routine), with every
+   * version kept, oldest first: { castMember, profile, versions }.
+   */
+  getProfile(bureauId, castId) {
+    return request(`/${bureauId}/cast/${castId}/profile`);
+  },
+
+  /**
+   * Change a profile by hand, keeping the change as a version. Any of description, personality,
+   * scenario, first_mes, mes_example, and routine.
+   */
+  updateProfile(bureauId, castId, updates) {
+    return request(`/${bureauId}/cast/${castId}/profile`, { method: 'PUT', body: updates });
+  },
+
+  /** Put a profile back as it was at an earlier version. */
+  restoreProfileVersion(bureauId, castId, versionId) {
+    return request(`/${bureauId}/cast/${castId}/profile/versions/${versionId}/restore`, {
+      method: 'POST',
+      body: {},
+    });
   },
 
   removeCast(bureauId, castId) {
@@ -385,5 +410,54 @@ export const bureauThreadsAPI = {
 
   deleteMessage(bureauId, castId, messageId) {
     return request(`/${bureauId}/threads/${castId}/messages/${messageId}`, { method: 'DELETE' });
+  },
+};
+
+export const bureauInterviewsAPI = {
+  /**
+   * A cast member's open interview (null when there isn't one), with the Bureau, the cast member,
+   * and the focuses an interview can start with.
+   */
+  get(bureauId, castId) {
+    return request(`/${bureauId}/cast/${castId}/interview`);
+  },
+
+  /**
+   * Start an interview and stream its first question. Events: interview (as it stands), run,
+   * content, and done (with interview).
+   * @param {{ focus: string, note?: string }} options
+   */
+  start(bureauId, castId, { focus, note = '' }, signal) {
+    return streamEvents(`/${bureauId}/cast/${castId}/interview`, { focus, note }, signal);
+  },
+
+  /** Answer the latest question and stream the next, with the same events as start. */
+  answer(bureauId, castId, text, signal) {
+    return streamEvents(`/${bureauId}/cast/${castId}/interview/answers`, { text }, signal);
+  },
+
+  /** Stream a different question in place of the latest, or a question if none is waiting. */
+  askAgain(bureauId, castId, signal) {
+    return streamEvents(`/${bureauId}/cast/${castId}/interview/ask-again`, {}, signal);
+  },
+
+  /** Write up the answers as a new description, personality, and routine to review. */
+  writeUp(bureauId, castId) {
+    return request(`/${bureauId}/cast/${castId}/interview/write-up`, { method: 'POST', body: {} });
+  },
+
+  /**
+   * Accept the write-up as the reader edited it. Answers with the cast member, the closed
+   * interview, and `updated`: anyone else whose description gained a line.
+   * @param {{ description: string, personality: string, routine: string,
+   *   relationships: Array<{ castId: string, addition: string }> }} edits
+   */
+  accept(bureauId, castId, edits) {
+    return request(`/${bureauId}/cast/${castId}/interview/accept`, { method: 'POST', body: edits });
+  },
+
+  /** Discard the open interview; the profile stays as it is. */
+  discard(bureauId, castId) {
+    return request(`/${bureauId}/cast/${castId}/interview`, { method: 'DELETE' });
   },
 };

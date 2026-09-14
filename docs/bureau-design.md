@@ -1,7 +1,7 @@
 # Bureau — Design Doc
 
-- **Status:** Experimental; phases 1–7 are built
-- **Started:** 2026-09-11 (last updated 2026-09-13)
+- **Status:** Experimental; phases 1–8 are built
+- **Started:** 2026-09-11 (last updated 2026-09-14)
 - **Working name:** Bureau (not final)
 - **Branch:** built on `feature/bureau` and merged into `main` in PR #51
 - **Discussion:** [#49 Chat Mode + Memories](https://github.com/amiantos/writers-guild/discussions/49)
@@ -47,7 +47,8 @@ idea:
 ## Goals
 
 - Characters remember what they experienced, per character, with sources you can inspect.
-- Characters develop over time through reviewable changes, without rewriting their original card.
+- Characters develop over time through reviewable changes, and their profiles change only when you
+  change them, with every version kept.
 - Chapters in a Bureau connect: later chapters know what happened in earlier ones.
 - Correspondence with cast members between chapters, feeding the same memory.
 - One Bureau time, a story clock only you move: messages happen at it, and each chapter starts at
@@ -78,17 +79,18 @@ idea:
 
 ## Concepts
 
-| Concept            | What it is                                                                                   |
-| ------------------ | -------------------------------------------------------------------------------------------- |
-| **Bureau**         | An environment for an ongoing story, written in chapters. Holds everything below.            |
-| **Cast**           | The Bureau's characters. Each has a file: seed card, arc notes, memories, routine.           |
-| **World**          | Attached lorebooks plus world state: timeline and ongoing threads.                           |
-| **Chapter**        | An ordered sequence of turns, with a title, start time, and cast. Chapters are ordered too.  |
-| **Turn**           | One group of paragraphs (user prose, a direction, or a generated passage) plus its metadata. |
-| **Turn seam**      | A hidden divider between turns that expands to show how the next turn was made.              |
-| **Correspondence** | A message thread between the persona and one cast member, between chapters.                  |
-| **Bureau time**    | The Bureau's current date and time: a story clock that only the reader moves.                |
-| **House style**    | An editable prose rulebook used by the Writer and the Editor. Empty follows the default.     |
+| Concept            | What it is                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------- |
+| **Bureau**         | An environment for an ongoing story, written in chapters. Holds everything below.              |
+| **Cast**           | The Bureau's characters. Each has a profile (their card and routine), arc notes, and memories. |
+| **Interview**      | Questions about one character, written up as a new profile for you to review.                  |
+| **World**          | Attached lorebooks plus world state: timeline and ongoing threads.                             |
+| **Chapter**        | An ordered sequence of turns, with a title, start time, and cast. Chapters are ordered too.    |
+| **Turn**           | One group of paragraphs (user prose, a direction, or a generated passage) plus its metadata.   |
+| **Turn seam**      | A hidden divider between turns that expands to show how the next turn was made.                |
+| **Correspondence** | A message thread between the persona and one cast member, between chapters.                    |
+| **Bureau time**    | The Bureau's current date and time: a story clock that only the reader moves.                  |
+| **House style**    | An editable prose rulebook used by the Writer and the Editor. Empty follows the default.       |
 
 Code, the API, and the database still call a chapter a `story`: the `stories` and `story_cast`
 tables, routes under `/stories`, and the memory source type `story`.
@@ -100,6 +102,9 @@ card**). Everything that character develops (memories, arc notes, routine) stays
 
 - The library card never changes, consistent with Writers Guild's stance that saved characters
   should only change deliberately.
+- The Bureau's copy, with the member's routine, is their **profile**. It changes only when you edit it
+  or accept an interview, and every version is kept (see
+  [Profiles and interviews](#profiles-and-interviews)).
 - The same library character can live in two Bureaus with separate histories.
 - **Export to library** saves an evolved character as a _new_ library character.
 
@@ -406,7 +411,7 @@ Memory belongs to characters, not to the Bureau.
 
 | Layer          | Contents                                                                                  | In the prompt                                            |
 | -------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| Seed card      | Copy of the library card at join time; never rewritten                                    | Always                                                   |
+| Profile        | The Bureau's copy of the card, and the routine; changes only by hand or from an interview | Always                                                   |
 | Arc notes      | Accepted development notes, versioned                                                     | Always                                                   |
 | Knowledge      | Facts about other cast members (persona included), preferences, milestones, running jokes | Always, within a budget ranked by importance and recency |
 | Episodes       | Dated summaries of chapters and correspondence sessions the character took part in        | Recent ones in full                                      |
@@ -453,7 +458,9 @@ members. It's saved as knowledge with no chapter and no time, so every chapter c
 
 ## Character development
 
-- The seed card never changes. Accepted arc notes layer on top of it.
+- Accepted arc notes layer on top of a character's profile. Nothing automatic rewrites the profile:
+  only you do, by hand or by accepting an interview (see
+  [Profiles and interviews](#profiles-and-interviews)).
 - The Archivist proposes arc notes during its usual pass, with a rationale and the passages that show
   the change, and only when a chapter changes who a character is: a new habit, a stance that
   softened or hardened, a lasting decision. It skips changes the character already has, that are
@@ -465,13 +472,67 @@ members. It's saved as knowledge with no chapter and no time, so every chapter c
   start. The Writer gets them in the character's profile ("How Mara has changed"), and the
   Director's `get_character_file` includes them. Changing a passage a note cites marks the note for
   review.
-- **Why not rewrite the card:** repeated LLM rewrites flatten a character toward bland and agreeable.
-  A fixed seed anchors the voice; notes only add.
-- **Drift check (later):** periodically compare recent dialogue against the seed card's voice and flag
+- **Why the Archivist doesn't rewrite the profile:** repeated LLM rewrites flatten a character toward
+  bland and agreeable. A profile that only you change anchors the voice; notes only add.
+- **Drift check (later):** periodically compare recent dialogue against the profile's voice and flag
   drift.
-- **Export to library** copies the seed card into a new library character, adds the accepted notes to
-  its description under "How {name} has changed", keeps the original's portrait, and tags it
-  `bureau`. The library character the Bureau copied is never overwritten.
+- **Export to library** copies the profile's card into a new library character, adds the accepted
+  notes to its description under "How {name} has changed", keeps the original's portrait, and tags
+  it `bureau`. The library character the Bureau copied is never overwritten.
+
+## Profiles and interviews
+
+A cast member's **profile** is the Bureau's copy of their card, plus their routine: where you read and
+change who a character is, one character at a time.
+
+### Profile
+
+- **Where:** the Profile button on each cast row, a profile button beside each name in "Who's in this
+  chapter", and one in a message thread's header.
+- **What it holds:** description, personality, routine, scenario, first message, and example
+  dialogue, each editable by hand. Name, portrait, and greetings stay as they joined. Accepted arc
+  notes show below, read-only.
+- **History:** every change is kept as a version, labeled edited by you, from an interview, or
+  restored. The first change also keeps the profile as it was. Restoring a version saves it as a new
+  version, so nothing is lost.
+- The routine used to have its own button on the cast row. It lives in the profile now, since
+  replies and offscreen life depend on it and interviews can fill it in.
+- The library character is never touched. Export to library carries the profile's card as it
+  stands; the routine stays in the Bureau, since a library card has no place for it.
+
+### Interview
+
+An interview asks you about one character a question at a time, then writes your answers up as a new
+profile for you to review. It's the familiar character interview exercise, and it keeps the new
+material yours: the model asks and writes up, but the facts come from your answers.
+
+- **Focus:** Flesh them out (history, wants, habits, days, and where they stand with the cast),
+  Relationships, or Daily routine, with an optional note on anything in particular.
+- **The interviewer** gets the profile, how the character has changed, what they remember as of Bureau
+  time, the rest of the cast, and the world. It asks about one thing at a time: what the profile
+  leaves thin, unsaid, or in tension, never what's already settled. **Skip** moves on for good,
+  **You decide** has it choose something that fits and say what it chose, and **Ask something else**
+  replaces the latest question. Questions stream with thinking off, each recorded as a run.
+- **Write it up** makes one forced `write_profile` call with thinking off. It returns the whole
+  description, personality, and routine in plain English, a line on what changed, and lines for
+  other cast members' descriptions when the interview revealed a relationship their descriptions
+  don't cover, since they may appear in scenes without this character. It changes only what the
+  interview changed, keeps the rest in its own wording, and adds nothing the author didn't say.
+  Placeholders like `{{user}}` stay as written, since the reader's character can change.
+  Images in the profile come back where they were, or at the end of their field if the model drops
+  their markers.
+- **Review:** edit any field, keep or drop each relationship line, then accept. Nothing changes
+  until you do. Accepting saves a version from the interview on every profile it changes, with
+  relationship lines at the end of the other character's description. If the profile changed after
+  the write-up, accepting is refused until you write it up again.
+- A character has one open interview at a time, which keeps its questions and answers until you
+  accept or discard it. Answering again sets a waiting write-up aside.
+- Interviews rewrite description, personality, and routine only. Editing several characters in one
+  interview was left out as too complicated; relationships reach the other character through the
+  write-up instead.
+- First trials against V4.1 Flash showed write-ups embellishing: traits and atmosphere nobody gave,
+  and answers invented for skipped questions. The write-up now keeps untouched text as it was and
+  adds only what the author said.
 
 ## Correspondence
 
@@ -493,8 +554,9 @@ members. It's saved as knowledge with no chapter and no time, so every chapter c
   written in a seam, and lets you edit or delete any message; changing one marks memories that cite
   it for review. "Let them write" asks for messages without a new one from you.
 - Sessions go into memory the way chapters do (see [Archivist](#archivist)), so the next chapter
-  knows you texted that afternoon. Each cast member has a **routine**, written from their cast row,
-  which replies take into account for the time of day.
+  knows you texted that afternoon. Each cast member has a **routine**, written in their profile (see
+  [Profiles and interviews](#profiles-and-interviews)), which replies take into account for the time
+  of day.
 - After a quiet stretch, a reply first gets the character an account of what they did meanwhile (see
   [Offscreen life](#offscreen-life)); the reply's seam shows it as part of the run.
 - **Later:** the Director for replies that need tools, characters message first, and other delivery
@@ -659,7 +721,11 @@ later phases add the rest as migrations:
 bureaus        (id, name, description, api_key, model, bureau_time, present_offset_days [unused],
                 timezone, house_style, settings JSON, avatar_windows JSON, created, modified)
 cast_members   (id, bureau_id, library_character_id NULL, name, is_persona, is_draft,
-                seed_card JSON, routine JSON, created, modified)
+                seed_card JSON [the profile's card], routine JSON, created, modified)
+profile_versions (id, bureau_id, cast_member_id, fields JSON,
+                source [original|manual|interview|restore], source_id NULL, created)
+interviews     (id, bureau_id, cast_member_id, focus, note, status [open|accepted],
+                messages JSON, proposal JSON NULL, created, modified)
 arc_notes      (id, bureau_id, cast_member_id, content, proposed_content, rationale,
                 status [proposed|accepted|rejected], world_time NULL,
                 source_type [story|correspondence|manual],
@@ -722,10 +788,13 @@ server/src/services/bureau/
   character-generator.js
   greetings.js                           # card greetings a chapter can open with
   images.js                              # image labels, and images shown as a passage streams
+  interview.js                           # interview questions, write-ups, and accepting them
+  interview-storage.js                   # interviews with their questions and answers
   run-recorder.js                        # agent_runs and agent_steps
+server/src/routes/bureau-profiles.js     # profiles and interviews
 server/scripts/bureau-smoke.js           # tool-loop smoke test against the real API
 
-vue_client/src/views/bureau/             # Bureau list and home, story, correspondence
+vue_client/src/views/bureau/             # Bureau list and home, story, correspondence, interview
 vue_client/src/components/bureau/        # TurnBlock, TurnSeam, Composer, MemoryBrowser, ...
 vue_client/src/composables/bureau/       # turn rendering, streaming, avatar windows, ...
 ```
@@ -783,23 +852,26 @@ Each phase ends with something usable.
    afterward.
 7. **Correspondence and offscreen life:** threads, Bureau time as a clock the reader moves with Time
    passes, offscreen life, episodes from sessions.
-8. **Later:** Workbench screen for comparing and rerunning runs, characters message first, IRC
+8. **Profiles and interviews:** a profile to read and edit each cast member's card and routine, with
+   every version kept, and interviews that write your answers up as a new profile for review.
+9. **Later:** Workbench screen for comparing and rerunning runs, characters message first, IRC
    bridge, learning house style from user edits to generated turns, embeddings, drift check, other
-   providers.
+   providers, interviews for library characters in story mode.
 
 ## Risks
 
-| Risk                                    | Mitigation                                                                                    |
-| --------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Characters flatten over time            | Fixed seed card; additive, reviewed arc notes; drift check later                              |
-| False or distorted memories             | Sources on every memory; editable; `recall` can check raw text; edited sources flag memories  |
-| Prompt bloat dilutes attention          | Per-layer budgets, eras, long tail through `recall`                                           |
-| Multi-step turns are slow or costly     | Fast path that skips the Director; Editor only on flagged paragraphs; stable prompt prefix    |
-| Lint false positives cause bad edits    | Pure, unit-tested checks; every fix visible in its seam with one-click revert                 |
-| Characters get the time wrong           | The exact time in prompts, with mentions kept consistent with it and no dwelling on the clock |
-| Offscreen life escalates into melodrama | Generated only when Bureau time jumps forward, capped, mostly mundane by instruction          |
-| DeepSeek API details change             | All model access goes through one client; run records and seams surface failures              |
-| Scope creep                             | Phases that each end usable; experimental label; separate database                            |
+| Risk                                    | Mitigation                                                                                                                          |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Characters flatten over time            | Profiles change only by hand or from a reviewed interview, with every version kept; additive, reviewed arc notes; drift check later |
+| Interview write-ups embellish           | Untouched text comes back as it was, only the author's answers are added, and nothing applies until you review it                   |
+| False or distorted memories             | Sources on every memory; editable; `recall` can check raw text; edited sources flag memories                                        |
+| Prompt bloat dilutes attention          | Per-layer budgets, eras, long tail through `recall`                                                                                 |
+| Multi-step turns are slow or costly     | Fast path that skips the Director; Editor only on flagged paragraphs; stable prompt prefix                                          |
+| Lint false positives cause bad edits    | Pure, unit-tested checks; every fix visible in its seam with one-click revert                                                       |
+| Characters get the time wrong           | The exact time in prompts, with mentions kept consistent with it and no dwelling on the clock                                       |
+| Offscreen life escalates into melodrama | Generated only when Bureau time jumps forward, capped, mostly mundane by instruction                                                |
+| DeepSeek API details change             | All model access goes through one client; run records and seams surface failures                                                    |
+| Scope creep                             | Phases that each end usable; experimental label; separate database                                                                  |
 
 ## Open questions
 
