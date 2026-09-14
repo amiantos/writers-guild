@@ -14,21 +14,23 @@
           v-if="!loadingStories && !loadingCharacters && recentCharacters.length > 0"
           class="quick-access-section"
         >
-          <div class="quick-access-scroll">
-            <div
-              v-for="character in recentCharacters"
-              :key="character.id"
-              class="quick-access-character"
-            >
-              <CharacterCard :character="character" />
-              <button
-                class="btn btn-small btn-primary quick-continue-btn"
-                @click="showCharacterStories(character.id)"
+          <ScrollShadows hide-scrollbar edge="fade">
+            <div class="quick-access-row">
+              <div
+                v-for="character in recentCharacters"
+                :key="character.id"
+                class="quick-access-character"
               >
-                <i class="fas fa-play"></i> Continue
-              </button>
+                <CharacterCard :character="character" />
+                <button
+                  class="btn btn-small btn-primary quick-continue-btn"
+                  @click="showCharacterStories(character.id)"
+                >
+                  <i class="fas fa-play"></i> Continue
+                </button>
+              </div>
             </div>
-          </div>
+          </ScrollShadows>
         </div>
 
         <Tabs v-model="activeTab" :tabs="tabs">
@@ -230,6 +232,7 @@ import CharacterCard from '../components/CharacterCard.vue';
 import LorebooksTable from '../components/LorebooksTable.vue';
 import PresetsTable from '../components/PresetsTable.vue';
 import CharacterStoriesModal from '../components/CharacterStoriesModal.vue';
+import ScrollShadows from '../components/ScrollShadows.vue';
 import CreateCharacterModal from '../components/CreateCharacterModal.vue';
 import ImportCharacterModal from '../components/ImportCharacterModal.vue';
 import CreateLorebookModal from '../components/CreateLorebookModal.vue';
@@ -681,16 +684,9 @@ function goToSettings() {
   border: 1px solid var(--border-color);
 }
 
-.quick-access-scroll {
+.quick-access-row {
   display: flex;
   gap: 1rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-
-.quick-access-scroll::-webkit-scrollbar {
-  display: none;
 }
 
 .quick-access-character {
