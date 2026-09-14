@@ -51,12 +51,14 @@ export class DeepSeekError extends Error {
    * @param {Object} [details]
    * @param {number|null} [details.status] - HTTP status, when the API answered.
    * @param {*} [details.body] - Parsed or raw response body.
+   * @param {boolean} [details.timedOut] - The request stalled and was stopped.
    */
-  constructor(message, { status = null, body = null } = {}) {
+  constructor(message, { status = null, body = null, timedOut = false } = {}) {
     super(message);
     this.name = 'DeepSeekError';
     this.status = status;
     this.body = body;
+    this.timedOut = timedOut;
   }
 }
 
@@ -345,11 +347,25 @@ export class DeepSeekClient {
   }
 
   /**
-   * Non-streaming chat completion.
-   * @param {Object} options - See buildRequest(), plus `signal`.
+   * Chat completion, returning the whole result at once.
+   *
+   * With `stream: true`, the request is streamed and assembled here instead. The
+   * result is the same, but it times out only once DeepSeek goes quiet, so a
+   * stalled request fails sooner and a long one still finishes.
+   *
+   * @param {Object} options - See buildRequest(), plus `signal` and `stream`.
    * @returns {Promise<ChatResult>}
    */
   async chat(options) {
+    if (options.stream) {
+      let done = null;
+      for await (const event of this.chatStream(options)) {
+        if (event.type === 'done') done = event;
+      }
+      const { type: _type, ...result } = done;
+      return result;
+    }
+
     const { url, body } = this.buildRequest(options, false);
     // Nothing arrives until the whole response is ready, so the timeout covers all of it.
     const timeout = createRequestTimeout(this.responseTimeoutMs, options.signal);
@@ -363,6 +379,7 @@ export class DeepSeekClient {
       if (!timeout.timedOut) throw error;
       throw new DeepSeekError(
         `DeepSeek did not respond within ${formatTimeout(this.responseTimeoutMs)}`,
+        { timedOut: true },
       );
     } finally {
       timeout.clear();
@@ -412,6 +429,7 @@ export class DeepSeekClient {
       if (!timeout.timedOut) throw error;
       throw new DeepSeekError(
         `DeepSeek stopped responding: nothing arrived for ${formatTimeout(this.idleTimeoutMs)}`,
+        { timedOut: true },
       );
     } finally {
       timeout.clear();

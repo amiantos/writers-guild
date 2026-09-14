@@ -551,7 +551,7 @@ describe('generateWriterTurn', () => {
         { type: 'brief', brief: BRIEF },
         { type: 'stage', stage: 'writing' },
       ]);
-      expect(client.chatCalls[0]).toMatchObject({ thinking: true, strict: true });
+      expect(client.chatCalls[0]).toMatchObject({ thinking: true, strict: true, stream: true });
       expect(client.calls[0].messages[1].content).toContain(
         'Scene brief from the Director:\n- Mara answers the door',
       );
@@ -562,6 +562,34 @@ describe('generateWriterTurn', () => {
         ['writer', 'model'],
         ['lint', 'tool'],
       ]);
+    });
+
+    it('ends the turn when the Director times out, rather than waiting on the Writer too', async () => {
+      stores.bureaus.updateSettings(bureau.id, { director: { enabled: true } });
+      const stalled = new DeepSeekError(
+        'DeepSeek stopped responding: nothing arrived for 2 minutes',
+        { timedOut: true },
+      );
+      const client = withChat(
+        streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]),
+        [stalled],
+      );
+      let runId;
+
+      await expect(
+        generate(
+          client,
+          { action: 'direct', direction: 'Rain starts' },
+          { onEvent: (event) => (runId ??= event.runId) },
+        ),
+      ).rejects.toBe(stalled);
+
+      expect(client.calls).toHaveLength(0);
+      expect(stores.stories.listTurns(story.id)).toEqual([]);
+      expect(stores.bureaus.getRun(bureau.id, runId)).toMatchObject({
+        status: 'failed',
+        error: stalled.message,
+      });
     });
 
     it('skips the Director on a plain Continue, and writes without a brief if it fails', async () => {

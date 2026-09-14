@@ -215,6 +215,12 @@ export async function generateWriterTurn({
         recorder.finish('cancelled', 'Cancelled');
         return null;
       }
+      // A stalled DeepSeek would keep the Writer waiting too, so the turn ends here. The
+      // Director's failed call is already recorded.
+      if (error instanceof DeepSeekError && error.timedOut) {
+        recorder.fail(error);
+        throw error;
+      }
       // Failed model calls are already recorded; note anything else. Either way the Writer
       // goes on without a brief.
       if (!(error instanceof DeepSeekError)) {

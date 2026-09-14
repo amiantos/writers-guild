@@ -264,7 +264,24 @@ describe('DeepSeekClient', () => {
       const error = await client.chat({ messages: MESSAGES }).catch((caught) => caught);
 
       expect(error).toBeInstanceOf(DeepSeekError);
+      expect(error.timedOut).toBe(true);
       expect(error.message).toMatch(/^DeepSeek did not respond within/);
+    });
+
+    it('times out a streamed chat() once it goes quiet, not after the response timeout', async () => {
+      client = new DeepSeekClient({
+        apiKey: 'sk-test',
+        fetch: streamingFetch(() => ': keep-alive\n\n', 5),
+        idleTimeoutMs: 50,
+        responseTimeoutMs: 60_000,
+      });
+
+      const error = await client
+        .chat({ messages: MESSAGES, stream: true })
+        .catch((caught) => caught);
+
+      expect(error).toMatchObject({ name: 'DeepSeekError', timedOut: true });
+      expect(error.message).toMatch(/^DeepSeek stopped responding/);
     });
 
     it('fails a stream that sends only keep-alive comments', async () => {
@@ -353,6 +370,44 @@ describe('DeepSeekClient', () => {
         reasoning: '',
         toolCalls,
         finishReason: 'tool_calls',
+      });
+    });
+
+    it('can stream the request and still return the whole result', async () => {
+      fetchMock.mockResolvedValue(
+        sseResponse([
+          delta({ reasoning_content: 'Look it up.' }),
+          delta({
+            tool_calls: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'recall', arguments: '{"query":"lighthouse"}' },
+              },
+            ],
+          }),
+          delta({}, 'tool_calls', { usage: { prompt_tokens: 9, completion_tokens: 4 } }),
+          'data: [DONE]\n\n',
+        ]),
+      );
+
+      const result = await client.chat({ messages: MESSAGES, tools: [RECALL_TOOL], stream: true });
+
+      expect(sentRequest().body.stream).toBe(true);
+      expect(result).toEqual({
+        content: '',
+        reasoning: 'Look it up.',
+        toolCalls: [
+          {
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'recall', arguments: '{"query":"lighthouse"}' },
+          },
+        ],
+        finishReason: 'tool_calls',
+        usage: { prompt_tokens: 9, completion_tokens: 4 },
+        model: 'deepseek-flash',
       });
     });
 
