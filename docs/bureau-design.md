@@ -197,12 +197,14 @@ actions:
   Time passes elsewhere, and adds a divider showing the new time (see
   [Bureau time](#bureau-time)).
 
-The reader's character belongs to the reader. The Director and Writer leave what they say, decide,
-and think to the reader, though they can still be in the scene and carry on with anything already
-underway. A direction is the exception: whatever it has the reader's character say or do gets
-written, and nothing beyond it. A rewritten greeting keeps what the card has them do and adds
-nothing. When the moment turns to the reader's character, such as a question put to them or a
-choice only they can make, the passage ends there.
+The reader's character belongs to the reader. The Director and Writer leave what they say, do,
+decide, and think to the reader, including choices made without a word, like writing something down
+or nodding along. They stay in the scene as the chapter last left them. A direction is the
+exception: whatever it has the reader's character say or do gets written, and nothing beyond it. A
+rewritten greeting keeps what the card has them do and adds nothing. When the moment turns to the
+reader's character, such as a question put to them or a choice only they can make, the passage ends
+there. When the chapter already ends waiting on them and the reader continues anyway, the others
+carry on around it, without answering for the reader's character or saying they stay quiet.
 
 This is the second try at the rule. The first also had a style check flag the reader's character's
 dialogue, and an Editor that saw only the passage cut it afterward. Those cuts left prose that read
@@ -287,8 +289,8 @@ length, memories (only ones the Director found and the passage depends on, each 
 one-line reason; usually none), and notes on continuity the Writer could get wrong. Beats say plainly
 what happens and leave dialogue and wording to the Writer. A passage isn't built around one
 character's point of view: it can follow several characters at once as they interact. Beats leave
-what the reader's character says, decides, and thinks to the reader, unless a direction asks for
-it, and end where the moment turns to them. The brief
+what the reader's character says, does, decides, and thinks to the reader, unless a direction asks
+for it, and end where the moment turns to them. The brief
 doesn't restate the cards or
 plan callbacks to earlier events unless the scene is about them: memories are background, and
 characters who keep bringing up the past read as talky and artificial. Beats also don't repeat an

@@ -203,7 +203,15 @@ export function buildDirectorMessages({
       '- Plan what happens and leave how it reads to the Writer. Each beat is a plain sentence about what someone does or what changes, without lines of dialogue, jokes, imagery, or explanations of what anyone feels underneath.',
       "- A passage can follow any of the characters in the chapter, often several at once as they interact; don't build it around one character's point of view.",
       readerName
-        ? `- ${readerName} is the reader's character, so don't plan what ${readerName} says, decides, or thinks${directed ? " beyond what the author's direction asks for" : ''}. When the moment turns to ${readerName}, such as a question put to ${readerName} or a choice only ${readerName} can make, end the beats there${directed ? ' once the direction is carried out' : ''}.`
+        ? [
+            `- ${readerName} is the reader's character, so don't plan what ${readerName} says, does, decides, or thinks, including choices made without a word${directed ? ", beyond what the author's direction asks for" : ''}.`,
+            `When the moment turns to ${readerName}, such as a question put to ${readerName} or a choice only ${readerName} can make, end the beats there${directed ? ' once the direction is carried out' : ''}.`,
+            directed
+              ? null
+              : `If the chapter so far ends waiting on ${readerName}, plan around it without answering for ${readerName}.`,
+          ]
+            .filter(Boolean)
+            .join(' ')
         : null,
       '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
       "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have, such as refilling a drink or glancing out a window, unless something new comes of it or the request below asks for it.",

@@ -181,7 +181,7 @@ describe('generateWriterTurn', () => {
       response: { content: 'Mara opened the door.', finishReason: 'stop' },
     });
     expect(run.steps[0].request.messages[1].content).toContain(
-      "Theo is the reader's character, so leave what Theo says, decides, and thinks to the reader.",
+      "Theo is the reader's character, so leave what Theo says, does, decides, and thinks to the reader",
     );
   });
 

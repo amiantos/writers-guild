@@ -148,7 +148,7 @@ function greetingInstruction({ greeting, greetingText, readerName, timeLines }) 
     ...(readerName
       ? [
           `Where the greeting says "you", it means ${readerName}: refer to ${readerName} by name, in the house style's perspective.`,
-          `Beyond what the greeting has, leave what ${readerName} says, decides, and thinks to the reader.`,
+          `Beyond what the greeting has, leave what ${readerName} says, does, decides, and thinks to the reader.`,
         ]
       : [
           `Where the greeting says "you", write in the house style's perspective without inventing a name.`,
@@ -191,16 +191,17 @@ function instructionFor({
   }
   // The reader's character is the reader's to write, except for what a direction asks.
   const directed = request.action === 'direct' && Boolean(request.direction);
+  const leftToReader = `leave what ${readerName} says, does, decides, and thinks to the reader, including choices made without a word, like writing something down, taking something, or nodding along`;
   if (directed) {
     lines.push(
       `The author's direction for this passage (not part of the story yet): ${request.direction}`,
       readerName
-        ? `Carry it out in the passage itself: write what it describes as happening, including anything it has ${readerName} say or do. Beyond that, leave what ${readerName} says, decides, and thinks to the reader.`
+        ? `Carry it out in the passage itself: write what it describes as happening, including anything it has ${readerName} say or do. Beyond that, ${leftToReader}.`
         : 'Carry it out in the passage itself: write what it describes as happening.',
     );
   } else if (readerName) {
     lines.push(
-      `${readerName} is the reader's character, so leave what ${readerName} says, decides, and thinks to the reader. ${readerName} can still be there and carry on with anything already underway.`,
+      `${readerName} is the reader's character, so ${leftToReader}. ${readerName} stays in the scene as the chapter last left ${readerName}.`,
     );
   }
   lines.push(...timeLines);
@@ -233,6 +234,12 @@ function instructionFor({
     lines.push(
       `${directed ? 'Once the direction is carried out, if' : 'If'} the moment turns to ${readerName}, such as a question put to ${readerName} or a choice only ${readerName} can make, end the passage there.`,
     );
+    // Continuing while the chapter waits on them mustn't answer for them.
+    if (!directed && hasProse) {
+      lines.push(
+        `If the chapter so far ends waiting on ${readerName}, such as on a question put to ${readerName}, don't answer it for ${readerName} or say that ${readerName} stays quiet: let the others carry on around it until the moment turns back to ${readerName}.`,
+      );
+    }
   }
   if (hasProse) {
     lines.push(

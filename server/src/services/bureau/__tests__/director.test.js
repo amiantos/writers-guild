@@ -535,7 +535,7 @@ describe('buildDirectorMessages', () => {
       '- Follow the request below. Keep the beats to what fits in one passage, ending at a natural pause rather than on a reveal.',
     );
     expect(system.content).toContain(
-      "- Theo is the reader's character, so don't plan what Theo says, decides, or thinks beyond what the author's direction asks for. When the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the beats there once the direction is carried out.",
+      "- Theo is the reader's character, so don't plan what Theo says, does, decides, or thinks, including choices made without a word, beyond what the author's direction asks for. When the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the beats there once the direction is carried out.\n",
     );
     expect(system.content).toContain(
       "- A passage can follow any of the characters in the chapter, often several at once as they interact; don't build it around one character's point of view.",
@@ -561,7 +561,7 @@ describe('buildDirectorMessages', () => {
     });
 
     expect(system.content).toContain(
-      "- Theo is the reader's character, so don't plan what Theo says, decides, or thinks. When the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the beats there.\n",
+      "- Theo is the reader's character, so don't plan what Theo says, does, decides, or thinks, including choices made without a word. When the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the beats there. If the chapter so far ends waiting on Theo, plan around it without answering for Theo.\n",
     );
     // Who wrote the latest passage doesn't matter: the story just continues.
     expect(user.content).toContain(

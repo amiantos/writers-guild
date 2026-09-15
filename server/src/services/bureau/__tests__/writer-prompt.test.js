@@ -223,7 +223,7 @@ describe('buildWriterMessages', () => {
 
     expect(user).toContain('=== CHAPTER SO FAR ===\nThe lamp was lit.\n\nTheo climbed the stairs.');
     expect(user).toContain(
-      "=== NEXT ===\nContinue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective and refer to Theo by name.\nTheo is the reader's character, so leave what Theo says, decides, and thinks to the reader. Theo can still be there and carry on with anything already underway.\n",
+      "=== NEXT ===\nContinue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective and refer to Theo by name.\nTheo is the reader's character, so leave what Theo says, does, decides, and thinks to the reader, including choices made without a word, like writing something down, taking something, or nodding along. Theo stays in the scene as the chapter last left Theo.\n",
     );
     expect(user).not.toMatch(/Theo left off|Respond to what/);
   });
@@ -236,16 +236,18 @@ describe('buildWriterMessages', () => {
       });
 
       expect(user).toContain(
-        "Theo is the reader's character, so leave what Theo says, decides, and thinks to the reader.",
+        "Theo is the reader's character, so leave what Theo says, does, decides, and thinks to the reader, including choices made without a word",
       );
       expect(user).toContain(
-        'If the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the passage there.',
+        "If the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the passage there.\nIf the chapter so far ends waiting on Theo, such as on a question put to Theo, don't answer it for Theo or say that Theo stays quiet: let the others carry on around it until the moment turns back to Theo.\n",
       );
       expect(user).not.toContain('Beyond that');
     }
 
-    // An opening leaves them to the reader too.
-    expect(build().user).toContain('leave what Theo says, decides, and thinks to the reader');
+    // An opening leaves them to the reader too, with nothing yet waiting on them.
+    const opening = build().user;
+    expect(opening).toContain('leave what Theo says, does, decides, and thinks to the reader');
+    expect(opening).not.toContain('ends waiting on Theo');
   });
 
   it("has the reader's character say or do only what a direction asks", () => {
@@ -255,8 +257,9 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain(
-      "The author's direction for this passage (not part of the story yet): Theo tells her about the map\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do. Beyond that, leave what Theo says, decides, and thinks to the reader.\n",
+      "The author's direction for this passage (not part of the story yet): Theo tells her about the map\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do. Beyond that, leave what Theo says, does, decides, and thinks to the reader, including choices made without a word, like writing something down, taking something, or nodding along.\n",
     );
+    expect(user).not.toContain('ends waiting on Theo');
     expect(user).toContain(
       'Once the direction is carried out, if the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the passage there.',
     );
@@ -366,7 +369,7 @@ describe('buildWriterMessages', () => {
     const opening = build({ turns: [], request: { action: 'continue' } });
 
     expect(continuing.user).toMatch(
-      /Write as much as the moment needs, usually 2 to 4 paragraphs\. .*\nIf the moment turns to Theo, .*\nPick up right where the last passage stopped .*\nKeep the scene moving: don't reuse an action, gesture, image, or turn of phrase from earlier in the chapter .*\nDon't let characters repeat themselves: .*\nEnd where the moment naturally pauses, .*\nThe chapter so far is the story, not a model for the prose: .*$/,
+      /Write as much as the moment needs, usually 2 to 4 paragraphs\. .*\nIf the moment turns to Theo, .*\nIf the chapter so far ends waiting on Theo, .*\nPick up right where the last passage stopped .*\nKeep the scene moving: don't reuse an action, gesture, image, or turn of phrase from earlier in the chapter .*\nDon't let characters repeat themselves: .*\nEnd where the moment naturally pauses, .*\nThe chapter so far is the story, not a model for the prose: .*$/,
     );
     expect(opening.user).not.toContain('Keep the scene moving');
   });
@@ -400,7 +403,7 @@ describe('buildWriterMessages', () => {
         'Mara looks up as you come in. "Late again."',
         'Keep its events, dialogue, and details.',
         'Where the greeting says "you", it means Theo: refer to Theo by name, in the house style\'s perspective.',
-        'Beyond what the greeting has, leave what Theo says, decides, and thinks to the reader.',
+        'Beyond what the greeting has, leave what Theo says, does, decides, and thinks to the reader.',
         "Where the greeting disagrees with the chapter's time or with what the characters know, follow the chapter.",
         'Write about as much as the greeting.',
       ].join('\n'),
