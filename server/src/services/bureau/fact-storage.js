@@ -6,13 +6,15 @@
  * such as who lives where. The reader writes facts, and the Archivist proposes new ones, or changes
  * to old ones, for the reader to accept or reject. Rejected proposals are kept as history.
  *
- * A fact that changes another names the one it replaces and leaves it in place, so a chapter set
- * earlier still sees the old fact, and rejecting or deleting the change brings the old one back.
- * memory.js decides which facts a chapter or a moment can see. Methods are synchronous, like
- * better-sqlite3 itself.
+ * A fact that changes another names the one it replaces and leaves it in place. Facts that replace
+ * one another form a line, and the latest accepted fact in a line stands (see standingFacts in
+ * memory.js), so a chapter set earlier still sees an older fact, and rejecting or deleting a change
+ * leaves the line's latest other fact standing. memory.js decides which facts a chapter or a moment
+ * can see. Methods are synchronous, like better-sqlite3 itself.
  */
 
 import { openBureauDb } from './bureau-db.js';
+import { standingFacts } from './memory.js';
 
 export const FACT_STATUSES = ['proposed', 'accepted', 'rejected'];
 /** story and correspondence: proposed by the Archivist. manual: written by the reader. */
@@ -36,8 +38,6 @@ function factFromRow(row) {
     rationale: row.rationale,
     status: row.status,
     replaces: row.replaces,
-    replacesContent: row.replaces_content ?? null,
-    replacedBy: row.replaced_by ?? null,
     worldTime: row.world_time,
     sourceType: row.source_type,
     sourceId: row.source_id,
@@ -51,6 +51,25 @@ function factFromRow(row) {
     decided: row.decided,
     modified: row.modified,
   };
+}
+
+/**
+ * Facts as they stand now, each with replacesContent and replacedBy. A proposal's replacesContent is
+ * the fact standing in its line, which accepting it would replace; any other fact's is the fact it
+ * named. An accepted fact's replacedBy is the fact standing in its line, when that's another fact.
+ */
+function withLines(facts) {
+  const byId = new Map(facts.map((fact) => [fact.id, fact]));
+  const { lineOf, standing } = standingFacts(facts);
+  return facts.map((fact) => {
+    const head = standing.get(lineOf.get(fact.id)) ?? null;
+    const replaced = fact.status === 'proposed' && head ? head : byId.get(fact.replaces);
+    return {
+      ...fact,
+      replacesContent: fact.replaces === null ? null : (replaced?.content ?? null),
+      replacedBy: fact.status === 'accepted' && head && head.id !== fact.id ? head.id : null,
+    };
+  });
 }
 
 export class FactStorage {
@@ -68,26 +87,17 @@ export class FactStorage {
           JOIN messages cited_message ON cited_message.id = cited.value
         )
       END AS source_created`;
-    // The newest accepted fact that replaces this one.
-    const replacedBy = `(
-        SELECT r.id FROM facts r WHERE r.replaces = f.id AND r.status = 'accepted'
-        ORDER BY r.id DESC LIMIT 1
-      ) AS replaced_by`;
-    const columns = `f.*, s.title AS source_title, s.position AS source_position,
-      old.content AS replaces_content, ${sourceCreated}, ${replacedBy}`;
-    const joins = `LEFT JOIN stories s ON f.source_type = 'story' AND s.id = f.source_id
-      LEFT JOIN facts old ON old.id = f.replaces`;
+    const columns = `f.*, s.title AS source_title, s.position AS source_position, ${sourceCreated}`;
+    const withSource = `LEFT JOIN stories s ON f.source_type = 'story' AND s.id = f.source_id`;
 
     this.stmts = {
       // Oldest first by Bureau time, with facts that have no time (written by the reader) first.
       list: this.db.prepare(`
-        SELECT ${columns} FROM facts f ${joins}
+        SELECT ${columns} FROM facts f ${withSource}
         WHERE f.bureau_id = ?
         ORDER BY (f.world_time IS NOT NULL), f.world_time, s.position, f.id
       `),
-      get: this.db.prepare(
-        `SELECT ${columns} FROM facts f ${joins} WHERE f.bureau_id = ? AND f.id = ?`,
-      ),
+      line: this.db.prepare('SELECT id, replaces FROM facts WHERE bureau_id = ? AND id = ?'),
       insert: this.db.prepare(`
         INSERT INTO facts (bureau_id, content, proposed_content, rationale, status, replaces,
                            world_time, source_type, source_id, source_turn_ids, run_id, created,
@@ -100,10 +110,16 @@ export class FactStorage {
                          decided = @decided, modified = @modified
         WHERE id = @id
       `),
+      // Facts that named a fact being deleted name what it replaced instead, so their line holds.
+      repoint: this.db.prepare(`
+        UPDATE facts SET replaces = @replaces
+        WHERE bureau_id = @bureauId AND replaces = @id
+      `),
       delete: this.db.prepare('DELETE FROM facts WHERE bureau_id = ? AND id = ?'),
-      deleteForStory: this.db.prepare(
-        "DELETE FROM facts WHERE bureau_id = ? AND source_type = 'story' AND source_id = ?",
-      ),
+      storyFacts: this.db.prepare(`
+        SELECT id FROM facts WHERE bureau_id = ? AND source_type = 'story' AND source_id = ?
+        ORDER BY id
+      `),
       flagTurns: this.db.prepare(`
         UPDATE facts SET needs_review = 1, modified = @modified
         WHERE bureau_id = @bureauId AND source_type = @sourceType AND source_id = @sourceId
@@ -117,20 +133,19 @@ export class FactStorage {
   }
 
   /**
-   * A Bureau's facts, oldest first.
+   * A Bureau's facts, oldest first, with what each replaces and what replaced it (see withLines).
    * @param {'proposed'|'accepted'|'rejected'} [options.status]
    */
   listFacts(bureauId, { status } = {}) {
     if (status !== undefined && !FACT_STATUSES.includes(status)) {
       throw new Error(`Unknown fact status: ${status}`);
     }
-    const facts = this.stmts.list.all(bureauId).map(factFromRow);
+    const facts = withLines(this.stmts.list.all(bureauId).map(factFromRow));
     return status ? facts.filter((fact) => fact.status === status) : facts;
   }
 
   getFact(bureauId, factId) {
-    const row = this.stmts.get.get(bureauId, factId);
-    return row ? factFromRow(row) : null;
+    return this.listFacts(bureauId).find((fact) => fact.id === factId) ?? null;
   }
 
   /**
@@ -175,7 +190,7 @@ export class FactStorage {
       content,
       rationale,
       status,
-      replaces: replaces && this.getFact(bureauId, replaces) ? replaces : null,
+      replaces: replaces && this.stmts.line.get(bureauId, replaces) ? replaces : null,
       worldTime,
       sourceType,
       sourceId,
@@ -218,14 +233,35 @@ export class FactStorage {
     return this.getFact(bureauId, factId);
   }
 
-  /** Deleting a fact brings back any fact it replaced. */
+  /** Delete one fact from its line, in a transaction the caller runs. */
+  removeFromLine(bureauId, factId) {
+    const fact = this.stmts.line.get(bureauId, factId);
+    if (!fact) return false;
+    this.stmts.repoint.run({ bureauId, id: fact.id, replaces: fact.replaces });
+    return this.stmts.delete.run(bureauId, fact.id).changes > 0;
+  }
+
+  /**
+   * Delete a fact. Facts that replaced it replace what it replaced instead, so the latest fact in
+   * its line still stands, and a fact it replaced stands again when nothing later does.
+   */
   deleteFact(bureauId, factId) {
-    return this.stmts.delete.run(bureauId, factId).changes > 0;
+    let deleted = false;
+    this.db.transaction(() => {
+      deleted = this.removeFromLine(bureauId, factId);
+    })();
+    return deleted;
   }
 
   /** Delete every fact proposed from a story. Returns how many were deleted. */
   deleteStoryFacts(bureauId, storyId) {
-    return this.stmts.deleteForStory.run(bureauId, storyId).changes;
+    const ids = this.stmts.storyFacts.all(bureauId, storyId).map((row) => row.id);
+    this.db.transaction(() => {
+      for (const id of ids) {
+        this.removeFromLine(bureauId, id);
+      }
+    })();
+    return ids.length;
   }
 
   /**
@@ -245,11 +281,5 @@ export class FactStorage {
       turnIds: JSON.stringify(turnIds),
       modified: new Date().toISOString(),
     }).changes;
-  }
-
-  /** What waits for the reader: proposals, and accepted facts whose sources changed. */
-  reviewCounts(bureauId) {
-    const row = this.stmts.reviewCounts.get(bureauId);
-    return { proposed: row.proposed, needsReview: row.needs_review };
   }
 }

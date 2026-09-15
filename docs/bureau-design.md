@@ -539,6 +539,10 @@ the word an entry would key on, and a short list costs little.
   or messages can be undone by rejecting it, and every fact can be deleted.
 - **A change doesn't edit the old fact.** The old fact stays, marked as replaced by a later one. A
   chapter set before the change still sees it, and rejecting or deleting the change brings it back.
+- **Facts that replace one another form a line,** and the latest accepted fact in a line stands for
+  it: latest by Bureau time, then by when it was accepted. Rejecting or deleting a change from the
+  middle of a line, or accepting two changes to the same fact, still leaves one fact standing, and
+  a deleted fact's later changes name what it replaced instead.
 
 ### Facts in prompts
 
@@ -556,8 +560,8 @@ memory disagrees:
 Which facts a prompt sees follows the timeline rule for arc notes. Facts you wrote always count. A
 chapter sees accepted facts from before its start, and replies and offscreen accounts see the ones
 dated up to their moment. A chapter's own facts reach only the Archivist, since the chapter's text is
-already in the Writer's prompt. A fact gives way to an accepted fact the prompt can see that replaces
-it.
+already in the Writer's prompt. Of the facts a prompt can see in a line of changes, only the latest
+accepted one stands.
 
 A memory that disagrees with an established fact is held, like one that disagrees with a profile
 (see [Sources and review](#sources-and-review)).

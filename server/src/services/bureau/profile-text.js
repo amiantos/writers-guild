@@ -18,6 +18,17 @@ function nameOf(member) {
 }
 
 /**
+ * Story mode's macros with these names. MacroProcessor takes any name it's given over its default,
+ * even null, so a missing name is left out instead.
+ */
+function macrosFor(readerName, charName = null) {
+  return new MacroProcessor({
+    ...(readerName ? { userName: readerName } : {}),
+    ...(charName ? { charName } : {}),
+  });
+}
+
+/**
  * Text from a cast member's card, ready for a prompt.
  * @param {string} text
  * @param {Object} member - Whose card it is, with their seed card.
@@ -26,9 +37,9 @@ function nameOf(member) {
  */
 export function cardText(text, member, readerName) {
   if (typeof text !== 'string' || !text.trim()) return '';
-  const macros = new MacroProcessor({ userName: readerName, charName: nameOf(member) });
   const replaced = placeholders.replacePlaceholders(text, member.seedCard, { name: readerName });
-  return labelImages(macros.process(replaced).replace(/\*/g, '')).trim();
+  const processed = macrosFor(readerName, nameOf(member)).process(replaced);
+  return labelImages(processed.replace(/\*/g, '')).trim();
 }
 
 /**
@@ -56,5 +67,5 @@ export function profileLines(member, readerName) {
  */
 export function bureauText(text, readerName) {
   if (typeof text !== 'string') return '';
-  return new MacroProcessor({ userName: readerName }).process(text).replace(/\*/g, '').trim();
+  return macrosFor(readerName).process(text).replace(/\*/g, '').trim();
 }

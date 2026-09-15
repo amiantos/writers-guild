@@ -62,6 +62,28 @@ describe('factsAsOf', () => {
 
     expect(factsAsOf([home, waiting, rejected], second)).toEqual([home]);
   });
+
+  it('keeps the latest fact in a line standing when a change in the middle was rejected', () => {
+    const boston = fact({ content: 'Mara lives in Boston.' });
+    const chicago = fromStory(first, {
+      content: 'Mara lives in Chicago.',
+      replaces: boston.id,
+      status: 'rejected',
+    });
+    const denver = fromStory(first, { content: 'Mara lives in Denver.', replaces: chicago.id });
+
+    expect(factsAsOf([boston, chicago, denver], second)).toEqual([denver]);
+  });
+
+  it('lets only the later of two accepted changes to the same fact stand', () => {
+    const boston = fact({ content: 'Mara lives in Boston.' });
+    const chicago = fromStory(first, { content: 'Mara lives in Chicago.', replaces: boston.id });
+    const denver = fromStory(second, { content: 'Mara lives in Denver.', replaces: boston.id });
+    const third = { id: 's4', position: 3, startTime: '2026-10-15T20:00:00.000Z' };
+
+    expect(factsAsOf([boston, chicago, denver], third)).toEqual([denver]);
+    expect(factsAsOf([boston, chicago, denver], second)).toEqual([chicago]);
+  });
 });
 
 describe('factsAtTime', () => {

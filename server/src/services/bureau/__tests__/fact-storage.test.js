@@ -186,6 +186,81 @@ describe('FactStorage', () => {
     expect(facts.listFacts(bureau.id).map((fact) => fact.id)).toEqual([mine.id]);
   });
 
+  it('keeps a line of changes whole when a change in the middle is deleted', () => {
+    const boston = facts.addFact(bureau.id, {
+      content: 'Mara lives in Boston.',
+      status: 'accepted',
+    });
+    const chicago = facts.addFact(bureau.id, {
+      content: 'Mara lives in Chicago.',
+      status: 'accepted',
+      replaces: boston.id,
+      sourceType: 'story',
+      sourceId: story.id,
+      worldTime: START,
+    });
+    const later = stories.createStory(bureau.id, {
+      startTime: '2026-11-03T07:30:00.000Z',
+      castIds: [],
+      title: 'Moving again',
+    });
+    const denver = facts.addFact(bureau.id, {
+      content: 'Mara lives in Denver.',
+      status: 'accepted',
+      replaces: chicago.id,
+      sourceType: 'story',
+      sourceId: later.id,
+      worldTime: later.startTime,
+    });
+
+    expect(facts.deleteStoryFacts(bureau.id, story.id)).toBe(1);
+
+    expect(facts.getFact(bureau.id, denver.id)).toMatchObject({
+      replaces: boston.id,
+      replacesContent: 'Mara lives in Boston.',
+      replacedBy: null,
+    });
+    expect(facts.getFact(bureau.id, boston.id).replacedBy).toBe(denver.id);
+
+    expect(facts.deleteFact(bureau.id, denver.id)).toBe(true);
+    expect(facts.getFact(bureau.id, boston.id).replacedBy).toBeNull();
+  });
+
+  it('lets only the later of two accepted changes to a fact stand', () => {
+    const boston = facts.addFact(bureau.id, {
+      content: 'Mara lives in Boston.',
+      status: 'accepted',
+    });
+    const later = stories.createStory(bureau.id, {
+      startTime: '2026-11-03T07:30:00.000Z',
+      castIds: [],
+      title: 'Moving again',
+    });
+    const denver = facts.addFact(bureau.id, {
+      content: 'Mara lives in Denver.',
+      replaces: boston.id,
+      sourceType: 'story',
+      sourceId: later.id,
+      worldTime: later.startTime,
+    });
+    const chicago = facts.addFact(bureau.id, {
+      content: 'Mara lives in Chicago.',
+      replaces: boston.id,
+      sourceType: 'story',
+      sourceId: story.id,
+      worldTime: START,
+    });
+
+    facts.updateFact(bureau.id, denver.id, { status: 'accepted' });
+    // A proposal shows what accepting it would replace: the fact standing now.
+    expect(facts.getFact(bureau.id, chicago.id).replacesContent).toBe('Mara lives in Denver.');
+
+    facts.updateFact(bureau.id, chicago.id, { status: 'accepted' });
+    expect(facts.getFact(bureau.id, boston.id).replacedBy).toBe(denver.id);
+    expect(facts.getFact(bureau.id, chicago.id).replacedBy).toBe(denver.id);
+    expect(facts.getFact(bureau.id, denver.id).replacedBy).toBeNull();
+  });
+
   it('removes facts with their Bureau', () => {
     facts.addFact(bureau.id, { content: 'Gone with it.', status: 'accepted' });
     bureaus.deleteBureau(bureau.id);
