@@ -31,6 +31,7 @@ import {
   attachBureauStores,
   createBureauClient,
   optionalString,
+  requireApiKey,
   requireBureau,
 } from './bureau-route-helpers.js';
 
@@ -79,6 +80,27 @@ router.get(
       settings: DEFAULT_SETTINGS,
       model: DEFAULT_MODEL,
     });
+  }),
+);
+
+// The shared API key, used by every Bureau without a key of its own. Like a Bureau's key, it's
+// write-only: responses carry a masked preview.
+router.get(
+  '/shared-key',
+  asyncHandler(async (req, res) => {
+    res.json({ sharedKey: res.locals.stores.bureaus.getSharedApiKey() });
+  }),
+);
+
+// Save the shared API key. An apiKey of '' removes it.
+router.put(
+  '/shared-key',
+  asyncHandler(async (req, res) => {
+    const apiKey = optionalString(req.body ?? {}, 'apiKey');
+    if (apiKey === undefined) {
+      throw new AppError('apiKey is required', 400);
+    }
+    res.json({ sharedKey: res.locals.stores.bureaus.setSharedApiKey(apiKey) });
   }),
 );
 
@@ -430,9 +452,7 @@ router.post(
     const { stores } = res.locals;
     const { bureauId } = req.params;
     const bureau = requireBureau(stores.bureaus, bureauId);
-    if (!bureau.hasApiKey) {
-      throw new AppError('This Bureau has no API key. Add one in its settings.', 400);
-    }
+    requireApiKey(bureau);
     const idea = optionalString(req.body ?? {}, 'idea');
     if (!idea) {
       throw new AppError('idea is required', 400);

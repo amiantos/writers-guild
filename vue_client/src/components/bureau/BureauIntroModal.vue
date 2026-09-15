@@ -12,8 +12,8 @@
         <h3>Getting started</h3>
         <ol class="steps">
           <li>
-            Create a Bureau and give it a DeepSeek API key. Each Bureau has its own key, and
-            DeepSeek V4.1 Flash is the default model.
+            Create a Bureau and give it a DeepSeek API key. Bureaus share one key unless you give
+            one its own, and DeepSeek V4.1 Flash is the default model.
           </li>
           <li>
             Add characters from your library, or generate new ones. Mark one as your

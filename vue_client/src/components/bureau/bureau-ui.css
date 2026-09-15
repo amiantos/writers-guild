@@ -92,6 +92,12 @@
   line-height: 1.4;
 }
 
+.status-line {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
 .checkbox-label,
 .radio-label {
   display: flex;

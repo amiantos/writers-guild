@@ -25,7 +25,18 @@
         ></textarea>
       </div>
 
-      <div class="form-group">
+      <div v-if="usesSharedKey" class="form-group">
+        <span class="group-label">DeepSeek API key</span>
+        <p class="status-line">
+          <i class="fas fa-key"></i> Uses the shared key {{ sharedKey.apiKeyPreview }}
+        </p>
+        <div>
+          <button class="btn btn-secondary btn-small" @click="ownKey = true">
+            Use a different key for this Bureau
+          </button>
+        </div>
+      </div>
+      <div v-else class="form-group">
         <label for="new-bureau-api-key">DeepSeek API key</label>
         <input
           id="new-bureau-api-key"
@@ -35,8 +46,16 @@
           autocomplete="off"
           placeholder="sk-..."
         />
+        <label v-if="canShare" class="checkbox-label">
+          <input id="new-bureau-share-key" v-model="shareKey" type="checkbox" />
+          Share it with every Bureau that has no key of its own
+        </label>
         <p class="help-text">
-          Each Bureau uses its own key, which also keeps billing separate. You can add it later.
+          {{
+            sharedKey?.hasApiKey
+              ? 'Only this Bureau uses it, which also keeps its billing separate. Leave it empty to use the shared key.'
+              : 'You can add it later.'
+          }}
         </p>
       </div>
 
@@ -66,7 +85,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import Modal from '../Modal.vue';
 import { bureausAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
@@ -80,15 +99,29 @@ const description = ref('');
 const apiKey = ref('');
 const model = ref('deepseek-flash');
 const creating = ref(false);
+// Whether a shared key is saved, once known.
+const sharedKey = ref(null);
+const ownKey = ref(false);
+const shareKey = ref(true);
+
+// With a shared key saved, the new Bureau uses it unless it's given its own.
+const usesSharedKey = computed(() => Boolean(sharedKey.value?.hasApiKey) && !ownKey.value);
+// Without one, the key typed here can become the shared key.
+const canShare = computed(() => sharedKey.value?.hasApiKey === false);
 
 async function create() {
   if (!name.value.trim() || creating.value) return;
   creating.value = true;
   try {
+    const key = usesSharedKey.value ? '' : apiKey.value.trim();
+    const sharing = Boolean(key) && canShare.value && shareKey.value;
+    if (sharing) {
+      await bureausAPI.updateSharedKey(key);
+    }
     const { bureau } = await bureausAPI.create({
       name: name.value.trim(),
       description: description.value.trim(),
-      apiKey: apiKey.value.trim(),
+      apiKey: sharing ? '' : key,
       model: model.value.trim() || undefined,
     });
     toast.success(`Created ${bureau.name}`);
@@ -101,7 +134,15 @@ async function create() {
   }
 }
 
-onMounted(() => nameInput.value?.focus());
+onMounted(async () => {
+  nameInput.value?.focus();
+  try {
+    sharedKey.value = (await bureausAPI.sharedKey()).sharedKey;
+  } catch (error) {
+    // The key field still works; the key is this Bureau's own.
+    console.error('Failed to load the shared key:', error);
+  }
+});
 </script>
 
 <style scoped src="./bureau-ui.css"></style>

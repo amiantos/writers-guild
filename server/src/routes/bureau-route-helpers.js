@@ -30,7 +30,10 @@ export function requireStory(stories, bureauId, storyId) {
 
 export function requireApiKey(bureau) {
   if (!bureau.hasApiKey) {
-    throw new AppError('This Bureau has no API key. Add one in its settings.', 400);
+    throw new AppError(
+      "This Bureau has no API key. Add a shared key on the Bureaus tab, or one in the Bureau's settings.",
+      400,
+    );
   }
 }
 

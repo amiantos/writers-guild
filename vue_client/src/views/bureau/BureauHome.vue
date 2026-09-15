@@ -24,7 +24,8 @@
       <div class="sections-container">
         <div v-if="!bureau.hasApiKey" class="notice">
           <i class="fas fa-key"></i>
-          Add a DeepSeek API key in Settings below to generate chapters.
+          Add a DeepSeek API key in Settings below, or a shared key on the Bureaus tab, to generate
+          chapters.
         </div>
 
         <BureauStoriesSection
@@ -32,6 +33,7 @@
           :cast="cast"
           @open="openStory"
           @updated="handleUpdated"
+          @deleted="loadCast"
         />
         <BureauMessagesSection :bureau="bureau" :cast="cast" @open="openThread" />
         <BureauCastSection

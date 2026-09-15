@@ -7,6 +7,10 @@ vi.mock('../../../services/bureauApi', () => ({
   bureausAPI: { defaults: vi.fn(), update: vi.fn(), remove: vi.fn() },
 }));
 
+const { confirm } = vi.hoisted(() => ({ confirm: vi.fn() }));
+
+vi.mock('../../../composables/useConfirm', () => ({ useConfirm: () => ({ confirm }) }));
+
 function bureau(fields = {}) {
   return {
     id: 'b1',
@@ -15,7 +19,9 @@ function bureau(fields = {}) {
     model: 'deepseek-flash',
     houseStyle: '',
     hasApiKey: true,
+    apiKeySource: 'bureau',
     apiKeyPreview: 'sk-…1234',
+    sharedApiKeyPreview: '',
     timezone: null,
     bureauTime: '2026-09-12T22:15:00.000Z',
     settings: {
@@ -51,6 +57,9 @@ function localTime(year, month, day, hour, minute) {
 const findSaveButton = (wrapper) =>
   wrapper.findAll('button').find((button) => button.text().includes('Save settings'));
 
+const removeButton = (wrapper) =>
+  wrapper.findAll('button').find((button) => button.text() === 'Remove key');
+
 async function saveSettings(wrapper) {
   await wrapper
     .findAll('button')
@@ -67,6 +76,7 @@ describe('BureauSettingsSection', () => {
       model: 'deepseek-flash',
     });
     bureausAPI.update.mockReset();
+    confirm.mockReset();
   });
 
   it('keeps unsaved edits when the Bureau changes elsewhere', async () => {
@@ -129,7 +139,7 @@ describe('BureauSettingsSection', () => {
     expect(saveButton.attributes('disabled')).toBeDefined();
   });
 
-  it('saves Director, Editor, and banned phrase settings', async () => {
+  it('saves Director, Editor, memory, and banned phrase settings', async () => {
     bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
     const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
     await flushPromises();
@@ -138,6 +148,9 @@ describe('BureauSettingsSection', () => {
     await wrapper.find('#bureau-settings-director-create').setValue(false);
     await wrapper.find('#bureau-settings-editor-enabled').setValue(false);
     await wrapper.find('#bureau-settings-offscreen-life').setValue(false);
+    await wrapper.find('#bureau-settings-auto-archive').setValue(false);
+    await wrapper.find('#bureau-settings-knowledge').setValue('6000');
+    await wrapper.find('#bureau-settings-recent-episodes').setValue('5');
     await wrapper
       .find('#bureau-settings-banned-phrases')
       .setValue('a testament to\n\n  sent shivers down  \n');
@@ -158,13 +171,57 @@ describe('BureauSettingsSection', () => {
       },
       editor: { enabled: false },
       memory: {
-        autoArchive: true,
-        knowledgeCharacters: 4000,
-        recentEpisodes: 3,
+        autoArchive: false,
+        knowledgeCharacters: 6000,
+        recentEpisodes: 5,
         offscreenLife: false,
       },
       style: { bannedPhrases: ['a testament to', 'sent shivers down'] },
       correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
+    });
+  });
+
+  describe('API key', () => {
+    it('shows whether the Bureau uses its own key, the shared key, or none', async () => {
+      const own = mount(BureauSettingsSection, { props: { bureau: bureau() } });
+      const shared = mount(BureauSettingsSection, {
+        props: {
+          bureau: bureau({
+            apiKeySource: 'shared',
+            apiKeyPreview: 'sk-…9876',
+            sharedApiKeyPreview: 'sk-…9876',
+          }),
+        },
+      });
+      const none = mount(BureauSettingsSection, {
+        props: { bureau: bureau({ hasApiKey: false, apiKeySource: null, apiKeyPreview: '' }) },
+      });
+      await flushPromises();
+
+      expect(own.text()).toContain("This Bureau's own key sk-…1234");
+      expect(removeButton(own)).toBeDefined();
+      expect(shared.text()).toContain('Uses the shared key sk-…9876');
+      expect(removeButton(shared)).toBeUndefined();
+      expect(none.text()).toContain('set a shared key for every Bureau on the Bureaus tab');
+    });
+
+    it('says whether removing the key leaves the shared key to use', async () => {
+      confirm.mockResolvedValue(false);
+      const wrapper = mount(BureauSettingsSection, {
+        props: { bureau: bureau({ sharedApiKeyPreview: 'sk-…9876' }) },
+      });
+      await flushPromises();
+
+      await removeButton(wrapper).trigger('click');
+      await wrapper.setProps({ bureau: bureau() });
+      await removeButton(wrapper).trigger('click');
+      await flushPromises();
+
+      expect(confirm.mock.calls.map(([options]) => options.message)).toEqual([
+        "Remove this Bureau's own API key? It will use the shared key instead.",
+        "Remove this Bureau's API key? Chapters can't be generated until you add another.",
+      ]);
+      expect(bureausAPI.update).not.toHaveBeenCalled();
     });
   });
 

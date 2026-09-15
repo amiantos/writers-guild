@@ -88,6 +88,19 @@ export const bureausAPI = {
     return request('/defaults');
   },
 
+  /**
+   * The shared API key, used by every Bureau without a key of its own:
+   * { sharedKey: { hasApiKey, apiKeyPreview } }.
+   */
+  sharedKey() {
+    return request('/shared-key');
+  },
+
+  /** Save the shared API key; '' removes it. Answers like sharedKey(). */
+  updateSharedKey(apiKey) {
+    return request('/shared-key', { method: 'PUT', body: { apiKey } });
+  },
+
   /** @param {{ name: string, description?: string, apiKey?: string, model?: string }} fields */
   create(fields) {
     return request('', { method: 'POST', body: fields });

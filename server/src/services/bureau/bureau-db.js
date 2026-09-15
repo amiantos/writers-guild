@@ -296,6 +296,15 @@ const MIGRATIONS = [
     -- One open interview per character.
     CREATE UNIQUE INDEX idx_interviews_open ON interviews(cast_member_id) WHERE status = 'open';
   `,
+
+  // 11: A shared API key, used by every Bureau without a key of its own. One row, always there.
+  `
+    CREATE TABLE shared_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      api_key TEXT NOT NULL DEFAULT ''
+    );
+    INSERT INTO shared_settings (id) VALUES (1);
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

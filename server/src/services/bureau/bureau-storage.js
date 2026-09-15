@@ -48,13 +48,19 @@ function toJson(value) {
 }
 
 function bureauFromRow(row) {
+  // A Bureau without a key of its own uses the shared key.
+  const sharedKey = row.shared_api_key ?? '';
+  const apiKey = row.api_key || sharedKey;
   return {
     id: row.id,
     name: row.name,
     description: row.description,
     model: row.model,
-    hasApiKey: row.api_key.length > 0,
-    apiKeyPreview: maskApiKey(row.api_key),
+    hasApiKey: apiKey.length > 0,
+    apiKeySource: row.api_key ? 'bureau' : sharedKey ? 'shared' : null,
+    // The key the Bureau uses, and the shared key, masked.
+    apiKeyPreview: maskApiKey(apiKey),
+    sharedApiKeyPreview: maskApiKey(sharedKey),
     bureauTime: row.bureau_time,
     timezone: row.timezone,
     houseStyle: row.house_style,
@@ -165,7 +171,8 @@ export class BureauStorage {
   }
 
   prepareStatements() {
-    const bureauColumns = `b.*, (SELECT COUNT(*) FROM cast_members c WHERE c.bureau_id = b.id) AS cast_count`;
+    const sharedKeyColumn = `(SELECT api_key FROM shared_settings WHERE id = 1) AS shared_api_key`;
+    const bureauColumns = `b.*, (SELECT COUNT(*) FROM cast_members c WHERE c.bureau_id = b.id) AS cast_count, ${sharedKeyColumn}`;
     const runColumns = `r.*, (SELECT COUNT(*) FROM agent_steps s WHERE s.run_id = r.id) AS step_count`;
 
     this.stmts = {
@@ -174,7 +181,9 @@ export class BureauStorage {
         `SELECT ${bureauColumns} FROM bureaus b ORDER BY b.modified DESC, b.rowid DESC`,
       ),
       getBureau: this.db.prepare(`SELECT ${bureauColumns} FROM bureaus b WHERE b.id = ?`),
-      getCredentials: this.db.prepare('SELECT api_key, model FROM bureaus WHERE id = ?'),
+      getCredentials: this.db.prepare(
+        `SELECT api_key, model, ${sharedKeyColumn} FROM bureaus WHERE id = ?`,
+      ),
       insertBureau: this.db.prepare(`
         INSERT INTO bureaus (id, name, description, api_key, model, bureau_time, created, modified)
         VALUES (@id, @name, @description, @apiKey, @model, @bureauTime, @created, @modified)
@@ -191,6 +200,10 @@ export class BureauStorage {
       ),
       setAvatarWindows: this.db.prepare('UPDATE bureaus SET avatar_windows = ? WHERE id = ?'),
       touchBureau: this.db.prepare('UPDATE bureaus SET modified = ? WHERE id = ?'),
+
+      // Shared key
+      getSharedApiKey: this.db.prepare('SELECT api_key FROM shared_settings WHERE id = 1'),
+      setSharedApiKey: this.db.prepare('UPDATE shared_settings SET api_key = ? WHERE id = 1'),
 
       // World
       listLorebookIds: this.db.prepare(
@@ -291,13 +304,33 @@ export class BureauStorage {
   }
 
   /**
-   * The Bureau's API key and model, for server-side model calls. Never send
-   * the result to a client.
+   * The Bureau's API key (its own, or else the shared key) and model, for server-side model calls.
+   * Never send the result to a client.
    * @returns {{ apiKey: string, model: string } | null}
    */
   getBureauCredentials(bureauId) {
     const row = this.stmts.getCredentials.get(bureauId);
-    return row ? { apiKey: row.api_key, model: row.model } : null;
+    return row ? { apiKey: row.api_key || (row.shared_api_key ?? ''), model: row.model } : null;
+  }
+
+  /**
+   * Whether a shared key is saved, with a masked preview. The shared key is used by every Bureau
+   * without a key of its own.
+   * @returns {{ hasApiKey: boolean, apiKeyPreview: string }}
+   */
+  getSharedApiKey() {
+    const apiKey = this.stmts.getSharedApiKey.get()?.api_key ?? '';
+    return { hasApiKey: apiKey.length > 0, apiKeyPreview: maskApiKey(apiKey) };
+  }
+
+  /**
+   * Save the shared key. An apiKey of '' removes it.
+   * @param {string} apiKey
+   * @returns {{ hasApiKey: boolean, apiKeyPreview: string }}
+   */
+  setSharedApiKey(apiKey) {
+    this.stmts.setSharedApiKey.run(apiKey);
+    return this.getSharedApiKey();
   }
 
   /**

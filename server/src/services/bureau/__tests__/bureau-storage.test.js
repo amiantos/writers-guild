@@ -8,6 +8,7 @@ import { DEFAULT_MODEL } from '../deepseek-client.js';
 import { resolveSettings } from '../bureau-settings.js';
 
 const API_KEY = 'sk-storage-test-key-1234';
+const SHARED_KEY = 'sk-shared-test-key-9876';
 
 function card(name) {
   return {
@@ -55,7 +56,9 @@ describe('BureauStorage', () => {
         description: '',
         model: DEFAULT_MODEL,
         hasApiKey: true,
+        apiKeySource: 'bureau',
         apiKeyPreview: 'sk-…1234',
+        sharedApiKeyPreview: '',
         timezone: null,
         houseStyle: '',
         settings: resolveSettings({}),
@@ -117,7 +120,47 @@ describe('BureauStorage', () => {
 
       const updated = storage.updateBureau(bureau.id, { apiKey: '' });
 
-      expect(updated).toMatchObject({ hasApiKey: false, apiKeyPreview: '' });
+      expect(updated).toMatchObject({ hasApiKey: false, apiKeySource: null, apiKeyPreview: '' });
+      expect(storage.getBureauCredentials(bureau.id).apiKey).toBe('');
+    });
+
+    it('uses the shared key for a Bureau without its own', () => {
+      expect(storage.getSharedApiKey()).toEqual({ hasApiKey: false, apiKeyPreview: '' });
+      const own = storage.createBureau({ name: 'Harbor', apiKey: API_KEY });
+      const borrowing = storage.createBureau({ name: 'Lighthouse' });
+
+      expect(storage.setSharedApiKey(SHARED_KEY)).toEqual({
+        hasApiKey: true,
+        apiKeyPreview: 'sk-…9876',
+      });
+
+      expect(storage.getBureau(borrowing.id)).toMatchObject({
+        hasApiKey: true,
+        apiKeySource: 'shared',
+        apiKeyPreview: 'sk-…9876',
+        sharedApiKeyPreview: 'sk-…9876',
+      });
+      expect(storage.getBureauCredentials(borrowing.id).apiKey).toBe(SHARED_KEY);
+      expect(storage.getBureau(own.id)).toMatchObject({
+        apiKeySource: 'bureau',
+        apiKeyPreview: 'sk-…1234',
+        sharedApiKeyPreview: 'sk-…9876',
+      });
+      expect(storage.getBureauCredentials(own.id).apiKey).toBe(API_KEY);
+      expect(JSON.stringify(storage.listBureaus())).not.toContain(SHARED_KEY);
+    });
+
+    it('removes the shared key when given an empty string', () => {
+      const bureau = storage.createBureau({ name: 'Harbor' });
+      storage.setSharedApiKey(SHARED_KEY);
+
+      expect(storage.setSharedApiKey('')).toEqual({ hasApiKey: false, apiKeyPreview: '' });
+      expect(storage.getBureau(bureau.id)).toMatchObject({
+        hasApiKey: false,
+        apiKeySource: null,
+        apiKeyPreview: '',
+        sharedApiKeyPreview: '',
+      });
       expect(storage.getBureauCredentials(bureau.id).apiKey).toBe('');
     });
 

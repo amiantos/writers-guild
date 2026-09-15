@@ -24,7 +24,7 @@
         No chapters yet. Starting one asks when it takes place.
       </p>
       <ul v-else class="story-list">
-        <li v-for="story in newestFirst" :key="story.id">
+        <li v-for="story in newestFirst" :key="story.id" class="story-item">
           <button class="story-row" @click="$emit('open', story)">
             <span class="story-title">{{ story.title }}</span>
             <span class="story-status" :class="story.status">
@@ -35,6 +35,14 @@
               {{ story.turnCount === 1 ? 'turn' : 'turns' }}
             </span>
             <span v-if="story.summary" class="story-summary">{{ story.summary }}</span>
+          </button>
+          <button
+            class="icon-btn"
+            :title="`Delete ${story.title}`"
+            :disabled="deletingId !== null"
+            @click="deleteStory(story)"
+          >
+            <i class="fas fa-trash"></i>
           </button>
         </li>
       </ul>
@@ -55,6 +63,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { bureauStoriesAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
+import { useConfirm } from '../../composables/useConfirm';
 import { formatDateTime } from '../../composables/bureau/format';
 import StartStoryModal from './StartStoryModal.vue';
 import TimePassesControl from './TimePassesControl.vue';
@@ -64,12 +73,14 @@ const props = defineProps({
   cast: { type: Array, required: true },
 });
 
-const emit = defineEmits(['open', 'updated']);
+const emit = defineEmits(['open', 'updated', 'deleted']);
 const toast = useToast();
+const { confirm } = useConfirm();
 
 const stories = ref([]);
 const loading = ref(true);
 const showStart = ref(false);
+const deletingId = ref(null);
 
 const newestFirst = computed(() => stories.value.toReversed());
 
@@ -89,6 +100,27 @@ async function loadStories() {
 function handleStarted(story) {
   showStart.value = false;
   emit('open', story);
+}
+
+async function deleteStory(story) {
+  const confirmed = await confirm({
+    message: `Delete "${story.title}"?\n\nIts passages are deleted, along with the memories and arc notes recorded from them. Bureau time stays where it is. This cannot be undone.`,
+    confirmText: 'Delete chapter',
+    variant: 'danger',
+  });
+  if (!confirmed) return;
+
+  deletingId.value = story.id;
+  try {
+    await bureauStoriesAPI.remove(props.bureau.id, story.id);
+    stories.value = stories.value.filter((item) => item.id !== story.id);
+    toast.success(`Deleted ${story.title}`);
+    emit('deleted', story);
+  } catch (error) {
+    toast.error('Failed to delete the chapter: ' + error.message);
+  } finally {
+    deletingId.value = null;
+  }
 }
 
 onMounted(loadStories);
@@ -121,8 +153,15 @@ onMounted(loadStories);
   gap: 0.5rem;
 }
 
+.story-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .story-row {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.25rem 1rem;
