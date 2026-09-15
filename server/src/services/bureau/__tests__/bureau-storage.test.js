@@ -3,6 +3,11 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { BureauStorage, CastConflictError, maskApiKey, profileOf } from '../bureau-storage.js';
+import { ArcNoteStorage } from '../arc-note-storage.js';
+import { InterviewStorage } from '../interview-storage.js';
+import { MemoryStorage } from '../memory-storage.js';
+import { StoryStorage } from '../story-storage.js';
+import { ThreadStorage } from '../thread-storage.js';
 import { closeBureauDb } from '../bureau-db.js';
 import { DEFAULT_MODEL } from '../deepseek-client.js';
 import { resolveSettings } from '../bureau-settings.js';
@@ -169,6 +174,83 @@ describe('BureauStorage', () => {
       expect(storage.getBureauCredentials('missing')).toBeNull();
       expect(storage.updateBureau('missing', { name: 'Nope' })).toBeNull();
       expect(storage.deleteBureau('missing')).toBe(false);
+    });
+
+    it('resets a Bureau to a blank slate, keeping its cast, profiles, and interviews', () => {
+      const stories = new StoryStorage(tempDir);
+      const threads = new ThreadStorage(tempDir);
+      const memories = new MemoryStorage(tempDir);
+      const arcNotes = new ArcNoteStorage(tempDir);
+      const interviews = new InterviewStorage(tempDir);
+
+      // A Bureau with one of everything: the one reset, and another left alone.
+      function fill(name) {
+        const bureau = storage.createBureau({ name });
+        const mara = storage.addCastMember(bureau.id, { seedCard: card('Mara') });
+        storage.updateProfile(bureau.id, mara.id, { description: 'Keeps the lighthouse.' });
+        interviews.startInterview(bureau.id, mara.id, { focus: 'flesh_out' });
+        const interviewRun = storage.createRun({
+          bureauId: bureau.id,
+          purpose: 'interview',
+          targetType: 'interview',
+        });
+        const story = stories.createStory(bureau.id, {
+          startTime: '2026-09-01T08:00:00.000Z',
+          castIds: [mara.id],
+        });
+        const turnRun = storage.createRun({
+          bureauId: bureau.id,
+          purpose: 'turn',
+          targetType: 'story',
+          targetId: story.id,
+        });
+        stories.addTurn(story.id, {
+          kind: 'prose',
+          source: 'generated',
+          content: 'The lamp turned.',
+          runId: turnRun,
+        });
+        const thread = threads.getOrCreateThread(bureau.id, mara.id);
+        threads.addMessage(thread.id, {
+          source: 'user',
+          content: 'Up late?',
+          bureauTime: '2026-09-01T23:00:00.000Z',
+        });
+        // Backstory goes too: anything that isn't part of a profile.
+        memories.addMemory(bureau.id, mara.id, { layer: 'knowledge', content: 'Grew up here.' });
+        memories.addMemory(bureau.id, mara.id, {
+          layer: 'knowledge',
+          content: 'Kept the lamp lit.',
+          sourceType: 'story',
+          sourceId: story.id,
+          worldTime: story.startTime,
+        });
+        arcNotes.addNote(bureau.id, mara.id, { content: 'Sleeps less.', status: 'accepted' });
+        return { bureau, mara, interviewRun };
+      }
+      const reset = fill('Harbor');
+      const kept = fill('Lighthouse');
+      const count = (table, bureauId) =>
+        storage.db
+          .prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE bureau_id = ?`)
+          .get(bureauId).count;
+
+      expect(storage.resetBureau(reset.bureau.id)).toBe(true);
+
+      for (const table of ['stories', 'threads', 'memories', 'arc_notes']) {
+        expect(count(table, reset.bureau.id)).toBe(0);
+        expect(count(table, kept.bureau.id)).toBeGreaterThan(0);
+      }
+      expect(storage.db.prepare('SELECT COUNT(*) AS count FROM turns').get().count).toBe(1);
+      expect(storage.db.prepare('SELECT COUNT(*) AS count FROM messages').get().count).toBe(1);
+      expect(storage.listRuns(reset.bureau.id).map((run) => run.id)).toEqual([reset.interviewRun]);
+      expect(storage.listRuns(kept.bureau.id)).toHaveLength(2);
+
+      const member = storage.getCastMember(reset.bureau.id, reset.mara.id);
+      expect(member.seedCard.data.description).toBe('Keeps the lighthouse.');
+      expect(storage.listProfileVersions(reset.bureau.id, reset.mara.id)).toHaveLength(2);
+      expect(interviews.getOpenInterview(reset.bureau.id, reset.mara.id)).not.toBeNull();
+      expect(storage.resetBureau('missing')).toBe(false);
     });
 
     it('deletes a Bureau along with its cast and runs', () => {

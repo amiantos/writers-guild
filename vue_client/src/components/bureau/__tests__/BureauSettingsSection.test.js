@@ -4,7 +4,7 @@ import BureauSettingsSection from '../BureauSettingsSection.vue';
 import { bureausAPI } from '../../../services/bureauApi';
 
 vi.mock('../../../services/bureauApi', () => ({
-  bureausAPI: { defaults: vi.fn(), update: vi.fn(), remove: vi.fn() },
+  bureausAPI: { defaults: vi.fn(), update: vi.fn(), remove: vi.fn(), reset: vi.fn() },
 }));
 
 const { confirm } = vi.hoisted(() => ({ confirm: vi.fn() }));
@@ -179,6 +179,25 @@ describe('BureauSettingsSection', () => {
       style: { bannedPhrases: ['a testament to', 'sent shivers down'] },
       correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
     });
+  });
+
+  it('resets the Bureau once confirmed', async () => {
+    confirm.mockResolvedValue(true);
+    bureausAPI.reset.mockResolvedValue({ bureau: bureau() });
+    const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
+    await flushPromises();
+
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Reset Bureau'))
+      .trigger('click');
+    await flushPromises();
+
+    expect(confirm.mock.calls[0][0].message).toContain(
+      'Every chapter, message, memory, and arc note is deleted',
+    );
+    expect(bureausAPI.reset).toHaveBeenCalledWith('b1');
+    expect(wrapper.emitted('reset')[0][0].id).toBe('b1');
   });
 
   describe('API key', () => {

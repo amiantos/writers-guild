@@ -134,6 +134,14 @@ export const bureausAPI = {
     return request(`/${bureauId}`, { method: 'DELETE' });
   },
 
+  /**
+   * Reset a Bureau to a blank slate: delete its chapters, messages, memories, and arc notes, keeping
+   * the cast with their profiles, interviews, lorebooks, settings, and Bureau time.
+   */
+  reset(bureauId) {
+    return request(`/${bureauId}/reset`, { method: 'POST', body: {} });
+  },
+
   listCast(bureauId) {
     return request(`/${bureauId}/cast`);
   },

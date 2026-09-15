@@ -111,6 +111,14 @@ card**). Everything that character develops (memories, arc notes, routine) stays
 The user's persona is a cast member too. "What a character knows about you" is just one character's
 memory of another, so no separate user concept is needed.
 
+### Resetting a Bureau
+
+**Reset Bureau**, in the Bureau's settings, gives a blank slate for trying changes to the cast's
+profiles. Anything that isn't part of a profile goes: every chapter, message thread, memory
+(backstory included), and arc note, with the runs of the passages, replies, Archivist passes, and
+offscreen accounts that made them. The cast and their profiles, with every version, stay, and so do
+interviews, lorebooks, settings, and Bureau time.
+
 ## The chapter view: turns
 
 Bureau chapters use a reading view modeled on story mode's preview (`showPreview` in

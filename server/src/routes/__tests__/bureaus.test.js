@@ -199,6 +199,15 @@ describe('Bureau routes', () => {
       ]);
     });
 
+    it('resets a Bureau, answering with it', async () => {
+      const bureau = await createBureau();
+
+      const { body } = await request(app).post(`/api/bureaus/${bureau.id}/reset`).expect(200);
+
+      expect(body.bureau).toMatchObject({ id: bureau.id, name: 'Harbor', hasApiKey: true });
+      await request(app).post('/api/bureaus/missing/reset').expect(404);
+    });
+
     it('rejects empty or missing updates', async () => {
       const bureau = await createBureau();
 

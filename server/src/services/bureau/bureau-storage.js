@@ -205,6 +205,17 @@ export class BureauStorage {
       getSharedApiKey: this.db.prepare('SELECT api_key FROM shared_settings WHERE id = 1'),
       setSharedApiKey: this.db.prepare('UPDATE shared_settings SET api_key = ? WHERE id = 1'),
 
+      // Reset: everything chapters and messages left behind, with the runs that wrote it. Runs
+      // behind interviews and generated characters stay.
+      resetMemories: this.db.prepare('DELETE FROM memories WHERE bureau_id = ?'),
+      resetArcNotes: this.db.prepare('DELETE FROM arc_notes WHERE bureau_id = ?'),
+      resetStories: this.db.prepare('DELETE FROM stories WHERE bureau_id = ?'),
+      resetThreads: this.db.prepare('DELETE FROM threads WHERE bureau_id = ?'),
+      resetRuns: this.db.prepare(`
+        DELETE FROM agent_runs
+        WHERE bureau_id = ? AND purpose IN ('turn', 'reply', 'archive', 'offscreen')
+      `),
+
       // World
       listLorebookIds: this.db.prepare(
         'SELECT lorebook_id FROM bureau_lorebooks WHERE bureau_id = ? ORDER BY rowid',
@@ -422,6 +433,31 @@ export class BureauStorage {
   /** Deletes the Bureau with its cast and run records. */
   deleteBureau(bureauId) {
     return this.stmts.deleteBureau.run(bureauId).changes > 0;
+  }
+
+  /**
+   * Reset a Bureau to a blank slate. Its chapters, message threads, memories (backstory included),
+   * and arc notes are deleted, with the runs that wrote them. The cast, their profiles with every
+   * version, interviews, lorebooks, settings, and Bureau time stay.
+   * @returns {boolean} Whether the Bureau exists.
+   */
+  resetBureau(bureauId) {
+    if (!this.stmts.getBureau.get(bureauId)) return false;
+
+    const { resetMemories, resetArcNotes, resetStories, resetThreads, resetRuns } = this.stmts;
+    this.db.transaction(() => {
+      for (const statement of [
+        resetMemories,
+        resetArcNotes,
+        resetStories,
+        resetThreads,
+        resetRuns,
+      ]) {
+        statement.run(bureauId);
+      }
+      this.stmts.touchBureau.run(new Date().toISOString(), bureauId);
+    })();
+    return true;
   }
 
   // ==================== Cast ====================

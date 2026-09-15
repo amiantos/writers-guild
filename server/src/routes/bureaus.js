@@ -332,6 +332,20 @@ router.delete(
   }),
 );
 
+// Reset a Bureau to a blank slate: its chapters, messages, memories, and arc notes are deleted, with
+// the runs that wrote them. The cast and their profiles with every version stay, and so do
+// interviews, lorebooks, settings, and Bureau time.
+router.post(
+  '/:bureauId/reset',
+  asyncHandler(async (req, res) => {
+    const { bureaus } = res.locals.stores;
+    if (!bureaus.resetBureau(req.params.bureauId)) {
+      throw new AppError('Bureau not found', 404);
+    }
+    res.json({ bureau: bureaus.getBureau(req.params.bureauId) });
+  }),
+);
+
 // ==================== Cast ====================
 
 // List cast members (without seed cards), with how many current memories each has and

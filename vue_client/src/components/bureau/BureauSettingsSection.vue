@@ -345,9 +345,14 @@
       </div>
 
       <div class="section-actions">
-        <button class="btn btn-danger" :disabled="saving" @click="deleteBureau">
-          <i class="fas fa-trash"></i> Delete Bureau
-        </button>
+        <div class="danger-actions">
+          <button class="btn btn-secondary" :disabled="saving" @click="resetBureau">
+            <i class="fas fa-rotate-left"></i> Reset Bureau
+          </button>
+          <button class="btn btn-danger" :disabled="saving" @click="deleteBureau">
+            <i class="fas fa-trash"></i> Delete Bureau
+          </button>
+        </div>
         <button class="btn btn-primary" :disabled="!dirty || saving" @click="save">
           <i class="fas fa-save"></i> {{ saving ? 'Saving...' : 'Save settings' }}
         </button>
@@ -384,7 +389,7 @@ const props = defineProps({
   bureau: { type: Object, required: true },
 });
 
-const emit = defineEmits(['updated', 'deleted']);
+const emit = defineEmits(['updated', 'reset', 'deleted']);
 const toast = useToast();
 const { confirm } = useConfirm();
 
@@ -517,6 +522,26 @@ function useBrowserZone() {
   update({ timezone: browserZone }, `Time zone set to ${browserZone}`);
 }
 
+async function resetBureau() {
+  const confirmed = await confirm({
+    message: `Reset "${props.bureau.name}"?\n\nEvery chapter, message, memory, and arc note is deleted, including backstory you wrote. The cast keeps their profiles and every version of them, and interviews, lorebooks, settings, and Bureau time stay. This cannot be undone.`,
+    confirmText: 'Reset Bureau',
+    variant: 'danger',
+  });
+  if (!confirmed) return;
+
+  saving.value = true;
+  try {
+    const { bureau } = await bureausAPI.reset(props.bureau.id);
+    toast.success(`Reset ${bureau.name}`);
+    emit('reset', bureau);
+  } catch (error) {
+    toast.error('Failed to reset the Bureau: ' + error.message);
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function deleteBureau() {
   const confirmed = await confirm({
     message: `Delete "${props.bureau.name}"?\n\nIts chapters, cast, and run records are deleted. Your library characters and lorebooks are not affected. This cannot be undone.`,
@@ -590,6 +615,12 @@ onMounted(async () => {
 
 .house-style {
   font-size: 0.875rem;
+}
+
+.danger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .section-actions {
