@@ -24,16 +24,24 @@
       <div class="sections-container">
         <div v-if="!bureau.hasApiKey" class="notice">
           <i class="fas fa-key"></i>
-          Add a DeepSeek API key in Settings below to generate chapters.
+          Add a DeepSeek API key in Settings below, or a shared key on the Bureaus tab, to generate
+          chapters.
         </div>
 
         <BureauStoriesSection
+          :key="`chapters-${resetVersion}`"
           :bureau="bureau"
           :cast="cast"
           @open="openStory"
           @updated="handleUpdated"
+          @deleted="loadCast"
         />
-        <BureauMessagesSection :bureau="bureau" :cast="cast" @open="openThread" />
+        <BureauMessagesSection
+          :key="`messages-${resetVersion}`"
+          :bureau="bureau"
+          :cast="cast"
+          @open="openThread"
+        />
         <BureauCastSection
           :bureau-id="bureauId"
           :cast="cast"
@@ -44,7 +52,12 @@
           @lorebook-attached="worldVersion++"
         />
         <BureauWorldSection :key="worldVersion" :bureau-id="bureauId" />
-        <BureauSettingsSection :bureau="bureau" @updated="handleUpdated" @deleted="goHome" />
+        <BureauSettingsSection
+          :bureau="bureau"
+          @updated="handleUpdated"
+          @reset="handleReset"
+          @deleted="goHome"
+        />
       </div>
     </div>
   </div>
@@ -76,6 +89,7 @@ const arcNoteCounts = ref({});
 const loading = ref(true);
 const loadError = ref('');
 const worldVersion = ref(0);
+const resetVersion = ref(0);
 
 async function load() {
   loading.value = true;
@@ -117,6 +131,13 @@ async function loadCast() {
 function handleUpdated(updated) {
   bureau.value = updated;
   setPageTitle(updated.name);
+}
+
+// A reset empties the chapters, messages, and memories, so the sections showing them start over.
+function handleReset(updated) {
+  handleUpdated(updated);
+  resetVersion.value++;
+  loadCast();
 }
 
 function openStory(story) {

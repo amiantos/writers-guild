@@ -46,6 +46,26 @@ describe('bureauApi', () => {
     });
   });
 
+  it('reads and saves the shared key', async () => {
+    fetch.mockResolvedValue({ ok: true, json: async () => ({ sharedKey: { hasApiKey: true } }) });
+
+    await bureausAPI.sharedKey();
+    await bureausAPI.updateSharedKey('sk-shared');
+
+    expect(fetch.mock.calls).toEqual([
+      ['/api/bureaus/shared-key', { method: 'GET', signal: undefined }],
+      [
+        '/api/bureaus/shared-key',
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: 'sk-shared' }),
+          signal: undefined,
+        },
+      ],
+    ]);
+  });
+
   it('lists memories by status, or searches them', async () => {
     fetch.mockResolvedValue({ ok: true, json: async () => ({ memories: [] }) });
 

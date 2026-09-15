@@ -22,8 +22,11 @@
 
       <div class="form-group">
         <label for="bureau-settings-api-key">DeepSeek API key</label>
-        <p v-if="bureau.hasApiKey" class="status-line">
-          <i class="fas fa-lock"></i> Saved key {{ bureau.apiKeyPreview }}
+        <p v-if="bureau.apiKeySource === 'bureau'" class="status-line">
+          <i class="fas fa-lock"></i> This Bureau's own key {{ bureau.apiKeyPreview }}
+        </p>
+        <p v-else-if="bureau.apiKeySource === 'shared'" class="status-line">
+          <i class="fas fa-key"></i> Uses the shared key {{ bureau.apiKeyPreview }}
         </p>
         <div class="inline-row">
           <input
@@ -32,10 +35,10 @@
             type="password"
             class="text-input"
             autocomplete="off"
-            :placeholder="bureau.hasApiKey ? 'Paste a new key to replace it' : 'sk-...'"
+            :placeholder="keyField.placeholder"
           />
           <button
-            v-if="bureau.hasApiKey"
+            v-if="bureau.apiKeySource === 'bureau'"
             class="btn btn-secondary btn-small"
             :disabled="saving"
             @click="removeKey"
@@ -43,6 +46,7 @@
             Remove key
           </button>
         </div>
+        <p v-if="keyField.help" class="help-text">{{ keyField.help }}</p>
       </div>
 
       <div class="form-group">
@@ -188,7 +192,20 @@
       </fieldset>
 
       <fieldset class="writer-settings">
-        <legend>Between chapters</legend>
+        <legend>Memory</legend>
+        <label class="checkbox-label">
+          <input
+            id="bureau-settings-auto-archive"
+            v-model="form.memory.autoArchive"
+            type="checkbox"
+          />
+          Commit to memory as you go
+        </label>
+        <p class="help-text">
+          The Archivist reads passages once they've settled, messages once an exchange is over, and
+          the rest of a chapter when it ends. Turned off, it reads only when you press Commit to
+          memory.
+        </p>
         <label class="checkbox-label">
           <input
             id="bureau-settings-offscreen-life"
@@ -201,6 +218,36 @@
           When a chapter starts well after the last one, or someone writes after a quiet stretch,
           the characters get a short, mostly ordinary account of what they did meanwhile. It shows
           in their memories under "What happened".
+        </p>
+        <div class="settings-grid">
+          <div class="form-group">
+            <label for="bureau-settings-knowledge">Knowledge budget</label>
+            <input
+              id="bureau-settings-knowledge"
+              v-model.number="form.memory.knowledgeCharacters"
+              type="number"
+              min="0"
+              max="40000"
+              step="500"
+              class="text-input"
+            />
+          </div>
+          <div class="form-group">
+            <label for="bureau-settings-recent-episodes">Recent episodes</label>
+            <input
+              id="bureau-settings-recent-episodes"
+              v-model.number="form.memory.recentEpisodes"
+              type="number"
+              min="0"
+              max="20"
+              class="text-input"
+            />
+          </div>
+        </div>
+        <p class="help-text">
+          What prompts include for each character: everything they know that's pinned, then the most
+          important of the rest up to the budget, in characters of text, and their latest episodes.
+          In chapters, the Director can still look up the rest.
         </p>
       </fieldset>
 
@@ -298,9 +345,14 @@
       </div>
 
       <div class="section-actions">
-        <button class="btn btn-danger" :disabled="saving" @click="deleteBureau">
-          <i class="fas fa-trash"></i> Delete Bureau
-        </button>
+        <div class="danger-actions">
+          <button class="btn btn-secondary" :disabled="saving" @click="resetBureau">
+            <i class="fas fa-rotate-left"></i> Reset Bureau
+          </button>
+          <button class="btn btn-danger" :disabled="saving" @click="deleteBureau">
+            <i class="fas fa-trash"></i> Delete Bureau
+          </button>
+        </div>
         <button class="btn btn-primary" :disabled="!dirty || saving" @click="save">
           <i class="fas fa-save"></i> {{ saving ? 'Saving...' : 'Save settings' }}
         </button>
@@ -320,11 +372,24 @@ import {
   toDatetimeLocal,
 } from '../../composables/bureau/format';
 
+// The key field's placeholder and help, by where the Bureau's key comes from.
+const KEY_FIELDS = {
+  bureau: { placeholder: 'Paste a new key to replace it', help: '' },
+  shared: {
+    placeholder: 'Paste a key to use one just for this Bureau',
+    help: 'A key pasted here is used by this Bureau alone, which also keeps its billing separate.',
+  },
+  none: {
+    placeholder: 'sk-...',
+    help: 'Paste a key for this Bureau, or set a shared key for every Bureau on the Bureaus tab.',
+  },
+};
+
 const props = defineProps({
   bureau: { type: Object, required: true },
 });
 
-const emit = defineEmits(['updated', 'deleted']);
+const emit = defineEmits(['updated', 'reset', 'deleted']);
 const toast = useToast();
 const { confirm } = useConfirm();
 
@@ -332,6 +397,7 @@ const browserZone = browserTimeZone();
 const defaults = ref(null);
 const saving = ref(false);
 const form = reactive({});
+const keyField = computed(() => KEY_FIELDS[props.bureau.apiKeySource ?? 'none']);
 
 function snapshot(bureau) {
   return {
@@ -443,7 +509,9 @@ async function save() {
 
 async function removeKey() {
   const confirmed = await confirm({
-    message: "Remove this Bureau's API key? Chapters can't be generated until you add another.",
+    message: props.bureau.sharedApiKeyPreview
+      ? "Remove this Bureau's own API key? It will use the shared key instead."
+      : "Remove this Bureau's API key? Chapters can't be generated until you add another.",
     confirmText: 'Remove key',
     variant: 'danger',
   });
@@ -452,6 +520,26 @@ async function removeKey() {
 
 function useBrowserZone() {
   update({ timezone: browserZone }, `Time zone set to ${browserZone}`);
+}
+
+async function resetBureau() {
+  const confirmed = await confirm({
+    message: `Reset "${props.bureau.name}"?\n\nEvery chapter, message, memory, and arc note is deleted, including backstory you wrote. The cast keeps their profiles and every version of them, and interviews, lorebooks, settings, and Bureau time stay. This cannot be undone.`,
+    confirmText: 'Reset Bureau',
+    variant: 'danger',
+  });
+  if (!confirmed) return;
+
+  saving.value = true;
+  try {
+    const { bureau } = await bureausAPI.reset(props.bureau.id);
+    toast.success(`Reset ${bureau.name}`);
+    emit('reset', bureau);
+  } catch (error) {
+    toast.error('Failed to reset the Bureau: ' + error.message);
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function deleteBureau() {
@@ -485,12 +573,6 @@ onMounted(async () => {
 <style scoped src="./bureau-ui.css"></style>
 
 <style scoped>
-.status-line {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
 .inline-row {
   display: flex;
   gap: 0.5rem;
@@ -533,6 +615,12 @@ onMounted(async () => {
 
 .house-style {
   font-size: 0.875rem;
+}
+
+.danger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .section-actions {

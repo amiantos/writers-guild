@@ -40,6 +40,7 @@ describe('bureau-db', () => {
         'agent_steps',
         'profile_versions',
         'interviews',
+        'shared_settings',
       ]),
     );
   });
@@ -70,6 +71,7 @@ describe('bureau-db', () => {
   it('upgrades an older database to the current schema', () => {
     const db = openBureauDb(tempDir);
     db.exec(`
+      DROP TABLE shared_settings;
       DROP TABLE interviews;
       DROP TABLE profile_versions;
       DROP TABLE messages;
@@ -108,6 +110,7 @@ describe('bureau-db', () => {
         'messages',
         'profile_versions',
         'interviews',
+        'shared_settings',
       ]),
     );
     expect(upgraded.prepare('SELECT archived_through, summary FROM stories').all()).toEqual([]);
@@ -118,6 +121,7 @@ describe('bureau-db', () => {
     db.exec(`
       DROP TABLE interviews;
       DROP TABLE profile_versions;
+      DROP TABLE shared_settings;
       INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
       VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
       INSERT INTO cast_members (id, bureau_id, name, seed_card, created, modified)
@@ -136,7 +140,7 @@ describe('bureau-db', () => {
 
   it('gives Bureaus from before avatar windows none', () => {
     const db = openBureauDb(tempDir);
-    db.exec('DROP TABLE interviews; DROP TABLE profile_versions;');
+    db.exec('DROP TABLE shared_settings; DROP TABLE interviews; DROP TABLE profile_versions;');
     db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
     db.prepare(
       `INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
@@ -160,9 +164,9 @@ describe('bureau-db', () => {
       VALUES ('shifted', 'Shifted', 'deepseek-flash', '2020-01-01T00:00:00.000Z', -365, 'now', 'now'),
              ('plain', 'Plain', 'deepseek-flash', '2020-01-01T00:00:00.000Z', 0, 'now', 'now');
     `);
-    // Back to the tables version 6 had, before time could pass in a chapter, avatar windows, and
-    // profiles.
-    db.exec('DROP TABLE interviews; DROP TABLE profile_versions;');
+    // Back to the tables version 6 had, before time could pass in a chapter, avatar windows,
+    // profiles, and the shared key.
+    db.exec('DROP TABLE shared_settings; DROP TABLE interviews; DROP TABLE profile_versions;');
     db.exec('ALTER TABLE turns DROP COLUMN bureau_time');
     db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
     db.pragma('user_version = 6');
@@ -187,6 +191,20 @@ describe('bureau-db', () => {
         .all()
         .map((column) => column.name),
     ).toContain('bureau_time');
+  });
+
+  it('gives databases from before the shared key an empty one', () => {
+    const db = openBureauDb(tempDir);
+    db.exec('DROP TABLE shared_settings');
+    db.pragma('user_version = 10');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+
+    expect(upgraded.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+    expect(upgraded.prepare('SELECT id, api_key FROM shared_settings').all()).toEqual([
+      { id: 1, api_key: '' },
+    ]);
   });
 
   it('refuses a database written by a newer build', () => {

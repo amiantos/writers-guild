@@ -48,13 +48,19 @@ function toJson(value) {
 }
 
 function bureauFromRow(row) {
+  // A Bureau without a key of its own uses the shared key.
+  const sharedKey = row.shared_api_key ?? '';
+  const apiKey = row.api_key || sharedKey;
   return {
     id: row.id,
     name: row.name,
     description: row.description,
     model: row.model,
-    hasApiKey: row.api_key.length > 0,
-    apiKeyPreview: maskApiKey(row.api_key),
+    hasApiKey: apiKey.length > 0,
+    apiKeySource: row.api_key ? 'bureau' : sharedKey ? 'shared' : null,
+    // The key the Bureau uses, and the shared key, masked.
+    apiKeyPreview: maskApiKey(apiKey),
+    sharedApiKeyPreview: maskApiKey(sharedKey),
     bureauTime: row.bureau_time,
     timezone: row.timezone,
     houseStyle: row.house_style,
@@ -165,7 +171,8 @@ export class BureauStorage {
   }
 
   prepareStatements() {
-    const bureauColumns = `b.*, (SELECT COUNT(*) FROM cast_members c WHERE c.bureau_id = b.id) AS cast_count`;
+    const sharedKeyColumn = `(SELECT api_key FROM shared_settings WHERE id = 1) AS shared_api_key`;
+    const bureauColumns = `b.*, (SELECT COUNT(*) FROM cast_members c WHERE c.bureau_id = b.id) AS cast_count, ${sharedKeyColumn}`;
     const runColumns = `r.*, (SELECT COUNT(*) FROM agent_steps s WHERE s.run_id = r.id) AS step_count`;
 
     this.stmts = {
@@ -174,7 +181,9 @@ export class BureauStorage {
         `SELECT ${bureauColumns} FROM bureaus b ORDER BY b.modified DESC, b.rowid DESC`,
       ),
       getBureau: this.db.prepare(`SELECT ${bureauColumns} FROM bureaus b WHERE b.id = ?`),
-      getCredentials: this.db.prepare('SELECT api_key, model FROM bureaus WHERE id = ?'),
+      getCredentials: this.db.prepare(
+        `SELECT api_key, model, ${sharedKeyColumn} FROM bureaus WHERE id = ?`,
+      ),
       insertBureau: this.db.prepare(`
         INSERT INTO bureaus (id, name, description, api_key, model, bureau_time, created, modified)
         VALUES (@id, @name, @description, @apiKey, @model, @bureauTime, @created, @modified)
@@ -191,6 +200,21 @@ export class BureauStorage {
       ),
       setAvatarWindows: this.db.prepare('UPDATE bureaus SET avatar_windows = ? WHERE id = ?'),
       touchBureau: this.db.prepare('UPDATE bureaus SET modified = ? WHERE id = ?'),
+
+      // Shared key
+      getSharedApiKey: this.db.prepare('SELECT api_key FROM shared_settings WHERE id = 1'),
+      setSharedApiKey: this.db.prepare('UPDATE shared_settings SET api_key = ? WHERE id = 1'),
+
+      // Reset: everything chapters and messages left behind, with the runs that wrote it. Runs
+      // behind interviews and generated characters stay.
+      resetMemories: this.db.prepare('DELETE FROM memories WHERE bureau_id = ?'),
+      resetArcNotes: this.db.prepare('DELETE FROM arc_notes WHERE bureau_id = ?'),
+      resetStories: this.db.prepare('DELETE FROM stories WHERE bureau_id = ?'),
+      resetThreads: this.db.prepare('DELETE FROM threads WHERE bureau_id = ?'),
+      resetRuns: this.db.prepare(`
+        DELETE FROM agent_runs
+        WHERE bureau_id = ? AND purpose IN ('turn', 'reply', 'archive', 'offscreen')
+      `),
 
       // World
       listLorebookIds: this.db.prepare(
@@ -291,13 +315,33 @@ export class BureauStorage {
   }
 
   /**
-   * The Bureau's API key and model, for server-side model calls. Never send
-   * the result to a client.
+   * The Bureau's API key (its own, or else the shared key) and model, for server-side model calls.
+   * Never send the result to a client.
    * @returns {{ apiKey: string, model: string } | null}
    */
   getBureauCredentials(bureauId) {
     const row = this.stmts.getCredentials.get(bureauId);
-    return row ? { apiKey: row.api_key, model: row.model } : null;
+    return row ? { apiKey: row.api_key || (row.shared_api_key ?? ''), model: row.model } : null;
+  }
+
+  /**
+   * Whether a shared key is saved, with a masked preview. The shared key is used by every Bureau
+   * without a key of its own.
+   * @returns {{ hasApiKey: boolean, apiKeyPreview: string }}
+   */
+  getSharedApiKey() {
+    const apiKey = this.stmts.getSharedApiKey.get()?.api_key ?? '';
+    return { hasApiKey: apiKey.length > 0, apiKeyPreview: maskApiKey(apiKey) };
+  }
+
+  /**
+   * Save the shared key. An apiKey of '' removes it.
+   * @param {string} apiKey
+   * @returns {{ hasApiKey: boolean, apiKeyPreview: string }}
+   */
+  setSharedApiKey(apiKey) {
+    this.stmts.setSharedApiKey.run(apiKey);
+    return this.getSharedApiKey();
   }
 
   /**
@@ -389,6 +433,31 @@ export class BureauStorage {
   /** Deletes the Bureau with its cast and run records. */
   deleteBureau(bureauId) {
     return this.stmts.deleteBureau.run(bureauId).changes > 0;
+  }
+
+  /**
+   * Reset a Bureau to a blank slate. Its chapters, message threads, memories (backstory included),
+   * and arc notes are deleted, with the runs that wrote them. The cast, their profiles with every
+   * version, interviews, lorebooks, settings, and Bureau time stay.
+   * @returns {boolean} Whether the Bureau exists.
+   */
+  resetBureau(bureauId) {
+    if (!this.stmts.getBureau.get(bureauId)) return false;
+
+    const { resetMemories, resetArcNotes, resetStories, resetThreads, resetRuns } = this.stmts;
+    this.db.transaction(() => {
+      for (const statement of [
+        resetMemories,
+        resetArcNotes,
+        resetStories,
+        resetThreads,
+        resetRuns,
+      ]) {
+        statement.run(bureauId);
+      }
+      this.stmts.touchBureau.run(new Date().toISOString(), bureauId);
+    })();
+    return true;
   }
 
   // ==================== Cast ====================

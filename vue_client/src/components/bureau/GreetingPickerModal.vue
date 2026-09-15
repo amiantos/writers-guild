@@ -12,7 +12,8 @@
         Keep it as written to use the card's text as it is.
       </p>
       <p v-if="!hasApiKey" class="notice">
-        <i class="fas fa-key"></i> Rewriting needs an API key in the Bureau's settings.
+        <i class="fas fa-key"></i> Rewriting needs an API key in the Bureau's settings or on the
+        Bureaus tab.
       </p>
     </div>
 

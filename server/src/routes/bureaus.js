@@ -31,6 +31,7 @@ import {
   attachBureauStores,
   createBureauClient,
   optionalString,
+  requireApiKey,
   requireBureau,
 } from './bureau-route-helpers.js';
 
@@ -48,23 +49,39 @@ router.get(
   }),
 );
 
-// Create a Bureau
+// Create a Bureau. With shareApiKey, its key becomes the shared key instead, unless a shared key is
+// already saved: that one stays, and the key is the Bureau's own.
 router.post(
   '/',
   asyncHandler(async (req, res) => {
+    const { bureaus } = res.locals.stores;
     const body = req.body ?? {};
     const name = optionalString(body, 'name');
     if (!name) {
       throw new AppError('Name is required', 400);
     }
+    const description = optionalString(body, 'description') ?? '';
+    const apiKey = optionalString(body, 'apiKey') ?? '';
     const model = optionalString(body, 'model');
+    const { shareApiKey = false } = body;
+    if (typeof shareApiKey !== 'boolean') {
+      throw new AppError('shareApiKey must be a boolean', 400);
+    }
 
-    const bureau = res.locals.stores.bureaus.createBureau({
-      name,
-      description: optionalString(body, 'description') ?? '',
-      apiKey: optionalString(body, 'apiKey') ?? '',
-      ...(model ? { model } : {}),
-    });
+    let bureau;
+    // One transaction, so a key is only shared along with the Bureau it was typed for.
+    bureaus.db.transaction(() => {
+      const sharing = shareApiKey && apiKey !== '' && !bureaus.getSharedApiKey().hasApiKey;
+      if (sharing) {
+        bureaus.setSharedApiKey(apiKey);
+      }
+      bureau = bureaus.createBureau({
+        name,
+        description,
+        apiKey: sharing ? '' : apiKey,
+        ...(model ? { model } : {}),
+      });
+    })();
     res.status(201).json({ bureau });
   }),
 );
@@ -79,6 +96,27 @@ router.get(
       settings: DEFAULT_SETTINGS,
       model: DEFAULT_MODEL,
     });
+  }),
+);
+
+// The shared API key, used by every Bureau without a key of its own. Like a Bureau's key, it's
+// write-only: responses carry a masked preview.
+router.get(
+  '/shared-key',
+  asyncHandler(async (req, res) => {
+    res.json({ sharedKey: res.locals.stores.bureaus.getSharedApiKey() });
+  }),
+);
+
+// Save the shared API key. An apiKey of '' removes it.
+router.put(
+  '/shared-key',
+  asyncHandler(async (req, res) => {
+    const apiKey = optionalString(req.body ?? {}, 'apiKey');
+    if (apiKey === undefined) {
+      throw new AppError('apiKey is required', 400);
+    }
+    res.json({ sharedKey: res.locals.stores.bureaus.setSharedApiKey(apiKey) });
   }),
 );
 
@@ -294,6 +332,20 @@ router.delete(
   }),
 );
 
+// Reset a Bureau to a blank slate: its chapters, messages, memories, and arc notes are deleted, with
+// the runs that wrote them. The cast and their profiles with every version stay, and so do
+// interviews, lorebooks, settings, and Bureau time.
+router.post(
+  '/:bureauId/reset',
+  asyncHandler(async (req, res) => {
+    const { bureaus } = res.locals.stores;
+    if (!bureaus.resetBureau(req.params.bureauId)) {
+      throw new AppError('Bureau not found', 404);
+    }
+    res.json({ bureau: bureaus.getBureau(req.params.bureauId) });
+  }),
+);
+
 // ==================== Cast ====================
 
 // List cast members (without seed cards), with how many current memories each has and
@@ -430,9 +482,7 @@ router.post(
     const { stores } = res.locals;
     const { bureauId } = req.params;
     const bureau = requireBureau(stores.bureaus, bureauId);
-    if (!bureau.hasApiKey) {
-      throw new AppError('This Bureau has no API key. Add one in its settings.', 400);
-    }
+    requireApiKey(bureau);
     const idea = optionalString(req.body ?? {}, 'idea');
     if (!idea) {
       throw new AppError('idea is required', 400);

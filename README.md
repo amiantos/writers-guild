@@ -31,7 +31,7 @@ Bureau is a separate mode for an ongoing story with living characters, written i
 - **Character generator** - Generate characters from an idea, or let the Director create them when someone new walks into a chapter.
 - **Greetings, images, and avatars** - As in story mode, open a chapter with a greeting from a character's card, rewritten by the Writer in the house style, see the images that cards and lorebooks carry, and float character avatars over the page.
 
-Bureau keeps its data in `data/bureau.db`, apart from story mode, and each Bureau has its own DeepSeek API key (DeepSeek V4.1 Flash by default). The Bureaus tab explains the terms the first time you open it, and the full design is in [docs/bureau-design.md](docs/bureau-design.md).
+Bureau keeps its data in `data/bureau.db`, apart from story mode. Bureaus share one DeepSeek API key unless one has its own, and use DeepSeek V4.1 Flash by default. The Bureaus tab explains the terms the first time you open it, and the full design is in [docs/bureau-design.md](docs/bureau-design.md).
 
 ## Quick Start
 

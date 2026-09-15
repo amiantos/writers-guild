@@ -6,6 +6,9 @@
         <button class="btn btn-secondary" @click="showIntro = true">
           <i class="fas fa-circle-question"></i> What's a Bureau?
         </button>
+        <button class="btn btn-secondary" @click="showSharedKey = true">
+          <i class="fas fa-key"></i> Shared API key
+        </button>
         <button class="btn btn-primary" @click="showCreate = true">
           <i class="fas fa-plus"></i> New Bureau
         </button>
@@ -15,7 +18,7 @@
     <p class="tab-intro">
       <span class="experimental-badge">Experimental</span>
       A Bureau holds a cast and an ongoing story, written in chapters. Each character keeps their
-      own copy of their card, and each Bureau uses its own DeepSeek API key.
+      own copy of their card, and Bureaus share one DeepSeek API key unless one has its own.
     </p>
 
     <div v-if="loading" class="loading">Loading Bureaus...</div>
@@ -45,6 +48,11 @@
 
     <CreateBureauModal v-if="showCreate" @close="showCreate = false" @created="handleCreated" />
     <BureauIntroModal v-if="showIntro" @close="closeIntro" />
+    <SharedKeyModal
+      v-if="showSharedKey"
+      @close="showSharedKey = false"
+      @saved="handleSharedKeySaved"
+    />
   </div>
 </template>
 
@@ -56,6 +64,7 @@ import { useToast } from '../../composables/useToast';
 import { rememberChoice, rememberedChoice } from '../../composables/bureau/format';
 import BureauIntroModal from './BureauIntroModal.vue';
 import CreateBureauModal from './CreateBureauModal.vue';
+import SharedKeyModal from './SharedKeyModal.vue';
 
 // Remembers that this browser has seen the intro, so it only opens by itself once.
 const INTRO_KEY = 'bureau-intro';
@@ -66,6 +75,7 @@ const toast = useToast();
 const bureaus = ref([]);
 const loading = ref(true);
 const showCreate = ref(false);
+const showSharedKey = ref(false);
 const showIntro = ref(rememberedChoice(INTRO_KEY, ['seen'], '') !== 'seen');
 
 function closeIntro() {
@@ -74,7 +84,6 @@ function closeIntro() {
 }
 
 async function loadBureaus() {
-  loading.value = true;
   try {
     const data = await bureausAPI.list();
     bureaus.value = data.bureaus;
@@ -93,6 +102,12 @@ function openBureau(bureau) {
 function handleCreated(bureau) {
   showCreate.value = false;
   openBureau(bureau);
+}
+
+// Bureaus without a key of their own follow the shared key, so which ones lack a key may change.
+function handleSharedKeySaved() {
+  showSharedKey.value = false;
+  loadBureaus();
 }
 
 onMounted(loadBureaus);

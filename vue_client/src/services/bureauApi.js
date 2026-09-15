@@ -88,7 +88,24 @@ export const bureausAPI = {
     return request('/defaults');
   },
 
-  /** @param {{ name: string, description?: string, apiKey?: string, model?: string }} fields */
+  /**
+   * The shared API key, used by every Bureau without a key of its own:
+   * { sharedKey: { hasApiKey, apiKeyPreview } }.
+   */
+  sharedKey() {
+    return request('/shared-key');
+  },
+
+  /** Save the shared API key; '' removes it. Answers like sharedKey(). */
+  updateSharedKey(apiKey) {
+    return request('/shared-key', { method: 'PUT', body: { apiKey } });
+  },
+
+  /**
+   * With shareApiKey, the key becomes the shared key instead of the Bureau's own, if none is saved.
+   * @param {{ name: string, description?: string, apiKey?: string, shareApiKey?: boolean,
+   *   model?: string }} fields
+   */
   create(fields) {
     return request('', { method: 'POST', body: fields });
   },
@@ -115,6 +132,14 @@ export const bureausAPI = {
 
   remove(bureauId) {
     return request(`/${bureauId}`, { method: 'DELETE' });
+  },
+
+  /**
+   * Reset a Bureau to a blank slate: delete its chapters, messages, memories, and arc notes, keeping
+   * the cast with their profiles, interviews, lorebooks, settings, and Bureau time.
+   */
+  reset(bureauId) {
+    return request(`/${bureauId}/reset`, { method: 'POST', body: {} });
   },
 
   listCast(bureauId) {

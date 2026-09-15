@@ -36,6 +36,7 @@ describe('Bureau routes', () => {
   beforeEach(() => {
     // Deleting Bureaus cascades to their cast and run records.
     bureaus.db.exec('DELETE FROM bureaus');
+    bureaus.setSharedApiKey('');
     library.db.exec('DELETE FROM characters');
 
     app = express();
@@ -102,6 +103,25 @@ describe('Bureau routes', () => {
       await request(app).post('/api/bureaus').send({ name: 'Harbor', apiKey: 12345 }).expect(400);
     });
 
+    it('shares the key typed into a new Bureau only while no shared key is saved', async () => {
+      const first = await createBureau({ apiKey: 'sk-route-first-key-1111', shareApiKey: true });
+      expect(first).toMatchObject({ apiKeySource: 'shared', apiKeyPreview: 'sk-…1111' });
+
+      const second = await createBureau({
+        name: 'Lighthouse',
+        apiKey: 'sk-route-second-key-2222',
+        shareApiKey: true,
+      });
+      expect(second).toMatchObject({ apiKeySource: 'bureau', apiKeyPreview: 'sk-…2222' });
+      const { body } = await request(app).get('/api/bureaus/shared-key').expect(200);
+      expect(body.sharedKey.apiKeyPreview).toBe('sk-…1111');
+
+      await request(app)
+        .post('/api/bureaus')
+        .send({ name: 'Pier', shareApiKey: 'yes' })
+        .expect(400);
+    });
+
     it('lists Bureaus', async () => {
       await createBureau({ name: 'Harbor' });
       await createBureau({ name: 'Lighthouse' });
@@ -127,6 +147,65 @@ describe('Bureau routes', () => {
         model: 'deepseek-v4-pro',
         hasApiKey: false,
       });
+    });
+
+    it('saves a shared key for Bureaus without their own, and never returns it', async () => {
+      const sharedKey = 'sk-route-shared-key-4321';
+      await createBureau();
+      const borrowing = await createBureau({ name: 'Lighthouse', apiKey: '' });
+
+      expect((await request(app).get('/api/bureaus/shared-key').expect(200)).body).toEqual({
+        sharedKey: { hasApiKey: false, apiKeyPreview: '' },
+      });
+      const saved = await request(app)
+        .put('/api/bureaus/shared-key')
+        .send({ apiKey: `  ${sharedKey}  ` })
+        .expect(200);
+      expect(saved.body).toEqual({ sharedKey: { hasApiKey: true, apiKeyPreview: 'sk-…4321' } });
+
+      const listed = await request(app).get('/api/bureaus').expect(200);
+      const byName = Object.fromEntries(listed.body.bureaus.map((bureau) => [bureau.name, bureau]));
+      expect(byName.Lighthouse).toMatchObject({ hasApiKey: true, apiKeySource: 'shared' });
+      expect(byName.Harbor).toMatchObject({ apiKeySource: 'bureau', apiKeyPreview: 'sk-…5678' });
+      const read = await request(app).get('/api/bureaus/shared-key').expect(200);
+      for (const response of [saved, listed, read]) {
+        expect(response.text).not.toContain(sharedKey);
+      }
+
+      await request(app).put('/api/bureaus/shared-key').send({ apiKey: '' }).expect(200);
+      const { body } = await request(app).get(`/api/bureaus/${borrowing.id}`).expect(200);
+      expect(body.bureau).toMatchObject({ hasApiKey: false, apiKeySource: null });
+    });
+
+    it('requires the shared key as a string', async () => {
+      await request(app).put('/api/bureaus/shared-key').send({}).expect(400);
+      await request(app).put('/api/bureaus/shared-key').send({ apiKey: 5 }).expect(400);
+    });
+
+    it('calls the model with the shared key for a Bureau without its own', async () => {
+      const bureau = await createBureau({ apiKey: '' });
+      bureaus.setSharedApiKey('sk-route-shared-key-4321');
+      const credentials = [];
+      app.locals.createBureauClient = (config) => {
+        credentials.push(config);
+        return {};
+      };
+
+      // Letting time pass commits finished messages to memory, which makes a client.
+      await request(app).post(`/api/bureaus/${bureau.id}/time`).send({ step: 'hour' }).expect(200);
+
+      expect(credentials).toEqual([
+        { apiKey: 'sk-route-shared-key-4321', model: 'deepseek-flash' },
+      ]);
+    });
+
+    it('resets a Bureau, answering with it', async () => {
+      const bureau = await createBureau();
+
+      const { body } = await request(app).post(`/api/bureaus/${bureau.id}/reset`).expect(200);
+
+      expect(body.bureau).toMatchObject({ id: bureau.id, name: 'Harbor', hasApiKey: true });
+      await request(app).post('/api/bureaus/missing/reset').expect(404);
     });
 
     it('rejects empty or missing updates', async () => {

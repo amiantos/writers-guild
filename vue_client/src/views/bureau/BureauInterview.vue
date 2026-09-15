@@ -81,8 +81,8 @@
               ></textarea>
             </div>
             <p v-if="!bureau.hasApiKey" class="composer-warning">
-              <i class="fas fa-key"></i> This Bureau has no API key. Add one in the Bureau's
-              settings to start an interview.
+              <i class="fas fa-key"></i> This Bureau has no API key. Add one in its settings, or a
+              shared key on the Bureaus tab, to start an interview.
             </p>
             <div>
               <button class="btn btn-primary" :disabled="busy || !bureau.hasApiKey" @click="start">
@@ -202,8 +202,8 @@
 
       <div v-if="interview && !reviewing" class="interview-composer">
         <p v-if="!bureau.hasApiKey" class="composer-warning">
-          <i class="fas fa-key"></i> This Bureau has no API key. Add one in the Bureau's settings to
-          go on.
+          <i class="fas fa-key"></i> This Bureau has no API key. Add one in its settings, or a
+          shared key on the Bureaus tab, to go on.
         </p>
         <p v-else-if="interview.proposal" class="composer-note">
           A write-up is waiting.

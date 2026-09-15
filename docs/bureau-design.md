@@ -111,6 +111,14 @@ card**). Everything that character develops (memories, arc notes, routine) stays
 The user's persona is a cast member too. "What a character knows about you" is just one character's
 memory of another, so no separate user concept is needed.
 
+### Resetting a Bureau
+
+**Reset Bureau**, in the Bureau's settings, gives a blank slate for trying changes to the cast's
+profiles. Anything that isn't part of a profile goes: every chapter, message thread, memory
+(backstory included), and arc note, with the runs of the passages, replies, Archivist passes, and
+offscreen accounts that made them. The cast and their profiles, with every version, stay, and so do
+interviews, lorebooks, settings, and Bureau time.
+
 ## The chapter view: turns
 
 Bureau chapters use a reading view modeled on story mode's preview (`showPreview` in
@@ -373,17 +381,19 @@ Archivist can supersede memories but can't retire or delete them, and it leaves 
 memories and any you change while it's reading. Changing a turn it has read (editing, deleting,
 switching versions, or regenerating) marks the memories that cite the turn for review, including
 episodes, which cite every passage they cover. A turn that changes while a pass is reading it is
-flagged the same way. Deleting a chapter deletes its memories, which brings back anything they had
-replaced.
+flagged the same way. Deleting a chapter, from the Bureau's chapter list, deletes its memories and
+arc notes, which brings back any memories they had replaced.
 
 **Later:** `propose_arc_note` for character development, which waits for approval (phase 5), and
 `update_world` for ongoing threads and timeline events.
 
 ### API key and model
 
-Each Bureau has its own DeepSeek API key and model, set in the Bureau's settings and stored in
-`bureau.db`. Bureau never reads story mode's presets. Separate keys also let people keep billing
-separate per Bureau. The UI shows keys masked, and the API never returns a stored key in full.
+Bureaus share one DeepSeek API key, stored in `bureau.db`. It's set with **Shared API key** on the
+Bureaus tab, or by sharing the key typed into a new Bureau when none is saved yet. A Bureau can have
+its own key instead, set in its settings, which also keeps its billing separate. Each Bureau has its
+own model. Bureau never reads story mode's presets. The UI shows keys masked, and the API never
+returns a stored key in full.
 
 ### DeepSeek client
 
@@ -720,6 +730,7 @@ later phases add the rest as migrations:
 ```text
 bureaus        (id, name, description, api_key, model, bureau_time, present_offset_days [unused],
                 timezone, house_style, settings JSON, avatar_windows JSON, created, modified)
+shared_settings (id [always 1], api_key [used by Bureaus without their own])
 cast_members   (id, bureau_id, library_character_id NULL, name, is_persona, is_draft,
                 seed_card JSON [the profile's card], routine JSON, created, modified)
 profile_versions (id, bureau_id, cast_member_id, fields JSON,
