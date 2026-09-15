@@ -18,7 +18,7 @@ import { DeepSeekError } from './deepseek-client.js';
 import { runDirector } from './director.js';
 import { runEditor } from './editor.js';
 import { imageStream } from './images.js';
-import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
+import { factsAsOf, memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 import { inferPronoun, lintProse, usesThirdPerson } from './style-lint.js';
 import { DEFAULT_HOUSE_STYLE, buildWriterMessages } from './writer-prompt.js';
@@ -247,6 +247,7 @@ export async function generateWriterTurn({
       loreEntries: await activatedLore(stores, bureau.id, scanText),
       memoriesByCast,
       arcNotesByCast,
+      facts: factsAsOf(stores.facts.listFacts(bureau.id), story),
       turns,
       request: { ...promptRequest, brief },
       // Turns stop before a turn being regenerated, so the time is the chapter's as of that turn.
@@ -403,11 +404,14 @@ export async function generateWriterTurn({
   if (findings.length > 0 && bureau.settings.editor.enabled) {
     onEvent({ type: 'stage', stage: 'editing' });
     try {
+      // The Writer revises its own passage, with the chapter still in view.
       const edited = await runEditor({
         client,
         recorder,
-        houseStyle,
+        writerMessages: messages,
+        recordedWriterMessages: recordedRequest.messages,
         text: finalContent,
+        reasoning,
         findings,
         signal,
       });

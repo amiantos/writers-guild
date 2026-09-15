@@ -305,6 +305,44 @@ const MIGRATIONS = [
     );
     INSERT INTO shared_settings (id) VALUES (1);
   `,
+
+  // 12: A memory the Archivist found disagreeing with a profile keeps what it disagrees with. It
+  // stays out of every prompt until the reader keeps it, edits it, or retires it.
+  `
+    ALTER TABLE memories ADD COLUMN conflict TEXT NOT NULL DEFAULT '';
+  `,
+
+  // 13: Established facts, what's true in a Bureau's world, written by the reader or proposed by the
+  // Archivist. A fact that changes another names the one it replaces, which stays for flashbacks.
+  `
+    CREATE TABLE facts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      bureau_id TEXT NOT NULL REFERENCES bureaus(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      -- What was first proposed, so an edit before accepting stays visible.
+      proposed_content TEXT NOT NULL,
+      rationale TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'proposed',
+      replaces INTEGER REFERENCES facts(id) ON DELETE SET NULL,
+      world_time TEXT,
+      source_type TEXT NOT NULL,
+      source_id TEXT,
+      source_turn_ids TEXT NOT NULL DEFAULT '[]',
+      run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL,
+      needs_review INTEGER NOT NULL DEFAULT 0,
+      created TEXT NOT NULL,
+      decided TEXT,
+      modified TEXT NOT NULL
+    );
+    CREATE INDEX idx_facts_bureau ON facts(bureau_id, status);
+    CREATE INDEX idx_facts_source ON facts(source_type, source_id);
+    CREATE INDEX idx_facts_replaces ON facts(replaces);
+  `,
+
+  // 14: A held memory keeps the memory it would replace, and replaces it once the reader keeps it.
+  `
+    ALTER TABLE memories ADD COLUMN pending_supersedes INTEGER;
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

@@ -81,6 +81,25 @@ describe('MemoryItem', () => {
     expect(lastUpdate(wrapper)).toEqual({ needsReview: false });
   });
 
+  it('says what a held memory disagrees with, and uses it once the reader says it is right', async () => {
+    const wrapper = mountItem({
+      needsReview: true,
+      conflict: "Mara's profile says she lives above the bakery.",
+    });
+
+    expect(wrapper.text()).toContain('Disagrees with a profile or fact');
+    expect(wrapper.text()).not.toContain('Check this');
+    expect(wrapper.find('.memory-conflict').text()).toBe(
+      "Kept out of every prompt until you check it. Mara's profile says she lives above the bakery.",
+    );
+    await wrapper
+      .findAll('button')
+      .find((button) => button.attributes('title') === "It's right: use it")
+      .trigger('click');
+
+    expect(lastUpdate(wrapper)).toEqual({ needsReview: false });
+  });
+
   it('edits the text, pins, retires, and changes importance', async () => {
     const wrapper = mountItem();
 

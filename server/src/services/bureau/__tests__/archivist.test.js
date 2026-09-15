@@ -216,6 +216,142 @@ describe('archiveStory', () => {
     ]);
   });
 
+  it('reads the profiles, and holds a fact that disagrees with one for the reader', async () => {
+    const ines = stores.bureaus.addCastMember(bureau.id, {
+      seedCard: {
+        spec: 'chara_card_v2',
+        spec_version: '2.0',
+        data: {
+          name: 'Ines',
+          description: 'Lives with {{user}} above the bakery.',
+          personality: 'Dry.',
+        },
+      },
+      libraryCharacterId: 'c3',
+    });
+    stores.stories.updateStory(bureau.id, story.id, { castIds: [mara.id, theo.id, ines.id] });
+    const spareKey = stores.memories.addMemory(bureau.id, ines.id, {
+      layer: 'knowledge',
+      content: 'Ines keeps a spare key under the mat.',
+    });
+    const passage = addProse('Ines texted from her own flat across town.');
+    const conflict = "Ines's profile says she lives with Theo above the bakery.";
+    const client = archivistClient([
+      record({
+        knowledge: [
+          {
+            character: 'Ines',
+            content: 'Ines lives in a flat across town.',
+            importance: 4,
+            supersedes: spareKey.id,
+            passages: [passage.position],
+            conflict,
+          },
+          {
+            character: 'Ines',
+            content: 'Ines texts Theo when she runs late.',
+            importance: 2,
+            supersedes: 0,
+            passages: [passage.position],
+            conflict: '',
+          },
+        ],
+      }),
+    ]);
+
+    const result = await archive(client);
+
+    const [system, user] = client.calls[0].messages;
+    expect(user.content).toContain(
+      '=== PROFILES ===\nMara\n\nTheo\n\nInes\nDescription: Lives with Theo above the bakery.\nPersonality: Dry.',
+    );
+    expect(system.content).toContain('set conflict to what it disagrees with');
+    expect(result).toMatchObject({ added: 1, held: 1, superseded: 0 });
+    expect(result.warnings).toEqual([
+      `Kept memory ${spareKey.id} for Ines for now: what would replace it disagrees with a profile or fact`,
+    ]);
+
+    const held = stores.memories
+      .listMemories(bureau.id, ines.id)
+      .find((memory) => memory.content === 'Ines lives in a flat across town.');
+    // It replaces the spare key once the reader keeps it, not before.
+    expect(held).toMatchObject({ needsReview: true, conflict, pendingSupersedes: spareKey.id });
+    expect(stores.memories.getMemory(bureau.id, spareKey.id).supersededBy).toBeNull();
+    // Nothing remembers it until the reader keeps it.
+    const visible = memoriesAsOf(
+      stores.memories.listMemories(bureau.id, ines.id, { status: 'all' }),
+      story,
+      { includeOwnStory: true },
+    ).map((memory) => memory.content);
+    expect(visible).toEqual([
+      'Ines texts Theo when she runs late.',
+      'Ines keeps a spare key under the mat.',
+    ]);
+  });
+
+  it('reads the established facts, and proposes new facts and changes for the reader', async () => {
+    const home = stores.facts.addFact(bureau.id, {
+      content: 'Mara and {{user}} live above the bakery.',
+      status: 'accepted',
+    });
+    stores.facts.addFact(bureau.id, { content: 'Theo works nights.' });
+    stores.facts.addFact(bureau.id, { content: 'Mara sells the shop.', status: 'rejected' });
+    const passage = addProse('Mara and Theo signed the lease on the harbor house.');
+    const client = archivistClient([
+      record({
+        facts: [
+          {
+            content: 'Mara and Theo live in the house by the harbor.',
+            replaces: home.id,
+            rationale: 'They signed the lease.',
+            passages: [passage.position],
+          },
+          { content: 'theo works nights.', replaces: 0, rationale: '', passages: [] },
+          {
+            content: 'Mara keeps a cat.',
+            replaces: 999,
+            rationale: 'A cat sleeps on the bench.',
+            passages: [passage.position],
+          },
+        ],
+      }),
+    ]);
+
+    const result = await archive(client);
+
+    const [system, user] = client.calls[0].messages;
+    expect(system.content).toContain('Facts: lasting truths about the world and the cast');
+    expect(user.content).toContain(
+      [
+        '=== ESTABLISHED FACTS ===',
+        `[${home.id}] Mara and Theo live above the bakery.`,
+        'Waiting for review:',
+        '- Theo works nights.',
+        'Turned down by the reader (never propose these again):',
+        '- Mara sells the shop.',
+      ].join('\n'),
+    );
+    expect(result.facts).toBe(2);
+    expect(result.warnings).toEqual([
+      "Proposed a fact without replacing fact 999, which isn't established",
+    ]);
+
+    const proposed = stores.facts.listFacts(bureau.id, { status: 'proposed' });
+    expect(proposed.map((fact) => [fact.content, fact.replaces])).toEqual([
+      ['Theo works nights.', null],
+      ['Mara and Theo live in the house by the harbor.', home.id],
+      ['Mara keeps a cat.', null],
+    ]);
+    expect(proposed[1]).toMatchObject({
+      rationale: 'They signed the lease.',
+      sourceType: 'story',
+      sourceId: story.id,
+      worldTime: START,
+      sourceTurnIds: [passage.id],
+      runId: result.runId,
+    });
+  });
+
   it('updates what characters know on later passes', async () => {
     const earlier = stores.stories.createStory(bureau.id, {
       startTime: '2026-10-01T20:00:00.000Z',
@@ -558,6 +694,47 @@ describe('archiveStory', () => {
       'Before these passages, time passed to: 8:00 AM on Wednesday, October 28, 2026',
     );
     expect(later).not.toContain('[Time passes.');
+  });
+
+  it("dates a fact from the chapter's time at the latest passage it cites", async () => {
+    const viewing = addProse('Mara and Theo looked around the harbor house.');
+    stores.stories.addTurn(story.id, {
+      kind: 'time_passes',
+      source: 'user',
+      bureauTime: '2026-10-30T09:00:00.000Z',
+    });
+    const moving = addProse('They carried the last box inside.');
+    const client = archivistClient([
+      record({
+        facts: [
+          {
+            content: 'Mara and Theo live in the harbor house.',
+            replaces: 0,
+            rationale: 'They moved in.',
+            passages: [viewing.position, moving.position],
+          },
+          {
+            content: 'The harbor house has a blue door.',
+            replaces: 0,
+            rationale: '',
+            passages: [viewing.position],
+          },
+          { content: 'Theo owns a van.', replaces: 0, rationale: '', passages: [] },
+        ],
+      }),
+    ]);
+
+    await archive(client);
+
+    // A fact that cites no passage takes the time at the end of what the pass read.
+    expect(stores.facts.listFacts(bureau.id).map((fact) => [fact.content, fact.worldTime])).toEqual(
+      [
+        ['The harbor house has a blue door.', START],
+        ['Mara and Theo live in the harbor house.', '2026-10-30T09:00:00.000Z'],
+        ['Theo owns a van.', '2026-10-30T09:00:00.000Z'],
+      ],
+    );
+    // Memories from the chapter are still dated to its start.
   });
 
   it('runs one archive at a time per story', async () => {

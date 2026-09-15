@@ -20,10 +20,21 @@
     </div>
     <p v-else class="memory-content">{{ memory.content }}</p>
 
+    <p v-if="memory.conflict && !editing" class="memory-conflict">
+      Kept out of every prompt until you check it. {{ memory.conflict }}
+    </p>
+
     <div class="memory-footer">
       <div class="memory-meta">
         <span
-          v-if="memory.needsReview"
+          v-if="memory.conflict"
+          class="review-badge"
+          title="The Archivist found that this disagrees with a profile or an established fact"
+        >
+          <i class="fas fa-triangle-exclamation"></i> Disagrees with a profile or fact
+        </span>
+        <span
+          v-else-if="memory.needsReview"
           class="review-badge"
           title="A passage this memory came from was changed or deleted"
         >
@@ -65,7 +76,7 @@
         <button
           v-if="memory.needsReview"
           class="icon-btn"
-          title="It's still right"
+          :title="memory.conflict ? `It's right: use it` : `It's still right`"
           :disabled="busy"
           @click="$emit('update', memory, { needsReview: false })"
         >
@@ -200,6 +211,13 @@ function save() {
   margin: 0;
   line-height: 1.5;
   white-space: pre-wrap;
+}
+
+.memory-conflict {
+  margin: 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-secondary);
 }
 
 .memory-footer {

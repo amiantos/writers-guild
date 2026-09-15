@@ -1,6 +1,6 @@
 # Bureau — Design Doc
 
-- **Status:** Experimental; phases 1–8 are built
+- **Status:** Experimental; phases 1–9 are built
 - **Started:** 2026-09-11 (last updated 2026-09-14)
 - **Working name:** Bureau (not final)
 - **Branch:** built on `feature/bureau` and merged into `main` in PR #51
@@ -79,18 +79,19 @@ idea:
 
 ## Concepts
 
-| Concept            | What it is                                                                                     |
-| ------------------ | ---------------------------------------------------------------------------------------------- |
-| **Bureau**         | An environment for an ongoing story, written in chapters. Holds everything below.              |
-| **Cast**           | The Bureau's characters. Each has a profile (their card and routine), arc notes, and memories. |
-| **Interview**      | Questions about one character, written up as a new profile for you to review.                  |
-| **World**          | Attached lorebooks plus world state: timeline and ongoing threads.                             |
-| **Chapter**        | An ordered sequence of turns, with a title, start time, and cast. Chapters are ordered too.    |
-| **Turn**           | One group of paragraphs (user prose, a direction, or a generated passage) plus its metadata.   |
-| **Turn seam**      | A hidden divider between turns that expands to show how the next turn was made.                |
-| **Correspondence** | A message thread between the persona and one cast member, between chapters.                    |
-| **Bureau time**    | The Bureau's current date and time: a story clock that only the reader moves.                  |
-| **House style**    | An editable prose rulebook used by the Writer and the Editor. Empty follows the default.       |
+| Concept              | What it is                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| **Bureau**           | An environment for an ongoing story, written in chapters. Holds everything below.              |
+| **Cast**             | The Bureau's characters. Each has a profile (their card and routine), arc notes, and memories. |
+| **Interview**        | Questions about one character, written up as a new profile for you to review.                  |
+| **World**            | Established facts and attached lorebooks. A timeline and ongoing threads are later.            |
+| **Established fact** | Something true in the Bureau's world, such as who lives where, that every agent keeps to.      |
+| **Chapter**          | An ordered sequence of turns, with a title, start time, and cast. Chapters are ordered too.    |
+| **Turn**             | One group of paragraphs (user prose, a direction, or a generated passage) plus its metadata.   |
+| **Turn seam**        | A hidden divider between turns that expands to show how the next turn was made.                |
+| **Correspondence**   | A message thread between the persona and one cast member, between chapters.                    |
+| **Bureau time**      | The Bureau's current date and time: a story clock that only the reader moves.                  |
+| **House style**      | An editable prose rulebook used by the Writer and the Editor. Empty follows the default.       |
 
 Code, the API, and the database still call a chapter a `story`: the `stories` and `story_cast`
 tables, routes under `/stories`, and the memory source type `story`.
@@ -114,10 +115,11 @@ memory of another, so no separate user concept is needed.
 ### Resetting a Bureau
 
 **Reset Bureau**, in the Bureau's settings, gives a blank slate for trying changes to the cast's
-profiles. Anything that isn't part of a profile goes: every chapter, message thread, memory
-(backstory included), and arc note, with the runs of the passages, replies, Archivist passes, and
-offscreen accounts that made them. The cast and their profiles, with every version, stay, and so do
-interviews, lorebooks, settings, and Bureau time.
+profiles. Almost everything that isn't part of a profile goes: every chapter, message thread, memory
+(backstory included), arc note, and fact the Archivist proposed, with the runs of the passages,
+replies, Archivist passes, and offscreen accounts that made them. The cast and their profiles, with
+every version, stay, and so do interviews, lorebooks, settings, Bureau time, and the facts you
+wrote, which set up the world the way lorebooks do.
 
 ## The chapter view: turns
 
@@ -256,14 +258,18 @@ without one, and if the Editor fails, the unedited text stands.
 
 ### Director
 
-Reads a compact view of the Bureau (cast files, recent turns, composer input) and uses tools to
-gather what the next turn needs.
+Reads the chapter cast's whole profiles (description and personality, with `{{user}}` as the
+reader's character), the established facts, the recent turns, and the composer input, and uses tools
+to gather what the next turn needs. It's told the profiles and facts are true: it plans nothing that
+contradicts them, and when a memory disagrees with a profile or fact, it goes by the profile or fact.
+It used to see only the first 300 characters of each description, which left out anything written
+deeper in a card, such as who a character lives with.
 
 | Tool                                  | Purpose                                                                                                    |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `recall(query, character)`            | Full-text search over what the characters remember, as of the chapter's start                              |
 | `lookup_lore(query)`                  | Search attached lorebooks beyond what keyword activation already selected                                  |
-| `get_character_file(name)`            | The full card for one cast member, with their knowledge and recent episodes                                |
+| `get_character_file(name)`            | What one cast member knows and their latest episodes, with their card and how they've changed              |
 | `submit_brief(...)`                   | Hand the Writer the scene brief, which ends the Director's turn                                            |
 | `create_character(name, role, notes)` | Generate a draft cast member and add them to the chapter (see [Character generator](#character-generator)) |
 
@@ -276,14 +282,18 @@ doesn't restate the cards or
 plan callbacks to earlier events unless the scene is about them: memories are background, and
 characters who keep bringing up the past read as talky and artificial. Beats also don't repeat an
 action or bit of business the recent passages already have unless something new comes of it, and
-notes leave out props the passage doesn't need. The Director runs with
+notes leave out props the passage doesn't need. Beats keep to the chapter's present, with no jump to
+a later hour or day and no new secret, twist, or trouble unless the request asks for one. Nobody
+repeats a point already made, and the length fits the moment: short for a quick exchange or a single
+beat. The Director runs with
 thinking on at low effort by default and gets four lookups per passage, after which it's told to
 hand over its brief. Creating a character isn't a lookup; it has its own limit of two per passage. A successful `submit_brief` call
 ends the tool loop without another model call. `recall` only finds what the chapter can see:
 memories from before its start, and this chapter's memories from passages before the one being
 written.
 Searching the raw turns a character witnessed is a later addition. When the reader brings in someone
-new by name, `create_character` generates them as a draft cast member before the brief is written.
+new by name, `create_character` generates them as a draft cast member before the brief is written,
+and hands the Director back the new card's whole description and personality.
 
 ### Writer
 
@@ -291,13 +301,32 @@ Builds the prompt from the most stable parts to the most volatile, to make the m
 context caching:
 
 1. House style and perspective rules
-2. Cast: seed cards plus accepted arc notes
-3. World: lorebook entries (selected by `LorebookActivator` over recent turns) and world state
-4. Always-on memories (memories the brief names travel with the brief, in step 6)
-5. Short summaries of earlier chapters in the Bureau, then this chapter's prose so far (oldest turns
-   truncated first)
-6. The scene brief and composer input, plus the chapter's exact time: when it began, or when time
+2. Cast: each character's profile (description and personality) with accepted arc notes, then the
+   reader's character's
+3. Established facts, "true in this story unless the chapter itself shows one changing" (see
+   [Established facts](#established-facts))
+4. Always-on memories, with a reminder that a profile or established fact wins when a memory
+   disagrees (memories the brief names travel with the brief, in step 7)
+5. World: lorebook entries (selected by `LorebookActivator` over recent turns) and the setting year
+6. This chapter's prose so far (oldest turns truncated first). Summaries of earlier chapters don't
+   reach the Writer yet.
+7. The scene brief and composer input, plus the chapter's exact time: when it began, or when time
    last passed in it (see [Time in prompts](#time-in-prompts))
+
+Long chapters tend to drift. In 20-passage test chapters, later passages grew longer, with long
+"and"-chained sentences and narration explaining what each gesture meant. The same mannerisms and
+props kept coming back. Plain Continues invented new trouble or skipped ahead a day, and passages
+ended on summing-up lines. Several prompt rules push against this:
+
+- The house style asks for varied, mostly short sentences and occasional mannerisms.
+- The closing instructions ask the Writer to write only as much as the moment needs and to pick up
+  where the last passage stopped, with no time skip or new twist unless asked.
+- Nobody repeats a point, a figure, or a line, and passages end on what someone does or says.
+- The chapter so far counts as story, not as a model for the prose.
+
+The Writer's temperature defaults to 0.8. At 1.5, test passages dissolved into word salad partway
+through. Message replies use the same temperature. Bureaus that saved their settings before keep
+the temperature they saved.
 
 Output streams into the active turn. Images pass through `ImagePreserver` as in story mode (see
 [Images](#images)).
@@ -341,8 +370,14 @@ The checks would rather miss a problem than invent one. Paragraphs with images a
 Writer's output already has asterisks stripped. Tense drift is left for later, since present-tense
 checks are noisy.
 
-The Editor receives the numbered passage, the flagged paragraphs with the reasons they were flagged,
-and the house style. It answers with a forced, strict `edit_paragraphs` call: a list of
+The Editor is a second turn in the Writer's own conversation, not a separate model reading the
+passage cold. It sends what the Writer was sent (the house style, cast, facts, memories, world, and
+chapter so far), then the passage the Writer wrote, then the flagged paragraphs with the reasons they
+were flagged and how to fix each kind of problem, so a fix fits the scene. DeepSeek has that prompt
+cached from the Writer's call, so the extra call costs little. A repeated phrase is rewritten or cut
+rather than swapped for synonyms: a model that saw only the passage used to trade "sat down on the
+other end of the sofa" for "lowered himself onto the far end", which read stranger than the repeat.
+The revision answers with a forced, strict `edit_paragraphs` call: a list of
 `{ paragraph, replacement }` edits, applied only to flagged paragraphs. Fixes apply automatically;
 the turn's seam shows each fix's before and after, and one click reverts it. A fix reverts only once
 (when its original text is back, it's done), and only where its replacement stands as whole
@@ -359,16 +394,36 @@ time you let time pass), from "Commit to memory" in the thread, and for a chapte
 chapter starts.
 
 **Input:** the turns it hasn't read, in passes of about 60,000 characters; the chapter's running
-summary; who was present; and what each present character already knows, as numbered memories.
-Direction turns are left out.
+summary; who was present, with each one's whole profile (description and personality); what each
+present character already knows, as numbered memories; and the established facts it can see,
+numbered, with the proposals waiting and the facts the reader turned down. A chapter pass sees the
+chapter's own accepted facts too, and a pass over messages sees the facts as of the session's last
+message. Direction turns and memories held for review are left out.
 
 **Output:** one forced call to a strict `record_memories` tool, with thinking off:
 
-- `knowledge`: facts per character, each with an importance, the passages it came from, and the
-  number of any memory it `supersedes`
+- `knowledge`: facts per character, each with an importance, the passages it came from, the number
+  of any memory it `supersedes`, and a `conflict`: what in a profile or established fact it
+  disagrees with, or nothing
 - `episodes`: one per character, rewritten each pass to tell the whole chapter so far from their
   point of view, in the third person
+- `arc_notes`: changes to who a character is, for the reader to review (see
+  [Character development](#character-development))
+- `facts`: new established facts, or changes to one, for the reader to review: each the whole fact
+  as it now stands, the number of the fact it replaces (or 0), a rationale, and the passages (see
+  [Established facts](#established-facts))
 - `story_summary`: the whole chapter so far, shown in the Bureau's chapter list
+
+The Archivist is told the profiles and established facts are true. It records what passages say
+outright, not what they only seem to suggest: someone heading home, or writing from somewhere else,
+says nothing new about where anyone lives. It skips what a profile already says. A knowledge item
+with a `conflict` is held: it's saved with what it disagrees with and marked for review, and stays
+out of every prompt until the reader keeps, edits, or retires it (see
+[Sources and review](#sources-and-review)). A memory it would replace stays current meanwhile, and a
+warning says which: keeping or editing the held memory replaces that memory, and retiring the held
+memory leaves it as it was. A pass
+reports how many memories it added, held, and updated, and how many facts it proposed, and the
+notice after committing to memory says so, such as "1 held for you to check, 2 facts proposed".
 
 A new session starts when Bureau time moves on more than three hours or goes back between two
 messages, or when a chapter was started between them. The last session is over once a message sent
@@ -376,16 +431,18 @@ now would start a new one. A thread's memories are dated to the start of their s
 messages, and each session gets its own episode, rewritten if the session grows. The reader's side of
 a session is whoever sent its messages, even if the reader has picked another character since.
 
-Memory operations apply automatically because they are visible, sourced, and reversible. The
-Archivist can supersede memories but can't retire or delete them, and it leaves alone pinned
-memories and any you change while it's reading. Changing a turn it has read (editing, deleting,
-switching versions, or regenerating) marks the memories that cite the turn for review, including
-episodes, which cite every passage they cover. A turn that changes while a pass is reading it is
-flagged the same way. Deleting a chapter, from the Bureau's chapter list, deletes its memories and
-arc notes, which brings back any memories they had replaced.
+Memory operations apply automatically because they are visible, sourced, and reversible; only held
+memories wait for the reader. The Archivist can supersede memories but can't retire or delete them,
+and it leaves alone pinned memories and any you change while it's reading. Changing a turn it has
+read (editing, deleting, switching versions, or regenerating) marks the memories, arc notes, and
+facts that cite the turn for review, including episodes, which cite every passage they cover.
+Editing or deleting a message does the same for what cites the message. A turn that changes while a
+pass is reading it is flagged the same way. Deleting a chapter, from the Bureau's chapter list,
+deletes its memories, arc notes, and facts, which brings back any memories and facts they had
+replaced.
 
-**Later:** `propose_arc_note` for character development, which waits for approval (phase 5), and
-`update_world` for ongoing threads and timeline events.
+**Later:** the rest of world state: ongoing threads and timeline events. Established facts are the
+part built so far.
 
 ### API key and model
 
@@ -454,6 +511,15 @@ memory, so memories must be visible and easy to correct. Retired memories, and m
 newer versions, stay in the browser and can be restored. Restoring a replaced memory retires the
 newest version that replaced it, so only one version is current.
 
+A memory the Archivist found disagreeing with a character's profile or an established fact is
+**held**. The browser marks it "Disagrees with a profile or fact" and says what it disagrees with.
+No prompt uses it, and `recall` can't find it, until you keep it ("It's right: use it"), edit it, or
+retire it, and it counts among the character's memories waiting for review. A held memory that
+updates another replaces it only once you keep or edit it; retiring the held memory leaves the other
+as it was. Memories that contradict the
+cards used to go straight into every later prompt, where a short, confident memory could outweigh a
+sentence deep in a card.
+
 ### Retrieval
 
 SQLite FTS5, which is available in the app's better-sqlite3 build, indexes memories and the archive.
@@ -465,6 +531,77 @@ DeepSeek embeddings endpoint; we couldn't confirm one exists.
 
 A character's memory browser also takes backstory: what they already know or share with other cast
 members. It's saved as knowledge with no chapter and no time, so every chapter can see it.
+
+## Established facts
+
+An established fact is something true in the Bureau's world that every agent keeps to: who lives
+where and with whom, someone's work, a relationship, a place. Facts are the part of world state
+built so far; a timeline and ongoing threads are later.
+
+### Why facts
+
+A fact like "Mara and Theo live together" used to live only in places where it could slip:
+
+- **Deep in card descriptions.** A sentence two thousand characters into a card is easy to miss, and
+  some roles saw only the start of a card.
+- **In each character's memories.** Every character keeps their own copy, so the copies can drift
+  apart, and a message that only seemed to say otherwise could become a memory that outweighed the
+  card.
+
+A fact is one shared line instead of a copy per character, in a short section every role reads, and
+it can change over time (they move) without anyone editing a card. Facts are always in the prompt,
+never activated by keywords the way lorebook entries are: a scene about getting home may never use
+the word an entry would key on, and a short list costs little.
+
+### Writing and proposing facts
+
+- **Where:** the World section of the Bureau page, above Lorebooks. Proposals come first, newest
+  first, then the facts that stand. Facts that were replaced or rejected wait behind a toggle.
+- **You write facts** in the add box, and they're accepted as written. You can edit or delete them.
+- **The Archivist proposes facts** in its usual pass, only when passages clearly establish something
+  lasting that the facts don't cover, or clearly change one of them. A change names the fact it
+  replaces and states the whole fact as it now stands. It never repeats an established fact, one
+  waiting for review, or one you turned down, and a change to a fact it can't see is proposed as a
+  new fact, with a warning.
+- **You review each proposal:** accept, edit then accept, or reject. A fact accepted from a chapter
+  or messages can be undone by rejecting it, and every fact can be deleted.
+- **A change doesn't edit the old fact.** The old fact stays, marked as replaced by a later one. A
+  chapter set before the change still sees it, and rejecting or deleting the change brings it back.
+- **Facts that replace one another form a line,** and the latest accepted fact in a line stands for
+  it: latest by Bureau time, then by when it was accepted. Rejecting or deleting a change from the
+  middle of a line, or accepting two changes to the same fact, still leaves one fact standing, and
+  a deleted fact's later changes name what it replaced instead. Deleting the fact a line began with
+  makes its first change the start of the line, so two changes to it still make one line.
+
+### Facts in prompts
+
+Every role gets the established facts, and every role is told that a profile or fact wins when a
+memory disagrees:
+
+- **Writer:** an established facts section after the cast's profiles and before memories, "true in
+  this story unless the chapter itself shows one changing"
+- **Director:** after the cast
+- **Replies and offscreen accounts:** the facts as of Bureau time, or the new time
+- **Archivist:** numbered, with the proposals waiting and the facts you turned down
+
+`{{user}}` in a fact becomes the reader's character.
+
+Which facts a prompt sees follows the timeline rule for arc notes. Facts you wrote always count. A
+chapter sees accepted facts from before its start, and replies and offscreen accounts see the ones
+dated up to their moment. A chapter's own facts reach only the Archivist, since the chapter's text is
+already in the Writer's prompt. Of the facts a prompt can see in a line of changes, only the latest
+accepted one stands.
+
+A memory that disagrees with an established fact is held, like one that disagrees with a profile
+(see [Sources and review](#sources-and-review)).
+
+### Sources
+
+- Facts from a chapter link to the passage they came from.
+- Editing, deleting, regenerating, or switching versions of a turn, or editing or deleting a
+  message, marks the facts that cite it for review.
+- Deleting a chapter deletes its facts, and the facts they replaced stand again.
+- Reset Bureau deletes the facts the Archivist proposed and keeps the ones you wrote.
 
 ## Character development
 
@@ -554,9 +691,13 @@ material yours: the model asks and writes up, but the facts come from your answe
 - Messages happen at Bureau time: each message and reply is dated at the Bureau's current time, and
   none of them move it (see [Bureau time](#bureau-time)). To let time pass between messages, use
   **Time passes** in the thread's header. Each message keeps the Bureau time it was sent at.
-- A reply is one streamed call with the character's profile and arc notes, their memories as they
-  stand at Bureau time (a chapter that started earlier counts even if it hasn't ended), lore
-  activated by recent messages, and the conversation as a labeled transcript, since this is a chat.
+- A reply is one streamed call with the character's profile and arc notes, the reader's character's
+  profile, the established facts and the character's memories as they stand at Bureau time (a
+  chapter that started earlier counts even if it hasn't ended), lore activated by recent messages,
+  and the conversation as a labeled transcript, since this is a chat.
+  Writing to each other doesn't mean the two of them live apart, or even that they're apart right
+  now, and the prompt says so: where each of them lives and is comes from their profiles, the facts,
+  and the conversation. A profile or fact wins when a memory disagrees.
   The transcript marks the exact time at its start and after each long gap. The prompt ends with the
   exact Bureau time, and how long it's been since the last message when that matters. Messages in a
   reply are separated by a line holding only `---`, and a reply saves as up to six messages.
@@ -643,7 +784,9 @@ reader moves the clock, the time is deliberate, so the prompts say it exactly:
   chapter is still unfinished don't leak into it, because they come after its start. Starting a
   chapter at an earlier time works as a flashback: characters don't know what happens later.
 - Memories from a chapter are dated to its start time. Memories from correspondence are dated to the
-  start of the session they came from.
+  start of the session they came from. Facts from a chapter are dated to where the chapter stood in
+  time at the latest passage they cite, so a change after time passes in a chapter doesn't reach
+  back to its start.
 - At the same Bureau time, what was written first comes first. Messages don't move the clock, so a
   conversation often shares its time with the next chapter: messages written before the chapter
   started count as before it, and messages written after it don't leak in. Starting a chapter also
@@ -668,9 +811,11 @@ reader moves the clock, the time is deliberate, so the prompts say it exactly:
   - Before a reply: that character, with the account dated just before the current session of
     messages began, so the session's episode takes over from it once recorded. A failure there
     doesn't stop the reply.
-- The call sees each character's routine, what they know, recent episodes, how they have changed,
-  and their last time away. The reader's character gets accounts too, and like any memory, an
-  account can be edited or retired.
+- The call sees each character's whole description and personality, their routine, what they know,
+  recent episodes, how they have changed, and their last time away, with the established facts as of
+  the new time. It keeps to the profiles and facts: where someone lives, who they live with, and
+  their work don't change offscreen. The reader's character gets accounts too, and like any memory,
+  an account can be edited or retired.
 - Moving time forward when a chapter **ends** doesn't generate offscreen life. That span counts as
   time the chapter covered.
 - Time passes doesn't write accounts by itself, and time passing in a chapter never does, since the
@@ -743,7 +888,11 @@ arc_notes      (id, bureau_id, cast_member_id, content, proposed_content, ration
                 source_id NULL, source_turn_ids JSON, run_id NULL, needs_review, created,
                 decided NULL, modified)
 bureau_lorebooks (bureau_id, lorebook_id)
-world_threads  (id, bureau_id, title, summary, status, modified)
+facts          (id, bureau_id, content, proposed_content, rationale,
+                status [proposed|accepted|rejected], replaces NULL [the fact it changes],
+                world_time NULL, source_type [story|correspondence|manual], source_id NULL,
+                source_turn_ids JSON, run_id NULL, needs_review, created, decided NULL, modified)
+world_threads  [later] (id, bureau_id, title, summary, status, modified)
 
 stories        (id, bureau_id, position, title, status [active|ended], start_time,
                 end_time NULL, archived_through, summary, created, modified)
@@ -760,7 +909,9 @@ memories       (id, bureau_id, cast_member_id, layer [knowledge|episode|era|offs
                 content, importance, world_time NULL,
                 source_type [story|correspondence|offscreen|manual],
                 source_id NULL, source_turn_ids JSON, run_id NULL, superseded_by NULL,
-                pinned, retired, needs_review, created, modified)
+                pinned, retired, needs_review,
+                conflict [what it disagrees with in a profile or fact; '' when nothing],
+                created, modified)
 memories_fts   -- FTS5 over memories.content
 archive_fts    -- FTS5 over turn and message text
 
@@ -791,7 +942,9 @@ server/src/services/bureau/
   editor.js
   archivist.js
   memory-storage.js                      # memory queries and FTS
-  memory.js                              # what a story can see, prompt budgets
+  memory.js                              # what a story or moment can see (memories, notes, facts)
+  fact-storage.js                        # established facts
+  profile-text.js                        # whole profiles, and facts, as prompts read them
   bureau-time.js                         # Bureau time changes, exact time descriptions
   thread-storage.js                      # correspondence threads and messages
   correspondence.js                      # replies
@@ -803,10 +956,11 @@ server/src/services/bureau/
   interview-storage.js                   # interviews with their questions and answers
   run-recorder.js                        # agent_runs and agent_steps
 server/src/routes/bureau-profiles.js     # profiles and interviews
+server/src/routes/bureau-facts.js        # established facts
 server/scripts/bureau-smoke.js           # tool-loop smoke test against the real API
 
 vue_client/src/views/bureau/             # Bureau list and home, story, correspondence, interview
-vue_client/src/components/bureau/        # TurnBlock, TurnSeam, Composer, MemoryBrowser, ...
+vue_client/src/components/bureau/        # TurnBlock, TurnSeam, Composer, MemoryBrowser, BureauFacts, ...
 vue_client/src/composables/bureau/       # turn rendering, streaming, avatar windows, ...
 ```
 
@@ -865,24 +1019,27 @@ Each phase ends with something usable.
    passes, offscreen life, episodes from sessions.
 8. **Profiles and interviews:** a profile to read and edit each cast member's card and routine, with
    every version kept, and interviews that write your answers up as a new profile for review.
-9. **Later:** Workbench screen for comparing and rerunning runs, characters message first, IRC
-   bridge, learning house style from user edits to generated turns, embeddings, drift check, other
-   providers, interviews for library characters in story mode.
+9. **Factual accuracy:** whole profiles for every role, memories that contradict a profile or fact
+   held for review, and established facts.
+10. **Later:** Workbench screen for comparing and rerunning runs, characters message first, IRC
+    bridge, learning house style from user edits to generated turns, embeddings, drift check, other
+    providers, interviews for library characters in story mode.
 
 ## Risks
 
-| Risk                                    | Mitigation                                                                                                                          |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Characters flatten over time            | Profiles change only by hand or from a reviewed interview, with every version kept; additive, reviewed arc notes; drift check later |
-| Interview write-ups embellish           | Untouched text comes back as it was, only the author's answers are added, and nothing applies until you review it                   |
-| False or distorted memories             | Sources on every memory; editable; `recall` can check raw text; edited sources flag memories                                        |
-| Prompt bloat dilutes attention          | Per-layer budgets, eras, long tail through `recall`                                                                                 |
-| Multi-step turns are slow or costly     | Fast path that skips the Director; Editor only on flagged paragraphs; stable prompt prefix                                          |
-| Lint false positives cause bad edits    | Pure, unit-tested checks; every fix visible in its seam with one-click revert                                                       |
-| Characters get the time wrong           | The exact time in prompts, with mentions kept consistent with it and no dwelling on the clock                                       |
-| Offscreen life escalates into melodrama | Generated only when Bureau time jumps forward, capped, mostly mundane by instruction                                                |
-| DeepSeek API details change             | All model access goes through one client; run records and seams surface failures                                                    |
-| Scope creep                             | Phases that each end usable; experimental label; separate database                                                                  |
+| Risk                                      | Mitigation                                                                                                                          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Characters flatten over time              | Profiles change only by hand or from a reviewed interview, with every version kept; additive, reviewed arc notes; drift check later |
+| Interview write-ups embellish             | Untouched text comes back as it was, only the author's answers are added, and nothing applies until you review it                   |
+| False or distorted memories               | Sources on every memory; editable; edited sources flag memories; a memory that contradicts a profile or fact is held for review     |
+| Agents contradict the cards and the world | Every role reads whole profiles and the established facts, told they win over memories                                              |
+| Prompt bloat dilutes attention            | Per-layer budgets, eras, long tail through `recall`                                                                                 |
+| Multi-step turns are slow or costly       | Fast path that skips the Director; Editor only on flagged paragraphs; stable prompt prefix                                          |
+| Lint false positives cause bad edits      | Pure, unit-tested checks; every fix visible in its seam with one-click revert                                                       |
+| Characters get the time wrong             | The exact time in prompts, with mentions kept consistent with it and no dwelling on the clock                                       |
+| Offscreen life escalates into melodrama   | Generated only when Bureau time jumps forward, capped, mostly mundane by instruction                                                |
+| DeepSeek API details change               | All model access goes through one client; run records and seams surface failures                                                    |
+| Scope creep                               | Phases that each end usable; experimental label; separate database                                                                  |
 
 ## Open questions
 

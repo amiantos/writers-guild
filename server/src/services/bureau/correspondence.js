@@ -17,7 +17,7 @@ import { chapterBreaks, isSessionOver, threadSessions } from './archivist.js';
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { labelImages } from './images.js';
-import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
+import { factsAtTime, memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
 import { findOffscreenGaps, generateOffscreenLife } from './offscreen.js';
 import { RunRecorder } from './run-recorder.js';
 import { activatedLore } from './writer-turn.js';
@@ -151,6 +151,7 @@ function latestThatFit(history, budget) {
  *   selectForPrompt.
  * @param {Array<{content: string}>} [params.arcNotes] - Accepted arc notes as of that time.
  * @param {Array<{content: string}>} [params.loreEntries] - Lorebook entries already activated.
+ * @param {Array<{content: string}>} [params.facts] - Established facts as of that time.
  * @param {Date} [params.now] - Real time, to tell whether the Bureau is set in another year.
  * @param {number} [params.characterBudget]
  * @returns {Array<{role: string, content: string}>}
@@ -164,6 +165,7 @@ export function buildCorrespondenceMessages({
   memories = { knowledge: [], episodes: [] },
   arcNotes = [],
   loreEntries = [],
+  facts = [],
   now = new Date(),
   characterBudget = CONVERSATION_CHARACTER_BUDGET,
 }) {
@@ -199,6 +201,7 @@ export function buildCorrespondenceMessages({
 
   const system = [
     `You write ${name}'s side of a private correspondence with ${personaName}, the reader's character, between the chapters of an ongoing story. Write only ${name}'s messages.`,
+    "Writing to each other doesn't mean they live apart, or even that they're apart right now: take where each of them lives and is from their profiles, the established facts, and the conversation.",
     section(
       'CORRESPONDENCE STYLE',
       bureau.settings.correspondence.style.trim() || DEFAULT_CORRESPONDENCE_STYLE,
@@ -206,12 +209,20 @@ export function buildCorrespondenceMessages({
     section(name.toUpperCase(), profile(member, arcNotes)),
     section(`${personaName.toUpperCase()} (THE READER'S CHARACTER)`, profile(persona)),
   ];
+  const establishedFacts = facts
+    .map((fact) => stripAsterisks(macros.process(fact.content)).trim())
+    .filter(Boolean);
+  if (establishedFacts.length > 0) {
+    system.push(
+      section('ESTABLISHED FACTS', establishedFacts.map((fact) => `- ${fact}`).join('\n')),
+    );
+  }
   const remembered = memoryBlock(name, memories);
   if (remembered) {
     system.push(
       section(
         'MEMORIES',
-        `What ${name} remembers, as background for how they act. Mention the past when ${name} would naturally write about it, such as something that just happened between them, but not as filler, and never recite it.\n\n${remembered}`,
+        `What ${name} remembers, as background for how they act. Mention the past when ${name} would naturally write about it, such as something that just happened between them, but not as filler, and never recite it. When a memory disagrees with a profile or an established fact, the profile or fact is right.\n\n${remembered}`,
       ),
     );
   }
@@ -360,6 +371,7 @@ export async function generateReply({
       memories,
       arcNotes,
       loreEntries: await activatedLore(stores, bureau.id, scanText),
+      facts: factsAtTime(stores.facts.listFacts(bureau.id), time),
     });
   } catch (error) {
     if (isCancellation(error)) {

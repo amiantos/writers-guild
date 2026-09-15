@@ -113,7 +113,7 @@ describe('buildWriterMessages', () => {
     });
 
     expect(system).toContain(
-      "=== MEMORIES ===\nWhat the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
+      "=== MEMORIES ===\nWhat the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
     );
     // The reader's character remembers too.
     expect(system).toContain(
@@ -133,6 +133,23 @@ describe('buildWriterMessages', () => {
       'Personality: Wry and stubborn.\nHow Mara has changed:\n- Mara lets Theo take the oars now.',
     );
     expect(system).not.toContain('How Theo has changed');
+  });
+
+  it('adds the established facts before the memories, with placeholders filled in', () => {
+    const { system } = build({
+      facts: [{ content: "{{user}} and Mara live in the *keeper's* cottage." }],
+      memoriesByCast: new Map([
+        ['mara', { knowledge: [{ content: "Theo can't swim." }], episodes: [] }],
+      ]),
+    });
+
+    expect(system).toContain(
+      "=== ESTABLISHED FACTS ===\nTrue in this story unless the chapter itself shows one changing.\n- Theo and Mara live in the keeper's cottage.",
+    );
+    expect(system.indexOf('=== ESTABLISHED FACTS ===')).toBeLessThan(
+      system.indexOf('=== MEMORIES ==='),
+    );
+    expect(build().system).not.toContain('ESTABLISHED FACTS');
   });
 
   it('leaves out the memories section when no one remembers anything', () => {
@@ -315,9 +332,9 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain(
-      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nTone: uneasy.\nStay consistent with:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 to 3 paragraphs.",
+      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nTone: uneasy.\nStay consistent with:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 or 2 paragraphs.",
     );
-    expect(user).not.toContain('Write the next 3 to 6 paragraphs');
+    expect(user).not.toContain('Write as much as the moment needs');
     // An older brief may still carry a point of view; the Writer doesn't get it.
     expect(user).not.toContain('Point of view');
   });
@@ -330,7 +347,7 @@ describe('buildWriterMessages', () => {
     const opening = build({ turns: [], request: { action: 'continue' } });
 
     expect(continuing.user).toMatch(
-      /Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response\.\nKeep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it\.$/,
+      /Write as much as the moment needs, usually 2 to 4 paragraphs\. .*\nPick up right where the last passage stopped .*\nKeep the scene moving: don't reuse an action, gesture, image, or turn of phrase from earlier in the chapter .*\nDon't let characters repeat themselves: .*\nEnd where the moment naturally pauses, .*\nThe chapter so far is the story, not a model for the prose: .*$/,
     );
     expect(opening.user).not.toContain('Keep the scene moving');
   });

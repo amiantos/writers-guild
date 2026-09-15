@@ -11,15 +11,14 @@
  */
 
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
-import { labelImages } from './images.js';
-import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
+import { factsAtTime, memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
+import { bureauText, profileLines } from './profile-text.js';
 import { RunRecorder } from './run-recorder.js';
 
 // Shorter gaps aren't worth an account.
 export const OFFSCREEN_MIN_GAP_HOURS = 12;
 export const OFFSCREEN_MAX_TOKENS = 3000;
 const OFFSCREEN_IMPORTANCE = 2;
-const DESCRIPTION_CHARACTERS = 1200;
 const KNOWLEDGE_CHARACTERS = 1500;
 const RECENT_EPISODES = 2;
 
@@ -61,10 +60,6 @@ function section(title, body) {
 
 function text(value) {
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function truncate(value, length) {
-  return value.length > length ? `${value.slice(0, length).trimEnd()}…` : value;
 }
 
 function timestampOf(value) {
@@ -147,6 +142,8 @@ export function findOffscreenGaps(stores, bureau, members, to, { ignoreStoryId =
  * @param {Map<string, {knowledge: Array<Object>, episodes: Array<Object>, offscreen: Object|null}>}
  *   [params.memoriesByCast]
  * @param {Map<string, Array<{content: string}>>} [params.notesByCast] - Accepted arc notes.
+ * @param {string|null} [params.readerName] - The reader's character's name, for {{user}} in cards.
+ * @param {Array<{content: string}>} [params.facts] - Established facts as of the new time.
  * @param {Date} [params.now] - Real time, to tell whether the Bureau is set in another year.
  * @returns {Array<{role: string, content: string}>}
  */
@@ -156,6 +153,8 @@ export function buildOffscreenMessages({
   to,
   memoriesByCast = new Map(),
   notesByCast = new Map(),
+  readerName = null,
+  facts = [],
   now = new Date(),
 }) {
   const system = [
@@ -163,6 +162,7 @@ export function buildOffscreenMessages({
     [
       '- Write two to four sentences for each character, in the past tense and the third person, about how they spent the time since they were last seen: work, errands, habits, small pleasures and annoyances, people they ran into.',
       '- Keep it mostly mundane and true to who they are: their routine, what they know, and how they have changed. At most one thing in an entry can be notable, and nothing that settles or invents a major turn in their story.',
+      "- Keep to their profiles and the established facts: where they live, who they live with, and their work don't change offscreen. When something they know disagrees with a profile or fact, the profile or fact is right.",
       '- Fit the length of the gap: an evening holds a little, a few weeks hold more.',
     ].join('\n'),
   ];
@@ -171,13 +171,18 @@ export function buildOffscreenMessages({
   const year = settingYear(bureau, to, now);
   if (year) nowLines.push(`The year is ${year}.`);
   const user = [section('NOW', nowLines.join('\n'))];
+  const establishedFacts = facts
+    .map((fact) => bureauText(fact.content, readerName))
+    .filter(Boolean);
+  if (establishedFacts.length > 0) {
+    user.push(section('ESTABLISHED FACTS', establishedFacts.map((fact) => `- ${fact}`).join('\n')));
+  }
 
   for (const { member, from } of gaps) {
     const lines = [
       `Last seen: ${describeBureauTime(from, bureau.timezone)} (${describeGap(from, to) ?? 'a few hours'} ago)`,
+      ...profileLines(member, readerName),
     ];
-    const description = labelImages(text(member.seedCard?.data?.description));
-    if (description) lines.push(`Description: ${truncate(description, DESCRIPTION_CHARACTERS)}`);
     const routine = text(member.routine?.text);
     if (routine) lines.push(`Usual routine: ${routine}`);
     const notes = notesByCast.get(member.id) ?? [];
@@ -248,12 +253,15 @@ export async function generateOffscreenLife({
       notesAtTime(stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }), to),
     ]),
   );
+  const persona = stores.bureaus.listCast(bureau.id).find((member) => member.isPersona);
   const messages = buildOffscreenMessages({
     bureau,
     gaps,
     to,
     memoriesByCast,
     notesByCast,
+    readerName: persona?.name ?? null,
+    facts: factsAtTime(stores.facts.listFacts(bureau.id), to),
   });
 
   const ownRun = !recorder;

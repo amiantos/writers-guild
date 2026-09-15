@@ -77,6 +77,7 @@ describe('bureau-db', () => {
       DROP TABLE messages;
       DROP TABLE threads;
       DROP TABLE arc_notes;
+      DROP TABLE facts;
       DROP TABLE memories_fts;
       DROP TABLE memories;
       DROP TABLE turn_variants;
@@ -111,6 +112,7 @@ describe('bureau-db', () => {
         'profile_versions',
         'interviews',
         'shared_settings',
+        'facts',
       ]),
     );
     expect(upgraded.prepare('SELECT archived_through, summary FROM stories').all()).toEqual([]);
@@ -119,9 +121,11 @@ describe('bureau-db', () => {
   it('adds profile versions and interviews, with no history for existing cast members', () => {
     const db = openBureauDb(tempDir);
     db.exec(`
+      DROP TABLE facts;
       DROP TABLE interviews;
       DROP TABLE profile_versions;
       DROP TABLE shared_settings;
+      ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;
       INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
       VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
       INSERT INTO cast_members (id, bureau_id, name, seed_card, created, modified)
@@ -142,6 +146,10 @@ describe('bureau-db', () => {
     const db = openBureauDb(tempDir);
     db.exec('DROP TABLE shared_settings; DROP TABLE interviews; DROP TABLE profile_versions;');
     db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
+    db.exec(
+      'ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict',
+    );
+    db.exec('DROP TABLE facts');
     db.prepare(
       `INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
        VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now')`,
@@ -165,10 +173,14 @@ describe('bureau-db', () => {
              ('plain', 'Plain', 'deepseek-flash', '2020-01-01T00:00:00.000Z', 0, 'now', 'now');
     `);
     // Back to the tables version 6 had, before time could pass in a chapter, avatar windows,
-    // profiles, and the shared key.
+    // profiles, the shared key, memories held for disagreeing with a profile, and facts.
     db.exec('DROP TABLE shared_settings; DROP TABLE interviews; DROP TABLE profile_versions;');
     db.exec('ALTER TABLE turns DROP COLUMN bureau_time');
     db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
+    db.exec(
+      'ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict',
+    );
+    db.exec('DROP TABLE facts');
     db.pragma('user_version = 6');
     closeBureauDb(tempDir);
 
@@ -195,7 +207,10 @@ describe('bureau-db', () => {
 
   it('gives databases from before the shared key an empty one', () => {
     const db = openBureauDb(tempDir);
-    db.exec('DROP TABLE shared_settings');
+    db.exec(
+      'DROP TABLE shared_settings; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;',
+    );
+    db.exec('DROP TABLE facts');
     db.pragma('user_version = 10');
     closeBureauDb(tempDir);
 
@@ -204,6 +219,65 @@ describe('bureau-db', () => {
     expect(upgraded.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
     expect(upgraded.prepare('SELECT id, api_key FROM shared_settings').all()).toEqual([
       { id: 1, api_key: '' },
+    ]);
+  });
+
+  it('adds the facts table to databases from before established facts', () => {
+    const db = openBureauDb(tempDir);
+    db.exec('DROP TABLE facts; ALTER TABLE memories DROP COLUMN pending_supersedes;');
+    db.pragma('user_version = 12');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+
+    expect(upgraded.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+    expect(upgraded.prepare('SELECT COUNT(*) AS count FROM facts').get().count).toBe(0);
+  });
+
+  it('keeps held memories from before held replacements, with nothing waiting to be replaced', () => {
+    const db = openBureauDb(tempDir);
+    db.exec(`
+      ALTER TABLE memories DROP COLUMN pending_supersedes;
+      INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
+      VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
+      INSERT INTO cast_members (id, bureau_id, name, seed_card, created, modified)
+      VALUES ('c1', 'b1', 'Mara', '{"data":{"name":"Mara"}}', 'now', 'now');
+      INSERT INTO memories (bureau_id, cast_member_id, layer, content, source_type, needs_review,
+                            conflict, created, modified)
+      VALUES ('b1', 'c1', 'knowledge', 'Mara lives across town.', 'manual', 1,
+              'Her profile says she lives above the bakery.', 'now', 'now');
+    `);
+    db.pragma('user_version = 13');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+
+    expect(upgraded.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+    expect(upgraded.prepare('SELECT content, pending_supersedes FROM memories').all()).toEqual([
+      { content: 'Mara lives across town.', pending_supersedes: null },
+    ]);
+  });
+
+  it('keeps memories from before conflicts, none of them held', () => {
+    const db = openBureauDb(tempDir);
+    db.exec(`
+      DROP TABLE facts;
+      ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;
+      INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
+      VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
+      INSERT INTO cast_members (id, bureau_id, name, seed_card, created, modified)
+      VALUES ('c1', 'b1', 'Mara', '{"data":{"name":"Mara"}}', 'now', 'now');
+      INSERT INTO memories (bureau_id, cast_member_id, layer, content, source_type, created, modified)
+      VALUES ('b1', 'c1', 'knowledge', 'Theo cannot swim.', 'manual', 'now', 'now');
+    `);
+    db.pragma('user_version = 11');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+
+    expect(upgraded.pragma('user_version', { simple: true })).toBe(BUREAU_SCHEMA_VERSION);
+    expect(upgraded.prepare('SELECT content, conflict FROM memories').all()).toEqual([
+      { content: 'Theo cannot swim.', conflict: '' },
     ]);
   });
 

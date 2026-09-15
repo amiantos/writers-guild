@@ -14,9 +14,14 @@ function timestampOf(time) {
   return time instanceof Date ? time.getTime() : Date.parse(time);
 }
 
-/** Unretired visible memories, leaving out any replaced by another visible memory. */
+/**
+ * Unretired visible memories, leaving out any replaced by another visible memory. A memory held for
+ * disagreeing with a profile or an established fact isn't visible until the reader keeps it.
+ */
 function currentAmong(memories, isVisible) {
-  const visibleIds = new Set(memories.filter(isVisible).map((memory) => memory.id));
+  const visibleIds = new Set(
+    memories.filter((memory) => !memory.conflict && isVisible(memory)).map((memory) => memory.id),
+  );
   return memories.filter(
     (memory) =>
       !memory.retired &&
@@ -47,10 +52,11 @@ export function compareChronological(a, b) {
  * so does anything dated earlier. At the same Bureau time, what was written first
  * comes first: a memory from another story does if that story is earlier in the
  * Bureau's order (the usual case when a story ends without moving the clock), and
- * one from messages does if they were written before the story started. A story's
- * own memories never do: its text is already in the prompt.
+ * one from messages does if they were written before the story started (or, once
+ * the messages are deleted, if it was recorded before). A story's own memories
+ * never do: its text is already in the prompt.
  *
- * @param {Object} memory - A memory or arc note.
+ * @param {Object} memory - A memory, arc note, or fact.
  * @param {Object} story - Uses id, startTime, position, and created.
  */
 export function isBeforeStory(memory, story) {
@@ -61,7 +67,7 @@ export function isBeforeStory(memory, story) {
   const storyTime = Date.parse(story.startTime);
   if (memoryTime !== storyTime) return memoryTime < storyTime;
   if (memory.sourceType === 'correspondence') {
-    return Date.parse(memory.sourceCreated) < Date.parse(story.created);
+    return writtenOf(memory) < Date.parse(story.created);
   }
   return memory.sourcePosition !== null && memory.sourcePosition < story.position;
 }
@@ -125,6 +131,86 @@ export function notesAtTime(notes, time) {
     (note) =>
       note.status === 'accepted' && (!note.worldTime || Date.parse(note.worldTime) <= moment),
   );
+}
+
+/** Later by Bureau time, then accepted later, then written later. */
+function compareFacts(a, b) {
+  return (
+    timeOf(a) - timeOf(b) ||
+    (Date.parse(a.decided) || 0) - (Date.parse(b.decided) || 0) ||
+    a.id - b.id
+  );
+}
+
+/**
+ * Which accepted facts stand. Facts that replace one another, directly or through others, form a
+ * line back to the fact they began with, and the latest visible accepted fact in each line stands
+ * for it. A change rejected or deleted from the middle of a line, or two changes accepted for the
+ * same fact, still leave one fact standing.
+ *
+ * @param {Array<Object>} facts - The Bureau's facts, every status.
+ * @param {(fact: Object) => boolean} [isVisible]
+ * @returns {{ lineOf: Map<number, number>, standing: Map<number, Object> }} Each fact's line, as the
+ *   id of the fact it began with, and the fact standing for each line.
+ */
+export function standingFacts(facts, isVisible = () => true) {
+  const byId = new Map(facts.map((fact) => [fact.id, fact]));
+  const lineOf = new Map();
+  for (const fact of facts) {
+    let first = fact;
+    const seen = new Set([fact.id]);
+    while (byId.has(first.replaces) && !seen.has(first.replaces)) {
+      first = byId.get(first.replaces);
+      seen.add(first.id);
+    }
+    lineOf.set(fact.id, first.id);
+  }
+
+  const standing = new Map();
+  for (const fact of facts) {
+    if (fact.status !== 'accepted' || !isVisible(fact)) continue;
+    const line = lineOf.get(fact.id);
+    const other = standing.get(line);
+    if (!other || compareFacts(fact, other) > 0) standing.set(line, fact);
+  }
+  return { lineOf, standing };
+}
+
+/** The visible accepted facts that stand, in the order given. */
+function currentFacts(facts, isVisible) {
+  const { standing } = standingFacts(facts, isVisible);
+  const kept = new Set([...standing.values()].map((fact) => fact.id));
+  return facts.filter((fact) => kept.has(fact.id));
+}
+
+/**
+ * The established facts a story can draw on: written by the reader, or accepted from before it
+ * (see isBeforeStory). A fact gives way to a change the story can see, so a flashback set before
+ * the change keeps the old fact.
+ *
+ * @param {Array<Object>} facts - The Bureau's facts (see fact-storage.js).
+ * @param {Object} story - Uses id, startTime, position, and created.
+ * @param {Object} [options]
+ * @param {boolean} [options.includeOwnStory] - Count facts from this story too, for the Archivist.
+ * @returns {Array<Object>} In the order given.
+ */
+export function factsAsOf(facts, story, { includeOwnStory = false } = {}) {
+  return currentFacts(
+    facts,
+    (fact) =>
+      isBeforeStory(fact, story) ||
+      (includeOwnStory && fact.sourceType === 'story' && fact.sourceId === story.id),
+  );
+}
+
+/**
+ * The established facts as they stand at a moment, for correspondence and offscreen life.
+ * @param {Array<Object>} facts - The Bureau's facts.
+ * @param {Date|string} time
+ */
+export function factsAtTime(facts, time) {
+  const moment = timestampOf(time);
+  return currentFacts(facts, (fact) => !fact.worldTime || Date.parse(fact.worldTime) <= moment);
 }
 
 /**

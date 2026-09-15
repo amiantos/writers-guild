@@ -20,6 +20,9 @@ export const DEFAULT_HOUSE_STYLE = [
   'Show rather than tell, with specific, concrete detail and natural dialogue.',
   'Let dialogue sound like real speech: mostly short lines, broken up by action, without characters explaining their feelings or recapping what they both know.',
   'Keep the narration concrete rather than clever: use similes sparingly, and avoid punchy sentence fragments for emphasis.',
+  `Keep most sentences short or medium, and vary their length. Don't string clauses together with "and" into long, breathless sentences.`,
+  "Don't explain what a look, gesture, or silence means, or call something a character's way of saying a thing: let what people do and say carry it.",
+  "Use a character's habits and mannerisms from their profile now and then, not in every passage.",
   'Do not use asterisks for actions. Write everything as prose.',
   'Character profiles and memories may be written in another tense or perspective; take facts from them, not style.',
   'Write in the same language as the existing story.',
@@ -37,13 +40,13 @@ const KEEP_TO_THE_TIME =
   'Let the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this';
 
 const BRIEF_LENGTHS = {
-  short: 'Write 1 to 3 paragraphs.',
-  medium: 'Write 3 to 5 paragraphs.',
-  long: 'Write 5 to 8 paragraphs.',
+  short: 'Write 1 or 2 paragraphs.',
+  medium: 'Write 3 or 4 paragraphs.',
+  long: 'Write 5 to 7 paragraphs.',
 };
 
 const MEMORIES_PREFACE =
-  'What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.';
+  "What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.";
 
 // PromptBuilder is story mode's, reused here only for its {{user}}/{{char}} replacement.
 const placeholders = new PromptBuilder();
@@ -209,13 +212,17 @@ function instructionFor({
   } else {
     lines.push(
       hasProse
-        ? 'Write the next 3 to 6 paragraphs, fewer if a natural pause invites a response.'
+        ? 'Write as much as the moment needs, usually 2 to 4 paragraphs. A quick exchange or a reaction can be a single paragraph: stop rather than pad.'
         : 'Write 3 to 5 paragraphs.',
     );
   }
   if (hasProse) {
     lines.push(
-      "Keep the scene moving: don't repeat an action, gesture, or line from the recent passages unless something new comes of it or the instructions above ask for it.",
+      "Pick up right where the last passage stopped and stay in that moment: don't skip ahead to later in the day or to another day, or bring in a new secret, twist, or trouble, unless the instructions above ask for it.",
+      "Keep the scene moving: don't reuse an action, gesture, image, or turn of phrase from earlier in the chapter unless something new comes of it or the instructions above ask for it.",
+      "Don't let characters repeat themselves: no one restates a point, a figure, or a line already said in the chapter, or talks through plans and facts everyone in the scene already knows.",
+      'End where the moment naturally pauses, on what someone does or says, not on a line that sums the moment up or hints at what comes next.',
+      'The chapter so far is the story, not a model for the prose: write this passage fresh in the house style, even where earlier passages drifted from it.',
     );
   }
   return lines.join('\n');
@@ -232,6 +239,8 @@ function instructionFor({
  *   What each character remembers from before this story, by cast member id (see memory.js).
  * @param {Map<string, Array<{content: string}>>} [params.arcNotesByCast] - Accepted arc notes
  *   from before this story, by cast member id: how each character has changed.
+ * @param {Array<{content: string}>} [params.facts] - Established facts the story can see (see
+ *   factsAsOf in memory.js).
  * @param {Array<Object>} params.turns - The story's turns in order, including any turn just
  *   added from the composer. Uses kind, source, content, and bureauTime.
  * @param {Object} params.request
@@ -256,6 +265,7 @@ export function buildWriterMessages({
   loreEntries = [],
   memoriesByCast = new Map(),
   arcNotesByCast = new Map(),
+  facts = [],
   turns,
   request,
   startTime = null,
@@ -308,6 +318,20 @@ export function buildWriterMessages({
   }
   if (persona) {
     system.push(section(`${userName.toUpperCase()} (THE READER'S CHARACTER)`, profile(persona)));
+  }
+  const establishedFacts = facts
+    .map((fact) => stripAsterisks(macros.process(fact.content)).trim())
+    .filter(Boolean);
+  if (establishedFacts.length > 0) {
+    system.push(
+      section(
+        'ESTABLISHED FACTS',
+        [
+          'True in this story unless the chapter itself shows one changing.',
+          ...establishedFacts.map((fact) => `- ${fact}`),
+        ].join('\n'),
+      ),
+    );
   }
   // The reader's character remembers too; only what they say and do is left to the reader.
   const remembered = [...characters, ...(persona ? [persona] : [])]

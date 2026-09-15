@@ -8,6 +8,18 @@ const FINDINGS = [
 ];
 const SPLIT = '"Coming?" Mara asked.\n\n"No," Theo said.';
 
+// What the Writer was sent for the passage: its prompt, with the house style and the chapter.
+const WRITER_MESSAGES = [
+  {
+    role: 'system',
+    content: 'You are the Writer.\n\n=== HOUSE STYLE ===\nThird person, past tense.',
+  },
+  {
+    role: 'user',
+    content: '=== CHAPTER SO FAR ===\nThe harbor was quiet.\n\n=== NEXT ===\nContinue the story.',
+  },
+];
+
 function recorder() {
   return {
     runId: 'run-1',
@@ -67,11 +79,13 @@ describe('applyEdits', () => {
     ]);
   });
 
-  it('ignores rewrites of unflagged paragraphs, empty or unchanged ones, and repeats', () => {
+  it('ignores rewrites of unflagged paragraphs, empty or unchanged ones, image stand-ins, and repeats', () => {
     const { text, edits } = applyEdits(TEXT, FINDINGS, [
       { paragraph: 0, replacement: 'The lamp went out.' },
       { paragraph: 1, replacement: '  ' },
       { paragraph: 1, replacement: '"Coming?" Mara asked. "No," Theo said.' },
+      { paragraph: 1, replacement: `[WG_IMAGE_0]\n\n${SPLIT}` },
+      { paragraph: 1, replacement: `${SPLIT} [image: the lamp]` },
       { paragraph: 1, replacement: SPLIT },
       { paragraph: 1, replacement: 'Something else.' },
       { paragraph: 9, replacement: 'Nowhere.' },
@@ -84,32 +98,48 @@ describe('applyEdits', () => {
 });
 
 describe('buildEditorMessages', () => {
-  it('numbers the passage and explains each flagged problem', () => {
-    const [system, user] = buildEditorMessages({
-      houseStyle: 'Third person, past tense.',
+  it("continues the Writer's conversation with its passage, then the flagged paragraphs", () => {
+    const messages = buildEditorMessages({
+      writerMessages: WRITER_MESSAGES,
       text: TEXT,
+      reasoning: 'Keep it short.',
       // A retired rule, as in an old run, gets no guidance.
       findings: [...FINDINGS, { paragraph: 1, rule: 'speaking_for_reader', reason: 'Theo speaks' }],
     });
 
-    expect(system.content).toContain('=== HOUSE STYLE ===\nThird person, past tense.');
-    expect(system.content).toContain('multiple_speakers: split the paragraph');
-    expect(system.content).not.toContain('speaking_for_reader:');
-    expect(user.content).toContain('[Paragraph 1]\n"Coming?" Mara asked. "No," Theo said.');
-    expect(user.content).toContain(
-      '- Paragraph 1 (multiple_speakers): Mara and Theo both speak in one paragraph',
+    expect(messages.slice(0, 2)).toEqual(WRITER_MESSAGES);
+    expect(messages[2]).toEqual({
+      role: 'assistant',
+      content: TEXT,
+      reasoning_content: 'Keep it short.',
+    });
+    const request = messages[3];
+    expect(request.role).toBe('user');
+    expect(request.content).toContain('=== REVISE ===');
+    expect(request.content).toContain(
+      '[Paragraph 1] multiple_speakers: Mara and Theo both speak in one paragraph; speaking_for_reader: Theo speaks\n"Coming?" Mara asked. "No," Theo said.',
     );
+    expect(request.content).toContain('- multiple_speakers: split the paragraph');
+    expect(request.content).not.toContain('- speaking_for_reader:');
+    expect(request.content).not.toContain('The lamp was lit.');
   });
 
-  it('shows images in the passage as labels', () => {
-    const [, user] = buildEditorMessages({
-      houseStyle: 'Third person, past tense.',
-      text: 'Mara unrolled the chart.\n\n![the harbor chart](/api/assets/lorebooks/lb-1/chart.webp)\n\nI traced the coast.',
-      findings: [{ paragraph: 2, rule: 'first_person_narration', reason: 'First person' }],
+  it('asks for repeated wording to be rewritten, not swapped for synonyms, with images as labels', () => {
+    const text =
+      'Mara unrolled the chart.\n\n![the harbor chart](/api/assets/lorebooks/lb-1/chart.webp)\n\nShe traced the coast the way she always did.';
+    const messages = buildEditorMessages({
+      writerMessages: WRITER_MESSAGES,
+      text,
+      findings: [{ paragraph: 2, rule: 'repeated_phrase', reason: 'Repeats an earlier passage' }],
     });
 
-    expect(user.content).toMatch(/\[Paragraph \d\]\n\[image: the harbor chart\]/);
-    expect(user.content).not.toContain('/api/assets/');
+    expect(messages[2].content).toContain('[image: the harbor chart]');
+    expect(messages[2]).not.toHaveProperty('reasoning_content');
+    expect(messages[3].content).toContain(
+      '[Paragraph 2] repeated_phrase: Repeats an earlier passage\nShe traced the coast the way she always did.',
+    );
+    expect(messages[3].content).toContain('rather than swapping in synonyms');
+    expect(JSON.stringify(messages.slice(2))).not.toContain('/api/assets/');
   });
 });
 
@@ -118,14 +148,16 @@ describe('runEditor', () => {
     expect(() => assertStrictSchema(EDIT_PARAGRAPHS_TOOL.parameters)).not.toThrow();
   });
 
-  it('forces the edit tool, applies the rewrites, and records both steps', async () => {
+  it("forces the edit tool on the Writer's conversation, applies the rewrites, and records both steps", async () => {
     const client = editorClient({ edits: [{ paragraph: 1, replacement: SPLIT }] });
     const runRecorder = recorder();
+    const recordedWriterMessages = [WRITER_MESSAGES[0], { role: 'user', content: '[trimmed]' }];
 
     const result = await runEditor({
       client,
       recorder: runRecorder,
-      houseStyle: 'Third person.',
+      writerMessages: WRITER_MESSAGES,
+      recordedWriterMessages,
       text: TEXT,
       findings: FINDINGS,
     });
@@ -136,10 +168,14 @@ describe('runEditor', () => {
       thinking: false,
       toolChoice: { name: 'edit_paragraphs' },
     });
+    expect(client.calls[0].messages.slice(0, 2)).toEqual(WRITER_MESSAGES);
     expect(runRecorder.steps.map((step) => [step.role, step.kind])).toEqual([
       ['editor', 'model'],
       ['editor', 'tool'],
     ]);
+    // The run keeps the chapter as the Writer's step recorded it, not another whole copy.
+    expect(runRecorder.steps[0].request.messages.slice(0, 2)).toEqual(recordedWriterMessages);
+    expect(runRecorder.steps[0].request.messages).toHaveLength(4);
     expect(runRecorder.steps[1].response.edits).toHaveLength(1);
   });
 
@@ -148,7 +184,7 @@ describe('runEditor', () => {
       runEditor({
         client,
         recorder: recorder(),
-        houseStyle: '',
+        writerMessages: WRITER_MESSAGES,
         text: TEXT,
         findings: FINDINGS,
       });

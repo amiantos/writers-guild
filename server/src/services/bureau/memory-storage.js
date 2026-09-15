@@ -63,9 +63,11 @@ function memoryFromRow(row) {
     sourceTurnIds: parseIds(row.source_turn_ids),
     runId: row.run_id,
     supersededBy: row.superseded_by,
+    pendingSupersedes: row.pending_supersedes ?? null,
     pinned: row.pinned === 1,
     retired: row.retired === 1,
     needsReview: row.needs_review === 1,
+    conflict: row.conflict ?? '',
     created: row.created,
     modified: row.modified,
   };
@@ -125,9 +127,10 @@ export class MemoryStorage {
       insert: this.db.prepare(`
         INSERT INTO memories (bureau_id, cast_member_id, layer, content, importance, world_time,
                               source_type, source_id, source_turn_ids, run_id, pinned,
-                              created, modified)
+                              needs_review, conflict, pending_supersedes, created, modified)
         VALUES (@bureauId, @castId, @layer, @content, @importance, @worldTime,
-                @sourceType, @sourceId, @sourceTurnIds, @runId, @pinned, @created, @modified)
+                @sourceType, @sourceId, @sourceTurnIds, @runId, @pinned,
+                @needsReview, @conflict, @pendingSupersedes, @created, @modified)
       `),
       supersede: this.db.prepare(`
         UPDATE memories SET superseded_by = @newId, modified = @modified
@@ -136,7 +139,8 @@ export class MemoryStorage {
       `),
       update: this.db.prepare(`
         UPDATE memories SET content = @content, importance = @importance, pinned = @pinned,
-                            retired = @retired, needs_review = @needsReview,
+                            retired = @retired, needs_review = @needsReview, conflict = @conflict,
+                            pending_supersedes = @pendingSupersedes,
                             superseded_by = @supersededBy, modified = @modified
         WHERE id = @id
       `),
@@ -212,6 +216,11 @@ export class MemoryStorage {
    * @param {boolean} [memory.pinned]
    * @param {number|null} [memory.supersedes] - A current memory of the same character that
    *   this one replaces. Anything else is ignored.
+   * @param {number|null} [memory.pendingSupersedes] - For a held memory: the memory it replaces
+   *   once the reader keeps it (see updateMemory).
+   * @param {string} [memory.conflict] - What it disagrees with in a profile or an established
+   *   fact. The memory then waits for review, and memory.js keeps it out of prompts until the
+   *   reader keeps it.
    * @returns {Object} The new memory.
    */
   addMemory(
@@ -228,6 +237,8 @@ export class MemoryStorage {
       runId = null,
       pinned = false,
       supersedes = null,
+      pendingSupersedes = null,
+      conflict = '',
     },
   ) {
     if (!MEMORY_LAYERS.includes(layer)) {
@@ -252,6 +263,9 @@ export class MemoryStorage {
         sourceTurnIds: JSON.stringify(sourceTurnIds),
         runId,
         pinned: pinned ? 1 : 0,
+        needsReview: conflict ? 1 : 0,
+        conflict,
+        pendingSupersedes: conflict && pendingSupersedes ? pendingSupersedes : null,
         created: now,
         modified: now,
       }).lastInsertRowid;
@@ -266,8 +280,11 @@ export class MemoryStorage {
    * @param {string} bureauId
    * @param {number} memoryId
    * @param {Object} updates - Any of content, importance, pinned, retired, needsReview.
-   *   Editing the content counts as reviewing it. Setting retired to false also restores a
-   *   memory that was replaced, retiring the newest version that replaced it.
+   *   Editing the content or retiring a memory counts as reviewing it. Reviewing a memory that
+   *   disagreed with a profile or fact keeps it, and it replaces the memory it was held from
+   *   replacing if that one is still current and unpinned; retired, it replaces nothing. Setting
+   *   retired to false also restores a memory that was replaced, retiring the newest version that
+   *   replaced it.
    * @returns {Object|null} The updated memory, or null if it doesn't exist.
    */
   updateMemory(bureauId, memoryId, { content, importance, pinned, retired, needsReview }) {
@@ -275,7 +292,10 @@ export class MemoryStorage {
     if (!memory) return null;
 
     const contentChanged = content !== undefined && content !== memory.content;
+    const reviewed =
+      retired === true || !(needsReview ?? (contentChanged ? false : memory.needsReview));
     const restored = retired === false;
+    const nextRetired = retired ?? memory.retired;
     const modified = new Date().toISOString();
     this.db.transaction(() => {
       // Two versions of one memory shouldn't both be current.
@@ -285,13 +305,28 @@ export class MemoryStorage {
           this.stmts.retire.run(modified, newest.id);
         }
       }
+      // A held memory the reader keeps replaces the memory it was held from replacing.
+      if (reviewed && !nextRetired && memory.pendingSupersedes !== null) {
+        const pending = this.getMemory(bureauId, memory.pendingSupersedes);
+        if (pending && !pending.retired && !pending.pinned) {
+          this.stmts.supersede.run({
+            bureauId,
+            castId: memory.castMemberId,
+            oldId: pending.id,
+            newId: memory.id,
+            modified,
+          });
+        }
+      }
       this.stmts.update.run({
         id: memoryId,
         content: content ?? memory.content,
         importance: importance === undefined ? memory.importance : clampImportance(importance),
         pinned: (pinned ?? memory.pinned) ? 1 : 0,
-        retired: (retired ?? memory.retired) ? 1 : 0,
-        needsReview: (needsReview ?? (contentChanged ? false : memory.needsReview)) ? 1 : 0,
+        retired: nextRetired ? 1 : 0,
+        needsReview: reviewed ? 0 : 1,
+        conflict: reviewed ? '' : memory.conflict,
+        pendingSupersedes: reviewed ? null : memory.pendingSupersedes,
         supersededBy: restored ? null : memory.supersededBy,
         modified,
       });

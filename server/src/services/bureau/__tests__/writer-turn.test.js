@@ -507,7 +507,7 @@ describe('generateWriterTurn', () => {
     const recorded = stores.bureaus.getRun(bureau.id, turn.runId).steps[0].request.messages[1];
     expect(recorded.content).toContain('earlier characters not recorded');
     expect(recorded.content).toContain('The end of the page.');
-    expect(recorded.content.length).toBeLessThan(RECORDED_STORY_TAIL + 1500);
+    expect(recorded.content.length).toBeLessThan(RECORDED_STORY_TAIL + 2500);
   });
 
   it('marks the run failed when the turn cannot be saved', async () => {
@@ -672,6 +672,11 @@ describe('generateWriterTurn', () => {
         ['editor', 'tool'],
       ]);
       expect(run.steps[1].response.findings).toHaveLength(1);
+      // The Writer revises in its own conversation: what it was sent, its passage, then the request.
+      const revision = client.chatCalls[0].messages;
+      expect(revision.slice(0, 2)).toEqual(client.calls[0].messages);
+      expect(revision[2]).toMatchObject({ role: 'assistant', content: TWO_SPEAKERS });
+      expect(revision[3].content).toContain('=== REVISE ===');
     });
 
     it("doesn't flag the reader's character speaking, on any action", async () => {

@@ -281,6 +281,62 @@ describe('MemoryStorage', () => {
     ).toBe(false);
   });
 
+  it('keeps what a memory disagrees with until the reader reviews or edits it', () => {
+    const conflict = "Mara's profile says she lives above the bakery.";
+    const held = remember('Mara lives across town.', { conflict });
+    expect(held).toMatchObject({ needsReview: true, conflict });
+    expect(memories.countsByCast(bureau.id)).toEqual({ [mara.id]: { current: 1, needsReview: 1 } });
+
+    expect(memories.updateMemory(bureau.id, held.id, { pinned: true })).toMatchObject({
+      needsReview: true,
+      conflict,
+    });
+    expect(memories.updateMemory(bureau.id, held.id, { needsReview: false })).toMatchObject({
+      needsReview: false,
+      conflict: '',
+    });
+
+    const edited = remember('Mara lives by the harbor.', { conflict });
+    expect(
+      memories.updateMemory(bureau.id, edited.id, { content: 'Mara lives above the bakery.' }),
+    ).toMatchObject({ needsReview: false, conflict: '' });
+  });
+
+  it('replaces what a held memory would have once the reader keeps it, and nothing once retired', () => {
+    const conflict = "Mara's profile says she lives above the bakery.";
+    const bakery = remember('Mara lives above the bakery.');
+    const kept = remember('Mara lives across town now.', {
+      conflict,
+      pendingSupersedes: bakery.id,
+    });
+    expect(kept.pendingSupersedes).toBe(bakery.id);
+    expect(memories.getMemory(bureau.id, bakery.id).supersededBy).toBeNull();
+
+    expect(memories.updateMemory(bureau.id, kept.id, { needsReview: false })).toMatchObject({
+      conflict: '',
+      pendingSupersedes: null,
+    });
+    expect(memories.getMemory(bureau.id, bakery.id).supersededBy).toBe(kept.id);
+
+    const boat = remember('Mara keeps a boat in the harbor.');
+    const wrong = remember('Mara sold her boat.', { conflict, pendingSupersedes: boat.id });
+    expect(memories.updateMemory(bureau.id, wrong.id, { retired: true })).toMatchObject({
+      retired: true,
+      needsReview: false,
+      conflict: '',
+      pendingSupersedes: null,
+    });
+    expect(memories.getMemory(bureau.id, boat.id)).toMatchObject({
+      retired: false,
+      supersededBy: null,
+    });
+
+    // Only a held memory waits to replace one.
+    expect(
+      remember('Mara sails on Sundays.', { pendingSupersedes: boat.id }).pendingSupersedes,
+    ).toBeNull();
+  });
+
   it('searches with stemming and without passing query syntax through', () => {
     const ines = bureaus.addCastMember(bureau.id, {
       seedCard: card('Ines'),

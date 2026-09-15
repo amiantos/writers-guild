@@ -119,6 +119,45 @@ describe('buildOffscreenMessages', () => {
 
     expect(user.content).toContain('Description: A regular. [image: June]');
   });
+
+  it("gives each profile whole, with the reader's character named, and keeps to it", () => {
+    const description = `${'Keeps the light. '.repeat(100)}Lives with {{user}} in the keeper's cottage.`;
+    const mara = {
+      id: 'c1',
+      name: 'Mara',
+      seedCard: { data: { name: 'Mara', description, personality: 'Dry.' } },
+    };
+
+    const [system, user] = buildOffscreenMessages({
+      bureau: { timezone: 'UTC' },
+      gaps: [{ member: mara, from: FROM }],
+      to: TO,
+      readerName: 'Theo',
+      now: new Date('2026-10-08T21:00:00Z'),
+    });
+
+    expect(user.content).toContain("Lives with Theo in the keeper's cottage.\nPersonality: Dry.");
+    expect(user.content).not.toContain('…');
+    expect(system.content).toContain(
+      "where they live, who they live with, and their work don't change offscreen",
+    );
+  });
+
+  it('adds the established facts, with the reader named', () => {
+    const [system, user] = buildOffscreenMessages({
+      bureau: { timezone: 'UTC' },
+      gaps: [{ member: { id: 'c1', name: 'Mara', seedCard: card('Mara') }, from: FROM }],
+      to: TO,
+      readerName: 'Theo',
+      facts: [{ content: 'Mara and {{user}} live above the bakery.' }],
+      now: new Date('2026-10-08T21:00:00Z'),
+    });
+
+    expect(user.content).toContain(
+      '=== ESTABLISHED FACTS ===\n- Mara and Theo live above the bakery.',
+    );
+    expect(system.content).toContain('Keep to their profiles and the established facts');
+  });
 });
 
 describe('offscreen life in a Bureau', () => {

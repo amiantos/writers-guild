@@ -34,7 +34,7 @@
           :cast="cast"
           @open="openStory"
           @updated="handleUpdated"
-          @deleted="loadCast"
+          @deleted="handleChapterDeleted"
         />
         <BureauMessagesSection
           :key="`messages-${resetVersion}`"
@@ -51,7 +51,7 @@
           @changed="loadCast"
           @lorebook-attached="worldVersion++"
         />
-        <BureauWorldSection :key="worldVersion" :bureau-id="bureauId" />
+        <BureauWorldSection :key="`world-${worldVersion}-${resetVersion}`" :bureau-id="bureauId" />
         <BureauSettingsSection
           :bureau="bureau"
           @updated="handleUpdated"
@@ -133,7 +133,14 @@ function handleUpdated(updated) {
   setPageTitle(updated.name);
 }
 
-// A reset empties the chapters, messages, and memories, so the sections showing them start over.
+// Deleting a chapter deletes the facts it proposed too, so the World section loads them again.
+function handleChapterDeleted() {
+  worldVersion.value++;
+  loadCast();
+}
+
+// A reset empties the chapters, messages, memories, and proposed facts, so the sections showing them
+// start over.
 function handleReset(updated) {
   handleUpdated(updated);
   resetVersion.value++;

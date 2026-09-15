@@ -254,11 +254,18 @@ router.post(
   }),
 );
 
-// Edit a message; memories and arc notes citing it are marked for review
+/** Mark memories, arc notes, and facts that cite a changed or deleted message for review. */
+function flagChangedMessage({ memories, arcNotes, facts }, bureauId, threadId, messageId) {
+  memories.flagTurnsChanged(bureauId, threadId, [messageId], 'correspondence');
+  arcNotes.flagTurnsChanged(bureauId, threadId, [messageId], 'correspondence');
+  facts.flagTurnsChanged(bureauId, threadId, [messageId], 'correspondence');
+}
+
+// Edit a message; memories, arc notes, and facts citing it are marked for review
 router.put(
   '/:castId/messages/:messageId',
   asyncHandler(async (req, res) => {
-    const { bureaus, threads, memories, arcNotes } = res.locals.stores;
+    const { bureaus, threads } = res.locals.stores;
     const { bureauId, castId, messageId } = req.params;
     requireBureau(bureaus, bureauId);
     const thread = requireThread(threads, bureauId, castId);
@@ -268,17 +275,16 @@ router.put(
     if (!message) {
       throw new AppError('Message not found', 404);
     }
-    memories.flagTurnsChanged(bureauId, thread.id, [messageId], 'correspondence');
-    arcNotes.flagTurnsChanged(bureauId, thread.id, [messageId], 'correspondence');
+    flagChangedMessage(res.locals.stores, bureauId, thread.id, messageId);
     res.json({ message });
   }),
 );
 
-// Delete a message; memories and arc notes citing it are marked for review
+// Delete a message; memories, arc notes, and facts citing it are marked for review
 router.delete(
   '/:castId/messages/:messageId',
   asyncHandler(async (req, res) => {
-    const { bureaus, threads, memories, arcNotes } = res.locals.stores;
+    const { bureaus, threads } = res.locals.stores;
     const { bureauId, castId, messageId } = req.params;
     requireBureau(bureaus, bureauId);
     const thread = requireThread(threads, bureauId, castId);
@@ -286,8 +292,7 @@ router.delete(
     if (!threads.deleteMessage(thread.id, messageId)) {
       throw new AppError('Message not found', 404);
     }
-    memories.flagTurnsChanged(bureauId, thread.id, [messageId], 'correspondence');
-    arcNotes.flagTurnsChanged(bureauId, thread.id, [messageId], 'correspondence');
+    flagChangedMessage(res.locals.stores, bureauId, thread.id, messageId);
     res.json({ success: true });
   }),
 );

@@ -323,6 +323,7 @@ describe('runDirector', () => {
     expect(created).toEqual({
       name: 'Ines',
       description: 'Runs the harbor pub and hears everything.',
+      personality: 'Nosy.',
       addedToStory: true,
     });
     expect(duplicate.error).toMatch(/Mara is already in this chapter/);
@@ -357,6 +358,7 @@ describe('runDirector', () => {
     expect(toolResults(client.calls[1])[0]).toEqual({
       name: 'Ines',
       description: 'Runs the harbor pub.',
+      personality: '',
       addedToStory: true,
       existing: true,
     });
@@ -530,7 +532,7 @@ describe('buildDirectorMessages', () => {
     });
 
     expect(system.content).toContain(
-      '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
+      '- Follow the request below. Keep the beats to what fits in one passage, ending at a natural pause rather than on a reveal.',
     );
     expect(system.content).not.toMatch(/belong to the reader|waits on Theo|Don't plan what Theo/);
     expect(system.content).toContain(
@@ -538,7 +540,7 @@ describe('buildDirectorMessages', () => {
     );
     expect(system.content).not.toContain('name only the character the passage stays closest to');
     expect(user.content).toContain(
-      "=== CAST ===\n- Mara: She keeps the Greywater light.\n- Theo (the reader's character)",
+      "=== CAST ===\nMara\nDescription: She keeps the Greywater light.\n\nTheo (the reader's character)",
     );
     expect(user.content).toContain('=== CHAPTER SO FAR ===\nTheo knocked.');
     expect(user.content).not.toContain('An old direction');
@@ -565,6 +567,53 @@ describe('buildDirectorMessages', () => {
     expect(system.content).toContain(
       "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have",
     );
+  });
+
+  it("gives each profile whole, with the reader's character named, and puts profiles over memories", () => {
+    const description = `${'She keeps the Greywater light. '.repeat(40)}She lives with {{user}} in the keeper's cottage.`;
+    const [system, user] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast: [
+        {
+          name: 'Mara',
+          isPersona: false,
+          seedCard: { data: { name: 'Mara', description, personality: 'Dry.' } },
+        },
+        { name: 'Theo', isPersona: true, seedCard: card('Theo') },
+      ],
+      turns: [],
+      request: { action: 'continue' },
+    });
+
+    expect(user.content).toContain(
+      "She lives with Theo in the keeper's cottage.\nPersonality: Dry.",
+    );
+    expect(user.content).not.toContain('…');
+    expect(system.content).toContain(
+      'when a memory disagrees with a profile or fact, go by the profile or fact',
+    );
+  });
+
+  it('adds the established facts after the cast, with the reader named', () => {
+    const request = { action: 'continue' };
+    const [, user] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast,
+      turns: [],
+      request,
+      facts: [{ content: "Mara and {{user}} live in the keeper's cottage." }],
+    });
+
+    expect(user.content).toContain(
+      "Theo (the reader's character)\n\n=== ESTABLISHED FACTS ===\n- Mara and Theo live in the keeper's cottage.",
+    );
+    const [, withoutFacts] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast,
+      turns: [],
+      request,
+    });
+    expect(withoutFacts.content).not.toContain('ESTABLISHED FACTS');
   });
 
   it('marks an opening with its exact start time, in the Bureau time zone', () => {
@@ -633,7 +682,7 @@ describe('buildDirectorMessages', () => {
       request: { action: 'continue' },
     });
 
-    expect(user.content).toContain('- June: A regular. [image: June]');
+    expect(user.content).toContain('June\nDescription: A regular. [image: June]');
     expect(user.content).toContain('June waved.\n\n[image: June waving]');
     expect(user.content).not.toContain('/api/assets/');
   });

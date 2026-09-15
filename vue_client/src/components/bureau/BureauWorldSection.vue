@@ -5,6 +5,9 @@
     </div>
 
     <div class="section-content">
+      <BureauFacts :bureau-id="bureauId" />
+
+      <h3 class="subsection-title">Lorebooks</h3>
       <p class="help-text">
         Attached lorebooks give the Writer entries whose keywords appear in the chapter, as in story
         mode.
@@ -54,6 +57,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
+import BureauFacts from './BureauFacts.vue';
 import { lorebooksAPI } from '../../services/api';
 import { bureausAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
@@ -119,6 +123,11 @@ onMounted(async () => {
 <style scoped src="./bureau-ui.css"></style>
 
 <style scoped>
+.subsection-title {
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+}
+
 .lore-list {
   list-style: none;
   margin: 0;

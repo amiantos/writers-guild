@@ -119,6 +119,12 @@ describe('buildCorrespondenceMessages', () => {
     expect(system.content).toContain('How Mara has changed:\n- Mara lets Theo help now.');
     expect(system.content).toContain("Mara knows:\n- Theo can't swim.");
     expect(system.content).toContain('Mara remembers:\n- The Lamp Room: Theo fixed the lamp.');
+    expect(system.content).toContain(
+      "Writing to each other doesn't mean they live apart, or even that they're apart right now",
+    );
+    expect(system.content).toContain(
+      'When a memory disagrees with a profile or an established fact, the profile or fact is right.',
+    );
     expect(system.content).not.toContain('The year is');
     expect(user.content).toContain(
       [
@@ -151,6 +157,25 @@ describe('buildCorrespondenceMessages', () => {
     expect(system.content).toContain('The year is 1996.');
     expect(user.content).toContain('It has been about a week since the last message.');
     expect(user.content).toContain("Theo hasn't answered yet. Write a short follow-up from Mara.");
+  });
+
+  it('adds the established facts, with the reader named', () => {
+    const [system] = buildCorrespondenceMessages({
+      bureau,
+      member: mara,
+      persona: theo,
+      time: now,
+      now,
+      history: [],
+      facts: [{ content: 'Mara and {{user}} live above the bakery.' }],
+    });
+
+    expect(system.content).toContain(
+      '=== ESTABLISHED FACTS ===\n- Mara and Theo live above the bakery.',
+    );
+    expect(system.content).toContain(
+      'from their profiles, the established facts, and the conversation',
+    );
   });
 
   it('asks for a first message in an empty thread', () => {

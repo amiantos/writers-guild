@@ -135,8 +135,9 @@ export const bureausAPI = {
   },
 
   /**
-   * Reset a Bureau to a blank slate: delete its chapters, messages, memories, and arc notes, keeping
-   * the cast with their profiles, interviews, lorebooks, settings, and Bureau time.
+   * Reset a Bureau to a blank slate: delete its chapters, messages, memories, arc notes, and the facts
+   * the Archivist proposed, keeping the cast with their profiles, the facts written by hand,
+   * interviews, lorebooks, settings, and Bureau time.
    */
   reset(bureauId) {
     return request(`/${bureauId}/reset`, { method: 'POST', body: {} });
@@ -193,6 +194,30 @@ export const bureausAPI = {
 
   detachLorebook(bureauId, lorebookId) {
     return request(`/${bureauId}/lorebooks/${lorebookId}`, { method: 'DELETE' });
+  },
+
+  /**
+   * The Bureau's established facts, oldest first. Each says what it replaces (replaces,
+   * replacesContent) and, once a change to it is accepted, what replaced it (replacedBy).
+   * @param {{ status?: 'proposed'|'accepted'|'rejected' }} [options]
+   */
+  listFacts(bureauId, { status } = {}) {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request(`/${bureauId}/facts${query}`);
+  },
+
+  /** Write an established fact; a fact written here is accepted as written. */
+  addFact(bureauId, content) {
+    return request(`/${bureauId}/facts`, { method: 'POST', body: { content } });
+  },
+
+  /** Accept, reject, or edit a fact: content, status, needsReview. */
+  updateFact(bureauId, factId, updates) {
+    return request(`/${bureauId}/facts/${factId}`, { method: 'PUT', body: updates });
+  },
+
+  removeFact(bureauId, factId) {
+    return request(`/${bureauId}/facts/${factId}`, { method: 'DELETE' });
   },
 
   getRun(bureauId, runId) {

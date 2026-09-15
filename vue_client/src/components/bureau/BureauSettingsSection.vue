@@ -109,8 +109,9 @@
           </div>
         </div>
         <p class="help-text">
-          DeepSeek ignores temperature in thinking mode. The Writer's reasoning shows in each turn's
-          seam.
+          Temperature starts at 0.8 and applies to message replies too; higher values make long
+          chapters more likely to come apart. DeepSeek ignores temperature in thinking mode. The
+          Writer's reasoning shows in each turn's seam.
         </p>
       </fieldset>
 
@@ -524,7 +525,7 @@ function useBrowserZone() {
 
 async function resetBureau() {
   const confirmed = await confirm({
-    message: `Reset "${props.bureau.name}"?\n\nEvery chapter, message, memory, and arc note is deleted, including backstory you wrote. The cast keeps their profiles and every version of them, and interviews, lorebooks, settings, and Bureau time stay. This cannot be undone.`,
+    message: `Reset "${props.bureau.name}"?\n\nEvery chapter, message, memory, and arc note is deleted, including backstory you wrote, and so is every fact the Archivist proposed. The cast keeps their profiles and every version of them, and the facts you wrote, interviews, lorebooks, settings, and Bureau time stay. This cannot be undone.`,
     confirmText: 'Reset Bureau',
     variant: 'danger',
   });
