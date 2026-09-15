@@ -119,6 +119,12 @@ describe('buildCorrespondenceMessages', () => {
     expect(system.content).toContain('How Mara has changed:\n- Mara lets Theo help now.');
     expect(system.content).toContain("Mara knows:\n- Theo can't swim.");
     expect(system.content).toContain('Mara remembers:\n- The Lamp Room: Theo fixed the lamp.');
+    expect(system.content).toContain(
+      "Writing to each other doesn't mean they live apart, or even that they're apart right now",
+    );
+    expect(system.content).toContain(
+      'When a memory disagrees with a profile, the profile is right.',
+    );
     expect(system.content).not.toContain('The year is');
     expect(user.content).toContain(
       [

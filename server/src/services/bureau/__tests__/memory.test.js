@@ -153,6 +153,16 @@ describe('memoriesAtTime', () => {
   });
 });
 
+describe('a memory held for disagreeing with a profile', () => {
+  it('stays out of what a story or a moment can see', () => {
+    const held = memory({ content: 'Mara lives across town.', conflict: 'Her profile disagrees.' });
+    const kept = memory({ content: 'Mara lives above the bakery.' });
+
+    expect(memoriesAtTime([held, kept], second.startTime)).toEqual([kept]);
+    expect(memoriesAsOf([held, kept], second)).toEqual([kept]);
+  });
+});
+
 describe('notesAtTime', () => {
   it('sees accepted notes dated up to the moment', () => {
     const written = { id: 1, status: 'accepted', worldTime: null };

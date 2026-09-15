@@ -305,6 +305,12 @@ const MIGRATIONS = [
     );
     INSERT INTO shared_settings (id) VALUES (1);
   `,
+
+  // 12: A memory the Archivist found disagreeing with a profile keeps what it disagrees with. It
+  // stays out of every prompt until the reader keeps it, edits it, or retires it.
+  `
+    ALTER TABLE memories ADD COLUMN conflict TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

@@ -66,6 +66,7 @@ function memoryFromRow(row) {
     pinned: row.pinned === 1,
     retired: row.retired === 1,
     needsReview: row.needs_review === 1,
+    conflict: row.conflict ?? '',
     created: row.created,
     modified: row.modified,
   };
@@ -125,9 +126,10 @@ export class MemoryStorage {
       insert: this.db.prepare(`
         INSERT INTO memories (bureau_id, cast_member_id, layer, content, importance, world_time,
                               source_type, source_id, source_turn_ids, run_id, pinned,
-                              created, modified)
+                              needs_review, conflict, created, modified)
         VALUES (@bureauId, @castId, @layer, @content, @importance, @worldTime,
-                @sourceType, @sourceId, @sourceTurnIds, @runId, @pinned, @created, @modified)
+                @sourceType, @sourceId, @sourceTurnIds, @runId, @pinned,
+                @needsReview, @conflict, @created, @modified)
       `),
       supersede: this.db.prepare(`
         UPDATE memories SET superseded_by = @newId, modified = @modified
@@ -136,7 +138,7 @@ export class MemoryStorage {
       `),
       update: this.db.prepare(`
         UPDATE memories SET content = @content, importance = @importance, pinned = @pinned,
-                            retired = @retired, needs_review = @needsReview,
+                            retired = @retired, needs_review = @needsReview, conflict = @conflict,
                             superseded_by = @supersededBy, modified = @modified
         WHERE id = @id
       `),
@@ -212,6 +214,8 @@ export class MemoryStorage {
    * @param {boolean} [memory.pinned]
    * @param {number|null} [memory.supersedes] - A current memory of the same character that
    *   this one replaces. Anything else is ignored.
+   * @param {string} [memory.conflict] - What it disagrees with in a profile. The memory then waits
+   *   for review, and memory.js keeps it out of prompts until the reader keeps it.
    * @returns {Object} The new memory.
    */
   addMemory(
@@ -228,6 +232,7 @@ export class MemoryStorage {
       runId = null,
       pinned = false,
       supersedes = null,
+      conflict = '',
     },
   ) {
     if (!MEMORY_LAYERS.includes(layer)) {
@@ -252,6 +257,8 @@ export class MemoryStorage {
         sourceTurnIds: JSON.stringify(sourceTurnIds),
         runId,
         pinned: pinned ? 1 : 0,
+        needsReview: conflict ? 1 : 0,
+        conflict,
         created: now,
         modified: now,
       }).lastInsertRowid;
@@ -266,8 +273,9 @@ export class MemoryStorage {
    * @param {string} bureauId
    * @param {number} memoryId
    * @param {Object} updates - Any of content, importance, pinned, retired, needsReview.
-   *   Editing the content counts as reviewing it. Setting retired to false also restores a
-   *   memory that was replaced, retiring the newest version that replaced it.
+   *   Editing the content counts as reviewing it, and reviewing a memory that disagreed with a
+   *   profile keeps it. Setting retired to false also restores a memory that was replaced,
+   *   retiring the newest version that replaced it.
    * @returns {Object|null} The updated memory, or null if it doesn't exist.
    */
   updateMemory(bureauId, memoryId, { content, importance, pinned, retired, needsReview }) {
@@ -275,6 +283,7 @@ export class MemoryStorage {
     if (!memory) return null;
 
     const contentChanged = content !== undefined && content !== memory.content;
+    const reviewed = !(needsReview ?? (contentChanged ? false : memory.needsReview));
     const restored = retired === false;
     const modified = new Date().toISOString();
     this.db.transaction(() => {
@@ -291,7 +300,8 @@ export class MemoryStorage {
         importance: importance === undefined ? memory.importance : clampImportance(importance),
         pinned: (pinned ?? memory.pinned) ? 1 : 0,
         retired: (retired ?? memory.retired) ? 1 : 0,
-        needsReview: (needsReview ?? (contentChanged ? false : memory.needsReview)) ? 1 : 0,
+        needsReview: reviewed ? 0 : 1,
+        conflict: reviewed ? '' : memory.conflict,
         supersededBy: restored ? null : memory.supersededBy,
         modified,
       });

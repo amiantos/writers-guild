@@ -216,6 +216,78 @@ describe('archiveStory', () => {
     ]);
   });
 
+  it('reads the profiles, and holds a fact that disagrees with one for the reader', async () => {
+    const ines = stores.bureaus.addCastMember(bureau.id, {
+      seedCard: {
+        spec: 'chara_card_v2',
+        spec_version: '2.0',
+        data: {
+          name: 'Ines',
+          description: 'Lives with {{user}} above the bakery.',
+          personality: 'Dry.',
+        },
+      },
+      libraryCharacterId: 'c3',
+    });
+    stores.stories.updateStory(bureau.id, story.id, { castIds: [mara.id, theo.id, ines.id] });
+    const spareKey = stores.memories.addMemory(bureau.id, ines.id, {
+      layer: 'knowledge',
+      content: 'Ines keeps a spare key under the mat.',
+    });
+    const passage = addProse('Ines texted from her own flat across town.');
+    const conflict = "Ines's profile says she lives with Theo above the bakery.";
+    const client = archivistClient([
+      record({
+        knowledge: [
+          {
+            character: 'Ines',
+            content: 'Ines lives in a flat across town.',
+            importance: 4,
+            supersedes: spareKey.id,
+            passages: [passage.position],
+            conflict,
+          },
+          {
+            character: 'Ines',
+            content: 'Ines texts Theo when she runs late.',
+            importance: 2,
+            supersedes: 0,
+            passages: [passage.position],
+            conflict: '',
+          },
+        ],
+      }),
+    ]);
+
+    const result = await archive(client);
+
+    const [system, user] = client.calls[0].messages;
+    expect(user.content).toContain(
+      '=== PROFILES ===\nMara\n\nTheo\n\nInes\nDescription: Lives with Theo above the bakery.\nPersonality: Dry.',
+    );
+    expect(system.content).toContain('set conflict to what it disagrees with');
+    expect(result).toMatchObject({ added: 1, held: 1, superseded: 0 });
+    expect(result.warnings).toEqual([
+      `Kept memory ${spareKey.id} for Ines: what would replace it disagrees with a profile`,
+    ]);
+
+    const held = stores.memories
+      .listMemories(bureau.id, ines.id)
+      .find((memory) => memory.content === 'Ines lives in a flat across town.');
+    expect(held).toMatchObject({ needsReview: true, conflict });
+    expect(stores.memories.getMemory(bureau.id, spareKey.id).supersededBy).toBeNull();
+    // Nothing remembers it until the reader keeps it.
+    const visible = memoriesAsOf(
+      stores.memories.listMemories(bureau.id, ines.id, { status: 'all' }),
+      story,
+      { includeOwnStory: true },
+    ).map((memory) => memory.content);
+    expect(visible).toEqual([
+      'Ines texts Theo when she runs late.',
+      'Ines keeps a spare key under the mat.',
+    ]);
+  });
+
   it('updates what characters know on later passes', async () => {
     const earlier = stores.stories.createStory(bureau.id, {
       startTime: '2026-10-01T20:00:00.000Z',

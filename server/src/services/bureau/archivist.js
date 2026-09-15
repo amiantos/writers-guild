@@ -25,6 +25,7 @@ import {
   notesAtTime,
   selectForPrompt,
 } from './memory.js';
+import { profileLines } from './profile-text.js';
 import { RunRecorder } from './run-recorder.js';
 
 // The latest turns may still be regenerated or edited, so automatic passes leave them.
@@ -73,8 +74,13 @@ export const RECORD_MEMORIES_TOOL = {
               items: { type: 'integer' },
               description: 'Numbers of the passages this comes from.',
             },
+            conflict: {
+              type: 'string',
+              description:
+                "What in a character's profile this disagrees with, in one sentence, or an empty string when nothing does.",
+            },
           },
-          required: ['character', 'content', 'importance', 'supersedes', 'passages'],
+          required: ['character', 'content', 'importance', 'supersedes', 'passages', 'conflict'],
           additionalProperties: false,
         },
       },
@@ -315,7 +321,9 @@ export function buildArchivistMessages({
       `- Lasting facts a character learned, or that changed: about ${about}, their relationships, promises, plans, preferences, places, and running jokes.`,
       '- One fact per memory, in the third person with names, never "I" or "you". Record only what that character saw, heard, or was told.',
       '- Each memory must make sense on its own, read months later: say who and what, never "this" or "that" for something in another memory.',
-      '- Skip passing actions, scenery, incidental details such as the exact time something happened, short-lived plans, and anything the character already knows. The episode tells what happened; knowledge keeps what will still matter later.',
+      '- Skip passing actions, scenery, incidental details such as the exact time something happened, short-lived plans, anything the character already knows, and anything a profile already says. The episode tells what happened; knowledge keeps what will still matter later.',
+      `- The profiles are true. Record what the ${wording.units} say outright, not what they only seem to suggest: someone heading home, or writing from somewhere else, tells you nothing new about where anyone lives.`,
+      "- When a fact disagrees with a character's profile, set conflict to what it disagrees with, in a sentence: the reader checks it before anyone remembers it. Otherwise leave conflict empty.",
       "- When a fact updates or contradicts one of the character's numbered memories, set supersedes to that number and write the complete updated fact. Otherwise set supersedes to 0.",
       '- Importance: 1 trivia, 2 minor detail, 3 useful, 4 significant, 5 defining (a milestone in a relationship, a secret revealed).',
       `- passages lists the numbers of the ${wording.units} the fact comes from.`,
@@ -397,6 +405,16 @@ export function buildArchivistMessages({
     const lines = [`Between: ${present.length > 0 ? listNames(present) : 'no one in the cast'}`];
     if (source.openingTime) lines.push(`Begins: ${source.openingTime}`);
     user = [section('MESSAGES', lines.join('\n'))];
+  }
+  if (characters.length > 0) {
+    user.push(
+      section(
+        'PROFILES',
+        characters
+          .map((member) => [nameOf(member), ...profileLines(member, personaName)].join('\n'))
+          .join('\n\n'),
+      ),
+    );
   }
   if (known.length > 0) {
     user.push(section('WHAT THEY ALREADY KNOW', known.join('\n\n')));
@@ -504,9 +522,10 @@ function text(value) {
 }
 
 /**
- * Save one pass's record, skipping anything that doesn't check out.
- * @returns {{ added: number, superseded: number, episodes: number, arcNotes: number,
- *   warnings: string[] }}
+ * Save one pass's record, skipping anything that doesn't check out. held counts memories kept for
+ * review because they disagree with a profile; added counts the rest.
+ * @returns {{ added: number, held: number, superseded: number, episodes: number,
+ *   arcNotes: number, warnings: string[] }}
  */
 function applyRecord({
   stores,
@@ -534,7 +553,7 @@ function applyRecord({
         .filter(Boolean),
     ),
   ];
-  const result = { added: 0, superseded: 0, episodes: 0, arcNotes: 0, warnings: [] };
+  const result = { added: 0, held: 0, superseded: 0, episodes: 0, arcNotes: 0, warnings: [] };
 
   const memberFor = (name, what) => {
     const member = byName.get(text(name).toLowerCase());
@@ -585,9 +604,15 @@ function applyRecord({
       const member = memberFor(item?.character, 'a memory');
       const content = text(item?.content);
       if (!member || !content) continue;
+      // A fact that disagrees with a profile waits for the reader, and replaces nothing meanwhile.
+      const conflict = text(item.conflict);
 
       let supersedes = null;
-      if (item.supersedes) {
+      if (item.supersedes && conflict) {
+        result.warnings.push(
+          `Kept memory ${item.supersedes} for ${nameOf(member)}: what would replace it disagrees with a profile`,
+        );
+      } else if (item.supersedes) {
         const seen = (knownByCast.get(member.id) ?? []).find(
           (memory) => memory.id === item.supersedes,
         );
@@ -609,8 +634,13 @@ function applyRecord({
         importance: item.importance,
         sourceTurnIds: turnIdsFor(item.passages),
         supersedes,
+        conflict,
       });
-      result.added += 1;
+      if (conflict) {
+        result.held += 1;
+      } else {
+        result.added += 1;
+      }
     }
 
     // One episode per character per story or session; a later one in the same record wins.
@@ -832,6 +862,7 @@ function emptyTotals(archivedThrough) {
   return {
     passes: 0,
     added: 0,
+    held: 0,
     superseded: 0,
     episodes: 0,
     arcNotes: 0,
@@ -844,6 +875,7 @@ function emptyTotals(archivedThrough) {
 function addToTotals(totals, result) {
   totals.passes += 1;
   totals.added += result.added;
+  totals.held += result.held;
   totals.superseded += result.superseded;
   totals.episodes += result.episodes;
   totals.arcNotes += result.arcNotes;
@@ -860,8 +892,9 @@ function addToTotals(totals, result) {
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {number} [params.through] - Last position to read; defaults to the end of the story.
  * @param {AbortSignal} [params.signal]
- * @returns {Promise<Object|null>} Totals for the passes ({ passes, added, superseded, episodes,
- *   arcNotes, warnings, archivedThrough, runId }), or null when there was nothing to read.
+ * @returns {Promise<Object|null>} Totals for the passes ({ passes, added, held, superseded,
+ *   episodes, arcNotes, warnings, archivedThrough, runId }), or null when there was nothing to
+ *   read.
  */
 export function archiveStory({ stores, bureauId, storyId, client, through = Infinity, signal }) {
   return withLock(storyId, async () => {

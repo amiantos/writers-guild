@@ -14,9 +14,14 @@ function timestampOf(time) {
   return time instanceof Date ? time.getTime() : Date.parse(time);
 }
 
-/** Unretired visible memories, leaving out any replaced by another visible memory. */
+/**
+ * Unretired visible memories, leaving out any replaced by another visible memory. A memory held for
+ * disagreeing with a profile isn't visible until the reader keeps it.
+ */
 function currentAmong(memories, isVisible) {
-  const visibleIds = new Set(memories.filter(isVisible).map((memory) => memory.id));
+  const visibleIds = new Set(
+    memories.filter((memory) => !memory.conflict && isVisible(memory)).map((memory) => memory.id),
+  );
   return memories.filter(
     (memory) =>
       !memory.retired &&

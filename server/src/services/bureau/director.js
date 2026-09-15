@@ -11,6 +11,7 @@ import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-t
 import { generateCharacter } from './character-generator.js';
 import { labelImages } from './images.js';
 import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
+import { cardText, profileLines } from './profile-text.js';
 import { runToolLoop } from './tool-loop.js';
 
 export const DIRECTOR_MAX_ITERATIONS = 6;
@@ -19,7 +20,6 @@ export const BRIEF_LENGTHS = ['short', 'medium', 'long'];
 
 // The end of the story the Director reads; the Writer still gets all of it.
 const RECENT_STORY_CHARACTERS = 6000;
-const PROFILE_CHARACTERS = 300;
 const RECALL_LIMIT = 8;
 const LORE_LIMIT = 5;
 const LORE_ENTRY_CHARACTERS = 800;
@@ -188,13 +188,14 @@ export function buildDirectorMessages({
   const system = [
     'You are the Director for an ongoing story. Before the Writer writes the next passage, decide what should happen in it and gather anything the Writer needs.',
     [
-      '- Use recall when the passage turns on earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for more about someone. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
+      '- Use recall when the passage turns on earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for what someone knows and remembers. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
       '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
       '- Plan what happens and leave how it reads to the Writer. Each beat is a plain sentence about what someone does or what changes, without lines of dialogue, jokes, imagery, or explanations of what anyone feels underneath.',
       "- A passage can follow any of the characters in the chapter, often several at once as they interact; don't build it around one character's point of view.",
       '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
       "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have, such as refilling a drink or glancing out a window, unless something new comes of it or the request below asks for it.",
       "- The Writer has the character cards, so don't restate anyone's traits or habits in the notes.",
+      "- The cast's profiles below are true. Plan nothing that contradicts them, and when a memory disagrees with a profile, go by the profile.",
       canCreateCharacters
         ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this chapter.'
         : null,
@@ -204,11 +205,14 @@ export function buildDirectorMessages({
       .join('\n'),
   ];
 
-  const castLines = cast.map((member) => {
-    const label = member.isPersona ? `${nameOf(member)} (the reader's character)` : nameOf(member);
-    const description = labelImages(text(member.seedCard?.data?.description));
-    return description ? `- ${label}: ${truncate(description, PROFILE_CHARACTERS)}` : `- ${label}`;
-  });
+  const persona = cast.find((member) => member.isPersona);
+  const readerName = persona ? nameOf(persona) : null;
+  const castProfiles = cast.map((member) =>
+    [
+      member.isPersona ? `${nameOf(member)} (the reader's character)` : nameOf(member),
+      ...profileLines(member, readerName),
+    ].join('\n'),
+  );
 
   const storyText = turns
     .filter((turn) => ['prose', 'scene_break', 'time_passes'].includes(turn.kind))
@@ -259,7 +263,7 @@ export function buildDirectorMessages({
     {
       role: 'user',
       content: [
-        section('CAST', castLines.join('\n') || '(No one in the cast.)'),
+        section('CAST', castProfiles.join('\n\n') || '(No one in the cast.)'),
         section('CHAPTER SO FAR', recent || '(Nothing has been written yet.)'),
         section('NEXT', next.join('\n')),
       ].join('\n\n'),
@@ -281,6 +285,8 @@ function toolHandlers({
 }) {
   // Everyone in the chapter remembers, the reader's character included.
   const characters = cast;
+  const persona = cast.find((member) => member.isPersona);
+  const readerName = persona ? nameOf(persona) : null;
   const found = new Map();
   const earlierTurnIds = new Set(turns.map((turn) => turn.id));
   let lookups = 0;
@@ -404,9 +410,9 @@ function toolHandlers({
       const file = {
         name: nameOf(member),
         readersCharacter: member.isPersona,
-        description: labelImages(text(data.description)),
-        personality: labelImages(text(data.personality)),
-        scenario: labelImages(text(data.scenario)),
+        description: cardText(data.description, member, readerName),
+        personality: cardText(data.personality, member, readerName),
+        scenario: cardText(data.scenario, member, readerName),
       };
       const { knowledge, episodes } = selectForPrompt(visibleMemories(member), {
         knowledgeCharacters: bureau.settings.memory.knowledgeCharacters,
@@ -479,12 +485,11 @@ function toolHandlers({
           castIds: [...(current?.castIds ?? story.castIds), member.id],
         });
         cast.push(member);
+        const data = member.seedCard?.data ?? {};
         return {
           name: nameOf(member),
-          description: truncate(
-            labelImages(text(member.seedCard?.data?.description)),
-            PROFILE_CHARACTERS,
-          ),
+          description: cardText(data.description, member, readerName),
+          personality: cardText(data.personality, member, readerName),
           addedToStory: true,
         };
       };

@@ -281,6 +281,27 @@ describe('MemoryStorage', () => {
     ).toBe(false);
   });
 
+  it('keeps what a memory disagrees with until the reader reviews or edits it', () => {
+    const conflict = "Mara's profile says she lives above the bakery.";
+    const held = remember('Mara lives across town.', { conflict });
+    expect(held).toMatchObject({ needsReview: true, conflict });
+    expect(memories.countsByCast(bureau.id)).toEqual({ [mara.id]: { current: 1, needsReview: 1 } });
+
+    expect(memories.updateMemory(bureau.id, held.id, { pinned: true })).toMatchObject({
+      needsReview: true,
+      conflict,
+    });
+    expect(memories.updateMemory(bureau.id, held.id, { needsReview: false })).toMatchObject({
+      needsReview: false,
+      conflict: '',
+    });
+
+    const edited = remember('Mara lives by the harbor.', { conflict });
+    expect(
+      memories.updateMemory(bureau.id, edited.id, { content: 'Mara lives above the bakery.' }),
+    ).toMatchObject({ needsReview: false, conflict: '' });
+  });
+
   it('searches with stemming and without passing query syntax through', () => {
     const ines = bureaus.addCastMember(bureau.id, {
       seedCard: card('Ines'),

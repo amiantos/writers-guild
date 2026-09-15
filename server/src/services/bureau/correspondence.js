@@ -199,6 +199,7 @@ export function buildCorrespondenceMessages({
 
   const system = [
     `You write ${name}'s side of a private correspondence with ${personaName}, the reader's character, between the chapters of an ongoing story. Write only ${name}'s messages.`,
+    "Writing to each other doesn't mean they live apart, or even that they're apart right now: take where each of them lives and is from their profiles and the conversation.",
     section(
       'CORRESPONDENCE STYLE',
       bureau.settings.correspondence.style.trim() || DEFAULT_CORRESPONDENCE_STYLE,
@@ -211,7 +212,7 @@ export function buildCorrespondenceMessages({
     system.push(
       section(
         'MEMORIES',
-        `What ${name} remembers, as background for how they act. Mention the past when ${name} would naturally write about it, such as something that just happened between them, but not as filler, and never recite it.\n\n${remembered}`,
+        `What ${name} remembers, as background for how they act. Mention the past when ${name} would naturally write about it, such as something that just happened between them, but not as filler, and never recite it. When a memory disagrees with a profile, the profile is right.\n\n${remembered}`,
       ),
     );
   }

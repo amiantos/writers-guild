@@ -43,7 +43,7 @@ const BRIEF_LENGTHS = {
 };
 
 const MEMORIES_PREFACE =
-  'What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it.';
+  "What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile, the profile is right.";
 
 // PromptBuilder is story mode's, reused here only for its {{user}}/{{char}} replacement.
 const placeholders = new PromptBuilder();
