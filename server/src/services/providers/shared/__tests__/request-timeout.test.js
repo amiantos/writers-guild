@@ -10,6 +10,7 @@ describe('createRequestTimeout', () => {
     await new Promise((resolve) => timeout.signal.addEventListener('abort', resolve));
 
     expect(timeout.timedOut).toBe(true);
+    expect(timeout.signal.reason.name).toBe('TimeoutError');
   });
 
   it('pushes the deadline back on each reset', async () => {

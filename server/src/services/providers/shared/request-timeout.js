@@ -39,7 +39,8 @@ export function createRequestTimeout(ms, signal) {
         // A request the caller already cancelled stays cancelled.
         if (signal?.aborted) return;
         timeout.timedOut = true;
-        controller.abort();
+        // A TimeoutError, like AbortSignal.timeout(), so it isn't taken for a cancellation.
+        controller.abort(new DOMException('The request timed out', 'TimeoutError'));
       }, ms);
       // The timer alone shouldn't keep the process running.
       timer.unref();

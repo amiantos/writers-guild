@@ -163,8 +163,12 @@ export class DeepSeekProvider extends LLMProvider {
 
     const controller = new AbortController();
     const requestBody = this.buildRequestBody(messages, options, true);
+    // Either the caller's signal or the returned abort() cancels the request.
+    const cancelSignal = options.signal
+      ? AbortSignal.any([options.signal, controller.signal])
+      : controller.signal;
     // Runs from the request until the stream ends. Text and reasoning reset it; keep-alives don't.
-    const timeout = createRequestTimeout(this.idleTimeoutMs, options.signal || controller.signal);
+    const timeout = createRequestTimeout(this.idleTimeoutMs, cancelSignal);
 
     let response;
     try {

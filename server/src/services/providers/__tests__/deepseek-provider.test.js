@@ -341,6 +341,8 @@ describe('DeepSeekProvider', () => {
       const { stream } = await provider.generateStreaming('System', 'User');
 
       await expect(drain(stream)).rejects.toThrow(/^DeepSeek stopped responding: nothing arrived/);
+      // A timeout isn't logged as the reader cancelling.
+      expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('aborted by client'));
       logSpy.mockRestore();
     });
 
@@ -403,6 +405,19 @@ describe('DeepSeekProvider', () => {
       expect(result).toHaveProperty('abort');
       expect(result).toHaveProperty('metadata');
       expect(typeof result.abort).toBe('function');
+    });
+
+    it('cancels the request with abort(), even when the caller passed a signal', async () => {
+      mockFetch.mockImplementation(keepAliveFetch);
+      const caller = new AbortController();
+
+      const { abort } = await provider.generateStreaming('System', 'User', {
+        signal: caller.signal,
+      });
+      abort();
+
+      expect(mockFetch.mock.calls[0][1].signal.aborted).toBe(true);
+      expect(caller.signal.aborted).toBe(false);
     });
 
     it('should handle API errors', async () => {
