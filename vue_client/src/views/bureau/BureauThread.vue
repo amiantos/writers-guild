@@ -95,8 +95,8 @@
           {{ castMember.name }}.
         </p>
         <p v-else-if="!bureau.hasApiKey" class="composer-warning">
-          <i class="fas fa-key"></i> This Bureau has no API key. Add one in the Bureau's settings
-          for {{ castMember.name }} to reply.
+          <i class="fas fa-key"></i> This Bureau has no API key. Add one in its settings, or a
+          shared key on the Bureaus tab, for {{ castMember.name }} to reply.
         </p>
         <div class="composer-row">
           <textarea

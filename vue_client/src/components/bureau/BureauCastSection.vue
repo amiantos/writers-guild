@@ -6,7 +6,11 @@
         <button
           class="btn btn-secondary btn-small"
           :disabled="!hasApiKey"
-          :title="hasApiKey ? '' : 'Add a DeepSeek API key in Settings to generate characters'"
+          :title="
+            hasApiKey
+              ? ''
+              : 'Add a DeepSeek API key in Settings or on the Bureaus tab to generate characters'
+          "
           @click="showGenerate = true"
         >
           <i class="fas fa-wand-magic-sparkles"></i> Generate character

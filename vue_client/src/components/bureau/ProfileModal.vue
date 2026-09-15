@@ -222,7 +222,7 @@ const newestFirst = computed(() => versions.value.toReversed());
 const interviewTitle = computed(() =>
   props.hasApiKey
     ? `Answer questions about ${member.value?.name ?? 'them'} to flesh out their profile`
-    : "Add a DeepSeek API key in the Bureau's settings to interview characters",
+    : "Add a DeepSeek API key in the Bureau's settings or on the Bureaus tab to interview characters",
 );
 
 function apply(data) {

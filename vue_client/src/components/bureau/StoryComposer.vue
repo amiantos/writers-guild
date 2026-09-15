@@ -1,8 +1,8 @@
 <template>
   <div class="composer">
     <p v-if="!hasApiKey" class="composer-warning">
-      <i class="fas fa-key"></i> This Bureau has no API key. Add one in the Bureau's settings to
-      generate.
+      <i class="fas fa-key"></i> This Bureau has no API key. Add one in its settings, or a shared
+      key on the Bureaus tab, to generate.
     </p>
 
     <textarea

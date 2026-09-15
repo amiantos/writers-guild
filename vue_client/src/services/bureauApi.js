@@ -101,7 +101,11 @@ export const bureausAPI = {
     return request('/shared-key', { method: 'PUT', body: { apiKey } });
   },
 
-  /** @param {{ name: string, description?: string, apiKey?: string, model?: string }} fields */
+  /**
+   * With shareApiKey, the key becomes the shared key instead of the Bureau's own, if none is saved.
+   * @param {{ name: string, description?: string, apiKey?: string, shareApiKey?: boolean,
+   *   model?: string }} fields
+   */
   create(fields) {
     return request('', { method: 'POST', body: fields });
   },

@@ -113,15 +113,12 @@ async function create() {
   if (!name.value.trim() || creating.value) return;
   creating.value = true;
   try {
-    const key = usesSharedKey.value ? '' : apiKey.value.trim();
-    const sharing = Boolean(key) && canShare.value && shareKey.value;
-    if (sharing) {
-      await bureausAPI.updateSharedKey(key);
-    }
     const { bureau } = await bureausAPI.create({
       name: name.value.trim(),
       description: description.value.trim(),
-      apiKey: sharing ? '' : key,
+      apiKey: usesSharedKey.value ? '' : apiKey.value.trim(),
+      // The server shares the key only if no shared key has been saved since this opened.
+      shareApiKey: canShare.value && shareKey.value,
       model: model.value.trim() || undefined,
     });
     toast.success(`Created ${bureau.name}`);

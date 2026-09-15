@@ -103,6 +103,25 @@ describe('Bureau routes', () => {
       await request(app).post('/api/bureaus').send({ name: 'Harbor', apiKey: 12345 }).expect(400);
     });
 
+    it('shares the key typed into a new Bureau only while no shared key is saved', async () => {
+      const first = await createBureau({ apiKey: 'sk-route-first-key-1111', shareApiKey: true });
+      expect(first).toMatchObject({ apiKeySource: 'shared', apiKeyPreview: 'sk-…1111' });
+
+      const second = await createBureau({
+        name: 'Lighthouse',
+        apiKey: 'sk-route-second-key-2222',
+        shareApiKey: true,
+      });
+      expect(second).toMatchObject({ apiKeySource: 'bureau', apiKeyPreview: 'sk-…2222' });
+      const { body } = await request(app).get('/api/bureaus/shared-key').expect(200);
+      expect(body.sharedKey.apiKeyPreview).toBe('sk-…1111');
+
+      await request(app)
+        .post('/api/bureaus')
+        .send({ name: 'Pier', shareApiKey: 'yes' })
+        .expect(400);
+    });
+
     it('lists Bureaus', async () => {
       await createBureau({ name: 'Harbor' });
       await createBureau({ name: 'Lighthouse' });

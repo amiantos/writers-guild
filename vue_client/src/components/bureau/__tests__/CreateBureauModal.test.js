@@ -4,7 +4,7 @@ import CreateBureauModal from '../CreateBureauModal.vue';
 import { bureausAPI } from '../../../services/bureauApi';
 
 vi.mock('../../../services/bureauApi', () => ({
-  bureausAPI: { sharedKey: vi.fn(), updateSharedKey: vi.fn(), create: vi.fn() },
+  bureausAPI: { sharedKey: vi.fn(), create: vi.fn() },
 }));
 
 vi.mock('../../../composables/useToast', () => ({
@@ -40,7 +40,6 @@ describe('CreateBureauModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     bureausAPI.create.mockResolvedValue({ bureau: { id: 'b1', name: 'Harbor' } });
-    bureausAPI.updateSharedKey.mockResolvedValue(SAVED);
   });
 
   it('uses the shared key when there is one', async () => {
@@ -51,7 +50,7 @@ describe('CreateBureauModal', () => {
     await create(wrapper);
 
     expect(bureausAPI.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Harbor', apiKey: '' }),
+      expect.objectContaining({ name: 'Harbor', apiKey: '', shareApiKey: false }),
     );
     expect(wrapper.emitted('created')[0][0]).toEqual({ id: 'b1', name: 'Harbor' });
   });
@@ -64,23 +63,20 @@ describe('CreateBureauModal', () => {
     await wrapper.find('#new-bureau-api-key').setValue(' sk-own-key ');
     await create(wrapper);
 
-    expect(bureausAPI.updateSharedKey).not.toHaveBeenCalled();
     expect(bureausAPI.create).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: 'sk-own-key' }),
+      expect.objectContaining({ apiKey: 'sk-own-key', shareApiKey: false }),
     );
   });
 
-  it('shares the first key before creating the Bureau', async () => {
+  it('offers to share the first key, and asks the server to', async () => {
     const wrapper = await mountModal(NONE);
 
     expect(wrapper.find('#new-bureau-share-key').element.checked).toBe(true);
     await wrapper.find('#new-bureau-api-key').setValue('sk-first-key');
     await create(wrapper);
 
-    expect(bureausAPI.updateSharedKey).toHaveBeenCalledWith('sk-first-key');
-    expect(bureausAPI.create).toHaveBeenCalledWith(expect.objectContaining({ apiKey: '' }));
-    expect(bureausAPI.updateSharedKey.mock.invocationCallOrder[0]).toBeLessThan(
-      bureausAPI.create.mock.invocationCallOrder[0],
+    expect(bureausAPI.create).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'sk-first-key', shareApiKey: true }),
     );
   });
 
@@ -91,9 +87,8 @@ describe('CreateBureauModal', () => {
     await wrapper.find('#new-bureau-share-key').setValue(false);
     await create(wrapper);
 
-    expect(bureausAPI.updateSharedKey).not.toHaveBeenCalled();
     expect(bureausAPI.create).toHaveBeenCalledWith(
-      expect.objectContaining({ apiKey: 'sk-first-key' }),
+      expect.objectContaining({ apiKey: 'sk-first-key', shareApiKey: false }),
     );
   });
 });
