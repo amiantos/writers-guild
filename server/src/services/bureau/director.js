@@ -579,7 +579,15 @@ export async function runDirector({
       signal,
       createCharacters,
     }),
-    options: { thinking, reasoningEffort, strict: true, maxTokens: DIRECTOR_MAX_TOKENS },
+    // Streamed, so a stalled request times out once it goes quiet, while a long plan that's
+    // still reasoning keeps going.
+    options: {
+      thinking,
+      reasoningEffort,
+      strict: true,
+      stream: true,
+      maxTokens: DIRECTOR_MAX_TOKENS,
+    },
     recorder,
     maxIterations: DIRECTOR_MAX_ITERATIONS,
     finalTool: 'submit_brief',

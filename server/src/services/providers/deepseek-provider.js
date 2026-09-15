@@ -5,6 +5,12 @@
 
 import { LLMProvider } from './base-provider.js';
 import { parseSSEStream, transformers } from './shared/stream-parser.js';
+import {
+  RESPONSE_TIMEOUT_MS,
+  STREAM_IDLE_TIMEOUT_MS,
+  createRequestTimeout,
+  formatTimeout,
+} from './shared/request-timeout.js';
 
 export class DeepSeekProvider extends LLMProvider {
   constructor(config) {
@@ -15,6 +21,10 @@ export class DeepSeekProvider extends LLMProvider {
     };
 
     super(deepseekConfig);
+
+    // Tests shorten these.
+    this.idleTimeoutMs = config.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS;
+    this.responseTimeoutMs = config.responseTimeoutMs ?? RESPONSE_TIMEOUT_MS;
   }
 
   /**
@@ -99,23 +109,36 @@ export class DeepSeekProvider extends LLMProvider {
     ];
 
     const requestBody = this.buildRequestBody(messages, options, false);
+    // Nothing arrives until the whole response is ready, so the timeout covers all of it.
+    const timeout = createRequestTimeout(this.responseTimeoutMs, options.signal);
 
-    const response = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(requestBody),
-      signal: options.signal,
-    });
+    let data;
+    try {
+      const response = await fetch(`${this.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+        signal: timeout.signal,
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error?.message || `API request failed: ${response.statusText}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `API request failed: ${response.statusText}`);
+      }
+
+      data = await response.json();
+    } catch (error) {
+      if (!timeout.timedOut) throw error;
+      throw new Error(`DeepSeek did not respond within ${formatTimeout(this.responseTimeoutMs)}`, {
+        cause: error,
+      });
+    } finally {
+      timeout.clear();
     }
 
-    const data = await response.json();
     const choice = data.choices[0];
 
     return {
@@ -140,24 +163,36 @@ export class DeepSeekProvider extends LLMProvider {
 
     const controller = new AbortController();
     const requestBody = this.buildRequestBody(messages, options, true);
+    // Either the caller's signal or the returned abort() cancels the request.
+    const cancelSignal = options.signal
+      ? AbortSignal.any([options.signal, controller.signal])
+      : controller.signal;
+    // Runs from the request until the stream ends. Text and reasoning reset it; keep-alives don't.
+    const timeout = createRequestTimeout(this.idleTimeoutMs, cancelSignal);
 
-    const response = await fetch(`${this.baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(requestBody),
-      signal: options.signal || controller.signal,
-    });
+    let response;
+    try {
+      response = await fetch(`${this.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+        signal: timeout.signal,
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error?.message || `API request failed: ${response.statusText}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `API request failed: ${response.statusText}`);
+      }
+    } catch (error) {
+      timeout.clear();
+      throw this.streamError(error, timeout);
     }
 
     return {
-      stream: this.parseStreamResponse(response.body),
+      stream: this.parseStreamResponse(response.body, timeout),
       abort: () => controller.abort(),
       metadata: {
         userPrompt,
@@ -168,9 +203,30 @@ export class DeepSeekProvider extends LLMProvider {
 
   /**
    * Parse SSE stream response using shared parser
+   * @param {ReadableStream} body
+   * @param {Object} [timeout] - The request's timeout, reset as text or reasoning arrives.
    */
-  async *parseStreamResponse(body) {
-    yield* parseSSEStream(body, transformers.deepseek, 'DeepSeek');
+  async *parseStreamResponse(body, timeout) {
+    try {
+      for await (const chunk of parseSSEStream(body, transformers.deepseek, 'DeepSeek')) {
+        // Only text and reasoning count as progress, not empty or finish-only events.
+        if (chunk.content || chunk.reasoning) timeout?.reset();
+        yield chunk;
+      }
+    } catch (error) {
+      throw this.streamError(error, timeout);
+    } finally {
+      timeout?.clear();
+    }
+  }
+
+  /** A stream that timed out says so; any other failure passes through. */
+  streamError(error, timeout) {
+    if (!timeout?.timedOut) return error;
+    return new Error(
+      `DeepSeek stopped responding: nothing arrived for ${formatTimeout(this.idleTimeoutMs)}`,
+      { cause: error },
+    );
   }
 
   /**
