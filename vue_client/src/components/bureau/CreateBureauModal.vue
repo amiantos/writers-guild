@@ -25,7 +25,11 @@
         ></textarea>
       </div>
 
-      <div v-if="usesSharedKey" class="form-group">
+      <div v-if="!keyChecked" class="form-group">
+        <span class="group-label">DeepSeek API key</span>
+        <p class="status-line">Checking for a shared key...</p>
+      </div>
+      <div v-else-if="usesSharedKey" class="form-group">
         <span class="group-label">DeepSeek API key</span>
         <p class="status-line">
           <i class="fas fa-key"></i> Uses the shared key {{ sharedKey.apiKeyPreview }}
@@ -77,7 +81,11 @@
 
     <template #footer>
       <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
-      <button class="btn btn-primary" :disabled="!name.trim() || creating" @click="create">
+      <button
+        class="btn btn-primary"
+        :disabled="!name.trim() || creating || !keyChecked"
+        @click="create"
+      >
         <i class="fas fa-plus"></i> {{ creating ? 'Creating...' : 'Create Bureau' }}
       </button>
     </template>
@@ -99,8 +107,10 @@ const description = ref('');
 const apiKey = ref('');
 const model = ref('deepseek-flash');
 const creating = ref(false);
-// Whether a shared key is saved, once known.
+// Whether a shared key is saved, once known. Creating waits for the check, so a key typed before it
+// can't be dropped or go unshared.
 const sharedKey = ref(null);
+const keyChecked = ref(false);
 const ownKey = ref(false);
 const shareKey = ref(true);
 
@@ -110,7 +120,7 @@ const usesSharedKey = computed(() => Boolean(sharedKey.value?.hasApiKey) && !own
 const canShare = computed(() => sharedKey.value?.hasApiKey === false);
 
 async function create() {
-  if (!name.value.trim() || creating.value) return;
+  if (!name.value.trim() || creating.value || !keyChecked.value) return;
   creating.value = true;
   try {
     const { bureau } = await bureausAPI.create({
@@ -138,6 +148,8 @@ onMounted(async () => {
   } catch (error) {
     // The key field still works; the key is this Bureau's own.
     console.error('Failed to load the shared key:', error);
+  } finally {
+    keyChecked.value = true;
   }
 });
 </script>

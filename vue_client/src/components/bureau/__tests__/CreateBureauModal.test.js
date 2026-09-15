@@ -91,4 +91,27 @@ describe('CreateBureauModal', () => {
       expect.objectContaining({ apiKey: 'sk-first-key', shareApiKey: false }),
     );
   });
+
+  it('waits for the shared key check before taking a key or creating', async () => {
+    let answer;
+    bureausAPI.sharedKey.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const wrapper = mount(CreateBureauModal, { global: { stubs: { Modal: ModalStub } } });
+    await wrapper.find('#new-bureau-name').setValue('Harbor');
+
+    expect(wrapper.text()).toContain('Checking for a shared key');
+    expect(wrapper.find('#new-bureau-api-key').exists()).toBe(false);
+    expect(button(wrapper, 'Create Bureau').attributes('disabled')).toBeDefined();
+    await wrapper.find('#new-bureau-name').trigger('keydown.enter');
+    expect(bureausAPI.create).not.toHaveBeenCalled();
+
+    answer(NONE);
+    await flushPromises();
+
+    expect(wrapper.find('#new-bureau-share-key').element.checked).toBe(true);
+    expect(button(wrapper, 'Create Bureau').attributes('disabled')).toBeUndefined();
+  });
 });
