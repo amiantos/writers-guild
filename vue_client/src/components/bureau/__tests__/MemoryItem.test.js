@@ -87,7 +87,7 @@ describe('MemoryItem', () => {
       conflict: "Mara's profile says she lives above the bakery.",
     });
 
-    expect(wrapper.text()).toContain('Disagrees with a profile');
+    expect(wrapper.text()).toContain('Disagrees with a profile or fact');
     expect(wrapper.text()).not.toContain('Check this');
     expect(wrapper.find('.memory-conflict').text()).toBe(
       "Kept out of every prompt until you check it. Mara's profile says she lives above the bakery.",

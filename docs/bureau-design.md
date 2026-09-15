@@ -417,9 +417,11 @@ message. Direction turns and memories held for review are left out.
 The Archivist is told the profiles and established facts are true. It records what passages say
 outright, not what they only seem to suggest: someone heading home, or writing from somewhere else,
 says nothing new about where anyone lives. It skips what a profile already says. A knowledge item
-with a `conflict` is held: it's saved with what it disagrees with and marked for review, replaces
-nothing (a warning says which memory it would have replaced), and stays out of every prompt until
-the reader keeps, edits, or retires it (see [Sources and review](#sources-and-review)). A pass
+with a `conflict` is held: it's saved with what it disagrees with and marked for review, and stays
+out of every prompt until the reader keeps, edits, or retires it (see
+[Sources and review](#sources-and-review)). A memory it would replace stays current meanwhile, and a
+warning says which: keeping or editing the held memory replaces that memory, and retiring the held
+memory leaves it as it was. A pass
 reports how many memories it added, held, and updated, and how many facts it proposed, and the
 notice after committing to memory says so, such as "1 held for you to check, 2 facts proposed".
 
@@ -510,9 +512,11 @@ newer versions, stay in the browser and can be restored. Restoring a replaced me
 newest version that replaced it, so only one version is current.
 
 A memory the Archivist found disagreeing with a character's profile or an established fact is
-**held**. The browser marks it "Disagrees with a profile" and says what it disagrees with. No prompt
-uses it, and `recall` can't find it, until you keep it ("It's right: use it"), edit it, or retire
-it, and it counts among the character's memories waiting for review. Memories that contradict the
+**held**. The browser marks it "Disagrees with a profile or fact" and says what it disagrees with.
+No prompt uses it, and `recall` can't find it, until you keep it ("It's right: use it"), edit it, or
+retire it, and it counts among the character's memories waiting for review. A held memory that
+updates another replaces it only once you keep or edit it; retiring the held memory leaves the other
+as it was. Memories that contradict the
 cards used to go straight into every later prompt, where a short, confident memory could outweigh a
 sentence deep in a card.
 
@@ -566,7 +570,8 @@ the word an entry would key on, and a short list costs little.
 - **Facts that replace one another form a line,** and the latest accepted fact in a line stands for
   it: latest by Bureau time, then by when it was accepted. Rejecting or deleting a change from the
   middle of a line, or accepting two changes to the same fact, still leaves one fact standing, and
-  a deleted fact's later changes name what it replaced instead.
+  a deleted fact's later changes name what it replaced instead. Deleting the fact a line began with
+  makes its first change the start of the line, so two changes to it still make one line.
 
 ### Facts in prompts
 
@@ -779,7 +784,9 @@ reader moves the clock, the time is deliberate, so the prompts say it exactly:
   chapter is still unfinished don't leak into it, because they come after its start. Starting a
   chapter at an earlier time works as a flashback: characters don't know what happens later.
 - Memories from a chapter are dated to its start time. Memories from correspondence are dated to the
-  start of the session they came from.
+  start of the session they came from. Facts from a chapter are dated to where the chapter stood in
+  time at the latest passage they cite, so a change after time passes in a chapter doesn't reach
+  back to its start.
 - At the same Bureau time, what was written first comes first. Messages don't move the clock, so a
   conversation often shares its time with the next chapter: messages written before the chapter
   started count as before it, and messages written after it don't leak in. Starting a chapter also

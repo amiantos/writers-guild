@@ -79,7 +79,7 @@ export const RECORD_MEMORIES_TOOL = {
             conflict: {
               type: 'string',
               description:
-                "What in a character's profile this disagrees with, in one sentence, or an empty string when nothing does.",
+                "What in a character's profile or an established fact this disagrees with, in one sentence, or an empty string when nothing does.",
             },
           },
           required: ['character', 'content', 'importance', 'supersedes', 'passages', 'conflict'],
@@ -504,9 +504,10 @@ function storySource(stores, bureau, storyId, { before = Infinity } = {}) {
     .map((castId) => stores.bureaus.getCastMember(bureau.id, castId))
     .filter(Boolean);
   const persona = cast.find((member) => member.isPersona) ?? null;
+  const turns = stores.stories.listTurns(storyId);
   const clock = chapterTime(
     story,
-    stores.stories.listTurns(storyId).filter((turn) => turn.position < before),
+    turns.filter((turn) => turn.position < before),
   );
   return {
     kind: 'story',
@@ -517,6 +518,12 @@ function storySource(stores, bureau, storyId, { before = Infinity } = {}) {
     summary: story.summary,
     timeZone: bureau.timezone,
     worldTime: story.startTime,
+    // The chapter's time at a passage: when time last passed before it, or the chapter's start.
+    timeAt: (position) =>
+      chapterTime(
+        story,
+        turns.filter((turn) => turn.position <= position),
+      ).time,
     // The reader's character remembers too.
     characters: cast,
     persona,
@@ -561,6 +568,8 @@ function threadSource(stores, bureau, { thread, member, persona, session }) {
     openingTime: describeBureauTime(first.bureauTime, bureau.timezone),
     summary: '',
     worldTime: first.bureauTime,
+    // A session's facts are dated to its first message, like its memories.
+    timeAt: () => first.bureauTime,
     characters: people,
     persona,
     facts: factsForPass(stores, bureau.id, (facts) => factsAtTime(facts, last.bureauTime)),
@@ -677,22 +686,27 @@ function applyRecord({
       const member = memberFor(item?.character, 'a memory');
       const content = text(item?.content);
       if (!member || !content) continue;
-      // A fact that disagrees with a profile waits for the reader, and replaces nothing meanwhile.
+      // A fact that disagrees with a profile or an established fact waits for the reader. What it
+      // would replace stays current until the reader keeps it.
       const conflict = text(item.conflict);
 
       let supersedes = null;
-      if (item.supersedes && conflict) {
-        result.warnings.push(
-          `Kept memory ${item.supersedes} for ${nameOf(member)}: what would replace it disagrees with a profile`,
-        );
-      } else if (item.supersedes) {
+      let pendingSupersedes = null;
+      if (item.supersedes) {
         const seen = (knownByCast.get(member.id) ?? []).find(
           (memory) => memory.id === item.supersedes,
         );
         if (seen && canReplace(member.id, seen)) {
-          supersedes = seen.id;
           replaced.add(seen.id);
-          result.superseded += 1;
+          if (conflict) {
+            pendingSupersedes = seen.id;
+            result.warnings.push(
+              `Kept memory ${seen.id} for ${nameOf(member)} for now: what would replace it disagrees with a profile or fact`,
+            );
+          } else {
+            supersedes = seen.id;
+            result.superseded += 1;
+          }
         } else {
           result.warnings.push(
             `Kept memory ${item.supersedes} for ${nameOf(member)}: it can't be replaced`,
@@ -707,6 +721,7 @@ function applyRecord({
         importance: item.importance,
         sourceTurnIds: turnIdsFor(item.passages),
         supersedes,
+        pendingSupersedes,
         conflict,
       });
       if (conflict) {
@@ -792,8 +807,14 @@ function applyRecord({
           `Proposed a fact without replacing fact ${item.replaces}, which isn't established`,
         );
       }
+      // Dated to the chapter's time at the latest passage it cites, or at the end of what was read,
+      // so a change after time passes in a chapter doesn't reach back to its start.
+      const cited = (Array.isArray(item.passages) ? item.passages : []).filter((position) =>
+        turnIdByPosition.has(position),
+      );
       stores.facts.addFact(bureauId, {
         ...base,
+        worldTime: source.timeAt(cited.length > 0 ? Math.max(...cited) : turns.at(-1).position),
         content,
         rationale: text(item.rationale),
         status: 'proposed',

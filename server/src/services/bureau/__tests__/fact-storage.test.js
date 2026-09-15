@@ -261,6 +261,46 @@ describe('FactStorage', () => {
     expect(facts.getFact(bureau.id, denver.id).replacedBy).toBeNull();
   });
 
+  it('keeps two changes to a fact in one line when the fact itself is deleted', () => {
+    const boston = facts.addFact(bureau.id, {
+      content: 'Mara lives in Boston.',
+      status: 'accepted',
+    });
+    const chicago = facts.addFact(bureau.id, {
+      content: 'Mara lives in Chicago.',
+      status: 'accepted',
+      replaces: boston.id,
+      sourceType: 'story',
+      sourceId: story.id,
+      worldTime: START,
+    });
+    const later = stories.createStory(bureau.id, {
+      startTime: '2026-11-03T07:30:00.000Z',
+      castIds: [],
+      title: 'Moving again',
+    });
+    const denver = facts.addFact(bureau.id, {
+      content: 'Mara lives in Denver.',
+      status: 'accepted',
+      replaces: boston.id,
+      sourceType: 'story',
+      sourceId: later.id,
+      worldTime: later.startTime,
+    });
+
+    expect(facts.deleteFact(bureau.id, boston.id)).toBe(true);
+
+    // The first change begins the line now, so only the later one stands.
+    expect(facts.getFact(bureau.id, chicago.id)).toMatchObject({
+      replaces: null,
+      replacedBy: denver.id,
+    });
+    expect(facts.getFact(bureau.id, denver.id)).toMatchObject({
+      replaces: chicago.id,
+      replacedBy: null,
+    });
+  });
+
   it('removes facts with their Bureau', () => {
     facts.addFact(bureau.id, { content: 'Gone with it.', status: 'accepted' });
     bureaus.deleteBureau(bureau.id);

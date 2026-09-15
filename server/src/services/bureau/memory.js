@@ -16,7 +16,7 @@ function timestampOf(time) {
 
 /**
  * Unretired visible memories, leaving out any replaced by another visible memory. A memory held for
- * disagreeing with a profile isn't visible until the reader keeps it.
+ * disagreeing with a profile or an established fact isn't visible until the reader keeps it.
  */
 function currentAmong(memories, isVisible) {
   const visibleIds = new Set(
@@ -52,10 +52,11 @@ export function compareChronological(a, b) {
  * so does anything dated earlier. At the same Bureau time, what was written first
  * comes first: a memory from another story does if that story is earlier in the
  * Bureau's order (the usual case when a story ends without moving the clock), and
- * one from messages does if they were written before the story started. A story's
- * own memories never do: its text is already in the prompt.
+ * one from messages does if they were written before the story started (or, once
+ * the messages are deleted, if it was recorded before). A story's own memories
+ * never do: its text is already in the prompt.
  *
- * @param {Object} memory - A memory or arc note.
+ * @param {Object} memory - A memory, arc note, or fact.
  * @param {Object} story - Uses id, startTime, position, and created.
  */
 export function isBeforeStory(memory, story) {
@@ -66,7 +67,7 @@ export function isBeforeStory(memory, story) {
   const storyTime = Date.parse(story.startTime);
   if (memoryTime !== storyTime) return memoryTime < storyTime;
   if (memory.sourceType === 'correspondence') {
-    return Date.parse(memory.sourceCreated) < Date.parse(story.created);
+    return writtenOf(memory) < Date.parse(story.created);
   }
   return memory.sourcePosition !== null && memory.sourcePosition < story.position;
 }

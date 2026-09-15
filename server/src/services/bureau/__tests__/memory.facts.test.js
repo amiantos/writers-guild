@@ -84,6 +84,25 @@ describe('factsAsOf', () => {
     expect(factsAsOf([boston, chicago, denver], third)).toEqual([denver]);
     expect(factsAsOf([boston, chicago, denver], second)).toEqual([chicago]);
   });
+
+  it('keeps a fact from messages written before the chapter once the messages are deleted', () => {
+    const chapter = { ...second, created: '2026-09-14T12:00:00.000Z' };
+    // With the messages gone, only when the fact was recorded says when they were written.
+    const before = fact({
+      content: 'Mara lives by the harbor.',
+      sourceType: 'correspondence',
+      worldTime: second.startTime,
+      created: '2026-09-14T11:00:00.000Z',
+    });
+    const after = fact({
+      content: 'Theo works days.',
+      sourceType: 'correspondence',
+      worldTime: second.startTime,
+      created: '2026-09-14T13:00:00.000Z',
+    });
+
+    expect(factsAsOf([before, after], chapter)).toEqual([before]);
+  });
 });
 
 describe('factsAtTime', () => {

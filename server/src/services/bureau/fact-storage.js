@@ -115,6 +115,11 @@ export class FactStorage {
         UPDATE facts SET replaces = @replaces
         WHERE bureau_id = @bureauId AND replaces = @id
       `),
+      // The changes to a fact, oldest first.
+      changes: this.db.prepare(
+        'SELECT id FROM facts WHERE bureau_id = ? AND replaces = ? ORDER BY id',
+      ),
+      setReplaces: this.db.prepare('UPDATE facts SET replaces = @replaces WHERE id = @id'),
       delete: this.db.prepare('DELETE FROM facts WHERE bureau_id = ? AND id = ?'),
       storyFacts: this.db.prepare(`
         SELECT id FROM facts WHERE bureau_id = ? AND source_type = 'story' AND source_id = ?
@@ -237,13 +242,22 @@ export class FactStorage {
   removeFromLine(bureauId, factId) {
     const fact = this.stmts.line.get(bureauId, factId);
     if (!fact) return false;
+    if (fact.replaces === null) {
+      // It began its line: its first change begins it now, and any other changes replace that one,
+      // so two changes to it don't become two lines that both stand.
+      const [first, ...others] = this.stmts.changes.all(bureauId, fact.id);
+      for (const other of others) {
+        this.stmts.setReplaces.run({ id: other.id, replaces: first.id });
+      }
+    }
     this.stmts.repoint.run({ bureauId, id: fact.id, replaces: fact.replaces });
     return this.stmts.delete.run(bureauId, fact.id).changes > 0;
   }
 
   /**
    * Delete a fact. Facts that replaced it replace what it replaced instead, so the latest fact in
-   * its line still stands, and a fact it replaced stands again when nothing later does.
+   * its line still stands, and a fact it replaced stands again when nothing later does. When it
+   * began its line, its first change begins the line instead.
    */
   deleteFact(bureauId, factId) {
     let deleted = false;

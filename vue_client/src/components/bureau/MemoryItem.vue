@@ -29,9 +29,9 @@
         <span
           v-if="memory.conflict"
           class="review-badge"
-          title="The Archivist found that this disagrees with a profile"
+          title="The Archivist found that this disagrees with a profile or an established fact"
         >
-          <i class="fas fa-triangle-exclamation"></i> Disagrees with a profile
+          <i class="fas fa-triangle-exclamation"></i> Disagrees with a profile or fact
         </span>
         <span
           v-else-if="memory.needsReview"

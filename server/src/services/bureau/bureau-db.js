@@ -338,6 +338,11 @@ const MIGRATIONS = [
     CREATE INDEX idx_facts_source ON facts(source_type, source_id);
     CREATE INDEX idx_facts_replaces ON facts(replaces);
   `,
+
+  // 14: A held memory keeps the memory it would replace, and replaces it once the reader keeps it.
+  `
+    ALTER TABLE memories ADD COLUMN pending_supersedes INTEGER;
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;
