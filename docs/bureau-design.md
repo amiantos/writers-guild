@@ -287,7 +287,10 @@ deeper in a card, such as who a character lives with.
 Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, tone, target
 length, memories (only ones the Director found and the passage depends on, each with a
 one-line reason; usually none), and notes on continuity the Writer could get wrong. Beats say plainly
-what happens and leave dialogue and wording to the Writer. A passage isn't built around one
+what happens and leave dialogue and wording to the Writer. A brief covers one thing, or two at
+most: allowed up to four beats, the Director nearly always used four, and passages filled with
+busywork. Strict schemas can't cap an array, so `submit_brief` sends back a brief with more. A
+passage isn't built around one
 character's point of view: it can follow several characters at once as they interact. Beats leave
 what the reader's character says, does, decides, and thinks to the reader, unless a direction asks
 for it, and end where the moment turns to them. The brief

@@ -413,6 +413,27 @@ describe('runDirector', () => {
     expect(client.calls[0].messages[0].content).not.toContain('create_character');
   });
 
+  it('sends back a brief that covers more than two things', async () => {
+    const brief = (beats, length) =>
+      toolCall('b', 'submit_brief', { beats, tone: 'uneasy', length, memories: [], notes: '' });
+    const client = scriptedClient(
+      modelTurn([
+        brief(
+          ['Mara lights the lamp', 'Theo arrives soaked', 'They argue about the boat'],
+          'medium',
+        ),
+      ]),
+      modelTurn([brief(['Theo arrives soaked'], 'short')]),
+    );
+
+    const result = await direct(client);
+
+    expect(toolResults(client.calls[1]).at(-1).error).toBe(
+      'A brief covers one thing, two at most, and this one has 3. Keep what matters most and call submit_brief again.',
+    );
+    expect(result).toMatchObject({ beats: ['Theo arrives soaked'], length: 'short' });
+  });
+
   it('stops looking things up after four lookups', async () => {
     const lookup = (id) => toolCall(id, 'lookup_lore', { query: 'lighthouse' });
     const client = scriptedClient(
@@ -532,7 +553,7 @@ describe('buildDirectorMessages', () => {
     });
 
     expect(system.content).toContain(
-      '- Follow the request below. Keep the beats to what fits in one passage, ending at a natural pause rather than on a reveal.',
+      '- Follow the request below. Pick one thing for the passage to cover, or two at most: more than that clutters it. End at a natural pause rather than on a reveal.',
     );
     expect(system.content).toContain(
       "- Theo is the reader's character, so don't plan what Theo says, does, decides, or thinks, including choices made without a word, beyond what the author's direction asks for. When the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the beats there once the direction is carried out.\n",

@@ -17,6 +17,9 @@ import { runToolLoop } from './tool-loop.js';
 export const DIRECTOR_MAX_ITERATIONS = 6;
 export const DIRECTOR_MAX_TOKENS = 8000;
 export const BRIEF_LENGTHS = ['short', 'medium', 'long'];
+// Beats per brief. More than this cluttered passages with busywork, and strict schemas can't cap
+// an array, so submit_brief enforces it.
+export const MAX_BEATS = 2;
 
 // The end of the story the Director reads; the Writer still gets all of it.
 const RECENT_STORY_CHARACTERS = 6000;
@@ -100,7 +103,7 @@ export const DIRECTOR_TOOLS = [
           type: 'array',
           items: { type: 'string' },
           description:
-            'What happens in the next passage, in order: one to four short beats, each a plain sentence.',
+            'What the next passage covers: usually one thing, two at most, each a plain sentence.',
         },
         tone: { type: 'string', description: 'How the passage should feel, in a few words.' },
         length: {
@@ -196,7 +199,7 @@ export function buildDirectorMessages({
     'You are the Director for an ongoing story. Before the Writer writes the next passage, decide what should happen in it and gather anything the Writer needs.',
     [
       '- Use recall when the passage turns on earlier events, people, or promises; lookup_lore for places, customs, or history; get_character_file for what someone knows and remembers. Look up only what this passage needs: one or two lookups are usually enough, and none is fine.',
-      '- Follow the request below. Keep the beats to what fits in one passage, ending at a natural pause rather than on a reveal.',
+      '- Follow the request below. Pick one thing for the passage to cover, or two at most: more than that clutters it. End at a natural pause rather than on a reveal.',
       "- Keep to the chapter's present and its course: no jump to a later hour or day unless the request asks for one, and no new secret, twist, or trouble the story isn't already heading toward.",
       "- Pick the length the moment needs. Pick short for a quick exchange, a reaction, or a single beat: a passage doesn't have to fill space.",
       "- Don't plan anyone repeating a point, a figure, or a line that's already been said in the chapter.",
@@ -465,6 +468,11 @@ function toolHandlers({
       const beats = (Array.isArray(args.beats) ? args.beats : []).map(text).filter(Boolean);
       if (beats.length === 0) {
         throw new Error('A brief needs at least one beat');
+      }
+      if (beats.length > MAX_BEATS) {
+        throw new Error(
+          `A brief covers one thing, two at most, and this one has ${beats.length}. Keep what matters most and call submit_brief again.`,
+        );
       }
       const memories = (Array.isArray(args.memories) ? args.memories : [])
         .filter((item) => found.has(item?.id))
