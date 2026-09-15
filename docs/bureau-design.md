@@ -197,10 +197,19 @@ actions:
   Time passes elsewhere, and adds a divider showing the new time (see
   [Bureau time](#bureau-time)).
 
-The Director and Writer write the reader's character like anyone else in the chapter, on every
-action. An earlier rule left their words and choices to the reader, with a style check whose fix cut
-their dialogue after it was written, and ended passages once someone asked them something. It held
-scenes back more than it helped, so it's gone.
+The reader's character belongs to the reader. The Director and Writer leave what they say, decide,
+and think to the reader, though they can still be in the scene and carry on with anything already
+underway. A direction is the exception: whatever it has the reader's character say or do gets
+written, and nothing beyond it. A rewritten greeting keeps what the card has them do and adds
+nothing. When the moment turns to the reader's character, such as a question put to them or a
+choice only they can make, the passage ends there.
+
+This is the second try at the rule. The first also had a style check flag the reader's character's
+dialogue, and an Editor that saw only the passage cut it afterward. Those cuts left prose that read
+strangely, so the rule was dropped on September 13, 2026. It came back two days later, from
+comparing Bureau with story mode, whose "write as" action picks from the story's characters, not
+its persona. This time it's prompts only: a line written for the reader's character gets regenerated
+or edited by hand, and nothing is cut after the fact.
 
 Editing a turn opens a textarea for just that turn, which recovers most of the feel of editing
 directly.
@@ -277,7 +286,9 @@ Output is a **scene brief**, returned through `submit_brief`'s strict schema: be
 length, memories (only ones the Director found and the passage depends on, each with a
 one-line reason; usually none), and notes on continuity the Writer could get wrong. Beats say plainly
 what happens and leave dialogue and wording to the Writer. A passage isn't built around one
-character's point of view: it can follow several characters at once as they interact. The brief
+character's point of view: it can follow several characters at once as they interact. Beats leave
+what the reader's character says, decides, and thinks to the reader, unless a direction asks for
+it, and end where the moment turns to them. The brief
 doesn't restate the cards or
 plan callbacks to earlier events unless the scene is about them: memories are background, and
 characters who keep bringing up the past read as talky and artificial. Beats also don't repeat an

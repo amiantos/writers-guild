@@ -223,26 +223,44 @@ describe('buildWriterMessages', () => {
 
     expect(user).toContain('=== CHAPTER SO FAR ===\nThe lamp was lit.\n\nTheo climbed the stairs.');
     expect(user).toContain(
-      "=== NEXT ===\nContinue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective and refer to Theo by name.\n",
+      "=== NEXT ===\nContinue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective and refer to Theo by name.\nTheo is the reader's character, so leave what Theo says, decides, and thinks to the reader. Theo can still be there and carry on with anything already underway.\n",
     );
     expect(user).not.toMatch(/Theo left off|Respond to what/);
   });
 
-  it("doesn't hold back the reader's character on any action", () => {
-    for (const request of [
-      { action: 'write' },
-      { action: 'continue' },
-      { action: 'direct', direction: 'Theo tells her about the map' },
-    ]) {
+  it("leaves the reader's character to the reader, and ends where the moment turns to them", () => {
+    for (const request of [{ action: 'write' }, { action: 'continue' }]) {
       const { user } = build({
         turns: [prose('The lamp was lit.'), prose('Theo climbed the stairs.', 'user')],
         request,
       });
 
-      expect(user).not.toMatch(
-        /words and choices|for continuity, not for you|say or do|end the passage right there/,
+      expect(user).toContain(
+        "Theo is the reader's character, so leave what Theo says, decides, and thinks to the reader.",
       );
+      expect(user).toContain(
+        'If the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the passage there.',
+      );
+      expect(user).not.toContain('Beyond that');
     }
+
+    // An opening leaves them to the reader too.
+    expect(build().user).toContain('leave what Theo says, decides, and thinks to the reader');
+  });
+
+  it("has the reader's character say or do only what a direction asks", () => {
+    const { user } = build({
+      turns: [prose('The lamp was lit.')],
+      request: { action: 'direct', direction: 'Theo tells her about the map' },
+    });
+
+    expect(user).toContain(
+      "The author's direction for this passage (not part of the story yet): Theo tells her about the map\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do. Beyond that, leave what Theo says, decides, and thinks to the reader.\n",
+    );
+    expect(user).toContain(
+      'Once the direction is carried out, if the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the passage there.',
+    );
+    expect(user).not.toContain("Theo is the reader's character");
   });
 
   it('writes for a reader with no character in the story without inventing a name', () => {
@@ -256,6 +274,7 @@ describe('buildWriterMessages', () => {
       "Continue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective.\n",
     );
     expect(user).not.toContain('User');
+    expect(user).not.toMatch(/thinks to the reader|the moment turns to/);
   });
 
   it('notes other perspectives once the reader has written', () => {
@@ -296,7 +315,7 @@ describe('buildWriterMessages', () => {
     expect(user).toContain('=== CHAPTER SO FAR ===\nThe lamp was lit.\n\n---\n\nMorning came.');
     expect(user).not.toContain('An old direction');
     expect(user).toContain(
-      "The author's direction for this passage (not part of the story yet): She suggests the night market\nCarry it out in the passage itself: write what it describes as happening.\n",
+      "The author's direction for this passage (not part of the story yet): She suggests the night market\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do.",
     );
   });
 
@@ -310,7 +329,7 @@ describe('buildWriterMessages', () => {
     expect(user).toContain(
       'Make it rain\nCarry it out in the passage itself: write what it describes as happening.\n',
     );
-    expect(user).not.toContain('end the passage right there');
+    expect(user).not.toMatch(/thinks to the reader|the moment turns to/);
   });
 
   it("follows the Director's brief, including its length", () => {
@@ -347,7 +366,7 @@ describe('buildWriterMessages', () => {
     const opening = build({ turns: [], request: { action: 'continue' } });
 
     expect(continuing.user).toMatch(
-      /Write as much as the moment needs, usually 2 to 4 paragraphs\. .*\nPick up right where the last passage stopped .*\nKeep the scene moving: don't reuse an action, gesture, image, or turn of phrase from earlier in the chapter .*\nDon't let characters repeat themselves: .*\nEnd where the moment naturally pauses, .*\nThe chapter so far is the story, not a model for the prose: .*$/,
+      /Write as much as the moment needs, usually 2 to 4 paragraphs\. .*\nIf the moment turns to Theo, .*\nPick up right where the last passage stopped .*\nKeep the scene moving: don't reuse an action, gesture, image, or turn of phrase from earlier in the chapter .*\nDon't let characters repeat themselves: .*\nEnd where the moment naturally pauses, .*\nThe chapter so far is the story, not a model for the prose: .*$/,
     );
     expect(opening.user).not.toContain('Keep the scene moving');
   });
@@ -381,6 +400,7 @@ describe('buildWriterMessages', () => {
         'Mara looks up as you come in. "Late again."',
         'Keep its events, dialogue, and details.',
         'Where the greeting says "you", it means Theo: refer to Theo by name, in the house style\'s perspective.',
+        'Beyond what the greeting has, leave what Theo says, decides, and thinks to the reader.',
         "Where the greeting disagrees with the chapter's time or with what the characters know, follow the chapter.",
         'Write about as much as the greeting.',
       ].join('\n'),

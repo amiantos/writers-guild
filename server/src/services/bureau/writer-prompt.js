@@ -145,9 +145,14 @@ function greetingInstruction({ greeting, greetingText, readerName, timeLines }) 
     );
   }
   lines.push(
-    readerName
-      ? `Where the greeting says "you", it means ${readerName}: refer to ${readerName} by name, in the house style's perspective.`
-      : `Where the greeting says "you", write in the house style's perspective without inventing a name.`,
+    ...(readerName
+      ? [
+          `Where the greeting says "you", it means ${readerName}: refer to ${readerName} by name, in the house style's perspective.`,
+          `Beyond what the greeting has, leave what ${readerName} says, decides, and thinks to the reader.`,
+        ]
+      : [
+          `Where the greeting says "you", write in the house style's perspective without inventing a name.`,
+        ]),
     ...timeLines,
     "Where the greeting disagrees with the chapter's time or with what the characters know, follow the chapter.",
     'Write about as much as the greeting.',
@@ -184,10 +189,18 @@ function instructionFor({
         : "Some passages may be written in first or second person; write in the house style's perspective.",
     );
   }
-  if (request.action === 'direct' && request.direction) {
+  // The reader's character is the reader's to write, except for what a direction asks.
+  const directed = request.action === 'direct' && Boolean(request.direction);
+  if (directed) {
     lines.push(
       `The author's direction for this passage (not part of the story yet): ${request.direction}`,
-      'Carry it out in the passage itself: write what it describes as happening.',
+      readerName
+        ? `Carry it out in the passage itself: write what it describes as happening, including anything it has ${readerName} say or do. Beyond that, leave what ${readerName} says, decides, and thinks to the reader.`
+        : 'Carry it out in the passage itself: write what it describes as happening.',
+    );
+  } else if (readerName) {
+    lines.push(
+      `${readerName} is the reader's character, so leave what ${readerName} says, decides, and thinks to the reader. ${readerName} can still be there and carry on with anything already underway.`,
     );
   }
   lines.push(...timeLines);
@@ -214,6 +227,11 @@ function instructionFor({
       hasProse
         ? 'Write as much as the moment needs, usually 2 to 4 paragraphs. A quick exchange or a reaction can be a single paragraph: stop rather than pad.'
         : 'Write 3 to 5 paragraphs.',
+    );
+  }
+  if (readerName) {
+    lines.push(
+      `${directed ? 'Once the direction is carried out, if' : 'If'} the moment turns to ${readerName}, such as a question put to ${readerName} or a choice only ${readerName} can make, end the passage there.`,
     );
   }
   if (hasProse) {
