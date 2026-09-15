@@ -534,7 +534,9 @@ describe('buildDirectorMessages', () => {
     expect(system.content).toContain(
       '- Follow the request below. Keep the beats to what fits in one passage, ending at a natural pause rather than on a reveal.',
     );
-    expect(system.content).not.toMatch(/belong to the reader|waits on Theo|Don't plan what Theo/);
+    expect(system.content).toContain(
+      "- Theo is the reader's character, so don't plan what Theo says, does, decides, or thinks, including choices made without a word, beyond what the author's direction asks for. When the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the beats there once the direction is carried out.\n",
+    );
     expect(system.content).toContain(
       "- A passage can follow any of the characters in the chapter, often several at once as they interact; don't build it around one character's point of view.",
     );
@@ -550,7 +552,7 @@ describe('buildDirectorMessages', () => {
     expect(user.content).not.toContain('Center the passage');
   });
 
-  it("continues the story when there's no direction, without holding back the reader's character", () => {
+  it("continues the story when there's no direction, leaving the reader's character to the reader", () => {
     const [system, user] = buildDirectorMessages({
       story: { title: 'Lamplight' },
       cast,
@@ -558,7 +560,9 @@ describe('buildDirectorMessages', () => {
       request: { action: 'write' },
     });
 
-    expect(system.content).not.toMatch(/Don't plan what Theo|waits on Theo/);
+    expect(system.content).toContain(
+      "- Theo is the reader's character, so don't plan what Theo says, does, decides, or thinks, including choices made without a word. When the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the beats there. If the chapter so far ends waiting on Theo, plan around it without answering for Theo.\n",
+    );
     // Who wrote the latest passage doesn't matter: the story just continues.
     expect(user.content).toContain(
       '=== NEXT ===\nContinue the story naturally from where it left off.',
@@ -567,6 +571,17 @@ describe('buildDirectorMessages', () => {
     expect(system.content).toContain(
       "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have",
     );
+  });
+
+  it("plans for everyone when the chapter has no reader's character", () => {
+    const [system] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast: [cast[0]],
+      turns: [],
+      request: { action: 'continue' },
+    });
+
+    expect(system.content).not.toContain("reader's character");
   });
 
   it("gives each profile whole, with the reader's character named, and puts profiles over memories", () => {

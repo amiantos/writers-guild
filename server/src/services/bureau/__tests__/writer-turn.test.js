@@ -180,7 +180,9 @@ describe('generateWriterTurn', () => {
       usage: { prompt_tokens: 120, completion_tokens: 20 },
       response: { content: 'Mara opened the door.', finishReason: 'stop' },
     });
-    expect(run.steps[0].request.messages[1].content).not.toContain('words and choices');
+    expect(run.steps[0].request.messages[1].content).toContain(
+      "Theo is the reader's character, so leave what Theo says, does, decides, and thinks to the reader",
+    );
   });
 
   it("uses the Bureau's writer settings and the story's cast", async () => {
