@@ -132,6 +132,43 @@ export function notesAtTime(notes, time) {
   );
 }
 
+/** Accepted facts that are visible, leaving out any that a visible fact replaces. */
+function currentFacts(facts, isVisible) {
+  const visible = facts.filter((fact) => fact.status === 'accepted' && isVisible(fact));
+  const replaced = new Set(visible.map((fact) => fact.replaces).filter((id) => id !== null));
+  return visible.filter((fact) => !replaced.has(fact.id));
+}
+
+/**
+ * The established facts a story can draw on: written by the reader, or accepted from before it
+ * (see isBeforeStory). A fact gives way to a change the story can see, so a flashback set before
+ * the change keeps the old fact.
+ *
+ * @param {Array<Object>} facts - The Bureau's facts (see fact-storage.js).
+ * @param {Object} story - Uses id, startTime, position, and created.
+ * @param {Object} [options]
+ * @param {boolean} [options.includeOwnStory] - Count facts from this story too, for the Archivist.
+ * @returns {Array<Object>} In the order given.
+ */
+export function factsAsOf(facts, story, { includeOwnStory = false } = {}) {
+  return currentFacts(
+    facts,
+    (fact) =>
+      isBeforeStory(fact, story) ||
+      (includeOwnStory && fact.sourceType === 'story' && fact.sourceId === story.id),
+  );
+}
+
+/**
+ * The established facts as they stand at a moment, for correspondence and offscreen life.
+ * @param {Array<Object>} facts - The Bureau's facts.
+ * @param {Date|string} time
+ */
+export function factsAtTime(facts, time) {
+  const moment = timestampOf(time);
+  return currentFacts(facts, (fact) => !fact.worldTime || Date.parse(fact.worldTime) <= moment);
+}
+
 /**
  * What goes in the Writer prompt for one character: pinned knowledge, then the
  * most important knowledge that fits the budget, and the latest episodes.

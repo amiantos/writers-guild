@@ -11,8 +11,8 @@
  */
 
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
-import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
-import { profileLines } from './profile-text.js';
+import { factsAtTime, memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
+import { bureauText, profileLines } from './profile-text.js';
 import { RunRecorder } from './run-recorder.js';
 
 // Shorter gaps aren't worth an account.
@@ -143,6 +143,7 @@ export function findOffscreenGaps(stores, bureau, members, to, { ignoreStoryId =
  *   [params.memoriesByCast]
  * @param {Map<string, Array<{content: string}>>} [params.notesByCast] - Accepted arc notes.
  * @param {string|null} [params.readerName] - The reader's character's name, for {{user}} in cards.
+ * @param {Array<{content: string}>} [params.facts] - Established facts as of the new time.
  * @param {Date} [params.now] - Real time, to tell whether the Bureau is set in another year.
  * @returns {Array<{role: string, content: string}>}
  */
@@ -153,6 +154,7 @@ export function buildOffscreenMessages({
   memoriesByCast = new Map(),
   notesByCast = new Map(),
   readerName = null,
+  facts = [],
   now = new Date(),
 }) {
   const system = [
@@ -160,7 +162,7 @@ export function buildOffscreenMessages({
     [
       '- Write two to four sentences for each character, in the past tense and the third person, about how they spent the time since they were last seen: work, errands, habits, small pleasures and annoyances, people they ran into.',
       '- Keep it mostly mundane and true to who they are: their routine, what they know, and how they have changed. At most one thing in an entry can be notable, and nothing that settles or invents a major turn in their story.',
-      "- Keep to their profiles: where they live, who they live with, and their work don't change offscreen. When something they know disagrees with a profile, the profile is right.",
+      "- Keep to their profiles and the established facts: where they live, who they live with, and their work don't change offscreen. When something they know disagrees with a profile or fact, the profile or fact is right.",
       '- Fit the length of the gap: an evening holds a little, a few weeks hold more.',
     ].join('\n'),
   ];
@@ -169,6 +171,12 @@ export function buildOffscreenMessages({
   const year = settingYear(bureau, to, now);
   if (year) nowLines.push(`The year is ${year}.`);
   const user = [section('NOW', nowLines.join('\n'))];
+  const establishedFacts = facts
+    .map((fact) => bureauText(fact.content, readerName))
+    .filter(Boolean);
+  if (establishedFacts.length > 0) {
+    user.push(section('ESTABLISHED FACTS', establishedFacts.map((fact) => `- ${fact}`).join('\n')));
+  }
 
   for (const { member, from } of gaps) {
     const lines = [
@@ -253,6 +261,7 @@ export async function generateOffscreenLife({
     memoriesByCast,
     notesByCast,
     readerName: persona?.name ?? null,
+    facts: factsAtTime(stores.facts.listFacts(bureau.id), to),
   });
 
   const ownRun = !recorder;

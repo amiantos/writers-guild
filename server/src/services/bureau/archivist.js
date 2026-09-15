@@ -19,13 +19,15 @@
 import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
 import { labelImages } from './images.js';
 import {
+  factsAsOf,
+  factsAtTime,
   isBeforeStory,
   memoriesAsOf,
   memoriesAtTime,
   notesAtTime,
   selectForPrompt,
 } from './memory.js';
-import { profileLines } from './profile-text.js';
+import { bureauText, profileLines } from './profile-text.js';
 import { RunRecorder } from './run-recorder.js';
 
 // The latest turns may still be regenerated or edited, so automatic passes leave them.
@@ -124,12 +126,38 @@ export const RECORD_MEMORIES_TOOL = {
           additionalProperties: false,
         },
       },
+      facts: {
+        type: 'array',
+        description:
+          'Established facts the passages clearly add or change, for the reader to review. Usually empty.',
+        items: {
+          type: 'object',
+          properties: {
+            content: {
+              type: 'string',
+              description: 'The whole fact as it now stands, in a sentence or two, using names.',
+            },
+            replaces: {
+              type: 'integer',
+              description: 'Number of the established fact this changes, or 0 for a new fact.',
+            },
+            rationale: { type: 'string', description: 'What in the passages shows it.' },
+            passages: {
+              type: 'array',
+              items: { type: 'integer' },
+              description: 'Numbers of the passages that show it.',
+            },
+          },
+          required: ['content', 'replaces', 'rationale', 'passages'],
+          additionalProperties: false,
+        },
+      },
       story_summary: {
         type: 'string',
         description: 'What has happened in the whole chapter so far, at most 150 words.',
       },
     },
-    required: ['knowledge', 'episodes', 'arc_notes', 'story_summary'],
+    required: ['knowledge', 'episodes', 'arc_notes', 'facts', 'story_summary'],
     additionalProperties: false,
   },
 };
@@ -322,8 +350,8 @@ export function buildArchivistMessages({
       '- One fact per memory, in the third person with names, never "I" or "you". Record only what that character saw, heard, or was told.',
       '- Each memory must make sense on its own, read months later: say who and what, never "this" or "that" for something in another memory.',
       '- Skip passing actions, scenery, incidental details such as the exact time something happened, short-lived plans, anything the character already knows, and anything a profile already says. The episode tells what happened; knowledge keeps what will still matter later.',
-      `- The profiles are true. Record what the ${wording.units} say outright, not what they only seem to suggest: someone heading home, or writing from somewhere else, tells you nothing new about where anyone lives.`,
-      "- When a fact disagrees with a character's profile, set conflict to what it disagrees with, in a sentence: the reader checks it before anyone remembers it. Otherwise leave conflict empty.",
+      `- The profiles and the established facts are true. Record what the ${wording.units} say outright, not what they only seem to suggest: someone heading home, or writing from somewhere else, tells you nothing new about where anyone lives.`,
+      "- When a fact disagrees with a character's profile or an established fact, set conflict to what it disagrees with, in a sentence: the reader checks it before anyone remembers it. Otherwise leave conflict empty.",
       "- When a fact updates or contradicts one of the character's numbered memories, set supersedes to that number and write the complete updated fact. Otherwise set supersedes to 0.",
       '- Importance: 1 trivia, 2 minor detail, 3 useful, 4 significant, 5 defining (a milestone in a relationship, a secret revealed).',
       `- passages lists the numbers of the ${wording.units} the fact comes from.`,
@@ -331,6 +359,7 @@ export function buildArchivistMessages({
     ].join('\n'),
     wording.episodes,
     `Arc notes: only when the ${wording.units} change who a character is, such as a new habit, a stance that softened or hardened, or a lasting decision about themselves or someone else. Not a fact they learned (that's knowledge), and not a passing mood. Write how they have changed in one or two sentences, with a rationale naming what in the ${wording.units} shows it. Don't repeat a change they already have, one waiting for review, or one the reader turned down. Most ${wording.units} call for none; the reader reviews every one.`,
+    `Facts: lasting truths about the world and the cast that hold whoever remembers them, such as where someone lives and with whom, their work, a relationship, or a place. Propose one only when the ${wording.units} clearly establish something lasting that the established facts don't cover, or clearly change one of them: then set replaces to its number and write the whole fact as it now stands. Not something only one character learned (that's knowledge), and not a change in who someone is (that's an arc note). Don't repeat an established fact, one waiting for review, or one the reader turned down. Most ${wording.units} call for none; the reader reviews every one.`,
     wording.summary,
   );
 
@@ -416,6 +445,22 @@ export function buildArchivistMessages({
       ),
     );
   }
+  const facts = source.facts ?? { current: [], proposed: [], rejected: [] };
+  const factText = (fact) => bureauText(fact.content, personaName);
+  const factLines =
+    facts.current.length > 0
+      ? facts.current.map((fact) => `[${fact.id}] ${factText(fact)}`)
+      : ['(None yet.)'];
+  if (facts.proposed.length > 0) {
+    factLines.push('Waiting for review:', ...facts.proposed.map((fact) => `- ${factText(fact)}`));
+  }
+  if (facts.rejected.length > 0) {
+    factLines.push(
+      'Turned down by the reader (never propose these again):',
+      ...facts.rejected.slice(-REJECTED_NOTES_SHOWN).map((fact) => `- ${factText(fact)}`),
+    );
+  }
+  user.push(section('ESTABLISHED FACTS', factLines.join('\n')));
   if (known.length > 0) {
     user.push(section('WHAT THEY ALREADY KNOW', known.join('\n\n')));
   }
@@ -428,6 +473,20 @@ export function buildArchivistMessages({
 }
 
 // ==================== Sources ====================
+
+/**
+ * The facts a pass works with: the established facts its source can see, to keep to and replace,
+ * and every proposal waiting and fact the reader turned down, so none is proposed again.
+ * @param {(facts: Array<Object>) => Array<Object>} visible - Picks the established facts.
+ */
+function factsForPass(stores, bureauId, visible) {
+  const facts = stores.facts.listFacts(bureauId);
+  return {
+    current: visible(facts),
+    proposed: facts.filter((fact) => fact.status === 'proposed'),
+    rejected: facts.filter((fact) => fact.status === 'rejected'),
+  };
+}
 
 /**
  * What a story pass reads, loaded fresh for each pass: the previous pass updated
@@ -461,6 +520,10 @@ function storySource(stores, bureau, storyId, { before = Infinity } = {}) {
     // The reader's character remembers too.
     characters: cast,
     persona,
+    // A story's own facts count, like its memories.
+    facts: factsForPass(stores, bureau.id, (facts) =>
+      factsAsOf(facts, story, { includeOwnStory: true }),
+    ),
     exists: () => Boolean(stores.stories.getStory(bureau.id, storyId)),
     currentContent: (turnId) => stores.stories.getTurn(storyId, turnId)?.content,
     saveProgress: (archivedThrough, summary) =>
@@ -500,6 +563,7 @@ function threadSource(stores, bureau, { thread, member, persona, session }) {
     worldTime: first.bureauTime,
     characters: people,
     persona,
+    facts: factsForPass(stores, bureau.id, (facts) => factsAtTime(facts, last.bureauTime)),
     exists: () => Boolean(stores.threads.getThread(bureau.id, thread.id)),
     currentContent: (messageId) => stores.threads.getMessage(thread.id, messageId)?.content,
     saveProgress: (archivedThrough) =>
@@ -523,9 +587,10 @@ function text(value) {
 
 /**
  * Save one pass's record, skipping anything that doesn't check out. held counts memories kept for
- * review because they disagree with a profile; added counts the rest.
+ * review because they disagree with a profile or fact; added counts the rest. facts counts the
+ * facts proposed.
  * @returns {{ added: number, held: number, superseded: number, episodes: number,
- *   arcNotes: number, warnings: string[] }}
+ *   arcNotes: number, facts: number, warnings: string[] }}
  */
 function applyRecord({
   stores,
@@ -553,7 +618,15 @@ function applyRecord({
         .filter(Boolean),
     ),
   ];
-  const result = { added: 0, held: 0, superseded: 0, episodes: 0, arcNotes: 0, warnings: [] };
+  const result = {
+    added: 0,
+    held: 0,
+    superseded: 0,
+    episodes: 0,
+    arcNotes: 0,
+    facts: 0,
+    warnings: [],
+  };
 
   const memberFor = (name, what) => {
     const member = byName.get(text(name).toLowerCase());
@@ -698,9 +771,42 @@ function applyRecord({
       result.arcNotes += 1;
     }
 
+    // Facts are proposals for the reader too, skipping any already established, waiting, or turned
+    // down. A change can only replace an established fact this pass could see.
+    const readerName = source.persona ? nameOf(source.persona) : null;
+    const { current, proposed, rejected } = source.facts;
+    const knownFacts = new Set(
+      [...current, ...proposed, ...rejected].map((fact) =>
+        bureauText(fact.content, readerName).toLowerCase(),
+      ),
+    );
+    const replaceable = new Set(current.map((fact) => fact.id));
+    for (const item of Array.isArray(record.facts) ? record.facts : []) {
+      const content = text(item?.content);
+      if (!content || knownFacts.has(content.toLowerCase())) continue;
+      knownFacts.add(content.toLowerCase());
+
+      const replaces = replaceable.has(item.replaces) ? item.replaces : null;
+      if (item.replaces && replaces === null) {
+        result.warnings.push(
+          `Proposed a fact without replacing fact ${item.replaces}, which isn't established`,
+        );
+      }
+      stores.facts.addFact(bureauId, {
+        ...base,
+        content,
+        rationale: text(item.rationale),
+        status: 'proposed',
+        replaces,
+        sourceTurnIds: turnIdsFor(item.passages),
+      });
+      result.facts += 1;
+    }
+
     if (changedTurnIds.length > 0) {
       memories.flagTurnsChanged(bureauId, source.id, changedTurnIds, source.kind);
       stores.arcNotes.flagTurnsChanged(bureauId, source.id, changedTurnIds, source.kind);
+      stores.facts.flagTurnsChanged(bureauId, source.id, changedTurnIds, source.kind);
       const units = source.kind === 'story' ? 'passage(s)' : 'message(s)';
       result.warnings.push(
         `Marked for review: ${changedTurnIds.length} ${units} changed while the Archivist read them`,
@@ -866,6 +972,7 @@ function emptyTotals(archivedThrough) {
     superseded: 0,
     episodes: 0,
     arcNotes: 0,
+    facts: 0,
     warnings: [],
     archivedThrough,
     runId: null,
@@ -879,6 +986,7 @@ function addToTotals(totals, result) {
   totals.superseded += result.superseded;
   totals.episodes += result.episodes;
   totals.arcNotes += result.arcNotes;
+  totals.facts += result.facts;
   totals.warnings.push(...result.warnings);
 }
 

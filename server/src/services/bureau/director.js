@@ -10,8 +10,8 @@
 import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
 import { generateCharacter } from './character-generator.js';
 import { labelImages } from './images.js';
-import { memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
-import { cardText, profileLines } from './profile-text.js';
+import { factsAsOf, memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
+import { bureauText, cardText, profileLines } from './profile-text.js';
 import { runToolLoop } from './tool-loop.js';
 
 export const DIRECTOR_MAX_ITERATIONS = 6;
@@ -176,6 +176,7 @@ function findMember(members, name) {
  * @param {Object} params.request - { action, direction }.
  * @param {string|null} [params.timeZone] - The Bureau's, for the chapter's time.
  * @param {boolean} [params.canCreateCharacters] - Whether create_character is offered.
+ * @param {Array<{content: string}>} [params.facts] - Established facts the story can see.
  */
 export function buildDirectorMessages({
   story,
@@ -184,6 +185,7 @@ export function buildDirectorMessages({
   request,
   timeZone = null,
   canCreateCharacters = false,
+  facts = [],
 }) {
   const system = [
     'You are the Director for an ongoing story. Before the Writer writes the next passage, decide what should happen in it and gather anything the Writer needs.',
@@ -195,7 +197,7 @@ export function buildDirectorMessages({
       '- Keep the characters in the moment. Plan a callback to earlier events or a running joke only when the scene is about it: people seldom talk about what they both already know.',
       "- Keep the scene moving. Don't plan an action, gesture, or bit of business the recent passages already have, such as refilling a drink or glancing out a window, unless something new comes of it or the request below asks for it.",
       "- The Writer has the character cards, so don't restate anyone's traits or habits in the notes.",
-      "- The cast's profiles below are true. Plan nothing that contradicts them, and when a memory disagrees with a profile, go by the profile.",
+      "- The cast's profiles and any established facts below are true. Plan nothing that contradicts them, and when a memory disagrees with a profile or fact, go by the profile or fact.",
       canCreateCharacters
         ? '- When the passage brings in a new named character who will matter beyond this scene, call create_character first so they have a card. Never for walk-ons, and never for anyone already in this chapter.'
         : null,
@@ -264,6 +266,14 @@ export function buildDirectorMessages({
       role: 'user',
       content: [
         section('CAST', castProfiles.join('\n\n') || '(No one in the cast.)'),
+        ...(facts.length > 0
+          ? [
+              section(
+                'ESTABLISHED FACTS',
+                facts.map((fact) => `- ${bureauText(fact.content, readerName)}`).join('\n'),
+              ),
+            ]
+          : []),
         section('CHAPTER SO FAR', recent || '(Nothing has been written yet.)'),
         section('NEXT', next.join('\n')),
       ].join('\n\n'),
@@ -571,6 +581,7 @@ export async function runDirector({
       request,
       timeZone: bureau.timezone,
       canCreateCharacters: createCharacters,
+      facts: factsAsOf(stores.facts.listFacts(bureau.id), story),
     }),
     tools,
     handlers: toolHandlers({

@@ -142,6 +142,22 @@ describe('buildOffscreenMessages', () => {
       "where they live, who they live with, and their work don't change offscreen",
     );
   });
+
+  it('adds the established facts, with the reader named', () => {
+    const [system, user] = buildOffscreenMessages({
+      bureau: { timezone: 'UTC' },
+      gaps: [{ member: { id: 'c1', name: 'Mara', seedCard: card('Mara') }, from: FROM }],
+      to: TO,
+      readerName: 'Theo',
+      facts: [{ content: 'Mara and {{user}} live above the bakery.' }],
+      now: new Date('2026-10-08T21:00:00Z'),
+    });
+
+    expect(user.content).toContain(
+      '=== ESTABLISHED FACTS ===\n- Mara and Theo live above the bakery.',
+    );
+    expect(system.content).toContain('Keep to their profiles and the established facts');
+  });
 });
 
 describe('offscreen life in a Bureau', () => {

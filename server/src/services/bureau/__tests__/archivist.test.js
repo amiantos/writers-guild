@@ -288,6 +288,69 @@ describe('archiveStory', () => {
     ]);
   });
 
+  it('reads the established facts, and proposes new facts and changes for the reader', async () => {
+    const home = stores.facts.addFact(bureau.id, {
+      content: 'Mara and {{user}} live above the bakery.',
+      status: 'accepted',
+    });
+    stores.facts.addFact(bureau.id, { content: 'Theo works nights.' });
+    stores.facts.addFact(bureau.id, { content: 'Mara sells the shop.', status: 'rejected' });
+    const passage = addProse('Mara and Theo signed the lease on the harbor house.');
+    const client = archivistClient([
+      record({
+        facts: [
+          {
+            content: 'Mara and Theo live in the house by the harbor.',
+            replaces: home.id,
+            rationale: 'They signed the lease.',
+            passages: [passage.position],
+          },
+          { content: 'theo works nights.', replaces: 0, rationale: '', passages: [] },
+          {
+            content: 'Mara keeps a cat.',
+            replaces: 999,
+            rationale: 'A cat sleeps on the bench.',
+            passages: [passage.position],
+          },
+        ],
+      }),
+    ]);
+
+    const result = await archive(client);
+
+    const [system, user] = client.calls[0].messages;
+    expect(system.content).toContain('Facts: lasting truths about the world and the cast');
+    expect(user.content).toContain(
+      [
+        '=== ESTABLISHED FACTS ===',
+        `[${home.id}] Mara and Theo live above the bakery.`,
+        'Waiting for review:',
+        '- Theo works nights.',
+        'Turned down by the reader (never propose these again):',
+        '- Mara sells the shop.',
+      ].join('\n'),
+    );
+    expect(result.facts).toBe(2);
+    expect(result.warnings).toEqual([
+      "Proposed a fact without replacing fact 999, which isn't established",
+    ]);
+
+    const proposed = stores.facts.listFacts(bureau.id, { status: 'proposed' });
+    expect(proposed.map((fact) => [fact.content, fact.replaces])).toEqual([
+      ['Theo works nights.', null],
+      ['Mara and Theo live in the house by the harbor.', home.id],
+      ['Mara keeps a cat.', null],
+    ]);
+    expect(proposed[1]).toMatchObject({
+      rationale: 'They signed the lease.',
+      sourceType: 'story',
+      sourceId: story.id,
+      worldTime: START,
+      sourceTurnIds: [passage.id],
+      runId: result.runId,
+    });
+  });
+
   it('updates what characters know on later passes', async () => {
     const earlier = stores.stories.createStory(bureau.id, {
       startTime: '2026-10-01T20:00:00.000Z',

@@ -524,7 +524,7 @@ function useBrowserZone() {
 
 async function resetBureau() {
   const confirmed = await confirm({
-    message: `Reset "${props.bureau.name}"?\n\nEvery chapter, message, memory, and arc note is deleted, including backstory you wrote. The cast keeps their profiles and every version of them, and interviews, lorebooks, settings, and Bureau time stay. This cannot be undone.`,
+    message: `Reset "${props.bureau.name}"?\n\nEvery chapter, message, memory, and arc note is deleted, including backstory you wrote, and so is every fact the Archivist proposed. The cast keeps their profiles and every version of them, and the facts you wrote, interviews, lorebooks, settings, and Bureau time stay. This cannot be undone.`,
     confirmText: 'Reset Bureau',
     variant: 'danger',
   });

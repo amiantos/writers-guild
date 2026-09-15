@@ -209,6 +209,10 @@ export class BureauStorage {
       // behind interviews and generated characters stay.
       resetMemories: this.db.prepare('DELETE FROM memories WHERE bureau_id = ?'),
       resetArcNotes: this.db.prepare('DELETE FROM arc_notes WHERE bureau_id = ?'),
+      // Facts the reader wrote set up the world, like lorebooks, so only proposed ones go.
+      resetFacts: this.db.prepare(
+        "DELETE FROM facts WHERE bureau_id = ? AND source_type != 'manual'",
+      ),
       resetStories: this.db.prepare('DELETE FROM stories WHERE bureau_id = ?'),
       resetThreads: this.db.prepare('DELETE FROM threads WHERE bureau_id = ?'),
       resetRuns: this.db.prepare(`
@@ -437,18 +441,21 @@ export class BureauStorage {
 
   /**
    * Reset a Bureau to a blank slate. Its chapters, message threads, memories (backstory included),
-   * and arc notes are deleted, with the runs that wrote them. The cast, their profiles with every
-   * version, interviews, lorebooks, settings, and Bureau time stay.
+   * arc notes, and the facts the Archivist proposed are deleted, with the runs that wrote them. The
+   * cast, their profiles with every version, facts written by hand, interviews, lorebooks,
+   * settings, and Bureau time stay.
    * @returns {boolean} Whether the Bureau exists.
    */
   resetBureau(bureauId) {
     if (!this.stmts.getBureau.get(bureauId)) return false;
 
-    const { resetMemories, resetArcNotes, resetStories, resetThreads, resetRuns } = this.stmts;
+    const { resetMemories, resetArcNotes, resetFacts, resetStories, resetThreads, resetRuns } =
+      this.stmts;
     this.db.transaction(() => {
       for (const statement of [
         resetMemories,
         resetArcNotes,
+        resetFacts,
         resetStories,
         resetThreads,
         resetRuns,

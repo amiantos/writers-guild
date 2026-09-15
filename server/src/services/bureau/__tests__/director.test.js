@@ -589,7 +589,31 @@ describe('buildDirectorMessages', () => {
       "She lives with Theo in the keeper's cottage.\nPersonality: Dry.",
     );
     expect(user.content).not.toContain('…');
-    expect(system.content).toContain('when a memory disagrees with a profile, go by the profile');
+    expect(system.content).toContain(
+      'when a memory disagrees with a profile or fact, go by the profile or fact',
+    );
+  });
+
+  it('adds the established facts after the cast, with the reader named', () => {
+    const request = { action: 'continue' };
+    const [, user] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast,
+      turns: [],
+      request,
+      facts: [{ content: "Mara and {{user}} live in the keeper's cottage." }],
+    });
+
+    expect(user.content).toContain(
+      "Theo (the reader's character)\n\n=== ESTABLISHED FACTS ===\n- Mara and Theo live in the keeper's cottage.",
+    );
+    const [, withoutFacts] = buildDirectorMessages({
+      story: { title: 'Lamplight' },
+      cast,
+      turns: [],
+      request,
+    });
+    expect(withoutFacts.content).not.toContain('ESTABLISHED FACTS');
   });
 
   it('marks an opening with its exact start time, in the Bureau time zone', () => {

@@ -43,7 +43,7 @@ const BRIEF_LENGTHS = {
 };
 
 const MEMORIES_PREFACE =
-  "What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile, the profile is right.";
+  "What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.";
 
 // PromptBuilder is story mode's, reused here only for its {{user}}/{{char}} replacement.
 const placeholders = new PromptBuilder();
@@ -232,6 +232,8 @@ function instructionFor({
  *   What each character remembers from before this story, by cast member id (see memory.js).
  * @param {Map<string, Array<{content: string}>>} [params.arcNotesByCast] - Accepted arc notes
  *   from before this story, by cast member id: how each character has changed.
+ * @param {Array<{content: string}>} [params.facts] - Established facts the story can see (see
+ *   factsAsOf in memory.js).
  * @param {Array<Object>} params.turns - The story's turns in order, including any turn just
  *   added from the composer. Uses kind, source, content, and bureauTime.
  * @param {Object} params.request
@@ -256,6 +258,7 @@ export function buildWriterMessages({
   loreEntries = [],
   memoriesByCast = new Map(),
   arcNotesByCast = new Map(),
+  facts = [],
   turns,
   request,
   startTime = null,
@@ -308,6 +311,20 @@ export function buildWriterMessages({
   }
   if (persona) {
     system.push(section(`${userName.toUpperCase()} (THE READER'S CHARACTER)`, profile(persona)));
+  }
+  const establishedFacts = facts
+    .map((fact) => stripAsterisks(macros.process(fact.content)).trim())
+    .filter(Boolean);
+  if (establishedFacts.length > 0) {
+    system.push(
+      section(
+        'ESTABLISHED FACTS',
+        [
+          'True in this story unless the chapter itself shows one changing.',
+          ...establishedFacts.map((fact) => `- ${fact}`),
+        ].join('\n'),
+      ),
+    );
   }
   // The reader's character remembers too; only what they say and do is left to the reader.
   const remembered = [...characters, ...(persona ? [persona] : [])]

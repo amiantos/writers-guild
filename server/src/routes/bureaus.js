@@ -24,6 +24,7 @@ import { generateCharacter } from '../services/bureau/character-generator.js';
 import { DEFAULT_CORRESPONDENCE_STYLE } from '../services/bureau/correspondence.js';
 import { DEFAULT_HOUSE_STYLE } from '../services/bureau/writer-prompt.js';
 import bureauCorrespondenceRouter from './bureau-correspondence.js';
+import bureauFactsRouter from './bureau-facts.js';
 import bureauMemoriesRouter from './bureau-memories.js';
 import bureauProfilesRouter from './bureau-profiles.js';
 import bureauStoriesRouter from './bureau-stories.js';
@@ -686,6 +687,7 @@ router.get(
 // ==================== Stories ====================
 
 router.use('/:bureauId', bureauMemoriesRouter);
+router.use('/:bureauId', bureauFactsRouter);
 router.use('/:bureauId', bureauProfilesRouter);
 router.use('/:bureauId/stories', bureauStoriesRouter);
 router.use('/:bureauId/threads', bureauCorrespondenceRouter);

@@ -91,10 +91,11 @@ async function archiveNow(req, res, bureauId, storyId) {
   }
 }
 
-/** Mark memories and arc notes that cite changed or deleted turns for review. */
+/** Mark memories, arc notes, and facts that cite changed or deleted turns for review. */
 function flagChangedTurns(stores, bureauId, storyId, turnIds) {
   stores.memories.flagTurnsChanged(bureauId, storyId, turnIds);
   stores.arcNotes.flagTurnsChanged(bureauId, storyId, turnIds);
+  stores.facts.flagTurnsChanged(bureauId, storyId, turnIds);
 }
 
 /** Where `part` appears in `text` as whole paragraphs, or -1. */
@@ -388,7 +389,7 @@ router.post(
   }),
 );
 
-// Delete a story with its turns and the memories recorded from it
+// Delete a story with its turns, and the memories, arc notes, and facts recorded from it
 router.delete(
   '/:storyId',
   asyncHandler(async (req, res) => {
@@ -396,11 +397,12 @@ router.delete(
     const { bureauId, storyId } = req.params;
     requireBureau(bureaus, bureauId);
 
-    const { memories, arcNotes } = res.locals.stores;
+    const { memories, arcNotes, facts } = res.locals.stores;
     let deleted = false;
     bureaus.db.transaction(() => {
       memories.deleteStoryMemories(bureauId, storyId);
       arcNotes.deleteStoryNotes(bureauId, storyId);
+      facts.deleteStoryFacts(bureauId, storyId);
       deleted = stories.deleteStory(bureauId, storyId);
     })();
     if (!deleted) {

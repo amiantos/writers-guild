@@ -47,3 +47,14 @@ export function profileLines(member, readerName) {
   if (personality) lines.push(`Personality: ${personality}`);
   return lines;
 }
+
+/**
+ * Text written for the whole Bureau, such as an established fact, with {{user}} as the reader's
+ * character.
+ * @param {string} text
+ * @param {string|null} readerName
+ */
+export function bureauText(text, readerName) {
+  if (typeof text !== 'string') return '';
+  return new MacroProcessor({ userName: readerName }).process(text).replace(/\*/g, '').trim();
+}
