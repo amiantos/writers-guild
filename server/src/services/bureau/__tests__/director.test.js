@@ -532,7 +532,7 @@ describe('buildDirectorMessages', () => {
     });
 
     expect(system.content).toContain(
-      '- Follow the request below. Keep the beats to what fits in one passage, ending where the reader can respond.',
+      '- Follow the request below. Keep the beats to what fits in one passage, ending at a natural pause rather than on a reveal.',
     );
     expect(system.content).not.toMatch(/belong to the reader|waits on Theo|Don't plan what Theo/);
     expect(system.content).toContain(

@@ -12,7 +12,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   writer: Object.freeze({
     thinking: false,
     reasoningEffort: 'high',
-    temperature: 1,
+    // Long chapters come apart at higher temperatures (at 1.5, into word salad).
+    temperature: 0.8,
     maxTokens: 4000,
   }),
   memory: Object.freeze({

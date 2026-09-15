@@ -404,11 +404,14 @@ export async function generateWriterTurn({
   if (findings.length > 0 && bureau.settings.editor.enabled) {
     onEvent({ type: 'stage', stage: 'editing' });
     try {
+      // The Writer revises its own passage, with the chapter still in view.
       const edited = await runEditor({
         client,
         recorder,
-        houseStyle,
+        writerMessages: messages,
+        recordedWriterMessages: recordedRequest.messages,
         text: finalContent,
+        reasoning,
         findings,
         signal,
       });

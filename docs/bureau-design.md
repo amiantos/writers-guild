@@ -282,7 +282,10 @@ doesn't restate the cards or
 plan callbacks to earlier events unless the scene is about them: memories are background, and
 characters who keep bringing up the past read as talky and artificial. Beats also don't repeat an
 action or bit of business the recent passages already have unless something new comes of it, and
-notes leave out props the passage doesn't need. The Director runs with
+notes leave out props the passage doesn't need. Beats keep to the chapter's present, with no jump to
+a later hour or day and no new secret, twist, or trouble unless the request asks for one. Nobody
+repeats a point already made, and the length fits the moment: short for a quick exchange or a single
+beat. The Director runs with
 thinking on at low effort by default and gets four lookups per passage, after which it's told to
 hand over its brief. Creating a character isn't a lookup; it has its own limit of two per passage. A successful `submit_brief` call
 ends the tool loop without another model call. `recall` only finds what the chapter can see:
@@ -309,6 +312,20 @@ context caching:
    reach the Writer yet.
 7. The scene brief and composer input, plus the chapter's exact time: when it began, or when time
    last passed in it (see [Time in prompts](#time-in-prompts))
+
+Long chapters tend to drift. In 20-passage test chapters, later passages grew longer, with long
+"and"-chained sentences and narration explaining what each gesture meant. The same mannerisms and
+props kept coming back. Plain Continues invented new trouble or skipped ahead a day, and passages
+ended on summing-up lines. Several prompt rules push against this:
+
+- The house style asks for varied, mostly short sentences and occasional mannerisms.
+- The closing instructions ask the Writer to write only as much as the moment needs and to pick up
+  where the last passage stopped, with no time skip or new twist unless asked.
+- Nobody repeats a point, a figure, or a line, and passages end on what someone does or says.
+- The chapter so far counts as story, not as a model for the prose.
+
+The Writer's temperature defaults to 0.8. At 1.5, test passages dissolved into word salad partway
+through. Bureaus that saved their settings before keep the temperature they saved.
 
 Output streams into the active turn. Images pass through `ImagePreserver` as in story mode (see
 [Images](#images)).
@@ -352,8 +369,14 @@ The checks would rather miss a problem than invent one. Paragraphs with images a
 Writer's output already has asterisks stripped. Tense drift is left for later, since present-tense
 checks are noisy.
 
-The Editor receives the numbered passage, the flagged paragraphs with the reasons they were flagged,
-and the house style. It answers with a forced, strict `edit_paragraphs` call: a list of
+The Editor is a second turn in the Writer's own conversation, not a separate model reading the
+passage cold. It sends what the Writer was sent (the house style, cast, facts, memories, world, and
+chapter so far), then the passage the Writer wrote, then the flagged paragraphs with the reasons they
+were flagged and how to fix each kind of problem, so a fix fits the scene. DeepSeek has that prompt
+cached from the Writer's call, so the extra call costs little. A repeated phrase is rewritten or cut
+rather than swapped for synonyms: a model that saw only the passage used to trade "sat down on the
+other end of the sofa" for "lowered himself onto the far end", which read stranger than the repeat.
+The revision answers with a forced, strict `edit_paragraphs` call: a list of
 `{ paragraph, replacement }` edits, applied only to flagged paragraphs. Fixes apply automatically;
 the turn's seam shows each fix's before and after, and one click reverts it. A fix reverts only once
 (when its original text is back, it's done), and only where its replacement stands as whole

@@ -1,10 +1,14 @@
 /**
  * Editor
  *
- * Rewrites only the paragraphs style lint flagged (see "Style lint and Editor"
- * in docs/bureau-design.md), with one forced call to a strict edit_paragraphs
- * tool. Each fix keeps the paragraph it replaced, so the turn's seam can show
- * it and a bad fix can be reverted.
+ * Has the Writer revise the paragraphs style lint flagged (see "Style lint and Editor" in
+ * docs/bureau-design.md). The revision continues the Writer's own conversation: the prompt it was
+ * sent, with the chapter, the cast, and the house style, then the passage it wrote, then the
+ * flagged paragraphs and what's wrong with each. A fix is written with the whole chapter in view,
+ * not by a model that only sees the passage, and DeepSeek has the Writer's prompt cached, so the
+ * extra call costs little. One forced call to a strict edit_paragraphs tool returns the rewrites.
+ * Each fix keeps the paragraph it replaced, so the turn's seam can show it and a bad fix can be
+ * reverted.
  */
 
 import { labelImages } from './images.js';
@@ -47,7 +51,7 @@ function guidanceFor(rule) {
     case 'first_person_narration':
       return 'first_person_narration: rewrite the narration in the third person, using names. Leave dialogue as it is.';
     case 'repeated_phrase':
-      return "repeated_phrase: reword the repeated narration so it doesn't echo earlier passages.";
+      return "repeated_phrase: the narration repeats wording from earlier in the chapter. Write that sentence a different way, or cut it if the passage doesn't need it, rather than swapping in synonyms.";
     case 'banned_phrase':
       return 'banned_phrase: rewrite without the banned phrase.';
     default:
@@ -56,44 +60,49 @@ function guidanceFor(rule) {
 }
 
 /**
+ * The Writer's conversation, continued with the passage it wrote and a request to revise the
+ * flagged paragraphs.
+ *
  * @param {Object} params
- * @param {string} params.houseStyle
- * @param {string} params.text - The generated passage.
+ * @param {Array<{role: string, content: string}>} params.writerMessages - What the Writer was sent.
+ * @param {string} params.text - The passage it wrote.
+ * @param {string} [params.reasoning] - Its reasoning, which goes back with its turn.
  * @param {Array<{ paragraph: number, rule: string, reason: string }>} params.findings
+ * @returns {Array<Object>}
  */
-export function buildEditorMessages({ houseStyle, text, findings }) {
-  const rules = [...new Set(findings.map((finding) => finding.rule))];
-  const system = [
-    'You are the Editor for an ongoing story. Fix only the problems flagged in the numbered paragraphs, changing as little as possible: keep every event, line of dialogue, and detail, and keep the voice and tense. Call edit_paragraphs once, with a replacement for each flagged paragraph.',
-    `=== HOUSE STYLE ===\n${houseStyle}`,
-    `=== HOW TO FIX EACH PROBLEM ===\n${rules
-      .map((rule) => guidanceFor(rule))
-      .filter(Boolean)
-      .join('\n')}`,
-  ];
-
-  // Lint never flags a paragraph with an image, so the Editor only needs to know one is there.
-  const passage = splitParagraphs(text)
-    .paragraphs.map((paragraph, number) =>
-      paragraph.trim() ? `[Paragraph ${number}]\n${labelImages(paragraph.trim())}` : null,
-    )
-    .filter(Boolean);
-  const flagged = findings.map(
-    (finding) => `- Paragraph ${finding.paragraph} (${finding.rule}): ${finding.reason}`,
+export function buildEditorMessages({ writerMessages, text, reasoning = '', findings }) {
+  const { paragraphs } = splitParagraphs(text);
+  const reasons = new Map();
+  for (const finding of findings) {
+    if (!reasons.has(finding.paragraph)) reasons.set(finding.paragraph, []);
+    reasons.get(finding.paragraph).push(`${finding.rule}: ${finding.reason}`);
+  }
+  // Lint never flags a paragraph with an image, so images only need to show as labels.
+  const flagged = [...reasons].map(
+    ([number, why]) =>
+      `[Paragraph ${number}] ${why.join('; ')}\n${labelImages((paragraphs[number] ?? '').trim())}`,
   );
+  const guidance = [...new Set(findings.map((finding) => finding.rule))]
+    .map((rule) => guidanceFor(rule))
+    .filter(Boolean)
+    .map((line) => `- ${line}`);
 
-  return [
-    { role: 'system', content: system.join('\n\n') },
-    {
-      role: 'user',
-      content: `=== PASSAGE ===\n${passage.join('\n\n')}\n\n=== FLAGGED ===\n${flagged.join('\n')}`,
-    },
-  ];
+  const passage = { role: 'assistant', content: labelImages(text) };
+  if (reasoning) passage.reasoning_content = reasoning;
+
+  const request = [
+    '=== REVISE ===',
+    'A few paragraphs of your passage need another pass. Rewrite only the paragraphs below so they fit the chapter and the rest of your passage: keep what happens, who says what, and the voice, and change only what the problem needs. Call edit_paragraphs once, with the new text for each paragraph below.',
+    flagged.join('\n\n'),
+    `How to fix each problem:\n${guidance.join('\n')}`,
+  ].join('\n\n');
+
+  return [...writerMessages, passage, { role: 'user', content: request }];
 }
 
 /**
- * Apply the Editor's rewrites to flagged paragraphs. Rewrites of paragraphs
- * that weren't flagged, empty ones, unchanged ones, and repeats are ignored.
+ * Apply the rewrites to flagged paragraphs. Rewrites of paragraphs that weren't flagged, empty
+ * ones, unchanged ones, and repeats are ignored.
  *
  * @returns {{ text: string, edits: Array<{ paragraph: number, rules: string[], reason: string,
  *   original: string, replacement: string }> }}
@@ -131,24 +140,36 @@ export function applyEdits(text, findings, edits) {
 }
 
 /**
- * Ask the Editor to fix flagged paragraphs and apply its rewrites.
+ * Have the Writer revise the flagged paragraphs, and apply its rewrites.
  *
  * @param {Object} params
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {import('./run-recorder.js').RunRecorder} params.recorder
- * @param {string} params.houseStyle
- * @param {string} params.text
+ * @param {Array<Object>} params.writerMessages - What the Writer was sent.
+ * @param {Array<Object>} [params.recordedWriterMessages] - The same as its run recorded them, with
+ *   the chapter text trimmed.
+ * @param {string} params.text - The passage it wrote.
+ * @param {string} [params.reasoning] - Its reasoning.
  * @param {Array<Object>} params.findings - From lintProse; at least one.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<{ text: string, edits: Array<Object> }>}
  */
-export async function runEditor({ client, recorder, houseStyle, text, findings, signal }) {
-  const messages = buildEditorMessages({ houseStyle, text, findings });
+export async function runEditor({
+  client,
+  recorder,
+  writerMessages,
+  recordedWriterMessages = writerMessages,
+  text,
+  reasoning = '',
+  findings,
+  signal,
+}) {
+  const messages = buildEditorMessages({ writerMessages, text, reasoning, findings });
   const recordedRequest = {
     model: client.model,
     thinking: false,
     maxTokens: EDITOR_MAX_TOKENS,
-    messages,
+    messages: [...recordedWriterMessages, ...messages.slice(writerMessages.length)],
   };
 
   const started = Date.now();
