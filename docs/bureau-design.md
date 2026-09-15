@@ -325,7 +325,8 @@ ended on summing-up lines. Several prompt rules push against this:
 - The chapter so far counts as story, not as a model for the prose.
 
 The Writer's temperature defaults to 0.8. At 1.5, test passages dissolved into word salad partway
-through. Bureaus that saved their settings before keep the temperature they saved.
+through. Message replies use the same temperature. Bureaus that saved their settings before keep
+the temperature they saved.
 
 Output streams into the active turn. Images pass through `ImagePreserver` as in story mode (see
 [Images](#images)).

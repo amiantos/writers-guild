@@ -334,7 +334,7 @@ describe('buildWriterMessages', () => {
     expect(user).toContain(
       "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nTone: uneasy.\nStay consistent with:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 or 2 paragraphs.",
     );
-    expect(user).not.toContain('Write the next 3 to 6 paragraphs');
+    expect(user).not.toContain('Write as much as the moment needs');
     // An older brief may still carry a point of view; the Writer doesn't get it.
     expect(user).not.toContain('Point of view');
   });

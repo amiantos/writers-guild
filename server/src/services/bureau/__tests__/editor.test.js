@@ -79,11 +79,13 @@ describe('applyEdits', () => {
     ]);
   });
 
-  it('ignores rewrites of unflagged paragraphs, empty or unchanged ones, and repeats', () => {
+  it('ignores rewrites of unflagged paragraphs, empty or unchanged ones, image stand-ins, and repeats', () => {
     const { text, edits } = applyEdits(TEXT, FINDINGS, [
       { paragraph: 0, replacement: 'The lamp went out.' },
       { paragraph: 1, replacement: '  ' },
       { paragraph: 1, replacement: '"Coming?" Mara asked. "No," Theo said.' },
+      { paragraph: 1, replacement: `[WG_IMAGE_0]\n\n${SPLIT}` },
+      { paragraph: 1, replacement: `${SPLIT} [image: the lamp]` },
       { paragraph: 1, replacement: SPLIT },
       { paragraph: 1, replacement: 'Something else.' },
       { paragraph: 9, replacement: 'Nowhere.' },

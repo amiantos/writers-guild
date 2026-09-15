@@ -109,9 +109,9 @@
           </div>
         </div>
         <p class="help-text">
-          Temperature starts at 0.8; higher values make long chapters more likely to come apart.
-          DeepSeek ignores temperature in thinking mode. The Writer's reasoning shows in each turn's
-          seam.
+          Temperature starts at 0.8 and applies to message replies too; higher values make long
+          chapters more likely to come apart. DeepSeek ignores temperature in thinking mode. The
+          Writer's reasoning shows in each turn's seam.
         </p>
       </fieldset>
 

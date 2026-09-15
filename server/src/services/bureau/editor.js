@@ -51,7 +51,7 @@ function guidanceFor(rule) {
     case 'first_person_narration':
       return 'first_person_narration: rewrite the narration in the third person, using names. Leave dialogue as it is.';
     case 'repeated_phrase':
-      return "repeated_phrase: the narration repeats wording from earlier in the chapter. Write that sentence a different way, or cut it if the passage doesn't need it, rather than swapping in synonyms.";
+      return 'repeated_phrase: the narration repeats wording from earlier in the chapter. Write that sentence a different way, or cut it if the rest of the paragraph stands without it, rather than swapping in synonyms. Never return an empty paragraph.';
     case 'banned_phrase':
       return 'banned_phrase: rewrite without the banned phrase.';
     default:
@@ -100,9 +100,13 @@ export function buildEditorMessages({ writerMessages, text, reasoning = '', find
   return [...writerMessages, passage, { role: 'user', content: request }];
 }
 
+// Lint never flags a paragraph with an image, so an image marker or label in a rewrite could only
+// be saved as literal text.
+const IMAGE_STAND_IN_RE = /\[WG_IMAGE_\d+\]|\[image(?::[^\]]*)?\]/;
+
 /**
  * Apply the rewrites to flagged paragraphs. Rewrites of paragraphs that weren't flagged, empty
- * ones, unchanged ones, and repeats are ignored.
+ * ones, unchanged ones, ones with an image marker or label, and repeats are ignored.
  *
  * @returns {{ text: string, edits: Array<{ paragraph: number, rules: string[], reason: string,
  *   original: string, replacement: string }> }}
@@ -124,6 +128,7 @@ export function applyEdits(text, findings, edits) {
         : '';
     const original = split.paragraphs[number];
     if (!flagged.has(number) || !replacement || replacement === original.trim()) continue;
+    if (IMAGE_STAND_IN_RE.test(replacement)) continue;
     if (applied.some((fix) => fix.paragraph === number)) continue;
 
     split.paragraphs[number] = replacement;
