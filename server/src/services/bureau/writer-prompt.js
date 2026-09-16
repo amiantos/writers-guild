@@ -197,11 +197,12 @@ function instructionFor({
     lines.push(
       `${readerName} is the reader's character, so ${leftToReader}. ${readerName} stays in the scene as the chapter last left ${readerName}.`,
     );
-    // The reader has just written a passage of their own, which is the moment the Writer is most
-    // likely to carry on with their character.
+    // Right after the reader writes a passage of their own is where the Writer most often carries
+    // on with their character. What matters is continuing the story, so the line says nothing
+    // about who wrote what: a greeting kept as written is stored as the reader's prose too.
     if (request.action === 'write') {
       lines.push(
-        `The last passage is the reader's own: take it up with the other characters rather than carrying on what ${readerName} was doing in it.`,
+        `Take the story up with the other characters rather than carrying on what ${readerName} was doing.`,
       );
     }
   }

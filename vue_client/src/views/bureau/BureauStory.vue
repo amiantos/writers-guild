@@ -341,10 +341,6 @@ async function load() {
 async function refreshStory() {
   try {
     const data = await bureauStoriesAPI.get(props.bureauId, props.storyId);
-    // Someone added from "Who's in this chapter" may be new to the Bureau's cast.
-    if (data.story.castIds.some((castId) => !castById.value[castId])) {
-      cast.value = (await bureausAPI.listCast(props.bureauId)).cast;
-    }
     story.value = data.story;
     turns.value = data.turns;
   } catch (error) {
@@ -352,11 +348,28 @@ async function refreshStory() {
   }
 }
 
-/** Someone added from "Who's in this chapter" is new to the Bureau's cast. */
-async function castAdded(member) {
+/**
+ * Someone added from "Who's in this chapter" is new to the Bureau's cast. Adding one can also fail
+ * to reach the library, or attach the character's lorebook to the whole Bureau, as the cast section
+ * reports on the Bureau page.
+ */
+async function castAdded({ castMember, savedToLibrary, libraryError, attachedLorebookId }) {
+  if (libraryError) {
+    toast.error(
+      `${castMember.name} joined the cast as a draft, but saving to your library failed: ${libraryError}`,
+    );
+  } else {
+    toast.success(
+      savedToLibrary
+        ? `${castMember.name} joined the cast and your library`
+        : `${castMember.name} joined the cast`,
+    );
+  }
+  if (attachedLorebookId) {
+    toast.info(`Attached ${castMember.name}'s lorebook to this Bureau`);
+  }
   try {
     cast.value = (await bureausAPI.listCast(props.bureauId)).cast;
-    toast.success(`${member.name} joined the cast.`);
   } catch (error) {
     toast.error('Failed to refresh the cast: ' + error.message);
   }

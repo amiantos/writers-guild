@@ -8,7 +8,7 @@
         placeholder="Search your library..."
         aria-label="Search your library"
       />
-      <label class="checkbox-label">
+      <label v-if="allowPersona" class="checkbox-label">
         <input v-model="asPersona" type="checkbox" />
         Add as the reader's character
       </label>
@@ -55,6 +55,11 @@ import { useToast } from '../../composables/useToast';
 const props = defineProps({
   bureauId: { type: String, required: true },
   cast: { type: Array, required: true },
+  /**
+   * Offer "Add as the reader's character". A Bureau has one, and switching it from inside a
+   * chapter would quietly change every chapter and every prompt, so the chapter doesn't offer it.
+   */
+  allowPersona: { type: Boolean, default: true },
 });
 
 const emit = defineEmits(['close', 'added']);

@@ -325,8 +325,10 @@ ended on summing-up lines. Several prompt rules push against this:
   where the last passage stopped, with no time skip or new twist unless asked.
 - Nobody repeats a point, a figure, or a line, and passages end on what someone does or says.
 - The chapter so far counts as story, not as a model for the prose.
-- After the reader writes a passage of their own, the Writer takes it up with the other characters
-  rather than carrying on what the reader's character was doing in it.
+- After the reader writes a passage of their own, the Writer takes the story up with the other
+  characters rather than carrying on what the reader's character was doing. The line itself says
+  nothing about who wrote the last passage, both because what matters is continuing the story and
+  because a greeting kept as written is stored as the reader's prose too.
 
 The Writer's temperature defaults to 0.8. At 1.5, test passages dissolved into word salad partway
 through. Message replies use the same temperature. Bureaus that saved their settings before keep

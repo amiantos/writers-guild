@@ -52,6 +52,7 @@
     v-if="showLibrary"
     :bureau-id="bureauId"
     :cast="cast"
+    :allow-persona="false"
     @added="castAdded"
     @close="showLibrary = false"
   />
@@ -99,7 +100,9 @@ function castAdded(result) {
   if (!castIds.value.includes(member.id)) {
     castIds.value.push(member.id);
   }
-  emit('cast-added', member);
+  // The whole result travels on: it says whether the library save failed and whether the
+  // character's lorebook was attached to the Bureau.
+  emit('cast-added', result);
 }
 
 async function save() {

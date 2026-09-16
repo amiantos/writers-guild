@@ -342,14 +342,14 @@ describe('buildWriterMessages', () => {
     });
 
     expect(user).toContain(
-      "The last passage is the reader's own: take it up with the other characters rather than carrying on what Theo was doing in it.",
+      'Take the story up with the other characters rather than carrying on what Theo was doing.',
     );
-    // Only after the reader writes: a plain Continue says nothing about the last passage.
+    // Only after the reader writes: a plain Continue doesn't get the line.
     const continuing = build({
       turns: [prose('The lamp was lit.')],
       request: { action: 'continue' },
     });
-    expect(continuing.user).not.toContain("The last passage is the reader's own");
+    expect(continuing.user).not.toContain('Take the story up with the other characters');
   });
 
   it('keeps the scene moving once the story has prose', () => {

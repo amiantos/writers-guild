@@ -18,7 +18,7 @@ const ModalStub = {
   template: '<div><slot /><slot name="footer" /></div>',
 };
 
-const AddCastStub = { name: 'AddCastModal', template: '<div />' };
+const AddCastStub = { name: 'AddCastModal', props: ['allowPersona'], template: '<div />' };
 const GenerateStub = { name: 'GenerateCharacterModal', template: '<div />' };
 
 function button(wrapper, label) {
@@ -70,7 +70,9 @@ describe('StoryCastModal', () => {
     await flushPromises();
 
     // The parent reloads the Bureau's cast, and the generator is done once its card is added.
-    expect(wrapper.emitted('cast-added')[0][0]).toEqual({ id: 'c3', name: 'Tomas' });
+    expect(wrapper.emitted('cast-added')[0][0]).toEqual({
+      castMember: { id: 'c3', name: 'Tomas' },
+    });
     expect(wrapper.findComponent(GenerateStub).exists()).toBe(false);
 
     bureauStoriesAPI.update.mockResolvedValue({ story: { id: 's1', castIds: ['c1', 'c3'] } });
@@ -84,13 +86,19 @@ describe('StoryCastModal', () => {
     const wrapper = mountModal();
 
     await button(wrapper, 'Add from library').trigger('click');
+    // A Bureau has one reader's character, and swapping it here would change every chapter.
+    expect(wrapper.findComponent(AddCastStub).props('allowPersona')).toBe(false);
     wrapper
       .findComponent(AddCastStub)
-      .vm.$emit('added', { castMember: { id: 'c4', name: 'Ines' } });
+      .vm.$emit('added', { castMember: { id: 'c4', name: 'Ines' }, attachedLorebookId: 'lb1' });
     await flushPromises();
 
     expect(wrapper.findComponent(AddCastStub).exists()).toBe(true);
-    expect(wrapper.emitted('cast-added')[0][0]).toEqual({ id: 'c4', name: 'Ines' });
+    // The whole result travels on, so the chapter can report the lorebook it attached.
+    expect(wrapper.emitted('cast-added')[0][0]).toEqual({
+      castMember: { id: 'c4', name: 'Ines' },
+      attachedLorebookId: 'lb1',
+    });
   });
 
   it('needs an API key to generate, and offers nothing to add once a chapter has ended', () => {
