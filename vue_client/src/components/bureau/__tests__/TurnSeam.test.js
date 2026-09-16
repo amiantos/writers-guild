@@ -125,6 +125,7 @@ describe('TurnSeam', () => {
     expect(wrapper.find('.seam-panel').text()).toContain('thinking mode');
   });
 
+  // Runs written before the Director was removed still show their brief and lookups.
   it('shows the brief, lookups, style findings, and fixes, and offers to revert a fix', async () => {
     const original = '"Coming?" Mara asked. "No," Theo said.';
     const replacement = '"Coming?" Mara asked.\n\n"No," Theo said.';
@@ -247,21 +248,6 @@ describe('TurnSeam', () => {
     expect(wrapper.findAll('button').some((button) => button.text().includes('Revert'))).toBe(
       false,
     );
-  });
-
-  it('shows the scene brief while the passage is written', async () => {
-    const wrapper = mount(TurnSeam, {
-      props: {
-        bureauId: 'b1',
-        live: { status: 'Writing...', reasoning: '', brief: { beats: ['Mara offers a lesson'] } },
-      },
-    });
-
-    await wrapper.find('.seam-toggle').trigger('click');
-
-    const panel = wrapper.find('.seam-panel').text();
-    expect(panel).toContain('Mara offers a lesson');
-    expect(panel).not.toContain('thinking mode');
   });
 
   it('shows the greeting a rewrite started from', async () => {

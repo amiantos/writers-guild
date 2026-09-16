@@ -3,9 +3,8 @@
  *
  * Writes a new character card from an idea (see "Character generator" in
  * docs/bureau-design.md) with one forced call to a strict create_character
- * tool. It backs both the standalone flow in a Bureau and the Director's
- * create_character tool. The card fits the Bureau's world and cast, and its
- * appearance block gives portraits a stable description to work from later.
+ * tool. The card fits the Bureau's world and cast, and its appearance block
+ * gives portraits a stable description to work from later.
  */
 
 import { labelImages } from './images.js';
@@ -95,9 +94,9 @@ function truncate(value, length) {
 
 /**
  * @param {Object} params
- * @param {string} params.idea - What the reader (or the Director) wants.
+ * @param {string} params.idea - What the reader wants.
  * @param {string} [params.name] - A name the character must have.
- * @param {string} [params.role] - Their part in the current story, for the Director.
+ * @param {string} [params.role] - Their part in the chapter they're created for.
  * @param {Array<Object>} params.cast - The Bureau's cast members, with seed cards.
  * @param {string[]} [params.world] - Short notes about the world, such as lorebook topics.
  */
@@ -200,9 +199,7 @@ export async function worldNotes(stores, bureauId) {
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {string} params.idea
  * @param {string} [params.name] - A name the character must have.
- * @param {string} [params.role] - Their part in the current story.
- * @param {import('./run-recorder.js').RunRecorder} [params.recorder] - Record into this run (the
- *   Director's) instead of a run of its own.
+ * @param {string} [params.role] - Their part in the chapter they're created for.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<{ card: Object, runId: string }>}
  */
@@ -213,13 +210,12 @@ export async function generateCharacter({
   idea,
   name = '',
   role = '',
-  recorder = null,
   signal,
 }) {
-  const ownRun = !recorder;
-  const run =
-    recorder ??
-    new RunRecorder(stores.bureaus, { bureauId: bureau.id, purpose: 'generate_character' });
+  const run = new RunRecorder(stores.bureaus, {
+    bureauId: bureau.id,
+    purpose: 'generate_character',
+  });
 
   try {
     const cast = stores.bureaus
@@ -293,10 +289,10 @@ export async function generateCharacter({
       request: { id: call.id, name: CREATE_CHARACTER_TOOL.name, arguments: character },
       response: { card },
     });
-    if (ownRun) run.complete();
+    run.complete();
     return { card, runId: run.runId };
   } catch (error) {
-    if (ownRun) run.fail(error);
+    run.fail(error);
     throw error;
   }
 }

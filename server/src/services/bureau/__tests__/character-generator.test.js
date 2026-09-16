@@ -189,27 +189,6 @@ describe('generateCharacter', () => {
     ]);
   });
 
-  it("records into a caller's run without finishing it", async () => {
-    const steps = [];
-    const recorder = {
-      runId: 'director-run',
-      recordStep: (step) => steps.push(step),
-      complete: () => steps.push('completed'),
-      fail: () => steps.push('failed'),
-    };
-
-    const { runId } = await generateCharacter({
-      stores,
-      bureau,
-      client: generatorClient(CHARACTER),
-      idea: 'A harbor pub owner',
-      recorder,
-    });
-
-    expect(runId).toBe('director-run');
-    expect(steps.map((step) => step.kind ?? step)).toEqual(['model', 'tool']);
-  });
-
   it('fails the run on a model failure or a broken answer', async () => {
     const failure = new DeepSeekError('DeepSeek API error 402 (insufficient balance)');
 

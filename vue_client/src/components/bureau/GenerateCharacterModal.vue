@@ -16,6 +16,28 @@
           repeating anyone.
         </p>
       </div>
+      <div class="form-group">
+        <label for="generate-name">Name (optional)</label>
+        <input
+          id="generate-name"
+          v-model="name"
+          type="text"
+          class="text-input"
+          placeholder="Leave this empty to let the generator choose"
+          :disabled="generating"
+        />
+      </div>
+      <div v-if="forChapter" class="form-group">
+        <label for="generate-role">Their part in this chapter (optional)</label>
+        <input
+          id="generate-role"
+          v-model="role"
+          type="text"
+          class="text-input"
+          placeholder="The courier who brings the letter"
+          :disabled="generating"
+        />
+      </div>
       <div class="generate-row">
         <button
           class="btn btn-secondary btn-small"
@@ -116,12 +138,16 @@ const APPEARANCE = [
 
 const props = defineProps({
   bureauId: { type: String, required: true },
+  /** Generating from inside a chapter, where a character has a part to play in it. */
+  forChapter: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close', 'added']);
 const toast = useToast();
 
 const idea = ref('');
+const name = ref('');
+const role = ref('');
 const card = ref(null);
 const generating = ref(false);
 const adding = ref(false);
@@ -133,7 +159,10 @@ const canAdd = computed(
 async function generate() {
   generating.value = true;
   try {
-    const result = await bureausAPI.generateCharacter(props.bureauId, idea.value.trim());
+    const result = await bureausAPI.generateCharacter(props.bureauId, idea.value.trim(), {
+      name: name.value.trim(),
+      role: role.value.trim(),
+    });
     result.card.data.extensions ??= {};
     result.card.data.extensions.bureau_appearance ??= {};
     card.value = result.card;

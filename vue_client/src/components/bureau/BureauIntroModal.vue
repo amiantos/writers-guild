@@ -64,12 +64,12 @@ const TERMS = [
   {
     name: 'Seams',
     description:
-      'Hover between turns to see how a passage was written: the plan, what was looked up, the prompt, and any fixes.',
+      'Hover between turns to see how a passage was written: the prompt, the reasoning, and any fixes.',
   },
   {
-    name: 'Director, Writer, Editor, Archivist',
+    name: 'Writer, Editor, Archivist',
     description:
-      "The Director plans each passage from the characters' memories and your lorebooks, the Writer writes it, the Editor fixes what the style checks catch (like two characters speaking in one paragraph), and the Archivist commits what happened to memory.",
+      "The Writer writes each passage from the characters' cards, their memories, and your lorebooks, the Editor fixes what the style checks catch (like two characters speaking in one paragraph), and the Archivist commits what happened to memory.",
   },
   {
     name: 'Memories',
@@ -99,7 +99,7 @@ const TERMS = [
   {
     name: 'Drafts',
     description:
-      'Characters generated in a Bureau, by you or by the Director when someone new walks into a chapter. They stay out of your library until you save them.',
+      "Characters you generate in a Bureau, from its cast section or while choosing who's in a chapter. They stay out of your library until you save them.",
   },
 ];
 </script>

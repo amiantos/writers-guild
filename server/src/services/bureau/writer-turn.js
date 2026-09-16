@@ -2,20 +2,18 @@
  * Writer Turn
  *
  * Generates one turn for a Bureau story and saves it as a new turn or a new
- * variant of an existing one. The Director plans the passage, the Writer
- * streams it, style lint checks it, and the Editor fixes what lint flags (see
- * "Generation pipeline" in docs/bureau-design.md). Every step is recorded in
- * one run, which the turn's seam displays.
+ * variant of an existing one. The Writer streams the passage, style lint
+ * checks it, and the Editor fixes what lint flags (see "Generation pipeline"
+ * in docs/bureau-design.md). Every step is recorded in one run, which the
+ * turn's seam displays.
  *
- * The Director and Editor only improve a turn: if either fails, the Writer
- * writes without a brief, or the unedited text is kept.
+ * The Editor only improves a turn: if it fails, the unedited text is kept.
  */
 
 import { ImagePreserver } from '../image-preserver.js';
 import { LorebookActivator } from '../lorebook-activator.js';
 import { chapterTime, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
-import { runDirector } from './director.js';
 import { runEditor } from './editor.js';
 import { imageStream } from './images.js';
 import { factsAsOf, memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
@@ -112,8 +110,8 @@ function pronounOf(member) {
  * @param {string|null} [params.regenerateTurnId] - Add a variant to this turn, writing from
  *   the turns before it, instead of appending a new turn.
  * @param {(event: Object) => void} [params.onEvent] - Receives events as they happen: `run`,
- *   `stage` (directing, writing, or editing), `brief`, `reasoning`, `content` (with images in
- *   place of their markers), and `edits`.
+ *   `stage` (writing or editing), `reasoning`, `content` (with images in place of their
+ *   markers), and `edits`.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} The saved turn. When cancelled, the text written so far is
  *   saved, or null is returned if nothing was written yet.
@@ -188,48 +186,6 @@ export async function generateWriterTurn({
     });
   }
 
-  // The Director plans the passage, unless it's off, this is a plain Continue, or the passage
-  // rewrites a greeting, which already says what happens.
-  let brief = null;
-  const director = bureau.settings.director;
-  if (
-    director.enabled &&
-    request.action !== 'greeting' &&
-    !(director.skipOnContinue && request.action === 'continue')
-  ) {
-    onEvent({ type: 'stage', stage: 'directing' });
-    try {
-      brief = await runDirector({
-        stores,
-        bureau,
-        story,
-        cast,
-        turns,
-        request: promptRequest,
-        client,
-        recorder,
-        signal,
-      });
-    } catch (error) {
-      if (isCancellation(error)) {
-        recorder.finish('cancelled', 'Cancelled');
-        return null;
-      }
-      // A stalled DeepSeek would keep the Writer waiting too, so the turn ends here. The
-      // Director's failed call is already recorded.
-      if (error instanceof DeepSeekError && error.timedOut) {
-        recorder.fail(error);
-        throw error;
-      }
-      // Failed model calls are already recorded; note anything else. Either way the Writer
-      // goes on without a brief.
-      if (!(error instanceof DeepSeekError)) {
-        recorder.recordStep({ role: 'director', kind: 'model', error: error.message });
-      }
-    }
-    if (brief) onEvent({ type: 'brief', brief });
-  }
-
   onEvent({ type: 'stage', stage: 'writing' });
   // A greeting being rewritten activates lore too; it's often all the chapter has so far.
   const scanText = [
@@ -249,7 +205,7 @@ export async function generateWriterTurn({
       arcNotesByCast,
       facts: factsAsOf(stores.facts.listFacts(bureau.id), story),
       turns,
-      request: { ...promptRequest, brief },
+      request: promptRequest,
       // Turns stop before a turn being regenerated, so the time is the chapter's as of that turn.
       startTime: story.startTime,
       settingYear: settingYear(bureau, chapterTime(story, turns).time),

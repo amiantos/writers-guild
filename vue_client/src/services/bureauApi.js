@@ -282,8 +282,11 @@ export const bureausAPI = {
   },
 
   /** Generate a character card from an idea, without saving it. */
-  generateCharacter(bureauId, idea) {
-    return request(`/${bureauId}/characters/generate`, { method: 'POST', body: { idea } });
+  generateCharacter(bureauId, idea, { name = '', role = '' } = {}) {
+    return request(`/${bureauId}/characters/generate`, {
+      method: 'POST',
+      body: { idea, name, role },
+    });
   },
 
   /** Add a generated card to the cast as a draft, kept only in this Bureau. */
@@ -406,8 +409,8 @@ export const bureauStoriesAPI = {
   },
 
   /**
-   * Stream the next turn. Events: turn (the reader's new turn), run, stage (directing,
-   * writing, or editing), brief, reasoning, content, edits, and done (with userTurn and turn).
+   * Stream the next turn. Events: turn (the reader's new turn), run, stage (writing or
+   * editing), reasoning, content, edits, and done (with userTurn and turn).
    * @param {{ action: 'write'|'direct'|'continue'|'greeting', text?: string, castId?: string }}
    *   generation - 'greeting' has the Writer rewrite text, a greeting from castId's card, as the
    *   chapter's opening.

@@ -1,7 +1,7 @@
 /**
  * Profile Text
  *
- * A cast member's card as the Director, the Archivist, and offscreen life read it: whole, with
+ * A cast member's card as the Archivist and offscreen life read it: whole, with
  * {{user}} and {{char}} as names and images as short labels. The Writer and replies build their own,
  * since the Writer keeps images as markers it can write back.
  */

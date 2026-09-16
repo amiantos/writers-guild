@@ -160,9 +160,11 @@
       :bureau-id="bureauId"
       :story="story"
       :cast="cast"
+      :has-api-key="bureau.hasApiKey"
       :readonly="story.status !== 'active'"
       @close="showCast = false"
       @updated="handleStoryUpdated"
+      @cast-added="castAdded"
       @profile="profileCastId = $event.id"
     />
     <ProfileModal
@@ -234,7 +236,6 @@ const HIGHLIGHT_DURATION = 2500;
 const READER_SCROLL_EVENTS = ['wheel', 'touchmove', 'pointerdown', 'keydown'];
 
 const STAGE_LABELS = {
-  directing: 'Planning the scene...',
   writing: 'Writing...',
   editing: 'Editing...',
 };
@@ -340,7 +341,7 @@ async function load() {
 async function refreshStory() {
   try {
     const data = await bureauStoriesAPI.get(props.bureauId, props.storyId);
-    // The Director can add someone to the story, including a character it just created.
+    // Someone added from "Who's in this chapter" may be new to the Bureau's cast.
     if (data.story.castIds.some((castId) => !castById.value[castId])) {
       cast.value = (await bureausAPI.listCast(props.bureauId)).cast;
     }
@@ -348,6 +349,16 @@ async function refreshStory() {
     turns.value = data.turns;
   } catch (error) {
     toast.error('Failed to refresh the chapter: ' + error.message);
+  }
+}
+
+/** Someone added from "Who's in this chapter" is new to the Bureau's cast. */
+async function castAdded(member) {
+  try {
+    cast.value = (await bureausAPI.listCast(props.bureauId)).cast;
+    toast.success(`${member.name} joined the cast.`);
+  } catch (error) {
+    toast.error('Failed to refresh the cast: ' + error.message);
   }
 }
 
@@ -424,7 +435,6 @@ async function runStream(start, { regenerateTurnId = null, composerText = '' } =
     status: 'Starting...',
     content: '',
     reasoning: '',
-    brief: null,
     runId: null,
     regenerateTurnId,
   };
@@ -450,8 +460,6 @@ async function runStream(start, { regenerateTurnId = null, composerText = '' } =
         pending.value.runId = event.runId;
       } else if (event.type === 'stage') {
         pending.value.status = STAGE_LABELS[event.stage] ?? pending.value.status;
-      } else if (event.type === 'brief') {
-        pending.value.brief = event.brief;
       } else if (event.type === 'reasoning') {
         pending.value.reasoning += event.text;
         pending.value.status = 'Thinking...';

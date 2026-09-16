@@ -39,12 +39,6 @@ const CHAPTER_TEXT_KINDS = ['prose', 'scene_break', 'time_passes'];
 const KEEP_TO_THE_TIME =
   'Let the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this';
 
-const BRIEF_LENGTHS = {
-  short: 'Write 1 or 2 paragraphs.',
-  medium: 'Write 3 or 4 paragraphs.',
-  long: 'Write 5 to 7 paragraphs.',
-};
-
 const MEMORIES_PREFACE =
   "What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.";
 
@@ -203,33 +197,21 @@ function instructionFor({
     lines.push(
       `${readerName} is the reader's character, so ${leftToReader}. ${readerName} stays in the scene as the chapter last left ${readerName}.`,
     );
+    // The reader has just written a passage of their own, which is the moment the Writer is most
+    // likely to carry on with their character.
+    if (request.action === 'write') {
+      lines.push(
+        `The last passage is the reader's own: take it up with the other characters rather than carrying on what ${readerName} was doing in it.`,
+      );
+    }
   }
   lines.push(...timeLines);
 
-  const { brief } = request;
-  if (brief) {
-    lines.push(
-      `Scene brief from the Director:\n${brief.beats.map((beat) => `- ${beat}`).join('\n')}`,
-    );
-    if (brief.tone) lines.push(`Tone: ${brief.tone}.`);
-    if (brief.memories?.length > 0) {
-      const memories = brief.memories.map(
-        (memory) => `- ${memory.content}${memory.reason ? ` (${memory.reason})` : ''}`,
-      );
-      lines.push(`Stay consistent with:\n${memories.join('\n')}`);
-    }
-    if (brief.notes) lines.push(`Notes: ${brief.notes}`);
-  }
-
-  if (brief && BRIEF_LENGTHS[brief.length]) {
-    lines.push(BRIEF_LENGTHS[brief.length]);
-  } else {
-    lines.push(
-      hasProse
-        ? 'Write as much as the moment needs, usually 2 to 4 paragraphs. A quick exchange or a reaction can be a single paragraph: stop rather than pad.'
-        : 'Write 3 to 5 paragraphs.',
-    );
-  }
+  lines.push(
+    hasProse
+      ? 'Write as much as the moment needs, usually 2 to 4 paragraphs. A quick exchange or a reaction can be a single paragraph: stop rather than pad.'
+      : 'Write 3 to 5 paragraphs.',
+  );
   if (readerName) {
     lines.push(
       `${directed ? 'Once the direction is carried out, if' : 'If'} the moment turns to ${readerName}, such as a question put to ${readerName} or a choice only ${readerName} can make, end the passage there.`,
@@ -273,7 +255,6 @@ function instructionFor({
  * @param {string} [params.request.direction] - The direction text, for 'direct'.
  * @param {{ name: string, content: string }} [params.request.greeting] - For 'greeting': the
  *   greeting from a character card to rewrite as the chapter's opening.
- * @param {Object|null} [params.request.brief] - The Director's scene brief (see director.js).
  * @param {string|null} [params.startTime] - When the chapter began (ISO), so the Writer knows
  *   the exact time.
  * @param {string|null} [params.settingYear] - The year to name as setting, for a story set in

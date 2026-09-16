@@ -118,7 +118,6 @@ describe('Bureau story routes', () => {
       libraryCharacterId: 'c2',
       isPersona: true,
     });
-    stores.bureaus.updateSettings(bureau.id, { director: { enabled: false } });
     bureau = stores.bureaus.getBureau(bureau.id);
 
     client = fakeClient();

@@ -484,14 +484,25 @@ router.post(
     const { bureauId } = req.params;
     const bureau = requireBureau(stores.bureaus, bureauId);
     requireApiKey(bureau);
-    const idea = optionalString(req.body ?? {}, 'idea');
+    const body = req.body ?? {};
+    const idea = optionalString(body, 'idea');
     if (!idea) {
       throw new AppError('idea is required', 400);
     }
+    // Someone created from a chapter usually has a name and a part to play already.
+    const name = optionalString(body, 'name') ?? '';
+    const role = optionalString(body, 'role') ?? '';
 
     const client = createBureauClient(req, stores.bureaus.getBureauCredentials(bureauId));
     try {
-      const { card, runId } = await generateCharacter({ stores, bureau, client, idea });
+      const { card, runId } = await generateCharacter({
+        stores,
+        bureau,
+        client,
+        idea,
+        name,
+        role,
+      });
       res.json({ card, runId });
     } catch (error) {
       if (error instanceof DeepSeekError) {

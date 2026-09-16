@@ -39,7 +39,7 @@ function toolTurn(name, args) {
   };
 }
 
-/** Give a streaming client a chat() for the Director and Editor, answering in order. */
+/** Give a streaming client a chat() for the Editor, answering in order. */
 function withChat(client, answers) {
   client.chatCalls = [];
   client.chat = async (options) => {
@@ -50,14 +50,6 @@ function withChat(client, answers) {
   };
   return client;
 }
-
-const BRIEF = {
-  beats: ['Mara answers the door'],
-  tone: 'warm',
-  length: 'short',
-  memories: [],
-  notes: '',
-};
 
 const TWO_SPEAKERS = '"Coming?" Mara asked. "No," Theo said.';
 const SPLIT_SPEAKERS = '"Coming?" Mara asked.\n\n"No," Theo said.';
@@ -104,8 +96,6 @@ describe('generateWriterTurn', () => {
       libraryCharacterId: 'c2',
       isPersona: true,
     });
-    // Tests turn the Director on where they need it.
-    stores.bureaus.updateSettings(created.id, { director: { enabled: false } });
     bureau = stores.bureaus.getBureau(created.id);
     story = stores.stories.createStory(bureau.id, {
       startTime: START,
@@ -529,94 +519,8 @@ describe('generateWriterTurn', () => {
     });
   });
 
-  describe('with the Director and Editor', () => {
-    it('plans with the Director, then writes from its brief', async () => {
-      stores.bureaus.updateSettings(bureau.id, { director: { enabled: true } });
-      stores.stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Theo knocked.' });
-      const client = withChat(
-        streamingClient([
-          { type: 'content', text: 'Mara opened the door.' },
-          done('Mara opened the door.'),
-        ]),
-        [toolTurn('submit_brief', BRIEF)],
-      );
-      const events = [];
-
-      const turn = await generate(
-        client,
-        { action: 'write' },
-        { onEvent: (event) => events.push(event) },
-      );
-
-      expect(events.filter((event) => ['stage', 'brief'].includes(event.type))).toEqual([
-        { type: 'stage', stage: 'directing' },
-        { type: 'brief', brief: BRIEF },
-        { type: 'stage', stage: 'writing' },
-      ]);
-      expect(client.chatCalls[0]).toMatchObject({ thinking: true, strict: true, stream: true });
-      expect(client.calls[0].messages[1].content).toContain(
-        'Scene brief from the Director:\n- Mara answers the door',
-      );
-      const steps = stores.bureaus.getRun(bureau.id, turn.runId).steps;
-      expect(steps.map((step) => [step.role, step.kind])).toEqual([
-        ['director', 'model'],
-        ['director', 'tool'],
-        ['writer', 'model'],
-        ['lint', 'tool'],
-      ]);
-    });
-
-    it('ends the turn when the Director times out, rather than waiting on the Writer too', async () => {
-      stores.bureaus.updateSettings(bureau.id, { director: { enabled: true } });
-      const stalled = new DeepSeekError(
-        'DeepSeek stopped responding: nothing arrived for 2 minutes',
-        { timedOut: true },
-      );
-      const client = withChat(
-        streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]),
-        [stalled],
-      );
-      let runId;
-
-      await expect(
-        generate(
-          client,
-          { action: 'direct', direction: 'Rain starts' },
-          { onEvent: (event) => (runId ??= event.runId) },
-        ),
-      ).rejects.toBe(stalled);
-
-      expect(client.calls).toHaveLength(0);
-      expect(stores.stories.listTurns(story.id)).toEqual([]);
-      expect(stores.bureaus.getRun(bureau.id, runId)).toMatchObject({
-        status: 'failed',
-        error: stalled.message,
-      });
-    });
-
-    it('skips the Director on a plain Continue, and writes without a brief if it fails', async () => {
-      stores.bureaus.updateSettings(bureau.id, { director: { enabled: true } });
-      const client = withChat(
-        streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]),
-        [new DeepSeekError('DeepSeek API error 503')],
-      );
-
-      await generate(client, { action: 'continue' });
-      expect(client.chatCalls).toHaveLength(0);
-
-      const turn = await generate(client, { action: 'direct', direction: 'Rain starts' });
-
-      expect(turn.content).toBe('Dusk.');
-      expect(client.calls[1].messages[1].content).not.toContain('Scene brief');
-      const run = stores.bureaus.getRun(bureau.id, turn.runId);
-      expect(run.status).toBe('completed');
-      expect(run.steps[0]).toMatchObject({ role: 'director', error: 'DeepSeek API error 503' });
-    });
-
-    it('rewrites a greeting without the Director, keeping an image the Writer leaves out', async () => {
-      stores.bureaus.updateSettings(bureau.id, {
-        director: { enabled: true, skipOnContinue: false },
-      });
+  describe('with the Editor', () => {
+    it('rewrites a greeting, keeping an image the Writer leaves out', async () => {
       const greeting = {
         name: 'Mara',
         content:

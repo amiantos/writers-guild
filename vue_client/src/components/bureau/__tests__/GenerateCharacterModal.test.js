@@ -55,7 +55,12 @@ describe('GenerateCharacterModal', () => {
   it('generates a card, lets it be edited, and adds it as a draft', async () => {
     const wrapper = await generated();
 
-    expect(bureausAPI.generateCharacter).toHaveBeenCalledWith('b1', 'A harbor pub owner');
+    expect(bureausAPI.generateCharacter).toHaveBeenCalledWith('b1', 'A harbor pub owner', {
+      name: '',
+      role: '',
+    });
+    // A part in a chapter is only asked for when generating from one.
+    expect(wrapper.find('#generate-role').exists()).toBe(false);
     expect(wrapper.find('#appearance-hair').element.value).toBe('grey braid');
     await wrapper.find('#generated-name').setValue('  Ines ');
     await button(wrapper, 'Add to cast').trigger('click');
@@ -67,6 +72,25 @@ describe('GenerateCharacterModal', () => {
       castMember: { id: 'c9', name: 'Ines', isDraft: true },
       savedToLibrary: false,
     });
+  });
+
+  it('sends a name and a part in the chapter when generating from one', async () => {
+    const wrapper = mount(GenerateCharacterModal, {
+      props: { bureauId: 'b1', forChapter: true },
+      global: { stubs: { Modal: ModalStub } },
+    });
+
+    await wrapper.find('#generate-idea').setValue('A courier who knows every shortcut');
+    await wrapper.find('#generate-name').setValue('  Tomas ');
+    await wrapper.find('#generate-role').setValue(' Brings the letter ');
+    await button(wrapper, 'Generate').trigger('click');
+    await flushPromises();
+
+    expect(bureausAPI.generateCharacter).toHaveBeenCalledWith(
+      'b1',
+      'A courier who knows every shortcut',
+      { name: 'Tomas', role: 'Brings the letter' },
+    );
   });
 
   it('saves the new character to the library too when asked', async () => {

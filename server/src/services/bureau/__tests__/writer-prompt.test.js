@@ -335,30 +335,21 @@ describe('buildWriterMessages', () => {
     expect(user).not.toMatch(/thinks to the reader|the moment turns to/);
   });
 
-  it("follows the Director's brief, including its length", () => {
+  it("takes up the reader's own passage with the other characters", () => {
     const { user } = build({
-      turns: [prose('The lamp was lit.')],
-      request: {
-        action: 'continue',
-        brief: {
-          beats: ['Mara hears the boat', 'She goes down to the dock'],
-          pov: 'Mara',
-          tone: 'uneasy',
-          length: 'short',
-          memories: [
-            { id: 1, character: 'Mara', content: "Theo can't swim.", reason: 'The boat is his' },
-          ],
-          notes: 'Keep the storm offstage.',
-        },
-      },
+      turns: [prose('The lamp was lit.'), prose('Theo knocked.', 'user')],
+      request: { action: 'write' },
     });
 
     expect(user).toContain(
-      "Scene brief from the Director:\n- Mara hears the boat\n- She goes down to the dock\nTone: uneasy.\nStay consistent with:\n- Theo can't swim. (The boat is his)\nNotes: Keep the storm offstage.\nWrite 1 or 2 paragraphs.",
+      "The last passage is the reader's own: take it up with the other characters rather than carrying on what Theo was doing in it.",
     );
-    expect(user).not.toContain('Write as much as the moment needs');
-    // An older brief may still carry a point of view; the Writer doesn't get it.
-    expect(user).not.toContain('Point of view');
+    // Only after the reader writes: a plain Continue says nothing about the last passage.
+    const continuing = build({
+      turns: [prose('The lamp was lit.')],
+      request: { action: 'continue' },
+    });
+    expect(continuing.user).not.toContain("The last passage is the reader's own");
   });
 
   it('keeps the scene moving once the story has prose', () => {

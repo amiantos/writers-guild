@@ -70,7 +70,7 @@ async function executeToolCall(call, handlers, signal) {
 /**
  * @param {Object} params
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
- * @param {string} params.role - Pipeline role recorded on each step, e.g. 'director'.
+ * @param {string} params.role - Pipeline role recorded on each step.
  * @param {Array<Object>} params.messages - Starting conversation; not mutated. Earlier
  *   assistant messages must keep their reasoning_content (see assistantMessage).
  * @param {Array<Object>} params.tools - Tool definitions: { name, description, parameters }.

@@ -11,17 +11,11 @@
 
     <div v-if="open" class="seam-panel">
       <template v-if="live">
-        <div v-if="live.brief" class="seam-block">
-          <div class="block-label">Scene brief</div>
-          <ol class="seam-list">
-            <li v-for="(beat, index) in live.brief.beats" :key="index">{{ beat }}</li>
-          </ol>
-        </div>
         <div v-if="live.reasoning" class="seam-block">
           <div class="block-label">Reasoning</div>
           <pre class="block-text">{{ live.reasoning }}</pre>
         </div>
-        <p v-else-if="!live.brief" class="seam-meta">
+        <p v-else class="seam-meta">
           Nothing to show yet. Reasoning streams in here when thinking mode is on.
         </p>
       </template>
@@ -134,7 +128,7 @@ const props = defineProps({
   /** The turn below this seam; absent for a turn still being written. */
   turn: { type: Object, default: null },
   castById: { type: Object, default: () => ({}) },
-  /** Live progress ({ status, reasoning, brief }) while the turn below is being written. */
+  /** Live progress ({ status, reasoning }) while the turn below is being written. */
   live: { type: Object, default: null },
   /** Disables reverting fixes while something is being written. */
   busy: { type: Boolean, default: false },
@@ -238,6 +232,7 @@ function pretty(value) {
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
 
+/** The scene brief of a run written before the Director was removed. */
 function briefOf(step) {
   if (step.kind !== 'tool' || step.request?.name !== 'submit_brief' || step.error) return null;
   const brief = parseJson(step.response);

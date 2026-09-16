@@ -116,56 +116,6 @@
       </fieldset>
 
       <fieldset class="writer-settings">
-        <legend>Director</legend>
-        <label class="checkbox-label">
-          <input
-            id="bureau-settings-director-enabled"
-            v-model="form.director.enabled"
-            type="checkbox"
-          />
-          Plan each passage with the Director
-        </label>
-        <template v-if="form.director.enabled">
-          <label class="checkbox-label">
-            <input
-              id="bureau-settings-director-skip"
-              v-model="form.director.skipOnContinue"
-              type="checkbox"
-            />
-            Skip planning for a plain Continue
-          </label>
-          <label class="checkbox-label">
-            <input
-              id="bureau-settings-director-create"
-              v-model="form.director.createCharacters"
-              type="checkbox"
-            />
-            Let the Director create new characters as drafts
-          </label>
-          <label class="checkbox-label">
-            <input v-model="form.director.thinking" type="checkbox" />
-            Thinking mode
-          </label>
-          <div v-if="form.director.thinking" class="form-group">
-            <label for="bureau-settings-director-effort">Reasoning effort</label>
-            <select
-              id="bureau-settings-director-effort"
-              v-model="form.director.reasoningEffort"
-              class="select-input"
-            >
-              <option value="low">Low</option>
-              <option value="high">High</option>
-              <option value="max">Max</option>
-            </select>
-          </div>
-        </template>
-        <p class="help-text">
-          The Director looks up memories and lore, then gives the Writer a scene brief. Both show in
-          each turn's seam.
-        </p>
-      </fieldset>
-
-      <fieldset class="writer-settings">
         <legend>Style checks</legend>
         <label class="checkbox-label">
           <input
@@ -248,7 +198,6 @@
         <p class="help-text">
           What prompts include for each character: everything they know that's pinned, then the most
           important of the rest up to the budget, in characters of text, and their latest episodes.
-          In chapters, the Director can still look up the rest.
         </p>
       </fieldset>
 
@@ -409,7 +358,6 @@ function snapshot(bureau) {
     // To the minute on the Bureau's clock, as the date field shows it.
     bureauTime: toDatetimeLocal(bureau.bureauTime, bureau.timezone),
     writer: { ...bureau.settings.writer },
-    director: { ...bureau.settings.director },
     editor: { ...bureau.settings.editor },
     memory: { ...bureau.settings.memory },
     correspondence: { ...bureau.settings.correspondence },
@@ -475,7 +423,6 @@ async function save() {
     houseStyle: form.houseStyle,
     settings: {
       writer: { ...form.writer },
-      director: { ...form.director },
       editor: { ...form.editor },
       memory: { ...form.memory },
       style: { bannedPhrases: phrasesFrom(form.bannedPhrases) },

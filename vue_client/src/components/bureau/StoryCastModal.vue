@@ -18,6 +18,19 @@
           </button>
         </div>
       </div>
+      <div v-if="!readonly" class="cast-actions">
+        <button class="btn btn-secondary btn-small" @click="showLibrary = true">
+          <i class="fas fa-book"></i> Add from library
+        </button>
+        <button
+          class="btn btn-secondary btn-small"
+          :disabled="!hasApiKey"
+          :title="hasApiKey ? '' : 'This Bureau needs an API key to generate a character.'"
+          @click="showGenerate = true"
+        >
+          <i class="fas fa-wand-magic-sparkles"></i> Generate a character
+        </button>
+      </div>
     </div>
 
     <template #footer>
@@ -34,11 +47,28 @@
       </button>
     </template>
   </Modal>
+
+  <AddCastModal
+    v-if="showLibrary"
+    :bureau-id="bureauId"
+    :cast="cast"
+    @added="castAdded"
+    @close="showLibrary = false"
+  />
+  <GenerateCharacterModal
+    v-if="showGenerate"
+    :bureau-id="bureauId"
+    for-chapter
+    @added="castAdded"
+    @close="showGenerate = false"
+  />
 </template>
 
 <script setup>
 import { ref } from 'vue';
 import Modal from '../Modal.vue';
+import AddCastModal from './AddCastModal.vue';
+import GenerateCharacterModal from './GenerateCharacterModal.vue';
 import { bureauStoriesAPI } from '../../services/bureauApi';
 import { useToast } from '../../composables/useToast';
 
@@ -46,14 +76,31 @@ const props = defineProps({
   bureauId: { type: String, required: true },
   story: { type: Object, required: true },
   cast: { type: Array, required: true },
+  hasApiKey: { type: Boolean, default: false },
   readonly: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['close', 'updated', 'profile']);
+const emit = defineEmits(['close', 'updated', 'profile', 'cast-added']);
 const toast = useToast();
 
 const castIds = ref([...props.story.castIds]);
 const saving = ref(false);
+const showLibrary = ref(false);
+const showGenerate = ref(false);
+
+/**
+ * Someone added here joins the Bureau's cast, so they're ticked into the chapter and left for
+ * Save. The library stays open for adding several; the generator is done once its card is added.
+ */
+function castAdded(result) {
+  showGenerate.value = false;
+  const member = result?.castMember;
+  if (!member) return;
+  if (!castIds.value.includes(member.id)) {
+    castIds.value.push(member.id);
+  }
+  emit('cast-added', member);
+}
 
 async function save() {
   saving.value = true;
@@ -78,5 +125,11 @@ async function save() {
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
+}
+
+.cast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 </style>

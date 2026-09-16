@@ -1,7 +1,7 @@
 # Bureau — Design Doc
 
 - **Status:** Experimental; phases 1–9 are built
-- **Started:** 2026-09-11 (last updated 2026-09-14)
+- **Started:** 2026-09-11 (last updated 2026-09-15)
 - **Working name:** Bureau (not final)
 - **Branch:** built on `feature/bureau` and merged into `main` in PR #51
 - **Discussion:** [#49 Chat Mode + Memories](https://github.com/amiantos/writers-guild/discussions/49)
@@ -13,9 +13,9 @@ characters who remember, change, and keep living between chapters. Each Bureau i
 environment: a cast, a world, an ordered set of chapters, correspondence between chapters, and one
 shared clock, **Bureau time**.
 
-Generation is agentic. A **Director** gathers what a scene needs using tools, a **Writer** produces
-the prose, an **Editor** enforces house style, and an **Archivist** turns what happened into
-memories.
+A **Writer** produces the prose, an **Editor** enforces house style, and an **Archivist** turns what
+happened into memories. A **Director** used to plan each passage first; it was removed on September
+15, 2026 (see [Generation pipeline](#generation-pipeline)).
 
 Story mode stays exactly as it is. Bureau imports existing code rather than changing it, and has its
 own routes, views, and database file.
@@ -155,7 +155,6 @@ Between every pair of turns is an invisible seam. Hovering reveals a thin divide
 expands in place to show how the turn below it was made:
 
 - Which cast member led the turn
-- The Director's reasoning, each tool call with its result, and the scene brief
 - The Writer's reasoning, if thinking was on
 - Style lint flags and each Editor fix, with the original text and a revert button
 - Model, tokens, and timing for every step
@@ -164,9 +163,8 @@ expands in place to show how the turn below it was made:
 Collapsed, a chapter reads like a book. Expanded, it reads like an agent transcript. Everything
 stays in one interface, and no separate screen is needed to see how a turn was made.
 
-- **While a turn is generating,** its seam stays visible with a one-line live status (for example
-  "Recalling: the lighthouse"). Clicking it shows the reasoning as it streams. It collapses when the
-  turn is done.
+- **While a turn is generating,** its seam stays visible with a one-line live status ("Writing…",
+  "Editing…"). Clicking it shows the reasoning as it streams. It collapses when the turn is done.
 - **Touch screens have no hover,** so on touch devices seams show as a faint marker you can tap.
 - **User-written turns** have seams too, showing only when they were written and whether they've
   been edited.
@@ -180,7 +178,7 @@ actions:
   preview bar). Its instructions are the same as Continue's.
   Ctrl or ⌘ + Enter also writes.
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate. The
-  Director and Writer treat a direction as something that hasn't happened yet and write it happening.
+  Writer treats a direction as something that hasn't happened yet and writes it happening.
 - **Continue:** generate with no new input.
 - **Greeting**, while the chapter has no prose yet, offers the greetings on the cards of everyone in
   it (first messages and alternate greetings), with the reader's character as `{{user}}`. As in
@@ -188,8 +186,7 @@ actions:
   - **Rewrite** has the Writer write the chapter's opening from the greeting, in the house style
     and with everything a passage gets: the cast's cards, the world, memories, and the chapter's
     time. It keeps the greeting's events, dialogue, and images, and follows the chapter where they
-    disagree. The Director sits it out, the seam shows the greeting, and writing another version
-    rewrites the same greeting.
+    disagree. The seam shows the greeting, and writing another version rewrites the same greeting.
   - **Keep as written** adds the greeting as it is on the card.
 - **Scene break** adds a divider without generating, and **Stop** ends a generation early while
   keeping whatever was already written.
@@ -197,9 +194,8 @@ actions:
   Time passes elsewhere, and adds a divider showing the new time (see
   [Bureau time](#bureau-time)).
 
-The reader's character belongs to the reader. The Director and Writer leave what they say, do,
-decide, and think to the reader, including choices made without a word, like writing something down
-or nodding along. They stay in the scene as the chapter last left them. A direction is the
+The reader's character belongs to the reader. The Writer leaves what they say, do, decide, and think
+to the reader, including choices made without a word, like writing something down or nodding along. They stay in the scene as the chapter last left them. A direction is the
 exception: whatever it has the reader's character say or do gets written, and nothing beyond it. A
 rewritten greeting keeps what the card has them do and adds nothing. When the moment turns to the
 reader's character, such as a question put to them or a choice only they can make, the passage ends
@@ -243,13 +239,12 @@ clicked to show someone else. A portrait is the library character's image, so dr
 
 ## Generation pipeline
 
-A generated turn passes through up to four roles. All use DeepSeek V4.1 Flash with different prompts
-and settings.
+A generated turn passes through up to three roles. Both model roles use DeepSeek V4.1 Flash with
+different prompts and settings.
 
 ```mermaid
 flowchart LR
-  U[Composer input] --> D[Director<br/>thinking + tools]
-  D -->|scene brief| W[Writer<br/>streaming prose]
+  U[Composer input] --> W[Writer<br/>streaming prose]
   W --> L[Style lint<br/>code checks]
   L -->|flagged paragraphs| E[Editor<br/>targeted fixes]
   L -->|clean| T[(Turn saved)]
@@ -258,58 +253,49 @@ flowchart LR
 ```
 
 **Why split the roles:** Writers Guild exists because chat formatting made models worse
-storytellers, and a tool-calling transcript likely does the same to prose. Splitting keeps the
-Writer's prompt clean, keeps streaming simple, and lets each role be tuned on its own. This is a
-hypothesis. Because every run is recorded, it should be cheap to A/B against a single agent that
-calls tools and writes in one conversation.
+storytellers, and a tool-calling transcript likely does the same to prose. Keeping the Writer's
+prompt prose-only keeps streaming simple and lets each role be tuned on its own. It's also why the
+Writer has no tools of its own: creating a character mid-passage would put a tool call and its
+result in the conversation the prose comes out of.
 
-**Fast path:** a plain Continue skips the Director by default, to keep latency down. The Director and
-Editor only improve a turn: if the Director fails or answers without a brief, the Writer writes
-without one, and if the Editor fails, the unedited text stands.
+**The Editor only improves a turn:** if it fails, the unedited text stands.
 
-### Director
+### The Director, and why it was removed
 
-Reads the chapter cast's whole profiles (description and personality, with `{{user}}` as the
-reader's character), the established facts, the recent turns, and the composer input, and uses tools
-to gather what the next turn needs. It's told the profiles and facts are true: it plans nothing that
-contradicts them, and when a memory disagrees with a profile or fact, it goes by the profile or fact.
-It used to see only the first 300 characters of each description, which left out anything written
-deeper in a card, such as who a character lives with.
+Until September 15, 2026 a **Director** planned each passage before the Writer wrote it. It read the
+chapter and the composer input, looked things up with tools (`recall`, `lookup_lore`,
+`get_character_file`), could add a new character with `create_character`, and handed the Writer a
+**scene brief**: beats, tone, a target length, memories to stay consistent with, and continuity
+notes. It ran on Write and Direct, and a plain Continue skipped it.
 
-| Tool                                  | Purpose                                                                                                    |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `recall(query, character)`            | Full-text search over what the characters remember, as of the chapter's start                              |
-| `lookup_lore(query)`                  | Search attached lorebooks beyond what keyword activation already selected                                  |
-| `get_character_file(name)`            | What one cast member knows and their latest episodes, with their card and how they've changed              |
-| `submit_brief(...)`                   | Hand the Writer the scene brief, which ends the Director's turn                                            |
-| `create_character(name, role, notes)` | Generate a draft cast member and add them to the chapter (see [Character generator](#character-generator)) |
+It was removed because the planning made the prose worse and the research turned out to be
+redundant:
 
-Output is a **scene brief**, returned through `submit_brief`'s strict schema: beats, tone, target
-length, memories (only ones the Director found and the passage depends on, each with a
-one-line reason; usually none), and notes on continuity the Writer could get wrong. Beats say plainly
-what happens and leave dialogue and wording to the Writer. A brief covers one thing, or two at
-most: allowed up to four beats, the Director nearly always used four, and passages filled with
-busywork. Strict schemas can't cap an array, so `submit_brief` sends back a brief with more. A
-passage isn't built around one
-character's point of view: it can follow several characters at once as they interact. Beats leave
-what the reader's character says, does, decides, and thinks to the reader, unless a direction asks
-for it, and end where the moment turns to them. The brief
-doesn't restate the cards or
-plan callbacks to earlier events unless the scene is about them: memories are background, and
-characters who keep bringing up the past read as talky and artificial. Beats also don't repeat an
-action or bit of business the recent passages already have unless something new comes of it, and
-notes leave out props the passage doesn't need. Beats keep to the chapter's present, with no jump to
-a later hour or day and no new secret, twist, or trouble unless the request asks for one. Nobody
-repeats a point already made, and the length fits the moment: short for a quick exchange or a single
-beat. The Director runs with
-thinking on at low effort by default and gets four lookups per passage, after which it's told to
-hand over its brief. Creating a character isn't a lookup; it has its own limit of two per passage. A successful `submit_brief` call
-ends the tool loop without another model call. `recall` only finds what the chapter can see:
-memories from before its start, and this chapter's memories from passages before the one being
-written.
-Searching the raw turns a character witnessed is a later addition. When the reader brings in someone
-new by name, `create_character` generates them as a draft cast member before the brief is written,
-and hands the Director back the new card's whole description and personality.
+- **Briefs padded passages.** In 20-passage test chapters, Write passages ran 332 words with a
+  two-beat brief against 257 with the Director off, and Direct passages 457 against 370. Capping
+  beats at four, then at two, didn't fix it: the Director drafted three to five beats anyway and
+  crammed them into long compound ones.
+- **The brief's length replaced the Writer's judgment.** It chose "medium" in 11 briefs of 14, which
+  told the Writer to write 3 or 4 paragraphs instead of as much as the moment needed.
+- **Its research repeated what the Writer already had.** Of the 26 memories its briefs cited across
+  every Director run in local use, 2 came from the chapter the Writer reads in full, 2 were a
+  character's latest episode (the Writer gets the last three), and the rest were knowledge inside
+  the Writer's 4,000-character allowance. Lore it looked up had no field in the brief at all, and
+  reached the Writer only if restated in the notes.
+- **It was the slowest, costliest step:** 14 to 18 seconds a passage against 3 to 4 without it, and
+  more than twice the tokens.
+
+Two things it did needed a home:
+
+- **Leaving the reader's character to the reader.** Without a brief, the Writer carried on the
+  reader's character's own action after a Write in 6 passages of 16, against 1 of 16 with one. The
+  Writer's instructions now say so for Write directly (see [Writer](#writer)).
+- **Creating a character mid-chapter.** The reader does this now, from "Who's in this chapter" (see
+  [Character generator](#character-generator)).
+
+**Later, if memory outgrows the prompt:** once a character's knowledge passes the Writer's budget, or
+their older episodes start to matter, match memories by keyword over the recent turns, the way
+lorebook entries activate. That needs no model call and no wait.
 
 ### Writer
 
@@ -322,12 +308,12 @@ context caching:
 3. Established facts, "true in this story unless the chapter itself shows one changing" (see
    [Established facts](#established-facts))
 4. Always-on memories, with a reminder that a profile or established fact wins when a memory
-   disagrees (memories the brief names travel with the brief, in step 7)
+   disagrees
 5. World: lorebook entries (selected by `LorebookActivator` over recent turns) and the setting year
 6. This chapter's prose so far (oldest turns truncated first). Summaries of earlier chapters don't
    reach the Writer yet.
-7. The scene brief and composer input, plus the chapter's exact time: when it began, or when time
-   last passed in it (see [Time in prompts](#time-in-prompts))
+7. The composer input, plus the chapter's exact time: when it began, or when time last passed in it
+   (see [Time in prompts](#time-in-prompts))
 
 Long chapters tend to drift. In 20-passage test chapters, later passages grew longer, with long
 "and"-chained sentences and narration explaining what each gesture meant. The same mannerisms and
@@ -339,6 +325,8 @@ ended on summing-up lines. Several prompt rules push against this:
   where the last passage stopped, with no time skip or new twist unless asked.
 - Nobody repeats a point, a figure, or a line, and passages end on what someone does or says.
 - The chapter so far counts as story, not as a model for the prose.
+- After the reader writes a passage of their own, the Writer takes it up with the other characters
+  rather than carrying on what the reader's character was doing in it.
 
 The Writer's temperature defaults to 0.8. At 1.5, test passages dissolved into word salad partway
 through. Message replies use the same temperature. Bureaus that saved their settings before keep
@@ -357,10 +345,10 @@ to show when something happens.
   writes comes back as that image. While a passage streams, each marker shows as its image as soon
   as it's complete. A rewritten greeting keeps its images: any the Writer leaves out go at the end,
   as in story mode's rewrite.
-- The other roles only read images. The Director, Editor, Archivist, replies, offscreen life, and
-  the character generator get each one as a short label from its alt text, such as
+- The other roles only read images. The Editor, Archivist, replies, offscreen life, and the
+  character generator get each one as a short label from its alt text, such as
   `[image: the harbor at dawn]`. A cached asset URL is long and no use to a model, and it would
-  crowd out the words around it, as in a lorebook entry the Director looks up.
+  crowd out the words around it, as in a lorebook entry a prompt carries.
 - Messages don't show images, so a reply can't send one.
 
 ### Style lint and Editor
@@ -509,8 +497,8 @@ participants. Offscreen life belongs to the character who lived it until they sh
 tracked per chapter at first; per-turn presence (someone leaving mid-scene) can come later.
 
 The reader's character remembers like everyone else: the Archivist records what the passages show
-them saying, doing, or learning, and the Writer and Director see it. They differ only in being the
-character the reader writes as.
+them saying, doing, or learning, and the Writer sees it. They differ only in being the character the
+reader writes as.
 
 Phase 3 built seed cards, knowledge, and episodes. In the Writer prompt, each character gets their
 pinned knowledge, then the most important knowledge that fits a budget (4,000 characters by default),
@@ -539,7 +527,8 @@ sentence deep in a card.
 ### Retrieval
 
 SQLite FTS5, which is available in the app's better-sqlite3 build, indexes memories and the archive.
-Always-on layers cover most needs, and the Director's `recall` handles the long tail. Embeddings are a
+Always-on layers cover most needs; the long tail waits for keyword-matched recall in the Writer's
+prompt (see [Generation pipeline](#generation-pipeline)). Embeddings are a
 later option if full-text search misses too much (paraphrases, for example). Nothing depends on a
 DeepSeek embeddings endpoint; we couldn't confirm one exists.
 
@@ -596,7 +585,6 @@ memory disagrees:
 
 - **Writer:** an established facts section after the cast's profiles and before memories, "true in
   this story unless the chapter itself shows one changing"
-- **Director:** after the cast
 - **Replies and offscreen accounts:** the facts as of Bureau time, or the new time
 - **Archivist:** numbered, with the proposals waiting and the facts you turned down
 
@@ -632,9 +620,8 @@ A memory that disagrees with an established fact is held, like one that disagree
   changed"), and can write one yourself, which is accepted as written. Rejected notes stay as
   history, and an accepted note that was edited shows what was first proposed.
 - Accepted notes follow the same timeline rule as memories: a chapter sees notes from before its
-  start. The Writer gets them in the character's profile ("How Mara has changed"), and the
-  Director's `get_character_file` includes them. Changing a passage a note cites marks the note for
-  review.
+  start. The Writer gets them in the character's profile ("How Mara has changed"). Changing a
+  passage a note cites marks the note for review.
 - **Why the Archivist doesn't rewrite the profile:** repeated LLM rewrites flatten a character toward
   bland and agreeable. A profile that only you change anchors the voice; notes only add.
 - **Drift check (later):** periodically compare recent dialogue against the profile's voice and flag
@@ -726,7 +713,7 @@ material yours: the model asks and writes up, but the facts come from your answe
   of day.
 - After a quiet stretch, a reply first gets the character an account of what they did meanwhile (see
   [Offscreen life](#offscreen-life)); the reply's seam shows it as part of the run.
-- **Later:** the Director for replies that need tools, characters message first, and other delivery
+- **Later:** replies that can look things up, characters message first, and other delivery
   channels such as an IRC bridge.
 
 ## Bureau time
@@ -779,13 +766,13 @@ the clock, but that didn't keep the clock out of the prose: told only that it wa
 midnight, a character would name a precise time that disagreed with Bureau time. Now that only the
 reader moves the clock, the time is deliberate, so the prompts say it exactly:
 
-- The Writer and Director get the chapter's time with every passage: "This chapter begins at
+- The Writer gets the chapter's time with every passage: "This chapter begins at
   exactly ..." for the opening, then "When the chapter began, the time was exactly ...", or, once
   time has passed in the chapter, when it last passed. Right after time passes, they pick the story
   up at the new time.
 - The Writer lets the time shape the scene without dwelling on the clock, and keeps any mention of
   the time consistent with it and with how much has happened since.
-- In the chapter text the Writer, Director, and Archivist read, time passing is a scene break
+- In the chapter text the Writer and Archivist read, time passing is a scene break
   followed by "[Time passes. It's now exactly ...]". An Archivist pass only reads its own
   passages, so one that starts after time has passed is also told when it last passed.
 - **Correspondence** gets the exact time at the start of the transcript, after each long gap, and
@@ -854,14 +841,15 @@ to the chapters.
 - **From a Bureau:** "Generate character" in the cast section takes a seed idea and produces a full
   V2 card (name, description, personality, scenario, first message, example dialogue, tags) and a
   structured **appearance block**. You review and edit it, then add it to the cast as a draft, or add
-  it and save it to the library at once.
-- **Director tool:** when a new named character enters a chapter,
-  `create_character(name, role, notes)` generates a **draft cast member** and adds them to the
-  chapter's cast. It creates at most two characters per passage, apart from the Director's lookups,
-  and can be turned off in the Bureau's settings. Someone already in the Bureau but not in the
-  chapter joins it instead of being created again; a failed generation can be retried.
+  it and save it to the library at once. A name can be given up front, so the card comes back as the
+  character you had in mind.
+- **From a chapter:** "Who's in this chapter" adds someone to the cast without leaving the chapter,
+  from the library or from the generator, and ticks them into the chapter ready to save. Generating
+  there also takes their part in the chapter, which the generator writes the card around. Until
+  September 15, 2026 the Director created characters mid-passage instead (see
+  [The Director, and why it was removed](#the-director-and-why-it-was-removed)).
 - **Drafts** exist only in their Bureau, so new characters stay consistent without cluttering the
-  library. The Director, Writer, and Archivist treat them like anyone else. "Save to library" on a
+  library. The Writer and Archivist treat them like anyone else. "Save to library" on a
   draft's cast row saves its card as a new library character (without an image) and links the cast
   member to it.
 - **Appearance block:** hair, eyes, build, age range, clothing style, and distinguishing marks,
@@ -951,8 +939,7 @@ server/src/services/bureau/
   bureau-storage.js                      # queries
   deepseek-client.js                     # messages, tools, strict schemas, streaming
   tool-loop.js                           # runs tool calls until the model answers
-  writer-turn.js                         # Director → Writer → lint → Editor, one run per turn
-  director.js
+  writer-turn.js                         # Writer → lint → Editor, one run per turn
   writer-prompt.js
   style-lint.js
   editor.js
@@ -1017,7 +1004,7 @@ Each phase ends with something usable.
    - Chapter view with turns, rendering, composer, and per-turn edit, regenerate, and variants
    - Turn seams showing each run, including live status during generation
    - Starting and ending chapters with the Bureau time dialogs; the start time in the Writer's prompt
-   - Writer-only generation (no Director yet), with house style and lorebooks
+   - Writer-only generation, with house style and lorebooks
    - _Done when:_ writing a Bureau chapter is comfortable, images included, and every generated
      turn's seam shows how it was made.
 3. **Memory**
@@ -1028,9 +1015,11 @@ Each phase ends with something usable.
    - Director with tools and scene briefs, style lint, Editor; seams show briefs, recalls, and fixes
    - _Done when:_ multi-speaker paragraphs are caught and fixed, and the split can be compared against
      Writer-only generation using recorded runs.
+   - The recorded runs answered it: the Director was removed on September 15, 2026 (see
+     [The Director, and why it was removed](#the-director-and-why-it-was-removed)).
 5. **Character development:** arc note proposals and review; export to library.
-6. **Character generator:** standalone flow, `create_character` tool, draft cast members; portraits
-   afterward.
+6. **Character generator:** standalone flow, `create_character` tool (removed with the Director;
+   the reader generates characters from a chapter instead), draft cast members; portraits afterward.
 7. **Correspondence and offscreen life:** threads, Bureau time as a clock the reader moves with Time
    passes, offscreen life, episodes from sessions.
 8. **Profiles and interviews:** a profile to read and edit each cast member's card and routine, with
@@ -1050,7 +1039,7 @@ Each phase ends with something usable.
 | False or distorted memories               | Sources on every memory; editable; edited sources flag memories; a memory that contradicts a profile or fact is held for review     |
 | Agents contradict the cards and the world | Every role reads whole profiles and the established facts, told they win over memories                                              |
 | Prompt bloat dilutes attention            | Per-layer budgets, eras, long tail through `recall`                                                                                 |
-| Multi-step turns are slow or costly       | Fast path that skips the Director; Editor only on flagged paragraphs; stable prompt prefix                                          |
+| Multi-step turns are slow or costly       | One model call a passage since the Director was removed; Editor only on flagged paragraphs; stable prompt prefix                    |
 | Lint false positives cause bad edits      | Pure, unit-tested checks; every fix visible in its seam with one-click revert                                                       |
 | Characters get the time wrong             | The exact time in prompts, with mentions kept consistent with it and no dwelling on the clock                                       |
 | Offscreen life escalates into melodrama   | Generated only when Bureau time jumps forward, capped, mostly mundane by instruction                                                |

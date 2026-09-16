@@ -78,7 +78,7 @@ const MESSAGES = [
   {
     role: 'system',
     content:
-      'You are the Director in a story-writing pipeline. Gather facts with your tools before ' +
+      'You are a researcher in a story-writing pipeline. Gather facts with your tools before ' +
       'answering. Never invent memories or lore.',
   },
   {
@@ -210,7 +210,7 @@ async function main() {
           runId = recorder.runId;
           return runToolLoop({
             client,
-            role: 'director',
+            role: 'smoke',
             messages: MESSAGES,
             tools: TOOLS,
             handlers: HANDLERS,

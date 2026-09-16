@@ -12,7 +12,6 @@ describe('resolveSettings', () => {
     expect(Object.keys(resolveSettings({}))).toEqual([
       'writer',
       'memory',
-      'director',
       'editor',
       'style',
       'correspondence',
@@ -76,8 +75,7 @@ describe('applySettingsUpdate', () => {
     [{ memory: { knowledgeCharacters: -1 } }, /memory.knowledgeCharacters must be a whole number/],
     [{ memory: { recentEpisodes: 2.5 } }, /memory.recentEpisodes must be a whole number/],
     [{ memory: 'on' }, /settings.memory must be an object/],
-    [{ director: { enabled: 'yes' } }, /director.enabled must be true or false/],
-    [{ director: { reasoningEffort: 'medium' } }, /director.reasoningEffort must be one of/],
+    [{ director: { enabled: true } }, /Unknown settings group: director/],
     [{ editor: { enabled: null } }, /editor.enabled must be true or false/],
     [{ style: { bannedPhrases: 'a testament to' } }, /style.bannedPhrases must be a list/],
     [{ style: { bannedPhrases: [' '] } }, /style.bannedPhrases must be a list/],

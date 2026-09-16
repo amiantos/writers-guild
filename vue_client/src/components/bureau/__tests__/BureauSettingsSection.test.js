@@ -26,13 +26,6 @@ function bureau(fields = {}) {
     bureauTime: '2026-09-12T22:15:00.000Z',
     settings: {
       writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
-      director: {
-        enabled: true,
-        thinking: true,
-        reasoningEffort: 'low',
-        skipOnContinue: true,
-        createCharacters: true,
-      },
       editor: { enabled: true },
       memory: {
         autoArchive: true,
@@ -139,13 +132,11 @@ describe('BureauSettingsSection', () => {
     expect(saveButton.attributes('disabled')).toBeDefined();
   });
 
-  it('saves Director, Editor, memory, and banned phrase settings', async () => {
+  it('saves Editor, memory, and banned phrase settings', async () => {
     bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
     const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
     await flushPromises();
 
-    await wrapper.find('#bureau-settings-director-skip').setValue(false);
-    await wrapper.find('#bureau-settings-director-create').setValue(false);
     await wrapper.find('#bureau-settings-editor-enabled').setValue(false);
     await wrapper.find('#bureau-settings-offscreen-life').setValue(false);
     await wrapper.find('#bureau-settings-auto-archive').setValue(false);
@@ -162,13 +153,6 @@ describe('BureauSettingsSection', () => {
 
     expect(bureausAPI.update.mock.calls[0][1].settings).toEqual({
       writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
-      director: {
-        enabled: true,
-        thinking: true,
-        reasoningEffort: 'low',
-        skipOnContinue: false,
-        createCharacters: false,
-      },
       editor: { enabled: false },
       memory: {
         autoArchive: false,

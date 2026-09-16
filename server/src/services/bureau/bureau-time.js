@@ -121,7 +121,7 @@ export function chapterTime(story, turns) {
 }
 
 /**
- * How time passing reads in the chapter text the Writer, Director, and Archivist see, after a
+ * How time passing reads in the chapter text the Writer and Archivist see, after a
  * scene break.
  * @param {string} bureauTime - The time it passed to (ISO).
  * @param {string|null} timeZone - The Bureau's.

@@ -26,16 +26,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
     // When Bureau time jumps forward, give the characters involved an account of the gap.
     offscreenLife: true,
   }),
-  director: Object.freeze({
-    // Plan each passage with tools before the Writer writes it.
-    enabled: true,
-    thinking: true,
-    reasoningEffort: 'low',
-    // A plain Continue goes straight to the Writer.
-    skipOnContinue: true,
-    // Give a new named character a card and a place in the cast as a draft.
-    createCharacters: true,
-  }),
   editor: Object.freeze({
     // Rewrite paragraphs that style lint flags. Lint runs, and is recorded, either way.
     enabled: true,
@@ -84,14 +74,6 @@ const MEMORY_RULES = {
 
 const isBoolean = (value) => typeof value === 'boolean' || 'must be true or false';
 
-const DIRECTOR_RULES = {
-  enabled: isBoolean,
-  thinking: isBoolean,
-  reasoningEffort: WRITER_RULES.reasoningEffort,
-  skipOnContinue: isBoolean,
-  createCharacters: isBoolean,
-};
-
 const EDITOR_RULES = { enabled: isBoolean };
 
 const STYLE_RULES = {
@@ -117,7 +99,6 @@ const CORRESPONDENCE_RULES = {
 const RULES = {
   writer: WRITER_RULES,
   memory: MEMORY_RULES,
-  director: DIRECTOR_RULES,
   editor: EDITOR_RULES,
   style: STYLE_RULES,
   correspondence: CORRESPONDENCE_RULES,
@@ -130,7 +111,7 @@ function isPlainObject(value) {
 /**
  * Stored settings merged over the defaults.
  * @param {Object} [stored]
- * @returns {{ writer: Object, memory: Object, director: Object, editor: Object, style: Object,
+ * @returns {{ writer: Object, memory: Object, editor: Object, style: Object,
  *   correspondence: Object }}
  */
 export function resolveSettings(stored = {}) {
