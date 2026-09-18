@@ -76,11 +76,11 @@ describe('buildOffscreenMessages', () => {
           'c1',
           {
             knowledge: [{ content: "Theo can't swim." }],
-            episodes: [{ content: 'Fixed the lamp with Theo.' }],
             offscreen: { content: 'Painted the boathouse.' },
           },
         ],
       ]),
+      chaptersByCast: new Map([['c1', [{ summary: 'Mara fixed the lamp with Theo.' }]]]),
       notesByCast: new Map([['c1', [{ content: 'Mara lets Theo help now.' }]]]),
     });
 
@@ -96,7 +96,7 @@ describe('buildOffscreenMessages', () => {
         'Knows:',
         "- Theo can't swim.",
         'Recently:',
-        '- Fixed the lamp with Theo.',
+        '- Mara fixed the lamp with Theo.',
         'The last time away: Painted the boathouse.',
       ].join('\n'),
     );

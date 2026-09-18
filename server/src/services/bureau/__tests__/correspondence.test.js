@@ -102,10 +102,14 @@ describe('buildCorrespondenceMessages', () => {
       persona: theo,
       time: now,
       now,
-      memories: {
-        knowledge: [{ content: "Theo can't swim." }],
-        episodes: [{ content: 'Theo fixed the lamp.', sourceTitle: 'The Lamp Room' }],
-      },
+      memories: { knowledge: [{ content: "Theo can't swim." }], offscreen: null },
+      chapters: [
+        {
+          title: 'The Lamp Room',
+          startTime: '2026-10-20T20:00:00Z',
+          summary: '{{user}} fixed the lamp.',
+        },
+      ],
       arcNotes: [{ content: 'Mara lets Theo help now.' }],
       history: [
         message('user', 'You up?', '2026-10-24T21:00:00Z'),
@@ -118,7 +122,9 @@ describe('buildCorrespondenceMessages', () => {
     expect(system.content).toContain('Keeps the light for Theo.');
     expect(system.content).toContain('How Mara has changed:\n- Mara lets Theo help now.');
     expect(system.content).toContain("Mara knows:\n- Theo can't swim.");
-    expect(system.content).toContain('Mara remembers:\n- The Lamp Room: Theo fixed the lamp.');
+    expect(system.content).toContain(
+      '=== EARLIER CHAPTERS ===\nWhat happened in the latest chapters Mara was in, oldest first. Mara knows only what happened while Mara was there.\n\nThe Lamp Room (began 8:00 PM on Tuesday, October 20, 2026):\nTheo fixed the lamp.\n\n=== MEMORIES ===',
+    );
     expect(system.content).toContain(
       "Writing to each other doesn't mean they live apart, or even that they're apart right now",
     );

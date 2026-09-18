@@ -17,7 +17,13 @@ import { chapterBreaks, isSessionOver, threadSessions } from './archivist.js';
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
 import { DeepSeekError } from './deepseek-client.js';
 import { labelImages } from './images.js';
-import { factsAtTime, memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
+import {
+  earlierChapters,
+  factsAtTime,
+  memoriesAtTime,
+  notesAtTime,
+  selectForPrompt,
+} from './memory.js';
 import { findOffscreenGaps, generateOffscreenLife } from './offscreen.js';
 import { RunRecorder } from './run-recorder.js';
 import { activatedLore } from './writer-turn.js';
@@ -85,22 +91,12 @@ export function splitMessages(text, name = '') {
 }
 
 /** One character's memories, or '' when they have none. */
-function memoryBlock(name, { knowledge, episodes, offscreen = null }) {
+function memoryBlock(name, { knowledge, offscreen = null }) {
   const lines = [];
   if (knowledge.length > 0) {
     lines.push(
       `${name} knows:`,
       ...knowledge.map((memory) => `- ${stripAsterisks(memory.content)}`),
-    );
-  }
-  if (episodes.length > 0) {
-    if (lines.length > 0) lines.push('');
-    lines.push(
-      `${name} remembers:`,
-      ...episodes.map(
-        (memory) =>
-          `- ${memory.sourceTitle ? `${memory.sourceTitle}: ` : ''}${stripAsterisks(memory.content)}`,
-      ),
     );
   }
   if (offscreen) {
@@ -147,8 +143,11 @@ function latestThatFit(history, budget) {
  * @param {Object} params.persona - The reader's character, with their seed card.
  * @param {Array<Object>} params.history - The thread's messages, oldest first.
  * @param {Date} params.time - The Bureau's current time.
- * @param {{ knowledge: Array<Object>, episodes: Array<Object> }} [params.memories] - From
+ * @param {{ knowledge: Array<Object>, offscreen: Object|null }} [params.memories] - From
  *   selectForPrompt.
+ * @param {Array<{title: string, startTime: string, summary: string}>} [params.chapters] -
+ *   Summaries of the latest chapters the cast member was in, oldest first (see earlierChapters in
+ *   memory.js).
  * @param {Array<{content: string}>} [params.arcNotes] - Accepted arc notes as of that time.
  * @param {Array<{content: string}>} [params.loreEntries] - Lorebook entries already activated.
  * @param {Array<{content: string}>} [params.facts] - Established facts as of that time.
@@ -162,7 +161,8 @@ export function buildCorrespondenceMessages({
   persona,
   history,
   time,
-  memories = { knowledge: [], episodes: [] },
+  memories = { knowledge: [], offscreen: null },
+  chapters = [],
   arcNotes = [],
   loreEntries = [],
   facts = [],
@@ -215,6 +215,21 @@ export function buildCorrespondenceMessages({
   if (establishedFacts.length > 0) {
     system.push(
       section('ESTABLISHED FACTS', establishedFacts.map((fact) => `- ${fact}`).join('\n')),
+    );
+  }
+  if (chapters.length > 0) {
+    const recaps = chapters.map(
+      (chapter) =>
+        `${chapter.title} (began ${describeBureauTime(chapter.startTime, bureau.timezone)}):\n${stripAsterisks(macros.process(chapter.summary)).trim()}`,
+    );
+    system.push(
+      section(
+        'EARLIER CHAPTERS',
+        [
+          `What happened in the latest chapters ${name} was in, oldest first. ${name} knows only what happened while ${name} was there.`,
+          ...recaps,
+        ].join('\n\n'),
+      ),
     );
   }
   const remembered = memoryBlock(name, memories);
@@ -325,7 +340,7 @@ export async function generateReply({
   let messages;
   try {
     // After a quiet stretch, the character first gets an account of what they did meanwhile,
-    // dated just before this session of messages began, so the session's episode takes over.
+    // dated just before this session of messages began.
     const breaks = chapterBreaks(stores, bureau.id);
     const sessionStart = sessionStartOf(history, time, breaks).toISOString();
     const gaps = bureau.settings.memory.offscreenLife
@@ -353,7 +368,16 @@ export async function generateReply({
       onEvent({ type: 'stage', stage: 'writing' });
     }
 
-    const memories = selectForPrompt(memoriesAtTime(allMemories(), time), bureau.settings.memory);
+    // The chapters they were in, as they stood at this time.
+    const chapters = earlierChapters(
+      stores.stories.listStories(bureau.id),
+      { time },
+      { castId: member.id },
+    );
+    const { recentChapters } = bureau.settings.memory;
+    const memories = selectForPrompt(memoriesAtTime(allMemories(), time), bureau.settings.memory, {
+      lastChapterTime: chapters.at(-1)?.startTime ?? null,
+    });
     const arcNotes = notesAtTime(
       stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }),
       time,
@@ -369,6 +393,7 @@ export async function generateReply({
       history,
       time,
       memories,
+      chapters: recentChapters > 0 ? chapters.slice(-recentChapters) : [],
       arcNotes,
       loreEntries: await activatedLore(stores, bureau.id, scanText),
       facts: factsAtTime(stores.facts.listFacts(bureau.id), time),

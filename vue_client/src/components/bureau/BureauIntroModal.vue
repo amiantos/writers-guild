@@ -74,7 +74,7 @@ const TERMS = [
   {
     name: 'Memories',
     description:
-      "Each character remembers what they know, what happened from their point of view, and how they've changed. Every memory shows where it came from, and you can edit, pin, or retire any of them.",
+      "Each chapter's summary keeps what happened, and each character remembers what later chapters will need: promises, plans, what's still unresolved, and what they've learned about people. Every memory shows where it came from, and you can edit, pin, or retire any of them.",
   },
   {
     name: 'How they’ve changed',

@@ -3,17 +3,19 @@
  *
  * Reads a story's turns, or a thread's messages, and records what the characters
  * will remember (see "Archivist" in docs/bureau-design.md). Each pass is one
- * forced call to a strict record_memories tool, which returns knowledge, an
- * episode per character, arc notes, and a story's running summary.
+ * forced call to a strict record_memories tool, which returns knowledge, arc
+ * notes, proposed facts, and a story's running summary. What happened in a
+ * chapter lives in its summary, so knowledge keeps only what later chapters and
+ * messages will need: promises, plans, matters left open, turning points, and
+ * lasting things learned about someone.
  *
  * Memories apply without review, because every memory is visible, sourced, and
  * editable in the memory browser. Arc notes, which change how a character is
  * written, are only proposed: the reader accepts or rejects each one. The
  * reader's character remembers like everyone else.
  *
- * A story and a thread differ only in their source: what a pass reads, how its
- * memories are dated and cited, and which episode it rewrites. A thread is read
- * one session at a time, and each session gets an episode of its own.
+ * A story and a thread differ only in their source: what a pass reads, and how
+ * its memories are dated and cited. A thread is read one session at a time.
  */
 
 import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
@@ -51,7 +53,8 @@ export const RECORD_MEMORIES_TOOL = {
     properties: {
       knowledge: {
         type: 'array',
-        description: 'Lasting facts the characters learned. Empty when nothing lasting happened.',
+        description:
+          'What later chapters will need: promises and plans, matters left open, turning points, and lasting things learned about someone. Usually few, and empty when nothing lasting happened.',
         items: {
           type: 'object',
           properties: {
@@ -69,7 +72,8 @@ export const RECORD_MEMORIES_TOOL = {
             },
             supersedes: {
               type: 'integer',
-              description: "Number of the character's memory this updates or corrects, or 0.",
+              description:
+                "Number of the character's memory this resolves, updates, or corrects, or 0.",
             },
             passages: {
               type: 'array',
@@ -83,23 +87,6 @@ export const RECORD_MEMORIES_TOOL = {
             },
           },
           required: ['character', 'content', 'importance', 'supersedes', 'passages', 'conflict'],
-          additionalProperties: false,
-        },
-      },
-      episodes: {
-        type: 'array',
-        description:
-          'One per character, telling what has happened so far in this chapter or exchange of messages, from their point of view, in the third person.',
-        items: {
-          type: 'object',
-          properties: {
-            character: { type: 'string', description: 'Name of the character.' },
-            content: {
-              type: 'string',
-              description: 'At most 120 words, in the third person and past tense.',
-            },
-          },
-          required: ['character', 'content'],
           additionalProperties: false,
         },
       },
@@ -154,10 +141,10 @@ export const RECORD_MEMORIES_TOOL = {
       },
       story_summary: {
         type: 'string',
-        description: 'What has happened in the whole chapter so far, at most 150 words.',
+        description: 'What has happened in the whole chapter so far, at most 250 words.',
       },
     },
-    required: ['knowledge', 'episodes', 'arc_notes', 'facts', 'story_summary'],
+    required: ['knowledge', 'arc_notes', 'facts', 'story_summary'],
     additionalProperties: false,
   },
 };
@@ -275,18 +262,14 @@ const WORDING = {
   story: {
     units: 'passages',
     unit: 'Passage',
-    scope: 'this chapter',
-    episodes:
-      'Episodes: one for each character who remembers, telling what happened in this chapter so far from their point of view, in the third person and past tense, in at most 120 words. When they already have an episode for this chapter, rewrite it to include the new passages.',
+    kept: 'the chapter keeps its summary',
     summary:
-      'story_summary: what has happened in the whole chapter so far, in at most 150 words, updating the previous summary.',
+      'story_summary: what has happened in the whole chapter so far, in at most 250 words, updating the previous summary. Later chapters are written from it, so cover the whole chapter in order: who was there, what happened, and how things were left.',
   },
   correspondence: {
     units: 'messages',
     unit: 'Message',
-    scope: 'this exchange',
-    episodes:
-      'Episodes: one for each character who remembers, telling what happened in this exchange of messages from their point of view, in the third person and past tense, in at most 60 words, such as "Theo texted late one night about swimming out to the buoy, and Mara talked him out of it." When they already have an episode for this exchange, rewrite it to include the new messages.',
+    kept: 'the messages stay in the thread',
     summary: 'story_summary: leave it empty.',
   },
 };
@@ -311,8 +294,6 @@ function section(title, body) {
  * @param {Array<Object>} params.characters - Cast members who remember.
  * @param {Object|null} params.persona - The reader's character, if present.
  * @param {Map<string, Array<Object>>} params.knownByCast - Knowledge each character has now.
- * @param {Map<string, Object>} params.episodeByCast - Each character's episode for this story, or
- *   for this session of a thread.
  * @param {Map<string, {accepted: Array<Object>, proposed: Array<Object>, rejected: Array<Object>}>}
  *   [params.notesByCast] - Each character's accepted arc notes, the proposals waiting for review,
  *   and the changes the reader rejected.
@@ -325,7 +306,6 @@ export function buildArchivistMessages({
   characters,
   persona,
   knownByCast,
-  episodeByCast,
   notesByCast = new Map(),
   turns,
 }) {
@@ -345,19 +325,22 @@ export function buildArchivistMessages({
   }
   system.push(
     [
-      'Knowledge:',
-      `- Lasting facts a character learned, or that changed: about ${about}, their relationships, promises, plans, preferences, places, and running jokes.`,
+      `Knowledge: what later chapters and messages will need, so the characters stay consistent and nothing left open gets dropped. What happened is kept elsewhere (${wording.kept}), so knowledge is only for what will still matter afterward:`,
+      `- Promises, plans, and arrangements that reach past these ${wording.units}: a date set, a favor owed, a trip planned, something someone said they would do.`,
+      '- Matters left open: a question not yet answered, a problem not yet solved, a secret someone is keeping, something someone is waiting on.',
+      '- Turning points between people: a confession, a falling-out, a making-up, a line crossed, a secret revealed.',
+      `- Lasting things learned for the first time about ${about}: their history, family, work, and what they love or can't stand.`,
+      '- Before recording one, ask: would a later chapter get something wrong, or drop a thread, without it? If not, leave it out.',
+      '- Leave out what happened in the scene, who said what, gestures, meals, clothes, scenery, passing moods, the time something happened, anything the character already knows, and anything a profile or established fact already says.',
       '- One fact per memory, in the third person with names, never "I" or "you". Record only what that character saw, heard, or was told.',
       '- Each memory must make sense on its own, read months later: say who and what, never "this" or "that" for something in another memory.',
-      '- Skip passing actions, scenery, incidental details such as the exact time something happened, short-lived plans, anything the character already knows, and anything a profile already says. The episode tells what happened; knowledge keeps what will still matter later.',
       `- The profiles and the established facts are true. Record what the ${wording.units} say outright, not what they only seem to suggest: someone heading home, or writing from somewhere else, tells you nothing new about where anyone lives.`,
       "- When a fact disagrees with a character's profile or an established fact, set conflict to what it disagrees with, in a sentence: the reader checks it before anyone remembers it. Otherwise leave conflict empty.",
-      "- When a fact updates or contradicts one of the character's numbered memories, set supersedes to that number and write the complete updated fact. Otherwise set supersedes to 0.",
+      "- When one of the character's numbered memories is resolved or changes, such as a promise kept, a plan dropped, or a question answered, or when a fact contradicts it, set supersedes to its number and write how it stands now, complete. Otherwise set supersedes to 0.",
       '- Importance: 1 trivia, 2 minor detail, 3 useful, 4 significant, 5 defining (a milestone in a relationship, a secret revealed).',
       `- passages lists the numbers of the ${wording.units} the fact comes from.`,
-      '- Recording no knowledge is fine when nothing lasting happened.',
+      '- Usually none to three per character in a pass. Recording none is fine when nothing lasting happened.',
     ].join('\n'),
-    wording.episodes,
     `Arc notes: only when the ${wording.units} change who a character is, such as a new habit, a stance that softened or hardened, or a lasting decision about themselves or someone else. Not a fact they learned (that's knowledge), and not a passing mood. Write how they have changed in one or two sentences, with a rationale naming what in the ${wording.units} shows it. Don't repeat a change they already have, one waiting for review, or one the reader turned down. Most ${wording.units} call for none; the reader reviews every one.`,
     `Facts: lasting truths about the world and the cast that hold whoever remembers them, such as where someone lives and with whom, their work, a relationship, or a place. Propose one only when the ${wording.units} clearly establish something lasting that the established facts don't cover, or clearly change one of them: then set replaces to its number and write the whole fact as it now stands. Not something only one character learned (that's knowledge), and not a change in who someone is (that's an arc note). Don't repeat an established fact, one waiting for review, or one the reader turned down. Most ${wording.units} call for none; the reader reviews every one.`,
     wording.summary,
@@ -378,10 +361,6 @@ export function buildArchivistMessages({
         ? knowledge.map((memory) => `[${memory.id}] ${memory.content}`)
         : ['(nothing yet)']),
     );
-    const episode = episodeByCast.get(member.id);
-    if (episode) {
-      lines.push(`Episode for ${wording.scope} so far: ${episode.content}`);
-    }
     const notes = notesByCast.get(member.id);
     if (notes?.accepted.length > 0) {
       lines.push(
@@ -544,8 +523,6 @@ function storySource(stores, bureau, storyId, { before = Infinity } = {}) {
           (isBeforeStory(note, story) ||
             (note.sourceType === 'story' && note.sourceId === story.id)),
       ),
-    isOwnEpisode: (memory) =>
-      memory.layer === 'episode' && memory.sourceType === 'story' && memory.sourceId === story.id,
   };
 }
 
@@ -579,12 +556,6 @@ function threadSource(stores, bureau, { thread, member, persona, session }) {
       stores.threads.setArchiveProgress(thread.id, archivedThrough),
     visibleMemories: (memories) => memoriesAtTime(memories, last.bureauTime),
     acceptedNotes: (notes) => notesAtTime(notes, last.bureauTime),
-    // A session's episode cites its first message, which stays put as the session grows.
-    isOwnEpisode: (memory) =>
-      memory.layer === 'episode' &&
-      memory.sourceType === 'correspondence' &&
-      memory.sourceId === thread.id &&
-      memory.sourceTurnIds.includes(first.id),
   };
 }
 
@@ -598,8 +569,8 @@ function text(value) {
  * Save one pass's record, skipping anything that doesn't check out. held counts memories kept for
  * review because they disagree with a profile or fact; added counts the rest. facts counts the
  * facts proposed.
- * @returns {{ added: number, held: number, superseded: number, episodes: number,
- *   arcNotes: number, facts: number, warnings: string[] }}
+ * @returns {{ added: number, held: number, superseded: number, arcNotes: number, facts: number,
+ *   warnings: string[] }}
  */
 function applyRecord({
   stores,
@@ -608,14 +579,12 @@ function applyRecord({
   record,
   characters,
   knownByCast,
-  episodeByCast,
   notesByCast,
   turns,
   runId,
   archivedThrough,
 }) {
   const { memories } = stores;
-  const wording = WORDING[source.kind];
   const byName = new Map(characters.map((member) => [nameOf(member).toLowerCase(), member]));
   const turnIdByPosition = new Map(
     turns.filter((turn) => turn.kind === 'prose').map((turn) => [turn.position, turn.id]),
@@ -631,7 +600,6 @@ function applyRecord({
     added: 0,
     held: 0,
     superseded: 0,
-    episodes: 0,
     arcNotes: 0,
     facts: 0,
     warnings: [],
@@ -729,34 +697,6 @@ function applyRecord({
       } else {
         result.added += 1;
       }
-    }
-
-    // One episode per character per story or session; a later one in the same record wins.
-    const episodes = new Map();
-    for (const item of Array.isArray(record.episodes) ? record.episodes : []) {
-      const member = memberFor(item?.character, 'an episode');
-      const content = text(item?.content);
-      if (member && content) episodes.set(member.id, content);
-    }
-    const proseTurnIds = turns.filter((turn) => turn.kind === 'prose').map((turn) => turn.id);
-    for (const [castId, content] of episodes) {
-      const previous = episodeByCast.get(castId) ?? null;
-      if (previous && !canReplace(castId, previous)) {
-        const name = nameOf(characters.find((member) => member.id === castId));
-        result.warnings.push(
-          `Kept ${name}'s episode for ${wording.scope}: it was pinned or changed during the pass`,
-        );
-        continue;
-      }
-      memories.addMemory(bureauId, castId, {
-        ...base,
-        layer: 'episode',
-        content,
-        // An episode covers everything read so far, so a change to any of it flags the episode.
-        sourceTurnIds: [...new Set([...(previous?.sourceTurnIds ?? []), ...proseTurnIds])],
-        supersedes: previous?.id ?? null,
-      });
-      result.episodes += 1;
     }
 
     // Arc notes are proposals for the reader, skipping changes the character already has, that
@@ -863,13 +803,11 @@ export function isArchiving(storyId) {
 }
 
 /**
- * What each character remembering in this pass knows now, their episode for this story or
- * session, and their arc notes: accepted ones the source can see, every proposal still waiting,
- * and every change the reader rejected.
+ * What each character remembering in this pass knows now, and their arc notes: accepted ones the
+ * source can see, every proposal still waiting, and every change the reader rejected.
  */
 function currentMemories(stores, bureauId, source, characters) {
   const knownByCast = new Map();
-  const episodeByCast = new Map();
   const notesByCast = new Map();
   for (const member of characters) {
     const notes = stores.arcNotes.listNotes(bureauId, member.id);
@@ -884,33 +822,22 @@ function currentMemories(stores, bureauId, source, characters) {
     );
     knownByCast.set(
       member.id,
-      selectForPrompt(asOf, {
-        knowledgeCharacters: KNOWN_CHARACTERS_PER_CHARACTER,
-        recentEpisodes: 0,
-      }).knowledge,
+      selectForPrompt(asOf, { knowledgeCharacters: KNOWN_CHARACTERS_PER_CHARACTER }).knowledge,
     );
-    const episode = asOf.find(source.isOwnEpisode);
-    if (episode) episodeByCast.set(member.id, episode);
   }
-  return { knownByCast, episodeByCast, notesByCast };
+  return { knownByCast, notesByCast };
 }
 
 async function readChunk({ stores, bureau, loadSource, client, recorder, chunk, signal }) {
   const source = loadSource();
   const { characters, persona } = source;
-  const { knownByCast, episodeByCast, notesByCast } = currentMemories(
-    stores,
-    bureau.id,
-    source,
-    characters,
-  );
+  const { knownByCast, notesByCast } = currentMemories(stores, bureau.id, source, characters);
 
   const messages = buildArchivistMessages({
     source,
     characters,
     persona,
     knownByCast,
-    episodeByCast,
     notesByCast,
     turns: chunk,
   });
@@ -970,7 +897,6 @@ async function readChunk({ stores, bureau, loadSource, client, recorder, chunk, 
     record,
     characters,
     knownByCast,
-    episodeByCast,
     notesByCast,
     turns: chunk,
     runId: recorder.runId,
@@ -991,7 +917,6 @@ function emptyTotals(archivedThrough) {
     added: 0,
     held: 0,
     superseded: 0,
-    episodes: 0,
     arcNotes: 0,
     facts: 0,
     warnings: [],
@@ -1005,7 +930,6 @@ function addToTotals(totals, result) {
   totals.added += result.added;
   totals.held += result.held;
   totals.superseded += result.superseded;
-  totals.episodes += result.episodes;
   totals.arcNotes += result.arcNotes;
   totals.facts += result.facts;
   totals.warnings.push(...result.warnings);
@@ -1022,7 +946,7 @@ function addToTotals(totals, result) {
  * @param {number} [params.through] - Last position to read; defaults to the end of the story.
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} Totals for the passes ({ passes, added, held, superseded,
- *   episodes, arcNotes, warnings, archivedThrough, runId }), or null when there was nothing to
+ *   arcNotes, facts, warnings, archivedThrough, runId }), or null when there was nothing to
  *   read.
  */
 export function archiveStory({ stores, bureauId, storyId, client, through = Infinity, signal }) {
@@ -1083,8 +1007,7 @@ export function archiveStory({ stores, bureauId, storyId, client, through = Infi
 
 /**
  * Read a thread's unread messages, one session at a time, and record what the
- * character remembers. Each session is dated to its first message and gets its
- * own episode.
+ * character remembers. Each session is dated to its first message.
  *
  * @param {Object} params
  * @param {ReturnType<import('./stores.js').getBureauStores>} params.stores

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  earlierChapters,
   isBeforeStory,
   memoriesAsOf,
   memoriesAtTime,
@@ -45,7 +46,6 @@ describe('memories at the same Bureau time', () => {
   it('are listed in the order they were written', () => {
     // Recorded out of order, as when a chapter goes into memory after later messages.
     const messages = memory({
-      layer: 'episode',
       content: 'Theo wrote about the pier.',
       worldTime: second.startTime,
       sourceType: 'correspondence',
@@ -54,24 +54,21 @@ describe('memories at the same Bureau time', () => {
       created: '2026-09-12T10:10:00.000Z',
     });
     const laterChapter = fromStory(sameTime, {
-      layer: 'episode',
       content: 'They rebuilt the pier.',
       sourceCreated: '2026-09-12T11:00:00.000Z',
       created: '2026-09-12T11:30:00.000Z',
     });
     const earlierChapter = fromStory(second, {
-      layer: 'episode',
       content: 'The storm took the pier.',
       sourceCreated: '2026-09-12T09:00:00.000Z',
       created: '2026-09-12T12:00:00.000Z',
     });
 
-    const { episodes } = selectForPrompt([laterChapter, messages, earlierChapter], {
+    const { knowledge } = selectForPrompt([laterChapter, messages, earlierChapter], {
       knowledgeCharacters: 1000,
-      recentEpisodes: 5,
     });
 
-    expect(episodes.map((episode) => episode.content)).toEqual([
+    expect(knowledge.map((known) => known.content)).toEqual([
       'The storm took the pier.',
       'Theo wrote about the pier.',
       'They rebuilt the pier.',
@@ -224,7 +221,6 @@ describe('selectForPrompt', () => {
 
     const { knowledge } = selectForPrompt([minor, small, important, pinned], {
       knowledgeCharacters: 100,
-      recentEpisodes: 3,
     });
 
     expect(knowledge).toEqual([small, important, pinned]);
@@ -233,36 +229,77 @@ describe('selectForPrompt', () => {
   it('keeps pinned knowledge even past the budget', () => {
     const pinned = memory({ content: 'P'.repeat(500), pinned: true });
 
-    expect(
-      selectForPrompt([pinned], { knowledgeCharacters: 10, recentEpisodes: 0 }).knowledge,
-    ).toEqual([pinned]);
+    expect(selectForPrompt([pinned], { knowledgeCharacters: 10 }).knowledge).toEqual([pinned]);
   });
 
-  it('takes the latest episodes', () => {
-    const episodes = [first, second, sameTime].map((story) =>
-      fromStory(story, { layer: 'episode' }),
-    );
+  it('leaves out episodes, which chapter summaries have replaced', () => {
+    const episode = fromStory(first, { layer: 'episode' });
 
-    expect(
-      selectForPrompt(episodes.toReversed(), { knowledgeCharacters: 0, recentEpisodes: 2 })
-        .episodes,
-    ).toEqual([episodes[1], episodes[2]]);
-    expect(
-      selectForPrompt(episodes, { knowledgeCharacters: 0, recentEpisodes: 0 }).episodes,
-    ).toEqual([]);
+    expect(selectForPrompt([episode], { knowledgeCharacters: 1000 })).toEqual({
+      knowledge: [],
+      offscreen: null,
+    });
   });
 
-  it('includes the latest time away, unless an episode has happened since', () => {
-    const limits = { knowledgeCharacters: 0, recentEpisodes: 3 };
+  it('includes the latest time away, unless a chapter they were in has begun since', () => {
+    const limits = { knowledgeCharacters: 0 };
     const away = memory({ layer: 'offscreen', worldTime: '2026-10-07T19:59:59.999Z' });
     const earlierAway = memory({ layer: 'offscreen', worldTime: '2026-09-30T19:59:59.999Z' });
 
     expect(
-      selectForPrompt([away, earlierAway, fromStory(first, { layer: 'episode' })], limits),
+      selectForPrompt([away, earlierAway], limits, { lastChapterTime: first.startTime }),
     ).toMatchObject({ offscreen: away });
+    expect(
+      selectForPrompt([away], limits, { lastChapterTime: second.startTime }).offscreen,
+    ).toBeNull();
+    // An episode from before chapters had summaries counts the same way.
     expect(selectForPrompt([away, fromStory(second, { layer: 'episode' })], limits).offscreen).toBe(
       null,
     );
+    expect(selectForPrompt([away, earlierAway], limits)).toMatchObject({ offscreen: away });
     expect(selectForPrompt([], limits).offscreen).toBeNull();
+  });
+});
+
+describe('earlierChapters', () => {
+  const chapter = (story, fields = {}) => ({
+    ...story,
+    title: `Chapter ${story.position + 1}`,
+    castIds: ['mara'],
+    summary: `What happened in ${story.id}.`,
+    ...fields,
+  });
+  const chapters = [
+    chapter(first),
+    chapter(second, { castIds: ['theo'] }),
+    chapter(flashback),
+    chapter(sameTime),
+    chapter({ id: 's5', position: 4, startTime: '2026-10-20T20:00:00.000Z' }, { summary: ' ' }),
+  ];
+
+  it('lists the summaries of chapters before a story, oldest first', () => {
+    expect(earlierChapters(chapters, { story: sameTime }).map((recap) => recap.id)).toEqual([
+      's3',
+      's1',
+      's2',
+    ]);
+    expect(earlierChapters(chapters, { story: flashback })).toEqual([]);
+    expect(earlierChapters(chapters, { story: second })[0]).toEqual({
+      id: 's3',
+      title: 'Chapter 3',
+      startTime: flashback.startTime,
+      summary: 'What happened in s3.',
+    });
+  });
+
+  it('lists chapters begun by a moment, and only those a character was in', () => {
+    const at = (time, castId) =>
+      earlierChapters(chapters, { time }, { castId }).map((recap) => recap.id);
+
+    expect(at(second.startTime)).toEqual(['s3', 's1', 's2', 's4']);
+    expect(at(second.startTime, 'mara')).toEqual(['s3', 's1', 's4']);
+    expect(at('2026-10-02T00:00:00.000Z', 'theo')).toEqual([]);
+    // A chapter with no summary yet isn't listed.
+    expect(at('2026-12-01T00:00:00.000Z')).not.toContain('s5');
   });
 });

@@ -15,7 +15,7 @@ import { ImagePreserver } from '../image-preserver.js';
 import { profileOf } from './bureau-storage.js';
 import { worldNotes } from './character-generator.js';
 import { labelImages } from './images.js';
-import { memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
+import { earlierChapters, memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 
 /** What an interview can focus on. The questions differ; every write-up covers the same fields. */
@@ -179,15 +179,22 @@ function castLines(cast, { personaName, limit }) {
   return lines.join('\n') || '(No one else yet.)';
 }
 
-/** What the character knows, remembers, and did lately, or '' when they have no memories. */
+/**
+ * What the character knows, what happened in the latest chapters they were in, and what they did
+ * lately, or '' when there's none of that.
+ */
 function memoryLines(name, memories) {
   const lines = [];
   if (memories.knowledge.length > 0) {
     lines.push(`${name} knows:`, ...memories.knowledge.map((memory) => `- ${memory.content}`));
   }
-  if (memories.episodes.length > 0) {
+  const chapters = memories.chapters ?? [];
+  if (chapters.length > 0) {
     if (lines.length > 0) lines.push('');
-    lines.push(`${name} remembers:`, ...memories.episodes.map((memory) => `- ${memory.content}`));
+    lines.push(
+      `Chapters ${name} was in:`,
+      ...chapters.map((chapter) => `- ${chapter.title}: ${chapter.summary}`),
+    );
   }
   if (memories.offscreen) {
     if (lines.length > 0) lines.push('');
@@ -209,10 +216,21 @@ async function interviewContext(stores, bureau, member) {
     .filter(Boolean);
   const time = new Date(bureau.bureauTime);
   const allMemories = stores.memories.listMemories(bureau.id, member.id, { status: 'all' });
+  const chapters = earlierChapters(
+    stores.stories.listStories(bureau.id),
+    { time },
+    { castId: member.id },
+  );
+  const { recentChapters } = bureau.settings.memory;
   return {
     cast,
     persona: member.isPersona ? member : (cast.find((other) => other.isPersona) ?? null),
-    memories: selectForPrompt(memoriesAtTime(allMemories, time), bureau.settings.memory),
+    memories: {
+      ...selectForPrompt(memoriesAtTime(allMemories, time), bureau.settings.memory, {
+        lastChapterTime: chapters.at(-1)?.startTime ?? null,
+      }),
+      chapters: recentChapters > 0 ? chapters.slice(-recentChapters) : [],
+    },
     arcNotes: notesAtTime(
       stores.arcNotes.listNotes(bureau.id, member.id, { status: 'accepted' }),
       time,
@@ -229,8 +247,8 @@ async function interviewContext(stores, bureau, member) {
  * @param {Object} params.interview - Uses focus, note, and messages.
  * @param {Array<Object>} [params.cast] - Everyone else in the cast, with seed cards.
  * @param {Object|null} [params.persona] - The reader's character, who may be the member.
- * @param {{ knowledge: Array<Object>, episodes: Array<Object> }} [params.memories] - From
- *   selectForPrompt.
+ * @param {{ knowledge: Array<Object>, offscreen: Object|null, chapters?: Array<Object> }}
+ *   [params.memories] - From selectForPrompt, with summaries of the latest chapters they were in.
  * @param {Array<{content: string}>} [params.arcNotes] - Accepted arc notes.
  * @param {string[]} [params.world] - Short notes about the world, such as lorebook topics.
  * @param {string|null} [params.setAside] - A question the reader asked to replace. It's left out
@@ -242,7 +260,7 @@ export function buildQuestionMessages({
   interview,
   cast = [],
   persona = null,
-  memories = { knowledge: [], episodes: [] },
+  memories = { knowledge: [], offscreen: null },
   arcNotes = [],
   world = [],
   setAside = null,

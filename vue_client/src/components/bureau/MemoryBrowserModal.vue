@@ -176,10 +176,10 @@ const emptyText = computed(() => {
   const { name } = props.member;
   if (searching.value) return 'No memories match.';
   if (tab.value === 'knowledge') {
-    return `Nothing yet. ${name} learns things as chapters are committed to memory. You can also add what ${name} already knows.`;
+    return `Nothing yet. As chapters and messages are committed to memory, ${name} keeps what later chapters will need: promises, plans, what's still unresolved, and what they learn about people. You can also add what ${name} already knows.`;
   }
   if (tab.value === 'episodes') {
-    return `No chapters yet. When a chapter is committed to memory, ${name}'s account of it is kept here.`;
+    return `Nothing yet. When Bureau time jumps forward, what ${name} did meanwhile is kept here. What happened in each chapter is in its summary, on the Bureau's page.`;
   }
   return 'Nothing retired. Memories you retire, and ones replaced by newer versions, are kept here.';
 });

@@ -22,8 +22,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
     autoArchive: true,
     // Characters of knowledge per character in the Writer prompt; the rest waits for recall.
     knowledgeCharacters: 4000,
-    // Episodes from earlier stories per character in the Writer prompt.
-    recentEpisodes: 3,
+    // Summaries of earlier chapters in prompts: the Writer's, and for one character, the ones they
+    // were in.
+    recentChapters: 5,
     // When Bureau time jumps forward, give the characters involved an account of the gap.
     offscreenLife: true,
   }),
@@ -62,7 +63,7 @@ const MEMORY_RULES = {
   knowledgeCharacters: (value) =>
     (Number.isInteger(value) && value >= 0 && value <= 40000) ||
     'must be a whole number from 0 to 40000',
-  recentEpisodes: (value) =>
+  recentChapters: (value) =>
     (Number.isInteger(value) && value >= 0 && value <= 20) || 'must be a whole number from 0 to 20',
 };
 
@@ -89,7 +90,8 @@ function isPlainObject(value) {
 }
 
 /**
- * Stored settings merged over the defaults.
+ * Stored settings merged over the defaults. Stored settings that are no longer settings are left
+ * out, so saving the settings back doesn't send them.
  * @param {Object} [stored]
  * @returns {{ writer: Object, memory: Object, correspondence: Object }}
  */
@@ -97,7 +99,9 @@ export function resolveSettings(stored = {}) {
   return Object.fromEntries(
     Object.entries(DEFAULT_SETTINGS).map(([group, defaults]) => [
       group,
-      { ...defaults, ...stored[group] },
+      Object.fromEntries(
+        Object.entries(defaults).map(([key, value]) => [key, stored[group]?.[key] ?? value]),
+      ),
     ]),
   );
 }

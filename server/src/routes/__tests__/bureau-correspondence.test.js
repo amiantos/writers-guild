@@ -21,7 +21,7 @@ function fakeClient(text = 'Always.\n---\nStorm?', { failWith = null } = {}) {
   const client = {
     model: 'deepseek-flash',
     calls: [],
-    archiveRecord: { knowledge: [], episodes: [], arc_notes: [], story_summary: '' },
+    archiveRecord: { knowledge: [], arc_notes: [], story_summary: '' },
     async chat(options) {
       client.calls.push(options);
       return {
@@ -221,7 +221,6 @@ describe('Bureau correspondence routes', () => {
           passages: [sent.message.position],
         },
       ],
-      episodes: [{ character: 'Mara', content: 'Theo grumbled about the ferry.' }],
       arc_notes: [],
       story_summary: '',
     };
@@ -231,7 +230,7 @@ describe('Bureau correspondence routes', () => {
       .send({})
       .expect(200);
 
-    expect(body.archive).toMatchObject({ passes: 1, added: 1, episodes: 1 });
+    expect(body.archive).toMatchObject({ passes: 1, added: 1 });
     expect(body.thread.archivedThrough).toBe(sent.message.position);
     expect(
       stores.memories.listMemories(bureau.id, mara.id, { layer: 'knowledge' })[0],
@@ -247,8 +246,15 @@ describe('Bureau correspondence routes', () => {
       .send({ text: 'The ferry is late again.', reply: false })
       .expect(201);
     client.archiveRecord = {
-      knowledge: [],
-      episodes: [{ character: 'Mara', content: 'Theo grumbled about the ferry.' }],
+      knowledge: [
+        {
+          character: 'Mara',
+          content: 'Theo is waiting on the late ferry.',
+          importance: 2,
+          supersedes: 0,
+          passages: [0],
+        },
+      ],
       arc_notes: [],
       story_summary: '',
     };
@@ -264,9 +270,9 @@ describe('Bureau correspondence routes', () => {
     await settleBackgroundArchives();
     expect(
       stores.memories
-        .listMemories(bureau.id, mara.id, { layer: 'episode' })
+        .listMemories(bureau.id, mara.id, { layer: 'knowledge' })
         .map((memory) => memory.content),
-    ).toEqual(['Theo grumbled about the ferry.']);
+    ).toEqual(['Theo is waiting on the late ferry.']);
   });
 
   it('keeps the message when the reply fails', async () => {

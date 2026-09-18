@@ -214,18 +214,23 @@ export function factsAtTime(facts, time) {
 }
 
 /**
- * What goes in the Writer prompt for one character: pinned knowledge, then the
- * most important knowledge that fits the budget, and the latest episodes.
+ * What goes in a prompt for one character: pinned knowledge, then the most important knowledge
+ * that fits the budget, and what they did the last time Bureau time jumped forward. What happened
+ * in earlier chapters comes from their summaries instead (see earlierChapters).
  *
- * @param {Array<Object>} memories - From memoriesAsOf.
+ * @param {Array<Object>} memories - From memoriesAsOf or memoriesAtTime.
  * @param {Object} limits
  * @param {number} limits.knowledgeCharacters
- * @param {number} limits.recentEpisodes
- * @returns {{ knowledge: Array<Object>, episodes: Array<Object>, offscreen: Object|null }}
- *   Knowledge and episodes oldest first; offscreen is what they did the last time Bureau time
- *   jumped forward, if no episode has happened since.
+ * @param {Object} [options]
+ * @param {string|null} [options.lastChapterTime] - When the latest chapter they were in began
+ *   (ISO), from earlierChapters: an account of time away before it is out of date.
+ * @returns {{ knowledge: Array<Object>, offscreen: Object|null }} Knowledge oldest first.
  */
-export function selectForPrompt(memories, { knowledgeCharacters, recentEpisodes }) {
+export function selectForPrompt(
+  memories,
+  { knowledgeCharacters },
+  { lastChapterTime = null } = {},
+) {
   const ranked = memories
     .filter((memory) => memory.layer === 'knowledge')
     .toSorted(
@@ -244,21 +249,58 @@ export function selectForPrompt(memories, { knowledgeCharacters, recentEpisodes 
     used += size;
   }
 
-  const episodes = memories
-    .filter((memory) => memory.layer === 'episode')
-    .toSorted(compareChronological);
-
-  // The latest account of time away, unless an episode has happened since.
-  const since = episodes.length > 0 ? timeOf(episodes.at(-1)) : -Infinity;
+  // The latest account of time away, unless a chapter they were in has happened since. Chapters
+  // used to leave an episode for each character, so one of those counts too.
+  const episodes = memories.filter((memory) => memory.layer === 'episode');
+  const since = Math.max(
+    lastChapterTime ? Date.parse(lastChapterTime) : -Infinity,
+    ...episodes.map(timeOf),
+  );
   const offscreen =
     memories
       .filter((memory) => memory.layer === 'offscreen' && timeOf(memory) >= since)
       .toSorted(compareChronological)
       .at(-1) ?? null;
 
-  return {
-    knowledge: knowledge.toSorted(compareChronological),
-    episodes: recentEpisodes > 0 ? episodes.slice(-recentEpisodes) : [],
-    offscreen,
-  };
+  return { knowledge: knowledge.toSorted(compareChronological), offscreen };
+}
+
+/** Oldest first: by when a chapter began, then by the Bureau's order. */
+function compareChapters(a, b) {
+  return Date.parse(a.startTime) - Date.parse(b.startTime) || a.position - b.position;
+}
+
+/**
+ * Whether a chapter comes before a story: it began earlier, or at the same Bureau time and earlier
+ * in the Bureau's order, as its memories do (see isBeforeStory).
+ */
+function isChapterBefore(chapter, story) {
+  return chapter.id !== story.id && compareChapters(chapter, story) < 0;
+}
+
+/**
+ * The summaries of earlier chapters: what happened in them, as the Archivist wrote it up. A chapter
+ * counts once it has a summary, ended or not.
+ *
+ * @param {Array<Object>} chapters - The Bureau's chapters (listStories in story-storage.js).
+ * @param {Object} when - Exactly one of:
+ * @param {Object} [when.story] - Chapters before this one (see isChapterBefore), for its Writer.
+ * @param {Date|string} [when.time] - Chapters begun at or before this moment, for replies,
+ *   offscreen accounts, and interviews.
+ * @param {Object} [options]
+ * @param {string|null} [options.castId] - Only chapters this cast member was in.
+ * @returns {Array<{ id: string, title: string, startTime: string, summary: string }>} Oldest
+ *   first; take the end of the list for the most recent.
+ */
+export function earlierChapters(chapters, { story = null, time = null }, { castId = null } = {}) {
+  const moment = time === null ? null : timestampOf(time);
+  return chapters
+    .filter(
+      (chapter) =>
+        chapter.summary?.trim() &&
+        (story ? isChapterBefore(chapter, story) : Date.parse(chapter.startTime) <= moment) &&
+        (!castId || chapter.castIds.includes(castId)),
+    )
+    .toSorted(compareChapters)
+    .map(({ id, title, startTime, summary }) => ({ id, title, startTime, summary }));
 }

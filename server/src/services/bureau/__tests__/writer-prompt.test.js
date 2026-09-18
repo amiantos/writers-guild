@@ -298,19 +298,15 @@ describe('buildWriterMessages', () => {
           'mara',
           {
             knowledge: [{ content: "Theo *can't* swim." }, { content: 'Theo hates boats.' }],
-            episodes: [
-              { content: 'They met at the pier.', sourceTitle: 'Story 1' },
-              { content: 'Theo texted about the storm.', sourceType: 'correspondence' },
-            ],
             offscreen: { content: 'Repainted the *boathouse*.' },
           },
         ],
-        ['theo', { knowledge: [{ content: 'Mara keeps the light.' }], episodes: [] }],
+        ['theo', { knowledge: [{ content: 'Mara keeps the light.' }], offscreen: null }],
       ]),
     });
 
     expect(system).toContain(
-      "=== MEMORIES ===\nWhat the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.\n\nMara lately: Repainted the boathouse.",
+      "=== MEMORIES ===\nWhat the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara lately: Repainted the boathouse.",
     );
     // The reader's character remembers too.
     expect(system).toContain(
@@ -318,12 +314,36 @@ describe('buildWriterMessages', () => {
     );
   });
 
-  it('leaves out sections with nothing in them', () => {
+  it('tells what happened in earlier chapters, from their summaries', () => {
     const { system } = build({
-      memoriesByCast: new Map([['mara', { knowledge: [], episodes: [] }]]),
+      bureau: { timezone: 'UTC' },
+      earlierChapters: [
+        {
+          title: 'The Pier',
+          startTime: '2026-10-01T20:00:00.000Z',
+          summary: '{{user}} and Mara *met* at the pier.',
+        },
+        { title: 'Chapter 2', startTime: '2026-10-08T20:00:00.000Z', summary: 'A storm came.' },
+      ],
+      memoriesByCast: new Map([['mara', { knowledge: [{ content: 'Theo hates boats.' }] }]]),
     });
 
-    expect(system).not.toMatch(/MEMORIES|ESTABLISHED FACTS|CHARACTER DEVELOPMENT|=== TIME ===/);
+    expect(system).toContain(
+      '=== EARLIER CHAPTERS ===\nWhat happened in the chapters before this one, oldest first.\n\nThe Pier (began 8:00 PM on Thursday, October 1, 2026):\nTheo and Mara met at the pier.\n\nChapter 2 (began 8:00 PM on Thursday, October 8, 2026):\nA storm came.\n\n=== MEMORIES ===',
+    );
+    expect(system.indexOf('=== EARLIER CHAPTERS ===')).toBeLessThan(
+      system.indexOf('=== INSTRUCTIONS ==='),
+    );
+  });
+
+  it('leaves out sections with nothing in them', () => {
+    const { system } = build({
+      memoriesByCast: new Map([['mara', { knowledge: [], offscreen: null }]]),
+    });
+
+    expect(system).not.toMatch(
+      /MEMORIES|ESTABLISHED FACTS|CHARACTER DEVELOPMENT|EARLIER CHAPTERS|=== TIME ===/,
+    );
   });
 
   describe('time', () => {

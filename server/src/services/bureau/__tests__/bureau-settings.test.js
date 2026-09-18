@@ -15,10 +15,18 @@ describe('resolveSettings', () => {
     });
   });
 
-  it('ignores stored groups that are no longer settings', () => {
-    const resolved = resolveSettings({ editor: { enabled: true }, style: { bannedPhrases: [] } });
+  it('ignores stored groups and settings that are no longer settings', () => {
+    const resolved = resolveSettings({
+      editor: { enabled: true },
+      style: { bannedPhrases: [] },
+      memory: { recentEpisodes: 3, autoArchive: false },
+    });
 
-    expect(resolved).toEqual(DEFAULT_SETTINGS);
+    expect(resolved).toEqual({
+      ...DEFAULT_SETTINGS,
+      memory: { ...DEFAULT_SETTINGS.memory, autoArchive: false },
+    });
+    expect(DEFAULT_SETTINGS.memory.recentChapters).toBe(5);
   });
 
   it('fills in defaults for anything not stored', () => {
@@ -67,9 +75,9 @@ describe('applySettingsUpdate', () => {
     expect(
       applySettingsUpdate(
         { writer: { thinking: true } },
-        { memory: { autoArchive: false, recentEpisodes: 5 } },
+        { memory: { autoArchive: false, recentChapters: 8 } },
       ),
-    ).toEqual({ writer: { thinking: true }, memory: { autoArchive: false, recentEpisodes: 5 } });
+    ).toEqual({ writer: { thinking: true }, memory: { autoArchive: false, recentChapters: 8 } });
   });
 
   it.each([
@@ -81,7 +89,8 @@ describe('applySettingsUpdate', () => {
     [{ writer: { mood: 'sunny' } }, /Unknown writer setting: mood/],
     [{ memory: { autoArchive: 1 } }, /memory.autoArchive must be true or false/],
     [{ memory: { knowledgeCharacters: -1 } }, /memory.knowledgeCharacters must be a whole number/],
-    [{ memory: { recentEpisodes: 2.5 } }, /memory.recentEpisodes must be a whole number/],
+    [{ memory: { recentChapters: 2.5 } }, /memory.recentChapters must be a whole number/],
+    [{ memory: { recentEpisodes: 3 } }, /Unknown memory setting: recentEpisodes/],
     [{ memory: 'on' }, /settings.memory must be an object/],
     [{ director: { enabled: true } }, /Unknown settings group: director/],
     [{ editor: { enabled: true } }, /Unknown settings group: editor/],

@@ -332,6 +332,8 @@ The system prompt is story mode's default system prompt:
    - **Established facts,** "true in this story unless the chapter itself shows one changing" (see
      [Established facts](#established-facts)).
    - **Character development:** each character's accepted arc notes ("How Mara has changed").
+   - **Earlier chapters:** the summaries of the latest chapters before this one, oldest first, each
+     with its title and when it began (five by default, a Bureau setting).
    - **Memories,** with a reminder that a profile or established fact wins when a memory disagrees,
      and that people seldom bring up the past.
    - **Time:** the chapter's exact time, when it began or when time last passed in it (see
@@ -418,17 +420,33 @@ message. Direction turns and memories held for review are left out.
 
 **Output:** one forced call to a strict `record_memories` tool, with thinking off:
 
-- `knowledge`: facts per character, each with an importance, the passages it came from, the number
-  of any memory it `supersedes`, and a `conflict`: what in a profile or established fact it
-  disagrees with, or nothing
-- `episodes`: one per character, rewritten each pass to tell the whole chapter so far from their
-  point of view, in the third person
+- `knowledge`: what later chapters and messages will need, per character, each with an importance,
+  the passages it came from, the number of any memory it `supersedes`, and a `conflict`: what in a
+  profile or established fact it disagrees with, or nothing
 - `arc_notes`: changes to who a character is, for the reader to review (see
   [Character development](#character-development))
 - `facts`: new established facts, or changes to one, for the reader to review: each the whole fact
   as it now stands, the number of the fact it replaces (or 0), a rationale, and the passages (see
   [Established facts](#established-facts))
-- `story_summary`: the whole chapter so far, shown in the Bureau's chapter list
+- `story_summary`: the whole chapter so far, in at most 250 words: who was there, what happened,
+  and how things were left. It's shown in the Bureau's chapter list, and later chapters are written
+  with it (see [Writer](#writer)).
+
+**What knowledge is for.** Since September 18, 2026, what happened lives in the chapter's summary,
+and knowledge keeps only what later chapters and messages will need, so nothing left open gets
+dropped: promises, plans, and arrangements that reach past the chapter; matters left open, such as
+a question not yet answered or a secret being kept; turning points between people; and lasting
+things learned about someone for the first time. Each one has to pass a test: would a later chapter
+get something wrong, or drop a thread, without it? What happened in the scene, who said what,
+gestures, meals, clothes, and scenery are left to the summary. A pass usually records none to three
+per character. When a later chapter resolves one, such as a promise kept or a plan dropped, the
+Archivist supersedes it with how it stands now.
+
+Before then, the Archivist also wrote an **episode** per character: what happened in the chapter or
+exchange of messages from their point of view, in at most 120 words. Knowledge covered much more,
+about one memory per 1,000 to 2,000 characters of prose, most of them rated 3 or 4 in importance, so
+the Writer's 4,000-character budget filled up with scene details after a chapter or two. Existing
+episodes stay in the memory browser, but prompts no longer use them.
 
 The Archivist is told the profiles and established facts are true. It records what passages say
 outright, not what they only seem to suggest: someone heading home, or writing from somewhere else,
@@ -444,14 +462,14 @@ notice after committing to memory says so, such as "1 held for you to check, 2 f
 A new session starts when Bureau time moves on more than three hours or goes back between two
 messages, or when a chapter was started between them. The last session is over once a message sent
 now would start a new one. A thread's memories are dated to the start of their session and cite its
-messages, and each session gets its own episode, rewritten if the session grows. The reader's side of
+messages. The reader's side of
 a session is whoever sent its messages, even if the reader has picked another character since.
 
 Memory operations apply automatically because they are visible, sourced, and reversible; only held
 memories wait for the reader. The Archivist can supersede memories but can't retire or delete them,
 and it leaves alone pinned memories and any you change while it's reading. Changing a turn it has
 read (editing, deleting, switching versions, or regenerating) marks the memories, arc notes, and
-facts that cite the turn for review, including episodes, which cite every passage they cover.
+facts that cite the turn for review.
 Editing or deleting a message does the same for what cites the message. A turn that changes while a
 pass is reading it is flagged the same way. Deleting a chapter, from the Bureau's chapter list,
 deletes its memories, arc notes, and facts, which brings back any memories and facts they had
@@ -496,10 +514,10 @@ Memory belongs to characters, not to the Bureau.
 | -------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | Profile        | The Bureau's copy of the card, and the routine; changes only by hand or from an interview | Always                                                   |
 | Arc notes      | Accepted development notes, versioned                                                     | Always                                                   |
-| Knowledge      | Facts about other cast members (persona included), preferences, milestones, running jokes | Always, within a budget ranked by importance and recency |
-| Episodes       | Dated summaries of chapters and correspondence sessions the character took part in        | Recent ones in full                                      |
-| Eras           | Summaries rolled up from older episodes                                                   | Always, compact                                          |
-| Offscreen life | Routine, plus what the character did while nobody was watching                            | The latest account, until an episode comes after it      |
+| Knowledge      | What later chapters need: promises, plans, open matters, turning points, people learned   | Always, within a budget ranked by importance and recency |
+| Chapter recaps | Each chapter's summary, not a memory but read as one: the chapters the character was in   | The latest five                                          |
+| Eras           | Later: summaries rolled up from older chapter summaries                                   | Always, compact                                          |
+| Offscreen life | Routine, plus what the character did while nobody was watching                            | The latest account, until a chapter they're in follows   |
 | Archive        | Raw turns and messages the character witnessed                                            | Only through `recall`                                    |
 
 ### Who remembers what
@@ -513,8 +531,11 @@ them saying, doing, or learning, and the Writer sees it. They differ only in bei
 reader writes as.
 
 Phase 3 built seed cards, knowledge, and episodes. In the Writer prompt, each character gets their
-pinned knowledge, then the most important knowledge that fits a budget (4,000 characters by default),
-and their last three episodes from earlier chapters. Both limits are Bureau settings.
+pinned knowledge, then the most important knowledge that fits a budget (4,000 characters by default).
+Instead of per-character episodes, the Writer gets the summaries of the latest earlier chapters (five
+by default); replies, offscreen accounts, and interviews get the latest ones the character was in.
+Both limits are Bureau settings. A reply is told its character knows only what happened while they
+were there, since a summary tells the whole chapter.
 
 A chapter also only remembers what happened before its start time (see
 [Time and memory](#time-and-memory)).
@@ -823,10 +844,9 @@ reader moves the clock, the time is deliberate, so the prompts say it exactly:
     thread that fails doesn't keep the others out). Accounts are dated just before the chapter's
     start, and if either step fails, the chapter still starts, with a notice.
   - Before a reply: that character, with the account dated just before the current session of
-    messages began, so the session's episode takes over from it once recorded. A failure there
-    doesn't stop the reply.
+    messages began. A failure there doesn't stop the reply.
 - The call sees each character's whole description and personality, their routine, what they know,
-  recent episodes, how they have changed, and their last time away, with the established facts as of
+  the summaries of the last two chapters they were in, how they have changed, and their last time away, with the established facts as of
   the new time. It keeps to the profiles and facts: where someone lives, who they live with, and
   their work don't change offscreen. The reader's character gets accounts too, and like any memory,
   an account can be edited or retired.
@@ -837,8 +857,8 @@ reader moves the clock, the time is deliberate, so the prompts say it exactly:
   chapter start.
 - Nothing runs in the background: a month away produces one summary, not thirty days of invented
   drama. Prompts ask for mostly mundane events and cap the notable ones.
-- The Writer and reply prompts include the latest account ("Mara lately: ..."), until an episode
-  happens after it. The memory browser lists accounts under "What happened", and a Bureau setting
+- The Writer and reply prompts include the latest account ("Mara lately: ..."), until a chapter
+  they're in begins after it. The memory browser lists accounts under "What happened", and a Bureau setting
   turns offscreen life off.
 
 ## Character generator

@@ -11,7 +11,13 @@
  */
 
 import { describeBureauTime, describeGap, settingYear } from './bureau-time.js';
-import { factsAtTime, memoriesAtTime, notesAtTime, selectForPrompt } from './memory.js';
+import {
+  earlierChapters,
+  factsAtTime,
+  memoriesAtTime,
+  notesAtTime,
+  selectForPrompt,
+} from './memory.js';
 import { bureauText, profileLines } from './profile-text.js';
 import { RunRecorder } from './run-recorder.js';
 
@@ -20,7 +26,8 @@ export const OFFSCREEN_MIN_GAP_HOURS = 12;
 export const OFFSCREEN_MAX_TOKENS = 3000;
 const OFFSCREEN_IMPORTANCE = 2;
 const KNOWLEDGE_CHARACTERS = 1500;
-const RECENT_EPISODES = 2;
+// Summaries of the latest chapters each character was in.
+const RECENT_CHAPTERS = 2;
 
 export const RECORD_OFFSCREEN_TOOL = {
   name: 'record_offscreen',
@@ -139,8 +146,9 @@ export function findOffscreenGaps(stores, bureau, members, to, { ignoreStoryId =
  * @param {Array<{member: Object, from: string}>} params.gaps - Characters to account for, with
  *   seed cards and routines, and when each was last seen.
  * @param {string} params.to - The new time (ISO).
- * @param {Map<string, {knowledge: Array<Object>, episodes: Array<Object>, offscreen: Object|null}>}
- *   [params.memoriesByCast]
+ * @param {Map<string, {knowledge: Array<Object>, offscreen: Object|null}>} [params.memoriesByCast]
+ * @param {Map<string, Array<{summary: string}>>} [params.chaptersByCast] - Summaries of the latest
+ *   chapters each character was in, oldest first.
  * @param {Map<string, Array<{content: string}>>} [params.notesByCast] - Accepted arc notes.
  * @param {string|null} [params.readerName] - The reader's character's name, for {{user}} in cards.
  * @param {Array<{content: string}>} [params.facts] - Established facts as of the new time.
@@ -152,6 +160,7 @@ export function buildOffscreenMessages({
   gaps,
   to,
   memoriesByCast = new Map(),
+  chaptersByCast = new Map(),
   notesByCast = new Map(),
   readerName = null,
   facts = [],
@@ -195,9 +204,10 @@ export function buildOffscreenMessages({
     if (memories?.knowledge.length > 0) {
       lines.push(`Knows:\n${memories.knowledge.map((memory) => `- ${memory.content}`).join('\n')}`);
     }
-    if (memories?.episodes.length > 0) {
+    const chapters = chaptersByCast.get(member.id) ?? [];
+    if (chapters.length > 0) {
       lines.push(
-        `Recently:\n${memories.episodes.map((memory) => `- ${memory.content}`).join('\n')}`,
+        `Recently:\n${chapters.map((chapter) => `- ${bureauText(chapter.summary, readerName)}`).join('\n')}`,
       );
     }
     if (memories?.offscreen) {
@@ -238,12 +248,20 @@ export async function generateOffscreenLife({
   if (gaps.length === 0) return [];
   const characters = gaps.map(({ member }) => member);
 
+  const allChapters = stores.stories.listStories(bureau.id);
+  const chaptersByCast = new Map(
+    characters.map((member) => [
+      member.id,
+      earlierChapters(allChapters, { time: to }, { castId: member.id }),
+    ]),
+  );
   const memoriesByCast = new Map(
     characters.map((member) => [
       member.id,
       selectForPrompt(
         memoriesAtTime(stores.memories.listMemories(bureau.id, member.id, { status: 'all' }), to),
-        { knowledgeCharacters: KNOWLEDGE_CHARACTERS, recentEpisodes: RECENT_EPISODES },
+        { knowledgeCharacters: KNOWLEDGE_CHARACTERS },
+        { lastChapterTime: chaptersByCast.get(member.id).at(-1)?.startTime ?? null },
       ),
     ]),
   );
@@ -259,6 +277,9 @@ export async function generateOffscreenLife({
     gaps,
     to,
     memoriesByCast,
+    chaptersByCast: new Map(
+      [...chaptersByCast].map(([castId, chapters]) => [castId, chapters.slice(-RECENT_CHAPTERS)]),
+    ),
     notesByCast,
     readerName: persona?.name ?? null,
     facts: factsAtTime(stores.facts.listFacts(bureau.id), to),

@@ -25,7 +25,7 @@ function fakeClient(text = 'The lamp was lit.', { failWith = null } = {}) {
     model: 'deepseek-flash',
     calls: [],
     archiveCalls: [],
-    archiveRecord: { knowledge: [], episodes: [], story_summary: 'Summary.' },
+    archiveRecord: { knowledge: [], story_summary: 'Summary.' },
     offscreenRecord: { entries: [] },
     archiveFailure: null,
     async chat(options) {
@@ -74,7 +74,6 @@ function fakeClient(text = 'The lamp was lit.', { failWith = null } = {}) {
 function maraKnows(content) {
   return {
     knowledge: [{ character: 'Mara', content, importance: 4, supersedes: 0, passages: [0] }],
-    episodes: [{ character: 'Mara', content: 'Theo confided in Mara.' }],
     story_summary: 'Theo confesses.',
   };
 }
@@ -211,8 +210,15 @@ describe('Bureau story routes', () => {
       });
       stores.bureaus.setBureauTime(bureau.id, '2026-09-01T20:00:00.000Z');
       client.archiveRecord = {
-        knowledge: [],
-        episodes: [{ character: 'Mara', content: 'Theo said he would visit the light.' }],
+        knowledge: [
+          {
+            character: 'Mara',
+            content: 'Theo said he would visit the light next week.',
+            importance: 3,
+            supersedes: 0,
+            passages: [message.position],
+          },
+        ],
         arc_notes: [],
         story_summary: '',
       };
@@ -229,9 +235,9 @@ describe('Bureau story routes', () => {
       expect(stores.threads.getThread(bureau.id, thread.id).archivedThrough).toBe(message.position);
       expect(
         stores.memories
-          .listMemories(bureau.id, mara.id, { layer: 'episode' })
+          .listMemories(bureau.id, mara.id, { layer: 'knowledge' })
           .map((memory) => memory.content),
-      ).toEqual(['Theo said he would visit the light.']);
+      ).toEqual(['Theo said he would visit the light next week.']);
       expect(stores.memories.listMemories(bureau.id, mara.id, { layer: 'offscreen' })).toEqual([
         expect.objectContaining({
           content: 'Scraped the rust off the railings.',
@@ -794,12 +800,9 @@ describe('Bureau story routes', () => {
         .send({})
         .expect(200);
 
-      expect(body.archive).toMatchObject({ passes: 1, added: 1, episodes: 1 });
+      expect(body.archive).toMatchObject({ passes: 1, added: 1 });
       expect(body.story).toMatchObject({ archivedThrough: 0, summary: 'Theo confesses.' });
-      expect((await maraMemories()).map((memory) => memory.content)).toEqual([
-        'Theo confided in Mara.',
-        "Theo can't swim.",
-      ]);
+      expect((await maraMemories()).map((memory) => memory.content)).toEqual(["Theo can't swim."]);
 
       stores.bureaus.updateBureau(bureau.id, { apiKey: '' });
       await request(app).post(`${storiesUrl()}/${story.id}/archive`).send({}).expect(400);
@@ -865,13 +868,11 @@ describe('Bureau story routes', () => {
         .send({ content: 'Theo admitted he could barely swim.' })
         .expect(200);
 
-      // The episode covers every passage, so it's flagged along with the knowledge.
       expect((await maraMemories()).map((memory) => [memory.layer, memory.needsReview])).toEqual([
-        ['episode', true],
         ['knowledge', true],
       ]);
       const { body } = await request(app).get(`/api/bureaus/${bureau.id}/cast`).expect(200);
-      expect(body.memoryCounts[mara.id]).toEqual({ current: 2, needsReview: 2 });
+      expect(body.memoryCounts[mara.id]).toEqual({ current: 1, needsReview: 1 });
     });
 
     it('deletes the memories and arc notes recorded from a deleted story', async () => {

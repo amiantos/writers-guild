@@ -28,7 +28,7 @@ function bureau(fields = {}) {
       memory: {
         autoArchive: true,
         knowledgeCharacters: 4000,
-        recentEpisodes: 3,
+        recentChapters: 5,
         offscreenLife: true,
       },
       correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
@@ -133,7 +133,7 @@ describe('BureauSettingsSection', () => {
     await wrapper.find('#bureau-settings-offscreen-life').setValue(false);
     await wrapper.find('#bureau-settings-auto-archive').setValue(false);
     await wrapper.find('#bureau-settings-knowledge').setValue('6000');
-    await wrapper.find('#bureau-settings-recent-episodes').setValue('5');
+    await wrapper.find('#bureau-settings-recent-chapters').setValue('8');
     await wrapper
       .findAll('button')
       .find((button) => button.text().includes('Save settings'))
@@ -145,7 +145,7 @@ describe('BureauSettingsSection', () => {
       memory: {
         autoArchive: false,
         knowledgeCharacters: 6000,
-        recentEpisodes: 5,
+        recentChapters: 8,
         offscreenLife: false,
       },
       correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },

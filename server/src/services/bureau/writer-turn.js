@@ -11,7 +11,7 @@ import { ImagePreserver } from '../image-preserver.js';
 import { LorebookActivator } from '../lorebook-activator.js';
 import { chapterTime, settingYear } from './bureau-time.js';
 import { imageStream } from './images.js';
-import { factsAsOf, memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
+import { earlierChapters, factsAsOf, memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
 import { buildWriterMessages } from './writer-prompt.js';
 
@@ -134,6 +134,12 @@ export async function generateWriterTurn({
     .map((castId) => bureaus.getCastMember(bureau.id, castId))
     .filter(Boolean);
 
+  // What happened in the chapters before this one, from their summaries.
+  const chapters = stores.stories.listStories(bureau.id);
+  const { recentChapters } = bureau.settings.memory;
+  const recaps =
+    recentChapters > 0 ? earlierChapters(chapters, { story }).slice(-recentChapters) : [];
+
   // What each character, the reader's included, remembers from before this chapter.
   const memoriesByCast = new Map(
     cast.map((member) => [
@@ -141,6 +147,10 @@ export async function generateWriterTurn({
       selectForPrompt(
         memoriesAsOf(stores.memories.listMemories(bureau.id, member.id, { status: 'all' }), story),
         bureau.settings.memory,
+        {
+          lastChapterTime:
+            earlierChapters(chapters, { story }, { castId: member.id }).at(-1)?.startTime ?? null,
+        },
       ),
     ]),
   );
@@ -198,6 +208,7 @@ export async function generateWriterTurn({
       loreEntries: await activatedLore(stores, bureau.id, scanText),
       memoriesByCast,
       arcNotesByCast,
+      earlierChapters: recaps,
       facts: factsAsOf(stores.facts.listFacts(bureau.id), story),
       turns,
       request: promptRequest,

@@ -283,7 +283,18 @@ describe('generateWriterTurn', () => {
         worldTime: target.startTime,
       });
     fromStory(mara.id, earlier, 'knowledge', "Theo can't swim.");
-    fromStory(mara.id, earlier, 'episode', 'Mara met Theo at the pier.');
+    // Chapters used to leave episodes; their summaries tell what happened instead.
+    fromStory(mara.id, earlier, 'episode', 'An episode from before summaries.');
+    stores.stories.setArchiveProgress(earlier.id, {
+      archivedThrough: -1,
+      summary: 'Mara met Theo at the pier.',
+    });
+    const later = stores.stories.createStory(bureau.id, {
+      startTime: '2026-11-20T20:00:00.000Z',
+      castIds: [mara.id],
+      title: 'Later',
+    });
+    stores.stories.setArchiveProgress(later.id, { archivedThrough: -1, summary: 'Not yet.' });
     fromStory(mara.id, story, 'knowledge', 'Theo waded in up to his knees.');
     fromStory(theo.id, earlier, 'knowledge', 'Theo remembers the pier.');
     stores.arcNotes.addNote(bureau.id, mara.id, {
@@ -299,14 +310,42 @@ describe('generateWriterTurn', () => {
     await generate(client, { action: 'continue' });
 
     const system = client.calls[0].messages[0].content;
+    expect(system).toContain("Mara knows:\n- Theo can't swim.\n");
     expect(system).toContain(
-      "Mara knows:\n- Theo can't swim.\n\nMara remembers:\n- The Pier: Mara met Theo at the pier.",
+      'The Pier (began 1:00 PM on Thursday, October 1, 2026):\nMara met Theo at the pier.',
     );
+    expect(system).not.toMatch(/An episode from before summaries|Not yet\./);
     expect(system).toContain('How Mara has changed:\n- Mara lets Theo take the oars now.');
     expect(system).not.toContain('waits to be asked');
     expect(system).not.toContain('waded in');
     // The reader's character remembers too.
     expect(system).toContain('Theo knows:\n- Theo remembers the pier.');
+  });
+
+  it('gives the Writer as many earlier chapters as the settings say', async () => {
+    const chapter = (title, startTime) => {
+      const created = stores.stories.createStory(bureau.id, { startTime, castIds: [mara.id] });
+      stores.stories.updateStory(bureau.id, created.id, { title });
+      stores.stories.setArchiveProgress(created.id, {
+        archivedThrough: -1,
+        summary: `What happened in ${title}.`,
+      });
+    };
+    chapter('First', '2026-10-01T20:00:00.000Z');
+    chapter('Second', '2026-10-08T20:00:00.000Z');
+    stores.bureaus.updateSettings(bureau.id, { memory: { recentChapters: 1 } });
+    const client = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
+
+    await generate(client, { action: 'continue' });
+
+    const system = client.calls[0].messages[0].content;
+    expect(system).toContain('What happened in Second.');
+    expect(system).not.toContain('What happened in First.');
+
+    stores.bureaus.updateSettings(bureau.id, { memory: { recentChapters: 0 } });
+    const none = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
+    await generate(none, { action: 'continue' });
+    expect(none.calls[0].messages[0].content).not.toContain('EARLIER CHAPTERS');
   });
 
   it('sets the opening at the story start time, in the Bureau time zone', async () => {

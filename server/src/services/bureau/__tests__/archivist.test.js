@@ -26,7 +26,7 @@ function card(name) {
 }
 
 function record(fields = {}) {
-  return { knowledge: [], episodes: [], arc_notes: [], story_summary: '', ...fields };
+  return { knowledge: [], arc_notes: [], story_summary: '', ...fields };
 }
 
 /** A knowledge item in which Mara replaces memory `id` with `content`. */
@@ -134,7 +134,7 @@ describe('archiveStory', () => {
     expect(user).not.toContain('/api/assets/');
   });
 
-  it('records knowledge, episodes, and the summary from a pass', async () => {
+  it('records knowledge and the summary from a pass, and no episodes', async () => {
     const confession = addProse("Theo admitted he couldn't swim.", 'user');
     stores.stories.addTurn(story.id, {
       kind: 'direction',
@@ -160,6 +160,7 @@ describe('archiveStory', () => {
             passages: [promise.position, 99],
           },
         ],
+        // What happened is the summary's to keep; an episode from an older model is ignored.
         episodes: [{ character: 'Mara', content: 'Theo confided in Mara at the pier.' }],
         story_summary: 'Theo confesses he cannot swim; Mara promises lessons.',
       }),
@@ -171,10 +172,10 @@ describe('archiveStory', () => {
       passes: 1,
       added: 2,
       superseded: 0,
-      episodes: 1,
       warnings: [],
       archivedThrough: promise.position,
     });
+    expect(result).not.toHaveProperty('episodes');
     expect(maraMemories('knowledge').map((memory) => [memory.content, memory.importance])).toEqual([
       ['Mara promised to teach Theo to swim before summer.', 5],
       ["Theo can't swim.", 4],
@@ -186,9 +187,7 @@ describe('archiveStory', () => {
       sourceTurnIds: [promise.id],
       runId: result.runId,
     });
-    expect(maraMemories('episode').map((memory) => memory.content)).toEqual([
-      'Theo confided in Mara at the pier.',
-    ]);
+    expect(maraMemories('episode')).toEqual([]);
     expect(stores.memories.listMemories(bureau.id, theo.id)).toEqual([]);
     expect(stores.stories.getStory(bureau.id, story.id)).toMatchObject({
       archivedThrough: promise.position,
@@ -205,6 +204,16 @@ describe('archiveStory', () => {
     expect(call.messages[0].content).toContain(
       "Theo is the reader's character and remembers like everyone else.",
     );
+    // Knowledge is kept for what later chapters need; the summary keeps what happened.
+    expect(call.messages[0].content).toContain(
+      'What happened is kept elsewhere (the chapter keeps its summary)',
+    );
+    expect(call.messages[0].content).toContain(
+      'would a later chapter get something wrong, or drop a thread, without it?',
+    );
+    expect(call.messages[0].content).toContain('in at most 250 words');
+    expect(call.messages[0].content).not.toMatch(/Episodes?:/);
+    expect(RECORD_MEMORIES_TOOL.parameters.properties).not.toHaveProperty('episodes');
     expect(call.messages[1].content).toContain(`[Passage 0]\nTheo admitted he couldn't swim.`);
     expect(call.messages[1].content).not.toContain('Make it rain');
 
@@ -382,7 +391,6 @@ describe('archiveStory', () => {
             passages: [0],
           },
         ],
-        episodes: [{ character: 'Mara', content: 'First episode.' }],
         story_summary: 'Summary one.',
       }),
     ]);
@@ -401,7 +409,6 @@ describe('archiveStory', () => {
             passages: [1],
           },
         ],
-        episodes: [{ character: 'Mara', content: 'Second episode.' }],
         story_summary: 'Summary two.',
       }),
     ]);
@@ -412,10 +419,8 @@ describe('archiveStory', () => {
     expect(prompt).toContain('Theo is getting braver about water.');
     expect(prompt).not.toContain('Theo is afraid of water.');
     expect(prompt).toContain(`[${pinned.id}] Theo hates boats.`);
-    expect(prompt).toContain('Episode for this chapter so far: First episode.');
     expect(prompt).not.toContain('Theo waded in');
     expect(second.warnings).toEqual([`Kept memory ${pinned.id} for Mara: it can't be replaced`]);
-    expect(maraMemories('episode').map((memory) => memory.content)).toEqual(['Second episode.']);
     expect(stores.memories.getMemory(bureau.id, pinned.id).supersededBy).toBeNull();
   });
 
@@ -432,7 +437,6 @@ describe('archiveStory', () => {
             passages: [turn.position],
           },
         ],
-        episodes: [{ character: 'Mara', content: 'Theo confided in Mara.' }],
       }),
     ]);
     client.beforeAnswer = () =>
@@ -441,7 +445,6 @@ describe('archiveStory', () => {
     const result = await archive(client);
 
     expect(maraMemories().map((memory) => [memory.layer, memory.needsReview])).toEqual([
-      ['episode', true],
       ['knowledge', true],
     ]);
     expect(result.warnings).toEqual([
@@ -483,25 +486,6 @@ describe('archiveStory', () => {
       supersededBy: null,
     });
     expect(stores.memories.getMemory(bureau.id, replacedTwice.id).supersededBy).not.toBeNull();
-  });
-
-  it('cites every passage in an episode, and keeps a pinned episode', async () => {
-    const episode = (content) => record({ episodes: [{ character: 'Mara', content }] });
-    const first = addProse('Theo waded in.');
-    await archive(archivistClient([episode('First.')]));
-    const second = addProse('Theo swam to the buoy.');
-    await archive(archivistClient([episode('Second.')]));
-
-    const [current] = maraMemories('episode');
-    expect(current).toMatchObject({ content: 'Second.', sourceTurnIds: [first.id, second.id] });
-
-    stores.memories.updateMemory(bureau.id, current.id, { pinned: true });
-    addProse('Theo floated on his back.');
-    const result = await archive(archivistClient([episode('Third.')]));
-
-    expect(result.episodes).toBe(0);
-    expect(result.warnings).toHaveLength(1);
-    expect(maraMemories('episode').map((memory) => memory.content)).toEqual(['Second.']);
   });
 
   it('proposes arc notes for review, skipping changes already had, waiting, or rejected', async () => {
@@ -835,41 +819,53 @@ describe('archiveThread', () => {
             passages: [question.position],
           },
         ],
-        episodes: [{ character: 'Mara', content: 'Theo texted before dawn during the storm.' }],
         story_summary: 'Ignored for threads.',
       }),
-      record({ episodes: [{ character: 'Mara', content: 'Theo let her know he got home.' }] }),
+      record({
+        knowledge: [
+          {
+            character: 'Mara',
+            content: 'Theo promised to visit the lighthouse on Sunday.',
+            importance: 3,
+            supersedes: 0,
+            passages: [later.position],
+          },
+        ],
+      }),
     ]);
 
     const result = await archive(client);
 
     expect(result).toMatchObject({
       passes: 2,
-      added: 1,
-      episodes: 2,
+      added: 2,
       archivedThrough: later.position,
     });
     expect(
-      stores.memories.listMemories(bureau.id, mara.id, { layer: 'knowledge' })[0],
+      stores.memories
+        .listMemories(bureau.id, mara.id, { layer: 'knowledge' })
+        .map((memory) => [memory.content, memory.worldTime]),
+    ).toEqual([
+      ['Theo promised to visit the lighthouse on Sunday.', '2026-10-03T19:00:00.000Z'],
+      ['Theo has trouble sleeping in storms.', '2026-10-01T06:00:00.000Z'],
+    ]);
+    expect(
+      stores.memories.listMemories(bureau.id, mara.id, { layer: 'knowledge' })[1],
     ).toMatchObject({
       sourceType: 'correspondence',
       sourceId: thread.id,
-      worldTime: '2026-10-01T06:00:00.000Z',
       sourceTurnIds: [question.id],
     });
-    expect(
-      stores.memories
-        .listMemories(bureau.id, mara.id, { layer: 'episode' })
-        .map((memory) => [memory.content, memory.worldTime]),
-    ).toEqual([
-      ['Theo let her know he got home.', '2026-10-03T19:00:00.000Z'],
-      ['Theo texted before dawn during the storm.', '2026-10-01T06:00:00.000Z'],
-    ]);
+    // Messages leave no account of what happened: they stay in the thread.
+    expect(stores.memories.listMemories(bureau.id, mara.id, { layer: 'episode' })).toEqual([]);
     expect(stores.threads.getThread(bureau.id, thread.id).archivedThrough).toBe(later.position);
 
     const [first] = client.calls;
     expect(first.messages[0].content).toContain('Read the new messages');
-    expect(first.messages[0].content).toContain('exchange of messages');
+    expect(first.messages[0].content).toContain(
+      'What happened is kept elsewhere (the messages stay in the thread)',
+    );
+    expect(first.messages[0].content).toContain('story_summary: leave it empty.');
     expect(first.messages[1].content).toContain(
       "=== MESSAGES ===\nBetween: Mara and Theo (the reader's character)",
     );
@@ -903,26 +899,22 @@ describe('archiveThread', () => {
             supersedes: 0,
             passages: [message.position],
           },
-        ],
-        episodes: [
-          { character: 'Theo', content: 'Theo texted Mara that he was leaving.' },
-          { character: 'Ines', content: 'Ines read the messages.' },
+          {
+            character: 'Ines',
+            content: 'Ines knows Theo is leaving.',
+            importance: 3,
+            supersedes: 0,
+            passages: [message.position],
+          },
         ],
       }),
     ]);
 
     const result = await archive(client);
 
-    const theoMemories = stores.memories
-      .listMemories(bureau.id, theo.id)
-      .map((memory) => memory.content);
-    expect(theoMemories).toHaveLength(2);
-    expect(theoMemories).toEqual(
-      expect.arrayContaining([
-        'Theo told Mara he is leaving the island.',
-        'Theo texted Mara that he was leaving.',
-      ]),
-    );
+    expect(
+      stores.memories.listMemories(bureau.id, theo.id).map((memory) => memory.content),
+    ).toEqual(['Theo told Mara he is leaving the island.']);
     expect(stores.memories.listMemories(bureau.id, ines.id)).toEqual([]);
     expect(result.warnings).toEqual([expect.stringContaining('"Ines"')]);
     const [system, user] = client.calls[0].messages;
@@ -960,9 +952,16 @@ describe('archiveThread', () => {
   it('keeps messages before a chapter apart from those after it, at the same Bureau time', async () => {
     const at = '2026-10-01T20:00:00.000Z';
     stores.bureaus.setBureauTime(bureau.id, at);
+    // Each cites its message, which dates it against the chapter.
+    const known = (content, position) =>
+      record({
+        knowledge: [
+          { character: 'Mara', content, importance: 3, supersedes: 0, passages: [position] },
+        ],
+      });
     const client = archivistClient([
-      record({ episodes: [{ character: 'Mara', content: 'Theo said the ferry was in.' }] }),
-      record({ episodes: [{ character: 'Mara', content: 'Theo said he got home.' }] }),
+      known('Theo said the ferry was in.', 0),
+      known('Theo said he got home.', 1),
     ]);
     // The messages and the chapter are written a few minutes apart.
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -988,43 +987,18 @@ describe('archiveThread', () => {
       vi.useRealTimers();
     }
 
-    const episodes = stores.memories.listMemories(bureau.id, mara.id, {
+    const memories = stores.memories.listMemories(bureau.id, mara.id, {
       status: 'all',
-      layer: 'episode',
+      layer: 'knowledge',
     });
-    expect(episodes.map((memory) => memory.content).toSorted()).toEqual([
+    expect(memories.map((memory) => memory.content).toSorted()).toEqual([
       'Theo said he got home.',
       'Theo said the ferry was in.',
     ]);
     // The chapter remembers the exchange written before it started, not the one after.
-    expect(memoriesAsOf(episodes, story).map((memory) => memory.content)).toEqual([
+    expect(memoriesAsOf(memories, story).map((memory) => memory.content)).toEqual([
       'Theo said the ferry was in.',
     ]);
-  });
-
-  it("rewrites a session's episode when the session grows", async () => {
-    const opening = send('user', 'Lamp lit?', '2026-10-01T20:00:00.000Z');
-    const client = archivistClient([
-      record({ episodes: [{ character: 'Mara', content: 'Theo checked on the lamp.' }] }),
-      record({
-        episodes: [
-          { character: 'Mara', content: 'Theo checked on the lamp, then said goodnight.' },
-        ],
-      }),
-    ]);
-
-    await archive(client);
-    const goodnight = send('user', 'Goodnight.', '2026-10-01T20:30:00.000Z');
-    await archive(client);
-
-    const episodes = stores.memories.listMemories(bureau.id, mara.id, { layer: 'episode' });
-    expect(episodes.map((memory) => memory.content)).toEqual([
-      'Theo checked on the lamp, then said goodnight.',
-    ]);
-    expect(episodes[0].sourceTurnIds).toEqual([opening.id, goodnight.id]);
-    expect(client.calls[1].messages[1].content).toContain(
-      'Episode for this exchange so far: Theo checked on the lamp.',
-    );
   });
 
   it('flags what it recorded from a message that changed while it was reading', async () => {

@@ -157,10 +157,10 @@
             />
           </div>
           <div class="form-group">
-            <label for="bureau-settings-recent-episodes">Recent episodes</label>
+            <label for="bureau-settings-recent-chapters">Earlier chapters</label>
             <input
-              id="bureau-settings-recent-episodes"
-              v-model.number="form.memory.recentEpisodes"
+              id="bureau-settings-recent-chapters"
+              v-model.number="form.memory.recentChapters"
               type="number"
               min="0"
               max="20"
@@ -170,7 +170,9 @@
         </div>
         <p class="help-text">
           What prompts include for each character: everything they know that's pinned, then the most
-          important of the rest up to the budget, in characters of text, and their latest episodes.
+          important of the rest up to the budget, in characters of text. Prompts also get the
+          summaries of this many earlier chapters: the Writer the latest ones, and replies the
+          latest ones that character was in.
         </p>
       </fieldset>
 

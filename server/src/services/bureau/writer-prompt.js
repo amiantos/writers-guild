@@ -7,7 +7,8 @@
  * The prompts are story mode's own: its PromptBuilder renders the default system prompt and the
  * default template for the matching story mode button, so a chapter reads like a story written in
  * story mode. What Bureau adds is continuity: established facts, how the characters have changed,
- * what they remember, and the chapter's time, in sections placed before story mode's instructions.
+ * what happened in earlier chapters, what the characters remember, and the chapter's time, in
+ * sections placed before story mode's instructions.
  *
  * The story reaches the model as continuous prose, never as a chat transcript: turns are storage
  * and UI structure only. Directions reach the Writer as story mode's "Continue with Instruction"
@@ -38,6 +39,8 @@ const CHAPTER_TEXT_KINDS = ['prose', 'scene_break', 'time_passes'];
 const KEEP_TO_THE_TIME =
   'Let the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this';
 
+const EARLIER_CHAPTERS_PREFACE = 'What happened in the chapters before this one, oldest first.';
+
 const MEMORIES_PREFACE =
   "What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.";
 
@@ -53,12 +56,6 @@ function nameOf(member) {
   return member.seedCard?.data?.name || member.name;
 }
 
-/** Where an episode happened: a story's title, or messages. */
-function episodeLabel(memory) {
-  if (memory.sourceTitle) return `${memory.sourceTitle}: `;
-  return memory.sourceType === 'correspondence' ? 'In messages: ' : '';
-}
-
 /** One character's memories, or '' when they have none. */
 function memoryBlock(name, memories) {
   if (!memories) return '';
@@ -67,15 +64,6 @@ function memoryBlock(name, memories) {
     lines.push(
       `${name} knows:`,
       ...memories.knowledge.map((memory) => `- ${stripAsterisks(memory.content)}`),
-    );
-  }
-  if (memories.episodes.length > 0) {
-    if (lines.length > 0) lines.push('');
-    lines.push(
-      `${name} remembers:`,
-      ...memories.episodes.map(
-        (memory) => `- ${episodeLabel(memory)}${stripAsterisks(memory.content)}`,
-      ),
     );
   }
   if (memories.offscreen) {
@@ -157,8 +145,11 @@ function withContinuity(systemPrompt, sections, instructionsHeader) {
  * @param {Object} params.bureau - Uses timezone.
  * @param {Array<Object>} params.cast - Cast members, each with seedCard and isPersona.
  * @param {Array<{content: string}>} [params.loreEntries] - Lorebook entries already activated.
- * @param {Map<string, {knowledge: Array<Object>, episodes: Array<Object>}>} [params.memoriesByCast] -
- *   What each character remembers from before this story, by cast member id (see memory.js).
+ * @param {Map<string, {knowledge: Array<Object>, offscreen: Object|null}>} [params.memoriesByCast] -
+ *   What each character remembers from before this story, by cast member id (see selectForPrompt
+ *   in memory.js).
+ * @param {Array<{title: string, startTime: string, summary: string}>} [params.earlierChapters] -
+ *   Summaries of the chapters before this one, oldest first (see earlierChapters in memory.js).
  * @param {Map<string, Array<{content: string}>>} [params.arcNotesByCast] - Accepted arc notes
  *   from before this story, by cast member id: how each character has changed.
  * @param {Array<{content: string}>} [params.facts] - Established facts the story can see (see
@@ -193,6 +184,7 @@ export function buildWriterMessages({
   loreEntries = [],
   memoriesByCast = new Map(),
   arcNotesByCast = new Map(),
+  earlierChapters = [],
   facts = [],
   turns,
   request,
@@ -279,6 +271,15 @@ export function buildWriterMessages({
     .filter(Boolean);
   if (changes.length > 0) {
     continuity.push(section('CHARACTER DEVELOPMENT', changes.join('\n\n')));
+  }
+  if (earlierChapters.length > 0) {
+    const recaps = earlierChapters.map(
+      (chapter) =>
+        `${chapter.title} (began ${describeBureauTime(chapter.startTime, bureau.timezone)}):\n${stripAsterisks(macros.process(chapter.summary)).trim()}`,
+    );
+    continuity.push(
+      section('EARLIER CHAPTERS', [EARLIER_CHAPTERS_PREFACE, ...recaps].join('\n\n')),
+    );
   }
   // The reader's character remembers too.
   const remembered = everyone
