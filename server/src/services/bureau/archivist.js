@@ -262,14 +262,18 @@ const WORDING = {
   story: {
     units: 'passages',
     unit: 'Passage',
-    kept: 'the chapter keeps its summary',
+    // A chapter's summary keeps what happened in it.
+    knowledge:
+      'Knowledge: what later chapters and messages will need, so the characters stay consistent and nothing left open gets dropped. What happened is kept in the chapter summary, so knowledge is only for what will still matter afterward:',
     summary:
       'story_summary: what has happened in the whole chapter so far, in at most 250 words, updating the previous summary. Later chapters are written from it, so cover the whole chapter in order: who was there, what happened, and how things were left.',
   },
   correspondence: {
     units: 'messages',
     unit: 'Message',
-    kept: 'the messages stay in the thread',
+    // Messages get no summary, and later chapters don't read them, so knowledge is all they leave.
+    knowledge:
+      "Knowledge: what later chapters and messages will need, so the characters stay consistent and nothing left open gets dropped. Messages leave no summary and later chapters don't read them, so knowledge is all that carries them forward: besides the kinds below, record news shared and decisions made in them that a later chapter should know about:",
     summary: 'story_summary: leave it empty.',
   },
 };
@@ -325,7 +329,7 @@ export function buildArchivistMessages({
   }
   system.push(
     [
-      `Knowledge: what later chapters and messages will need, so the characters stay consistent and nothing left open gets dropped. What happened is kept elsewhere (${wording.kept}), so knowledge is only for what will still matter afterward:`,
+      wording.knowledge,
       `- Promises, plans, and arrangements that reach past these ${wording.units}: a date set, a favor owed, a trip planned, something someone said they would do.`,
       '- Matters left open: a question not yet answered, a problem not yet solved, a secret someone is keeping, something someone is waiting on.',
       '- Turning points between people: a confession, a falling-out, a making-up, a line crossed, a secret revealed.',
@@ -514,6 +518,8 @@ function storySource(stores, bureau, storyId, { before = Infinity } = {}) {
     currentContent: (turnId) => stores.stories.getTurn(storyId, turnId)?.content,
     saveProgress: (archivedThrough, summary) =>
       stores.stories.setArchiveProgress(storyId, { archivedThrough, summary }),
+    // The summary now covers passages that changed while they were read.
+    flagSummary: (positions) => stores.stories.flagSummary(storyId, positions),
     // A story's own memories count, since the Archivist updates them as the story goes on.
     visibleMemories: (memories) => memoriesAsOf(memories, story, { includeOwnStory: true }),
     acceptedNotes: (notes) =>
@@ -775,6 +781,11 @@ function applyRecord({
     }
 
     source.saveProgress(archivedThrough, text(record.story_summary) || source.summary);
+    if (changedTurnIds.length > 0) {
+      source.flagSummary?.(
+        turns.filter((turn) => changedTurnIds.includes(turn.id)).map((turn) => turn.position),
+      );
+    }
   })();
 
   return result;

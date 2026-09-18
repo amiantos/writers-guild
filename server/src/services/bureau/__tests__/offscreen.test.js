@@ -95,7 +95,7 @@ describe('buildOffscreenMessages', () => {
         '- Mara lets Theo help now.',
         'Knows:',
         "- Theo can't swim.",
-        'Recently:',
+        'Recently, in chapters Mara was in (Mara knows only what happened while Mara was there):',
         '- Mara fixed the lamp with Theo.',
         'The last time away: Painted the boathouse.',
       ].join('\n'),

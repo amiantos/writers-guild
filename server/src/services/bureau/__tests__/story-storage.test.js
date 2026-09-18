@@ -78,6 +78,22 @@ describe('StoryStorage', () => {
       expect(updated).toMatchObject({ title: 'Lamplight', castIds: [theo.id, mara.id] });
     });
 
+    it('marks the summary for review when a passage it covers changes, until it is saved', () => {
+      const story = stories.createStory(bureau.id, { startTime: START, castIds: [mara.id] });
+      stories.setArchiveProgress(story.id, { archivedThrough: 3, summary: 'They met.' });
+      expect(stories.getStory(bureau.id, story.id).summaryNeedsReview).toBe(false);
+
+      // Past what the summary covers, nothing changes.
+      stories.flagSummary(story.id, [4, 7]);
+      expect(stories.getStory(bureau.id, story.id).summaryNeedsReview).toBe(false);
+
+      stories.flagSummary(story.id, [5, 2]);
+      expect(stories.getStory(bureau.id, story.id).summaryNeedsReview).toBe(true);
+
+      const saved = stories.updateStory(bureau.id, story.id, { summary: 'They met again.' });
+      expect(saved).toMatchObject({ summary: 'They met again.', summaryNeedsReview: false });
+    });
+
     it('keeps a scenario for the chapter, and clears it', () => {
       const story = stories.createStory(bureau.id, { startTime: START, castIds: [mara.id] });
       expect(story.scenario).toBe('');

@@ -208,7 +208,8 @@ Story mode has no such rule, and Bureau now writes as story mode does, so a line
 reader's character gets regenerated or edited by hand.
 
 **Edit chapter**, the pencil in the chapter's header, is story mode's Edit Story: the chapter's title
-and its **scenario**, the situation, setting, or premise the chapter follows. The Writer gets the
+and its **scenario**, the situation, setting, or premise the chapter follows. It also shows the
+chapter's summary, which later chapters are written with, for correcting. The Writer gets the
 scenario at the top of every prompt, and the pencil is highlighted while a chapter has one. Each
 chapter has its own scenario, starting empty.
 
@@ -440,7 +441,9 @@ things learned about someone for the first time. Each one has to pass a test: wo
 get something wrong, or drop a thread, without it? What happened in the scene, who said what,
 gestures, meals, clothes, and scenery are left to the summary. A pass usually records none to three
 per character. When a later chapter resolves one, such as a promise kept or a plan dropped, the
-Archivist supersedes it with how it stands now.
+Archivist supersedes it with how it stands now. Messages leave no summary, and later chapters don't
+read them, so for messages knowledge also keeps the news shared and decisions made that a later
+chapter should know about.
 
 Before then, the Archivist also wrote an **episode** per character: what happened in the chapter or
 exchange of messages from their point of view, in at most 120 words. Knowledge covered much more,
@@ -469,7 +472,9 @@ Memory operations apply automatically because they are visible, sourced, and rev
 memories wait for the reader. The Archivist can supersede memories but can't retire or delete them,
 and it leaves alone pinned memories and any you change while it's reading. Changing a turn it has
 read (editing, deleting, switching versions, or regenerating) marks the memories, arc notes, and
-facts that cite the turn for review.
+facts that cite the turn for review, and the chapter's summary too when it covers the turn. **Edit
+chapter** shows the summary for correcting, with a note while it's marked, and the chapter list
+flags it; saving the summary clears the mark.
 Editing or deleting a message does the same for what cites the message. A turn that changes while a
 pass is reading it is flagged the same way. Deleting a chapter, from the Bureau's chapter list,
 deletes its memories, arc notes, and facts, which brings back any memories and facts they had
@@ -534,8 +539,8 @@ Phase 3 built seed cards, knowledge, and episodes. In the Writer prompt, each ch
 pinned knowledge, then the most important knowledge that fits a budget (4,000 characters by default).
 Instead of per-character episodes, the Writer gets the summaries of the latest earlier chapters (five
 by default); replies, offscreen accounts, and interviews get the latest ones the character was in.
-Both limits are Bureau settings. A reply is told its character knows only what happened while they
-were there, since a summary tells the whole chapter.
+Both limits are Bureau settings. Replies, offscreen accounts, and interviews are told the character
+knows only what happened while they were there, since a summary tells the whole chapter.
 
 A chapter also only remembers what happened before its start time (see
 [Time and memory](#time-and-memory)).
@@ -930,7 +935,7 @@ facts          (id, bureau_id, content, proposed_content, rationale,
 world_threads  [later] (id, bureau_id, title, summary, status, modified)
 
 stories        (id, bureau_id, position, title, scenario, status [active|ended], start_time,
-                end_time NULL, archived_through, summary, created, modified)
+                end_time NULL, archived_through, summary, summary_needs_review, created, modified)
 story_cast     (story_id, cast_member_id)
 turns          (id, story_id, position, kind, source [user|generated], author_cast_id NULL,
                 content, run_id NULL, edited, created, modified)

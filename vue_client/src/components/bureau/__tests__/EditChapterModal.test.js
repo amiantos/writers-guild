@@ -40,6 +40,31 @@ describe('EditChapterModal', () => {
     });
   });
 
+  it('saves a corrected summary, or marks one waiting for review as checked', async () => {
+    bureauStoriesAPI.update.mockResolvedValue({ story });
+    const flagged = { ...story, summary: 'They met.', summaryNeedsReview: true };
+    const wrapper = mount(EditChapterModal, { props: { bureauId: 'b1', story: flagged } });
+
+    expect(wrapper.text()).toContain('A passage changed after this was written');
+    await saveButton(wrapper).trigger('click');
+    await flushPromises();
+    expect(bureauStoriesAPI.update.mock.calls[0][2]).toMatchObject({ summary: 'They met.' });
+
+    const checked = { ...flagged, summaryNeedsReview: false };
+    const unchanged = mount(EditChapterModal, { props: { bureauId: 'b1', story: checked } });
+    expect(unchanged.text()).not.toContain('A passage changed');
+    await saveButton(unchanged).trigger('click');
+    await flushPromises();
+    expect(bureauStoriesAPI.update.mock.calls[1][2]).not.toHaveProperty('summary');
+
+    await unchanged.find('#chapter-summary').setValue('They met at the pier.');
+    await saveButton(unchanged).trigger('click');
+    await flushPromises();
+    expect(bureauStoriesAPI.update.mock.calls[2][2]).toMatchObject({
+      summary: 'They met at the pier.',
+    });
+  });
+
   it('clears the scenario, and needs a title', async () => {
     bureauStoriesAPI.update.mockResolvedValue({ story: { ...story, scenario: '' } });
     const wrapper = mount(EditChapterModal, { props: { bureauId: 'b1', story } });

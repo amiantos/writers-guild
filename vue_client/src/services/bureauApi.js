@@ -332,8 +332,8 @@ export const bureauStoriesAPI = {
   },
 
   /**
-   * @param {{ title?: string, scenario?: string, castIds?: string[] }} updates - A scenario of ''
-   *   clears it.
+   * @param {{ title?: string, scenario?: string, summary?: string, castIds?: string[] }} updates -
+   *   A scenario of '' clears it. Saving the summary clears its mark for review.
    */
   update(bureauId, storyId, updates) {
     return request(`/${bureauId}/stories/${storyId}`, { method: 'PUT', body: updates });

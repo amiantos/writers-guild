@@ -206,7 +206,7 @@ describe('archiveStory', () => {
     );
     // Knowledge is kept for what later chapters need; the summary keeps what happened.
     expect(call.messages[0].content).toContain(
-      'What happened is kept elsewhere (the chapter keeps its summary)',
+      'What happened is kept in the chapter summary, so knowledge is only for what will still matter afterward',
     );
     expect(call.messages[0].content).toContain(
       'would a later chapter get something wrong, or drop a thread, without it?',
@@ -447,6 +447,8 @@ describe('archiveStory', () => {
     expect(maraMemories().map((memory) => [memory.layer, memory.needsReview])).toEqual([
       ['knowledge', true],
     ]);
+    // The summary was written from the passage as it was.
+    expect(stores.stories.getStory(bureau.id, story.id).summaryNeedsReview).toBe(true);
     expect(result.warnings).toEqual([
       'Marked for review: 1 passage(s) changed while the Archivist read them',
     ]);
@@ -863,7 +865,7 @@ describe('archiveThread', () => {
     const [first] = client.calls;
     expect(first.messages[0].content).toContain('Read the new messages');
     expect(first.messages[0].content).toContain(
-      'What happened is kept elsewhere (the messages stay in the thread)',
+      "Messages leave no summary and later chapters don't read them, so knowledge is all that carries them forward: besides the kinds below, record news shared and decisions made in them",
     );
     expect(first.messages[0].content).toContain('story_summary: leave it empty.');
     expect(first.messages[1].content).toContain(

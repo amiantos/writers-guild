@@ -35,6 +35,10 @@
               {{ story.turnCount === 1 ? 'turn' : 'turns' }}
             </span>
             <span v-if="story.summary" class="story-summary">{{ story.summary }}</span>
+            <span v-if="story.summary && story.summaryNeedsReview" class="summary-review">
+              <i class="fas fa-triangle-exclamation"></i> A passage changed after this summary was
+              written. You can check it with Edit chapter, the pencil in the chapter's header.
+            </span>
           </button>
           <button
             class="icon-btn"
@@ -202,6 +206,12 @@ onMounted(loadStories);
   grid-column: 1 / -1;
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.summary-review {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: var(--warning);
 }
 
 .story-summary {

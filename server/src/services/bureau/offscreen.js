@@ -206,8 +206,10 @@ export function buildOffscreenMessages({
     }
     const chapters = chaptersByCast.get(member.id) ?? [];
     if (chapters.length > 0) {
+      const name = nameOf(member);
+      const recaps = chapters.map((chapter) => `- ${bureauText(chapter.summary, readerName)}`);
       lines.push(
-        `Recently:\n${chapters.map((chapter) => `- ${bureauText(chapter.summary, readerName)}`).join('\n')}`,
+        `Recently, in chapters ${name} was in (${name} knows only what happened while ${name} was there):\n${recaps.join('\n')}`,
       );
     }
     if (memories?.offscreen) {

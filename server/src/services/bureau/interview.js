@@ -192,7 +192,7 @@ function memoryLines(name, memories) {
   if (chapters.length > 0) {
     if (lines.length > 0) lines.push('');
     lines.push(
-      `Chapters ${name} was in:`,
+      `Chapters ${name} was in (${name} knows only what happened while ${name} was there):`,
       ...chapters.map((chapter) => `- ${chapter.title}: ${chapter.summary}`),
     );
   }

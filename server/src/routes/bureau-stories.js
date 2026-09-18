@@ -93,11 +93,20 @@ async function archiveNow(req, res, bureauId, storyId) {
   }
 }
 
-/** Mark memories, arc notes, and facts that cite changed or deleted turns for review. */
-function flagChangedTurns(stores, bureauId, storyId, turnIds) {
+/**
+ * Mark memories, arc notes, and facts that cite changed or deleted turns for review, and the
+ * chapter's summary when it covers them.
+ * @param {Array<{id: string, position: number}>} turns - As they were before the change.
+ */
+function flagChangedTurns(stores, bureauId, storyId, turns) {
+  const turnIds = turns.map((turn) => turn.id);
   stores.memories.flagTurnsChanged(bureauId, storyId, turnIds);
   stores.arcNotes.flagTurnsChanged(bureauId, storyId, turnIds);
   stores.facts.flagTurnsChanged(bureauId, storyId, turnIds);
+  stores.stories.flagSummary(
+    storyId,
+    turns.map((turn) => turn.position),
+  );
 }
 
 /** Where `part` appears in `text` as whole paragraphs, or -1. */
@@ -154,7 +163,7 @@ async function respondWithWriterTurn(
       onEvent: (event) => channel.send(event),
     });
     if (regenerateTurnId && turn) {
-      flagChangedTurns(stores, bureau.id, story.id, [regenerateTurnId]);
+      flagChangedTurns(stores, bureau.id, story.id, [turn]);
     }
     if (controller.signal.aborted) {
       // The client left; any text written so far was saved with the turn.
@@ -306,7 +315,8 @@ router.get(
   }),
 );
 
-// Update a story's title, its scenario ('' clears it), or who is present
+// Update a story's title, its scenario ('' clears it), its summary (which clears the mark for
+// review), or who is present
 router.put(
   '/:storyId',
   asyncHandler(async (req, res) => {
@@ -321,13 +331,16 @@ router.put(
       throw new AppError('Title cannot be empty', 400);
     }
     const scenario = optionalString(body, 'scenario');
+    const summary = optionalString(body, 'summary');
     const castIds =
       body.castIds === undefined ? undefined : validateCastIds(bureaus, bureauId, body.castIds);
-    if (title === undefined && scenario === undefined && castIds === undefined) {
+    if ([title, scenario, summary, castIds].every((value) => value === undefined)) {
       throw new AppError('No updates provided', 400);
     }
 
-    res.json({ story: stories.updateStory(bureauId, storyId, { title, scenario, castIds }) });
+    res.json({
+      story: stories.updateStory(bureauId, storyId, { title, scenario, summary, castIds }),
+    });
   }),
 );
 
@@ -493,7 +506,7 @@ router.put(
       throw new AppError('content is required', 400);
     }
     const edited = stories.editTurn(storyId, turnId, content);
-    flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
+    flagChangedTurns(res.locals.stores, bureauId, storyId, [turn]);
     res.json({ turn: edited });
   }),
 );
@@ -506,11 +519,12 @@ router.delete(
     const { bureauId, storyId, turnId } = req.params;
     requireBureau(bureaus, bureauId);
     requireStory(stories, bureauId, storyId);
+    const turn = requireTurn(stories, storyId, turnId);
 
     if (!stories.deleteTurn(storyId, turnId)) {
       throw new AppError('Turn not found', 404);
     }
-    flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
+    flagChangedTurns(res.locals.stores, bureauId, storyId, [turn]);
     res.json({ success: true });
   }),
 );
@@ -534,7 +548,7 @@ router.put(
       throw new AppError('Variant not found', 404);
     }
     if (variantId !== current.activeVariantId) {
-      flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
+      flagChangedTurns(res.locals.stores, bureauId, storyId, [current]);
     }
     res.json({ turn });
   }),
@@ -582,7 +596,7 @@ router.post(
       turnId,
       turn.content.slice(0, at) + fix.original + turn.content.slice(at + fix.replacement.length),
     );
-    flagChangedTurns(res.locals.stores, bureauId, storyId, [turnId]);
+    flagChangedTurns(res.locals.stores, bureauId, storyId, [turn]);
     res.json({ turn: updated });
   }),
 );

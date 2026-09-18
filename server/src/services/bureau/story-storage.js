@@ -35,6 +35,8 @@ function storyFromRow(row, castIds) {
     turnCount: row.turn_count,
     archivedThrough: row.archived_through,
     summary: row.summary,
+    // A passage the summary covers changed after it was written.
+    summaryNeedsReview: row.summary_needs_review === 1,
     created: row.created,
     modified: row.modified,
   };
@@ -90,6 +92,12 @@ export class StoryStorage {
       updateStoryTitle: this.db.prepare('UPDATE stories SET title = ?, modified = ? WHERE id = ?'),
       updateStoryScenario: this.db.prepare(
         'UPDATE stories SET scenario = ?, modified = ? WHERE id = ?',
+      ),
+      updateStorySummary: this.db.prepare(
+        'UPDATE stories SET summary = ?, summary_needs_review = 0, modified = ? WHERE id = ?',
+      ),
+      flagStorySummary: this.db.prepare(
+        'UPDATE stories SET summary_needs_review = 1 WHERE id = ? AND archived_through >= ?',
       ),
       endStory: this.db.prepare(
         "UPDATE stories SET status = 'ended', end_time = ?, modified = ? WHERE id = ?",
@@ -208,10 +216,12 @@ export class StoryStorage {
    * @param {Object} updates
    * @param {string} [updates.title]
    * @param {string} [updates.scenario] - The premise the chapter follows; '' clears it.
+   * @param {string} [updates.summary] - What happened in it, as the reader corrected it. Saving
+   *   it clears the mark for review.
    * @param {string[]} [updates.castIds] - Replaces who is present.
    * @returns {Object|null} The updated story, or null if it doesn't exist.
    */
-  updateStory(bureauId, storyId, { title, scenario, castIds }) {
+  updateStory(bureauId, storyId, { title, scenario, summary, castIds }) {
     if (!this.stmts.getStory.get(bureauId, storyId)) return null;
 
     const modified = timestamp();
@@ -221,6 +231,9 @@ export class StoryStorage {
       }
       if (scenario !== undefined) {
         this.stmts.updateStoryScenario.run(scenario, modified, storyId);
+      }
+      if (summary !== undefined) {
+        this.stmts.updateStorySummary.run(summary, modified, storyId);
       }
       if (castIds !== undefined) {
         this.stmts.clearStoryCast.run(storyId);
@@ -254,6 +267,17 @@ export class StoryStorage {
    */
   setArchiveProgress(storyId, { archivedThrough, summary }) {
     this.stmts.setArchiveProgress.run({ storyId, archivedThrough, summary });
+  }
+
+  /**
+   * Mark the story's summary for review when a turn at one of these positions has changed and the
+   * summary covers it, so what happened in it no longer matches the chapter.
+   * @param {string} storyId
+   * @param {number[]} positions
+   */
+  flagSummary(storyId, positions) {
+    if (positions.length === 0) return;
+    this.stmts.flagStorySummary.run(storyId, Math.min(...positions));
   }
 
   /** Deletes the story with its turns. */

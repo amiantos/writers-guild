@@ -125,7 +125,7 @@ describe('bureau-db', () => {
       DROP TABLE interviews;
       DROP TABLE profile_versions;
       DROP TABLE shared_settings;
-      ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;
+      ALTER TABLE stories DROP COLUMN summary_needs_review; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;
       INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
       VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
       INSERT INTO cast_members (id, bureau_id, name, seed_card, created, modified)
@@ -147,7 +147,7 @@ describe('bureau-db', () => {
     db.exec('DROP TABLE shared_settings; DROP TABLE interviews; DROP TABLE profile_versions;');
     db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
     db.exec(
-      'ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict',
+      'ALTER TABLE stories DROP COLUMN summary_needs_review; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict',
     );
     db.exec('DROP TABLE facts');
     db.prepare(
@@ -178,7 +178,7 @@ describe('bureau-db', () => {
     db.exec('ALTER TABLE turns DROP COLUMN bureau_time');
     db.exec('ALTER TABLE bureaus DROP COLUMN avatar_windows');
     db.exec(
-      'ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict',
+      'ALTER TABLE stories DROP COLUMN summary_needs_review; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict',
     );
     db.exec('DROP TABLE facts');
     db.pragma('user_version = 6');
@@ -208,7 +208,7 @@ describe('bureau-db', () => {
   it('gives databases from before the shared key an empty one', () => {
     const db = openBureauDb(tempDir);
     db.exec(
-      'DROP TABLE shared_settings; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;',
+      'DROP TABLE shared_settings; ALTER TABLE stories DROP COLUMN summary_needs_review; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;',
     );
     db.exec('DROP TABLE facts');
     db.pragma('user_version = 10');
@@ -225,7 +225,7 @@ describe('bureau-db', () => {
   it('adds the facts table to databases from before established facts', () => {
     const db = openBureauDb(tempDir);
     db.exec(
-      'DROP TABLE facts; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes;',
+      'DROP TABLE facts; ALTER TABLE stories DROP COLUMN summary_needs_review; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes;',
     );
     db.pragma('user_version = 12');
     closeBureauDb(tempDir);
@@ -239,7 +239,7 @@ describe('bureau-db', () => {
   it('keeps held memories from before held replacements, with nothing waiting to be replaced', () => {
     const db = openBureauDb(tempDir);
     db.exec(`
-      ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes;
+      ALTER TABLE stories DROP COLUMN summary_needs_review; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes;
       INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
       VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
       INSERT INTO cast_members (id, bureau_id, name, seed_card, created, modified)
@@ -263,7 +263,7 @@ describe('bureau-db', () => {
   it('gives chapters from before scenarios an empty one', () => {
     const db = openBureauDb(tempDir);
     db.exec(`
-      ALTER TABLE stories DROP COLUMN scenario;
+      ALTER TABLE stories DROP COLUMN summary_needs_review; ALTER TABLE stories DROP COLUMN scenario;
       INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
       VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
       INSERT INTO stories (id, bureau_id, position, title, start_time, created, modified)
@@ -280,11 +280,30 @@ describe('bureau-db', () => {
     ]);
   });
 
+  it("doesn't mark summaries from before summaries could be reviewed", () => {
+    const db = openBureauDb(tempDir);
+    db.exec(`
+      ALTER TABLE stories DROP COLUMN summary_needs_review;
+      INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
+      VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
+      INSERT INTO stories (id, bureau_id, position, title, start_time, summary, created, modified)
+      VALUES ('s1', 'b1', 0, 'Chapter 1', 'now', 'They met.', 'now', 'now');
+    `);
+    db.pragma('user_version = 15');
+    closeBureauDb(tempDir);
+
+    const upgraded = openBureauDb(tempDir);
+
+    expect(upgraded.prepare('SELECT summary, summary_needs_review FROM stories').all()).toEqual([
+      { summary: 'They met.', summary_needs_review: 0 },
+    ]);
+  });
+
   it('keeps memories from before conflicts, none of them held', () => {
     const db = openBureauDb(tempDir);
     db.exec(`
       DROP TABLE facts;
-      ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;
+      ALTER TABLE stories DROP COLUMN summary_needs_review; ALTER TABLE stories DROP COLUMN scenario; ALTER TABLE memories DROP COLUMN pending_supersedes; ALTER TABLE memories DROP COLUMN conflict;
       INSERT INTO bureaus (id, name, model, bureau_time, created, modified)
       VALUES ('b1', 'Kept', 'deepseek-flash', 'now', 'now', 'now');
       INSERT INTO cast_members (id, bureau_id, name, seed_card, created, modified)

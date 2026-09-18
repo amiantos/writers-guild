@@ -348,6 +348,11 @@ const MIGRATIONS = [
   `
     ALTER TABLE stories ADD COLUMN scenario TEXT NOT NULL DEFAULT '';
   `,
+
+  // 16: A chapter's summary is marked for review when a passage it covers changes.
+  `
+    ALTER TABLE stories ADD COLUMN summary_needs_review INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

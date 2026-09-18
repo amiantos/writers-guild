@@ -875,6 +875,38 @@ describe('Bureau story routes', () => {
       expect(body.memoryCounts[mara.id]).toEqual({ current: 1, needsReview: 1 });
     });
 
+    it("marks the chapter's summary for review when a passage it covers changes", async () => {
+      const story = await storyWithConfession();
+      await request(app).post(`${storiesUrl()}/${story.id}/archive`).send({}).expect(200);
+      const url = `${storiesUrl()}/${story.id}`;
+      const summaryState = async () => {
+        const { body } = await request(app).get(url).expect(200);
+        return [body.story.summary, body.story.summaryNeedsReview];
+      };
+      expect(await summaryState()).toEqual(['Theo confesses.', false]);
+
+      // A passage added after the summary isn't covered by it.
+      const { body: added } = await request(app)
+        .post(`${url}/turns`)
+        .send({ kind: 'prose', content: 'Mara laughed.' })
+        .expect(201);
+      await request(app).delete(`${url}/turns/${added.turn.id}`).expect(200);
+      expect(await summaryState()).toEqual(['Theo confesses.', false]);
+
+      const [turn] = stores.stories.listTurns(story.id);
+      await request(app).delete(`${url}/turns/${turn.id}`).expect(200);
+      expect(await summaryState()).toEqual(['Theo confesses.', true]);
+
+      const { body: saved } = await request(app)
+        .put(url)
+        .send({ summary: ' Nothing happened yet. ' })
+        .expect(200);
+      expect(saved.story).toMatchObject({
+        summary: 'Nothing happened yet.',
+        summaryNeedsReview: false,
+      });
+    });
+
     it('deletes the memories and arc notes recorded from a deleted story', async () => {
       const story = await storyWithConfession();
       await request(app).post(`${storiesUrl()}/${story.id}/archive`).send({}).expect(200);
