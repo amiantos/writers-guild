@@ -145,7 +145,7 @@ describe('generateWriterTurn', () => {
     );
   });
 
-  it("starts with story mode's DeepSeek settings", async () => {
+  it('starts with thinking off, temperature 0.5, and 8000 tokens', async () => {
     const client = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
 
     await generate(client, { action: 'continue' });

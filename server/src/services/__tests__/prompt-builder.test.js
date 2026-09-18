@@ -757,6 +757,23 @@ describe('PromptBuilder', () => {
       expect(result).toContain('Make it spooky');
     });
 
+    it('keeps $ patterns in an instruction or the text to rewrite as written', () => {
+      const params = { characterName: '', maxChars: 1000, userName: 'User' };
+
+      const instruction = builder.buildGenerationPrompt('instruction', {
+        ...params,
+        storyContent: '',
+        customInstruction: "He owes her $$50, and $& and $' stay put",
+      });
+      const rewrite = builder.buildGenerationPrompt('rewriteThirdPerson', {
+        ...params,
+        storyContent: "You pay $$5, then $' and $& too.",
+      });
+
+      expect(instruction).toMatch(/occur: He owes her \$\$50, and \$& and \$' stay put$/);
+      expect(rewrite).toMatch(/Text to rewrite:\n\nYou pay \$\$5, then \$' and \$& too\.$/);
+    });
+
     it('should use rewriteThirdPerson template', () => {
       const result = builder.buildGenerationPrompt('rewriteThirdPerson', {
         storyContent: '',

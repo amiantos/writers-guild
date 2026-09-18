@@ -1,7 +1,7 @@
 # Bureau — Design Doc
 
 - **Status:** Experimental; phases 1–9 are built
-- **Started:** 2026-09-11 (last updated 2026-09-15)
+- **Started:** 2026-09-11 (last updated 2026-09-18)
 - **Working name:** Bureau (not final)
 - **Branch:** built on `feature/bureau` and merged into `main` in PR #51
 - **Discussion:** [#49 Chat Mode + Memories](https://github.com/amiantos/writers-guild/discussions/49)
@@ -55,7 +55,8 @@ idea:
 - One Bureau time, a story clock only you move: messages happen at it, and each chapter starts at
   it or at a time you choose.
 - Agentic generation with tools, including a character generator.
-- Stricter prose discipline, such as one speaker per paragraph.
+- Stricter prose discipline, such as one speaker per paragraph. (Dropped on September 18, 2026, when
+  the Writer switched to story mode's prompts.)
 - Everything the agents did is inspectable, without cluttering the story.
 
 ## Non-goals (for now)
@@ -179,7 +180,7 @@ actions. Each one sends the prompt of the story mode button that does the same t
 - **Write:** add the text as a prose turn, then continue the story from it, as typing into a story
   and pressing Continue does. Ctrl or ⌘ + Enter also writes.
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate, as
-  Continue with Instruction does.
+  Continue with Instruction does. In an empty chapter, it's Start Story with the direction added.
 - **Continue:** generate with no new input. In an empty chapter, this is story mode's Start Story.
 - **Continue for Character,** once the chapter has prose, writes the next part from one character's
   perspective, as story mode's button does. With one character in the chapter it writes for them
@@ -311,9 +312,10 @@ Bureau-only to add, the messages match what story mode sends for the same story.
 
 The system prompt is story mode's default system prompt:
 
-1. The chapter's characters as story mode's character profile (with the card's scenario when there
-   is one character) or character profiles (two or more). Dialogue examples stay out, as in story
-   mode's presets.
+1. The chapter's characters as story mode's character profile (one character) or character
+   profiles (two or more). Dialogue examples stay out, as in story mode's presets. Story mode adds a
+   lone character's scenario, but Bureau leaves it out: a card's scenario is where its story starts,
+   such as a first meeting, and a chapter goes on from what the characters remember instead.
 2. World information: activated lorebook entries (selected by `LorebookActivator` over the chapter,
    the direction, and a greeting being rewritten), after the setting year when there is one.
 3. The reader's character as story mode's persona, whose personality is its "Writing Style".
@@ -336,15 +338,19 @@ then the template for the action:
 | Continue, Write        | `continue`, "Continue the story naturally..." |
 | Continue (empty)       | `storyStarter`, as Start Story                |
 | Direct                 | `instruction`, as Continue with Instruction   |
+| Direct (empty)         | `storyStarter`, with the direction's sentence |
 | Continue for Character | `character`, "from {{char}}'s perspective"    |
 | Greeting's Rewrite     | `rewriteThirdPerson`, on the greeting alone   |
 
 The chapter's text leaves out directions, and oldest turns are dropped first if it outgrows the
-context. The budget is story mode's, for its DeepSeek preset's 1M-token context: what's left once the
-system prompt and the Writer's max tokens are reserved, at about three characters a token.
+context. The budget is worked out as story mode's is, for DeepSeek V4.1 Flash's 1M-token context:
+what's left once the system prompt and the Writer's max tokens are reserved, at about three
+characters a token.
 
-The Writer starts with story mode's DeepSeek settings: thinking off, temperature 0.5, and 8,000
-tokens. Message replies use the same temperature. Bureaus that saved their settings before keep what
+The Writer starts with thinking off, temperature 0.5, and 8,000 tokens, the DeepSeek preset story
+mode was being written with when Bureau switched to its prompts. (The DeepSeek preset story mode
+creates starts at temperature 1.0, 4,000 tokens, and a 128k context.) Message replies use the same
+temperature. Bureaus that saved their settings before keep what
 they saved.
 
 Output streams into the active turn and is saved as written. Images pass through `ImagePreserver` as
@@ -979,6 +985,9 @@ never touch `data/`.
 ### Touch points in existing code
 
 - `server/server.js`: mount `/api/bureaus`.
+- `server/src/services/prompt-builder.js`: `{{instruction}}` and `{{storyContent}}` are filled in with
+  function replacers, so `$` patterns in a direction or greeting ("$$", "$&") stay as written. Story
+  mode gets the same fix.
 - `vue_client/src/router/index.js`: add the Bureau routes.
 - `vue_client/src/views/LandingPage.vue`: add a Bureaus tab next to Stories, Characters, Lorebooks,
   and Presets.

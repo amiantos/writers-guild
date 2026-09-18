@@ -22,7 +22,6 @@ function timePasses(bureauTime) {
 const MARA = member('Mara', {
   description: '{{char}} keeps the *Greywater* lighthouse and trusts {{user}}.',
   personality: 'Wry and stubborn.',
-  scenario: 'A storm is coming in.',
 });
 const IVO = member('Ivo', { description: 'The harbormaster.', personality: 'Gruff.' });
 const THEO = member(
@@ -61,6 +60,7 @@ describe('generationTypeFor', () => {
     expect(generationTypeFor('continue', true)).toBe('continue');
     expect(generationTypeFor('write', true)).toBe('continue');
     expect(generationTypeFor('direct', true)).toBe('instruction');
+    expect(generationTypeFor('direct', false)).toBe('storyStarter');
     expect(generationTypeFor('character', true)).toBe('character');
     expect(generationTypeFor('greeting', false)).toBe('rewriteThirdPerson');
     expect(generationTypeFor('continue', false)).toBe('storyStarter');
@@ -161,11 +161,37 @@ describe('buildWriterMessages', () => {
     });
   });
 
+  it('opens an empty chapter with a direction as Start Story, carrying the direction', () => {
+    const { user, generationType } = build({
+      turns: [{ kind: 'direction', source: 'user', content: 'They meet at the night market' }],
+      request: { action: 'direct', direction: 'They meet at the night market' },
+    });
+
+    expect(generationType).toBe('storyStarter');
+    expect(user).toMatch(
+      /^Write the opening 3-5 paragraphs for a new story\. .* End at a natural point that invites continuation\. The user additionally sends along these instructions for what events they would like to see occur: They meet at the night market$/,
+    );
+  });
+
+  it("leaves out a lone character's scenario, which is where their card's story starts", () => {
+    const withScenario = member('Mara', {
+      description: 'Keeps the lighthouse.',
+      scenario: '{{user}} meets {{char}} for the first time.',
+    });
+
+    const { system } = build({ cast: [withScenario, THEO] });
+
+    expect(system).toContain(
+      '=== CHARACTER PROFILE ===\nName: Mara\nDescription: Keeps the lighthouse.\n',
+    );
+    expect(system).not.toMatch(/Scenario|first time/);
+  });
+
   it("describes the reader's character as story mode describes a persona", () => {
     const { system } = build();
 
     expect(system).toContain(
-      '=== CHARACTER PROFILE ===\nName: Mara\nDescription: Mara keeps the Greywater lighthouse and trusts Theo.\nPersonality: Wry and stubborn.\n\nCurrent Scenario: A storm is coming in.',
+      '=== CHARACTER PROFILE ===\nName: Mara\nDescription: Mara keeps the Greywater lighthouse and trusts Theo.\nPersonality: Wry and stubborn.\n',
     );
     expect(system).toContain(
       '=== USER CHARACTER (PERSONA) ===\nName: Theo\nDescription: A visiting cartographer.\nWriting Style: Careful.',

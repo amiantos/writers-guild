@@ -14,16 +14,23 @@
  * does, so they're never part of the story text.
  */
 
+import { DEFAULT_PROMPT_TEMPLATES } from '../default-presets.js';
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
 import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
 
-// Story mode's DeepSeek preset: a 1M-token context, budgeted the way story mode's buildPrompts does.
+// DeepSeek V4.1 Flash's 1M-token context, budgeted the way story mode's buildPrompts does.
 export const MAX_CONTEXT_TOKENS = 1_000_000;
 const PROMPT_OVERHEAD_TOKENS = 100;
 const DEFAULT_MAX_TOKENS = 8000;
 
 const SCENE_BREAK = '---';
+
+// Story mode's instruction template is its continue template plus the sentence that carries the
+// direction. A direction that opens a chapter has that sentence follow Start Story's template.
+const DIRECTION_SENTENCE = DEFAULT_PROMPT_TEMPLATES.instruction
+  .replace(DEFAULT_PROMPT_TEMPLATES.continue, '')
+  .trim();
 
 // Turns that are part of the chapter's text. Directions are instructions, so they go in the request.
 const CHAPTER_TEXT_KINDS = ['prose', 'scene_break', 'time_passes'];
@@ -118,14 +125,15 @@ function timeLines({ startTime, turns, timeZone, hasProse }) {
 
 /**
  * The story mode template for a request, by the story mode button that does the same thing. Writing
- * a passage and then generating is typing into a story and pressing Continue.
+ * a passage and then generating is typing into a story and pressing Continue. A chapter with nothing
+ * written yet starts as Start Story does, with any direction added (see DIRECTION_SENTENCE).
  */
 export function generationTypeFor(action, hasProse) {
   switch (action) {
     case 'greeting':
       return 'rewriteThirdPerson';
     case 'direct':
-      return 'instruction';
+      return hasProse ? 'instruction' : 'storyStarter';
     case 'character':
       return 'character';
     default:
@@ -205,9 +213,11 @@ export function buildWriterMessages({
         writingStyle: personaData.personality || '',
       }
     : null;
+  // Story mode adds a lone character's scenario, but a card's scenario is where its story starts,
+  // such as a first meeting. A chapter goes on from what the characters remember instead.
   const characterCards = characters.map((member) => ({
     ...member.seedCard,
-    data: { ...member.seedCard?.data, name: nameOf(member) },
+    data: { ...member.seedCard?.data, name: nameOf(member), scenario: '' },
   }));
   const macros = new MacroProcessor({
     userName: personaInfo?.name || 'User',
@@ -309,10 +319,14 @@ export function buildWriterMessages({
 
   // The text is already fitted and preserved, so story mode neither cuts it nor preserves it again.
   // Its preserver still goes in, so a rewrite is told to keep the greeting's image markers.
+  const directedOpening = generationType === 'storyStarter' && Boolean(request.direction);
   const user = builder.buildGenerationPrompt(generationType, {
     storyContent: storySection,
     characterName: request.character?.name,
     customInstruction: request.direction,
+    templateText: directedOpening
+      ? `${DEFAULT_PROMPT_TEMPLATES.storyStarter} ${DIRECTION_SENTENCE}`
+      : null,
     maxChars: Math.max(storySection.length, 1),
     userName: personaInfo?.name,
     imagePreserver,

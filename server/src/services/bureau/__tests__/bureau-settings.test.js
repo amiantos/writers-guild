@@ -7,7 +7,7 @@ import {
 } from '../bureau-settings.js';
 
 describe('resolveSettings', () => {
-  it("starts the Writer with story mode's DeepSeek settings", () => {
+  it('starts the Writer with the DeepSeek settings story mode is written with', () => {
     expect(DEFAULT_SETTINGS.writer).toMatchObject({
       thinking: false,
       temperature: 0.5,

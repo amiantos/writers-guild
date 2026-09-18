@@ -435,7 +435,8 @@ export class PromptBuilder {
         ? imagePreserver.preserve(storyContent, 'story')
         : storyContent;
       return {
-        instruction: instruction.replace(/\{\{storyContent\}\}/g, preserved),
+        // A function, so `$` patterns in the story ("$&", "$'") stay as written.
+        instruction: instruction.replace(/\{\{storyContent\}\}/g, () => preserved),
         storyContext: '',
       };
     }
@@ -481,7 +482,7 @@ export class PromptBuilder {
         instruction = instruction.replace(/\{\{char\}\}/g, characterName);
       }
       if (customInstruction) {
-        instruction = instruction.replace(/\{\{instruction\}\}/g, customInstruction);
+        instruction = instruction.replace(/\{\{instruction\}\}/g, () => customInstruction);
       }
       if (storyContent) {
         const applied = this.applyStoryContent(
@@ -535,7 +536,7 @@ export class PromptBuilder {
         instruction = instruction.replace(/\{\{char\}\}/g, characterName);
       }
       if (customInstruction) {
-        instruction = instruction.replace(/\{\{instruction\}\}/g, customInstruction);
+        instruction = instruction.replace(/\{\{instruction\}\}/g, () => customInstruction);
       }
       if (storyContent) {
         const applied = this.applyStoryContent(

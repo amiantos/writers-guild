@@ -9,7 +9,8 @@
 import { REASONING_EFFORTS } from './deepseek-client.js';
 
 export const DEFAULT_SETTINGS = Object.freeze({
-  // Story mode's DeepSeek preset, so chapters are written as stories are.
+  // The DeepSeek preset story mode is written with in practice: the prompts are story mode's, so the
+  // settings match too. (The DeepSeek preset story mode creates starts at 1.0 and 4000 tokens.)
   writer: Object.freeze({
     thinking: false,
     reasoningEffort: 'high',

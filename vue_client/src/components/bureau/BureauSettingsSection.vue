@@ -109,10 +109,9 @@
           </div>
         </div>
         <p class="help-text">
-          The Writer uses story mode's prompts, and starts with story mode's DeepSeek settings:
-          thinking off, temperature 0.5, and 8000 tokens. Temperature applies to message replies
-          too, and DeepSeek ignores it in thinking mode. The Writer's reasoning shows in each turn's
-          seam.
+          The Writer uses story mode's prompts, and starts with thinking off, temperature 0.5, and
+          8000 tokens. Temperature applies to message replies too, and DeepSeek ignores it in
+          thinking mode. The Writer's reasoning shows in each turn's seam.
         </p>
       </fieldset>
 
