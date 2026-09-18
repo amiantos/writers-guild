@@ -7,7 +7,7 @@
     <div v-if="choosing" class="rewrite-prompt">
       <p class="prompt-message">Rewrite {{ current.name }}'s greeting for this chapter?</p>
       <p class="help-text">
-        The Writer rewrites it as the chapter's opening, in the house style and with everything a
+        The Writer rewrites it in third person, past tense, as story mode does, with everything a
         passage gets: the cast's cards, the world, what everyone remembers, and the chapter's time.
         Keep it as written to use the card's text as it is.
       </p>

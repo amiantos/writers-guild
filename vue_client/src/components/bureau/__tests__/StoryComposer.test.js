@@ -62,6 +62,21 @@ describe('StoryComposer', () => {
     expect(wrapper.emitted('greeting')).toHaveLength(1);
   });
 
+  it('offers Continue for Character only when the chapter has someone to write for', async () => {
+    expect(buttonNamed(mount(StoryComposer), 'Continue for Character')).toBeUndefined();
+
+    const wrapper = mount(StoryComposer, { props: { canContinueForCharacter: true } });
+    await buttonNamed(wrapper, 'Continue for Character').trigger('click');
+
+    expect(wrapper.emitted('character')).toHaveLength(1);
+    expect(wrapper.emitted('generate')).toBeUndefined();
+
+    const generating = mount(StoryComposer, {
+      props: { canContinueForCharacter: true, generating: true },
+    });
+    expect(buttonNamed(generating, 'Continue for Character')).toBeUndefined();
+  });
+
   it('offers Stop while generating', async () => {
     const wrapper = mount(StoryComposer, { props: { generating: true } });
 

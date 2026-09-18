@@ -17,7 +17,6 @@ function bureau(fields = {}) {
     name: 'Harbor',
     description: 'Seaside',
     model: 'deepseek-flash',
-    houseStyle: '',
     hasApiKey: true,
     apiKeySource: 'bureau',
     apiKeyPreview: 'sk-…1234',
@@ -25,15 +24,13 @@ function bureau(fields = {}) {
     timezone: null,
     bureauTime: '2026-09-12T22:15:00.000Z',
     settings: {
-      writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
-      editor: { enabled: true },
+      writer: { thinking: false, reasoningEffort: 'high', temperature: 0.5, maxTokens: 8000 },
       memory: {
         autoArchive: true,
         knowledgeCharacters: 4000,
         recentEpisodes: 3,
         offscreenLife: true,
       },
-      style: { bannedPhrases: ['a testament to'] },
       correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
     },
     ...fields,
@@ -64,7 +61,7 @@ async function saveSettings(wrapper) {
 describe('BureauSettingsSection', () => {
   beforeEach(() => {
     bureausAPI.defaults.mockResolvedValue({
-      houseStyle: 'Default style.',
+      correspondenceStyle: 'Default style.',
       settings: {},
       model: 'deepseek-flash',
     });
@@ -113,38 +110,30 @@ describe('BureauSettingsSection', () => {
     bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
     const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
     await flushPromises();
-    const editDefault = () =>
-      wrapper.findAll('button').find((button) => button.text().includes('Edit the default'));
+    const field = wrapper.find('#bureau-settings-correspondence-style');
 
-    await editDefault().trigger('click');
-    expect(wrapper.find('#bureau-settings-house-style').element.value).toBe('Default style.');
+    expect(field.attributes('placeholder')).toBe('Default style.');
+    await field.setValue('Default style.');
     await saveSettings(wrapper);
 
-    expect(bureausAPI.update).toHaveBeenLastCalledWith(
-      'b1',
-      expect.objectContaining({ houseStyle: 'Default style.' }),
-    );
-    expect(wrapper.find('#bureau-settings-house-style').element.value).toBe('');
-    expect(editDefault()).toBeDefined();
+    expect(bureausAPI.update.mock.calls[0][1].settings.correspondence.style).toBe('Default style.');
+    expect(field.element.value).toBe('');
     const saveButton = wrapper
       .findAll('button')
       .find((button) => button.text().includes('Save settings'));
     expect(saveButton.attributes('disabled')).toBeDefined();
   });
 
-  it('saves Editor, memory, and banned phrase settings', async () => {
+  it('saves Writer and memory settings', async () => {
     bureausAPI.update.mockImplementation(async () => ({ bureau: bureau() }));
     const wrapper = mount(BureauSettingsSection, { props: { bureau: bureau() } });
     await flushPromises();
 
-    await wrapper.find('#bureau-settings-editor-enabled').setValue(false);
+    await wrapper.find('#bureau-settings-temperature').setValue('0.7');
     await wrapper.find('#bureau-settings-offscreen-life').setValue(false);
     await wrapper.find('#bureau-settings-auto-archive').setValue(false);
     await wrapper.find('#bureau-settings-knowledge').setValue('6000');
     await wrapper.find('#bureau-settings-recent-episodes').setValue('5');
-    await wrapper
-      .find('#bureau-settings-banned-phrases')
-      .setValue('a testament to\n\n  sent shivers down  \n');
     await wrapper
       .findAll('button')
       .find((button) => button.text().includes('Save settings'))
@@ -152,15 +141,13 @@ describe('BureauSettingsSection', () => {
     await flushPromises();
 
     expect(bureausAPI.update.mock.calls[0][1].settings).toEqual({
-      writer: { thinking: false, reasoningEffort: 'high', temperature: 1, maxTokens: 4000 },
-      editor: { enabled: false },
+      writer: { thinking: false, reasoningEffort: 'high', temperature: 0.7, maxTokens: 8000 },
       memory: {
         autoArchive: false,
         knowledgeCharacters: 6000,
         recentEpisodes: 5,
         offscreenLife: false,
       },
-      style: { bannedPhrases: ['a testament to', 'sent shivers down'] },
       correspondence: { style: '', thinking: false, reasoningEffort: 'low', maxTokens: 1000 },
     });
   });

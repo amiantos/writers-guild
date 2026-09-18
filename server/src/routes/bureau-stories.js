@@ -37,7 +37,9 @@ import {
 
 const router = express.Router({ mergeParams: true });
 
-const GENERATE_ACTIONS = ['write', 'direct', 'continue', 'greeting'];
+const GENERATE_ACTIONS = ['write', 'direct', 'continue', 'character', 'greeting'];
+// Actions that generate from the chapter as it is, with no text from the reader.
+const TEXTLESS_ACTIONS = ['continue', 'character'];
 const READER_TURN_KINDS = ['prose', 'direction', 'scene_break', 'time_passes'];
 
 function resolveTime(resolve) {
@@ -537,7 +539,8 @@ router.put(
   }),
 );
 
-// Undo one of the Editor's fixes to a turn, putting back the paragraph it replaced.
+// Undo one of the Editor's fixes to a turn, putting back the paragraph it replaced. Only turns
+// written before the Editor was removed have fixes.
 // index is the fix's place in the run's list of fixes.
 router.post(
   '/:storyId/turns/:turnId/revert-edit',
@@ -625,9 +628,11 @@ router.post(
 
 // ==================== Generation ====================
 
-// Generate the next turn. action 'write' adds the reader's text as prose first,
-// 'direct' adds it as a direction, and 'continue' ignores text. 'greeting' has the Writer rewrite
-// text, a greeting from the card of castId, as the chapter's opening.
+// Generate the next turn, with the prompt of the story mode button that does the same thing.
+// action 'write' adds the reader's text as prose first, 'direct' adds it as a direction, and
+// 'continue' ignores text. 'character' writes the next part from the perspective of castId, as
+// Continue for Character does. 'greeting' has the Writer rewrite text, a greeting from the card of
+// castId, as the chapter's opening.
 router.post(
   '/:storyId/generate',
   asyncHandler(async (req, res) => {
@@ -644,11 +649,20 @@ router.post(
       throw new AppError(`action must be one of: ${GENERATE_ACTIONS.join(', ')}`, 400);
     }
     const text = optionalString(body, 'text') ?? '';
-    if (action !== 'continue' && !text) {
+    if (!TEXTLESS_ACTIONS.includes(action) && !text) {
       throw new AppError(`text is required to ${action}`, 400);
+    }
+    const forCastMember = action === 'character' || action === 'greeting';
+    const member =
+      forCastMember && story.castIds.includes(body.castId)
+        ? bureaus.getCastMember(bureauId, body.castId)
+        : null;
+    if (forCastMember && !member) {
+      throw new AppError('castId must be someone in this chapter', 400);
     }
 
     let userTurn = null;
+    let character;
     let greeting;
     if (action === 'write') {
       userTurn = stories.addTurn(storyId, {
@@ -659,20 +673,21 @@ router.post(
       });
     } else if (action === 'direct') {
       userTurn = stories.addTurn(storyId, { kind: 'direction', source: 'user', content: text });
+    } else if (action === 'character') {
+      character = { castId: member.id, name: member.seedCard?.data?.name || member.name };
     } else if (action === 'greeting') {
-      const member = story.castIds.includes(body.castId)
-        ? bureaus.getCastMember(bureauId, body.castId)
-        : null;
-      if (!member) {
-        throw new AppError('castId must be someone in this chapter', 400);
-      }
       greeting = { name: member.seedCard?.data?.name || member.name, content: text };
     }
 
     await respondWithWriterTurn(req, res, {
       bureau,
       story,
-      request: { action, direction: action === 'direct' ? text : undefined, greeting },
+      request: {
+        action,
+        direction: action === 'direct' ? text : undefined,
+        character,
+        greeting,
+      },
       regenerateTurnId: null,
       userTurn,
     });
@@ -680,7 +695,7 @@ router.post(
 );
 
 // Regenerate a generated turn as a new variant, from the turns before it. A rewritten greeting is
-// rewritten again.
+// rewritten again, and a turn written for one character is written for them again.
 router.post(
   '/:storyId/turns/:turnId/regenerate',
   asyncHandler(async (req, res) => {

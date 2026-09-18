@@ -9,12 +9,12 @@
 import { REASONING_EFFORTS } from './deepseek-client.js';
 
 export const DEFAULT_SETTINGS = Object.freeze({
+  // Story mode's DeepSeek preset, so chapters are written as stories are.
   writer: Object.freeze({
     thinking: false,
     reasoningEffort: 'high',
-    // Long chapters come apart at higher temperatures (at 1.5, into word salad).
-    temperature: 0.8,
-    maxTokens: 4000,
+    temperature: 0.5,
+    maxTokens: 8000,
   }),
   memory: Object.freeze({
     // Archive settled turns after each generated turn, not only on demand and at the end.
@@ -25,13 +25,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
     recentEpisodes: 3,
     // When Bureau time jumps forward, give the characters involved an account of the gap.
     offscreenLife: true,
-  }),
-  editor: Object.freeze({
-    // Rewrite paragraphs that style lint flags. Lint runs, and is recorded, either way.
-    enabled: true,
-  }),
-  style: Object.freeze({
-    bannedPhrases: Object.freeze([]),
   }),
   correspondence: Object.freeze({
     // How messages read. Empty uses the default: short first-person texts.
@@ -74,18 +67,6 @@ const MEMORY_RULES = {
 
 const isBoolean = (value) => typeof value === 'boolean' || 'must be true or false';
 
-const EDITOR_RULES = { enabled: isBoolean };
-
-const STYLE_RULES = {
-  bannedPhrases: (value) =>
-    (Array.isArray(value) &&
-      value.length <= 100 &&
-      value.every(
-        (phrase) => typeof phrase === 'string' && phrase.trim() && phrase.length <= 200,
-      )) ||
-    'must be a list of up to 100 phrases, each 1 to 200 characters',
-};
-
 const CORRESPONDENCE_RULES = {
   style: (value) =>
     (typeof value === 'string' && value.length <= 4000) || 'must be text of up to 4000 characters',
@@ -99,8 +80,6 @@ const CORRESPONDENCE_RULES = {
 const RULES = {
   writer: WRITER_RULES,
   memory: MEMORY_RULES,
-  editor: EDITOR_RULES,
-  style: STYLE_RULES,
   correspondence: CORRESPONDENCE_RULES,
 };
 
@@ -111,8 +90,7 @@ function isPlainObject(value) {
 /**
  * Stored settings merged over the defaults.
  * @param {Object} [stored]
- * @returns {{ writer: Object, memory: Object, editor: Object, style: Object,
- *   correspondence: Object }}
+ * @returns {{ writer: Object, memory: Object, correspondence: Object }}
  */
 export function resolveSettings(stored = {}) {
   return Object.fromEntries(

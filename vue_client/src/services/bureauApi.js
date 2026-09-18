@@ -83,7 +83,7 @@ export const bureausAPI = {
     return request('');
   },
 
-  /** The default house style, settings, and model a Bureau starts with. */
+  /** The default correspondence style, settings, and model a Bureau starts with. */
   defaults() {
     return request('/defaults');
   },
@@ -115,7 +115,7 @@ export const bureausAPI = {
   },
 
   /**
-   * Partial update: name, description, apiKey ('' removes it), model, houseStyle, timezone,
+   * Partial update: name, description, apiKey ('' removes it), model, timezone,
    * settings, and bureauTime (an ISO time in the years 1 to 9999, earlier or later).
    */
   update(bureauId, updates) {
@@ -400,7 +400,10 @@ export const bureauStoriesAPI = {
     });
   },
 
-  /** Undo one of the Editor's fixes; index is its place in the run's list of fixes. */
+  /**
+   * Undo one of the Editor's fixes, in a turn written before the Editor was removed; index is its
+   * place in the run's list of fixes.
+   */
   revertEdit(bureauId, storyId, turnId, { runId, index }) {
     return request(`/${bureauId}/stories/${storyId}/turns/${turnId}/revert-edit`, {
       method: 'POST',
@@ -409,11 +412,12 @@ export const bureauStoriesAPI = {
   },
 
   /**
-   * Stream the next turn. Events: turn (the reader's new turn), run, stage (writing or
-   * editing), reasoning, content, edits, and done (with userTurn and turn).
-   * @param {{ action: 'write'|'direct'|'continue'|'greeting', text?: string, castId?: string }}
-   *   generation - 'greeting' has the Writer rewrite text, a greeting from castId's card, as the
-   *   chapter's opening.
+   * Stream the next turn. Events: turn (the reader's new turn), run, stage (writing),
+   * reasoning, content, and done (with userTurn and turn).
+   * @param {{ action: 'write'|'direct'|'continue'|'character'|'greeting', text?: string,
+   *   castId?: string }} generation - 'character' continues from castId's perspective.
+   *   'greeting' has the Writer rewrite text, a greeting from castId's card, as the chapter's
+   *   opening.
    */
   generate(bureauId, storyId, generation, signal) {
     return streamEvents(`/${bureauId}/stories/${storyId}/generate`, generation, signal);

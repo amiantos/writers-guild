@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildWriterMessages, DEFAULT_HOUSE_STYLE } from '../writer-prompt.js';
+import { PromptBuilder } from '../../prompt-builder.js';
+import { buildWriterMessages, generationTypeFor, MAX_CONTEXT_TOKENS } from '../writer-prompt.js';
 
 function member(name, fields = {}, { isPersona = false } = {}) {
   return {
@@ -21,19 +22,50 @@ function timePasses(bureauTime) {
 const MARA = member('Mara', {
   description: '{{char}} keeps the *Greywater* lighthouse and trusts {{user}}.',
   personality: 'Wry and stubborn.',
+  scenario: 'A storm is coming in.',
 });
-const THEO = member('Theo', { description: 'A visiting cartographer.' }, { isPersona: true });
+const IVO = member('Ivo', { description: 'The harbormaster.', personality: 'Gruff.' });
+const THEO = member(
+  'Theo',
+  { description: 'A visiting cartographer.', personality: 'Careful.' },
+  { isPersona: true },
+);
 
 function build(overrides = {}) {
-  const { messages, storyTruncated } = buildWriterMessages({
-    bureau: { houseStyle: '' },
+  const result = buildWriterMessages({
+    bureau: { timezone: 'UTC' },
     cast: [MARA, THEO],
     turns: [],
     request: { action: 'continue' },
     ...overrides,
   });
-  return { system: messages[0].content, user: messages[1].content, messages, storyTruncated };
+  return { ...result, system: result.messages[0].content, user: result.messages[1].content };
 }
+
+/** What story mode sends for the same story, from its own PromptBuilder. */
+function storyMode({ characterCards, content, generationType, options = {} }) {
+  return new PromptBuilder().buildPrompts(
+    {
+      persona: { name: 'Theo', description: 'A visiting cartographer.', writingStyle: 'Careful.' },
+      characterCards,
+      activatedLorebooks: [],
+      story: { content },
+      settings: { includeDialogueExamples: false },
+    },
+    { generationType, maxContextTokens: MAX_CONTEXT_TOKENS, maxGenerationTokens: 8000, ...options },
+  );
+}
+
+describe('generationTypeFor', () => {
+  it('uses the template of the story mode button that does the same thing', () => {
+    expect(generationTypeFor('continue', true)).toBe('continue');
+    expect(generationTypeFor('write', true)).toBe('continue');
+    expect(generationTypeFor('direct', true)).toBe('instruction');
+    expect(generationTypeFor('character', true)).toBe('character');
+    expect(generationTypeFor('greeting', false)).toBe('rewriteThirdPerson');
+    expect(generationTypeFor('continue', false)).toBe('storyStarter');
+  });
+});
 
 describe('buildWriterMessages', () => {
   it('sends a system message and a user message', () => {
@@ -42,57 +74,171 @@ describe('buildWriterMessages', () => {
     expect(messages.map((message) => message.role)).toEqual(['system', 'user']);
   });
 
-  it('uses the default house style until the Bureau writes its own', () => {
-    expect(build().system).toContain(DEFAULT_HOUSE_STYLE);
-    expect(DEFAULT_HOUSE_STYLE).toMatch(/its own paragraph/);
+  describe("matches story mode's prompts when Bureau has nothing to add", () => {
+    const turns = [prose('The lamp was lit.'), prose('Theo climbed the stairs.', 'user')];
+    const content = 'The lamp was lit.\n\nTheo climbed the stairs.';
 
-    const custom = build({ bureau: { houseStyle: 'First person, present tense.' } });
-    expect(custom.system).toContain('=== HOUSE STYLE ===\nFirst person, present tense.');
-    expect(custom.system).not.toContain(DEFAULT_HOUSE_STYLE);
+    it('for Continue and Write', () => {
+      const expected = storyMode({
+        characterCards: [MARA.seedCard],
+        content,
+        generationType: 'continue',
+      });
+
+      for (const action of ['continue', 'write']) {
+        const { system, user, generationType } = build({ turns, request: { action } });
+        expect(generationType).toBe('continue');
+        expect(system).toBe(expected.system);
+        expect(user).toBe(expected.user);
+      }
+      expect(expected.user).toContain('Here is the current story so far:');
+      expect(expected.user).toContain('Write the next 7 paragraphs');
+    });
+
+    it('for Direct, as Continue with Instruction', () => {
+      const expected = storyMode({
+        characterCards: [MARA.seedCard],
+        content,
+        generationType: 'instruction',
+        options: { customInstruction: 'Make it rain' },
+      });
+
+      const { system, user } = build({
+        turns: [...turns, { kind: 'direction', source: 'user', content: 'Make it rain' }],
+        request: { action: 'direct', direction: 'Make it rain' },
+      });
+      expect(system).toBe(expected.system);
+      expect(user).toBe(expected.user);
+      expect(user).toContain(
+        'these instructions for what events they would like to see occur: Make it rain',
+      );
+    });
+
+    it('for Continue for Character', () => {
+      const expected = storyMode({
+        characterCards: [MARA.seedCard],
+        content,
+        generationType: 'character',
+        options: { characterName: 'Mara' },
+      });
+
+      const { system, user } = build({
+        turns,
+        request: { action: 'character', character: { castId: 'mara', name: 'Mara' } },
+      });
+      expect(system).toBe(expected.system);
+      expect(user).toBe(expected.user);
+      expect(user).toContain("Write the next part of the story from Mara's perspective.");
+    });
+
+    it('for an empty chapter, as Start Story', () => {
+      const expected = storyMode({
+        characterCards: [MARA.seedCard],
+        content: '',
+        generationType: 'storyStarter',
+      });
+
+      const { system, user } = build();
+      expect(system).toBe(expected.system);
+      expect(user).toBe(expected.user);
+      expect(user).toMatch(/^Write the opening 3-5 paragraphs for a new story\./);
+    });
+
+    it("for a greeting's rewrite, as the third-person rewrite", () => {
+      const greeting = 'Mara looks up as you come in. "Late again."';
+      const expected = storyMode({
+        characterCards: [MARA.seedCard],
+        content: greeting,
+        generationType: 'rewriteThirdPerson',
+      });
+
+      const { system, user } = build({
+        request: { action: 'greeting', greeting: { name: 'Mara', content: greeting } },
+      });
+      expect(system).toBe(expected.system);
+      expect(user).toBe(expected.user);
+      expect(user).toMatch(/^Rewrite the following text to be in third person/);
+    });
   });
 
-  it('lists characters and the persona separately, with placeholders filled in', () => {
+  it("describes the reader's character as story mode describes a persona", () => {
     const { system } = build();
 
     expect(system).toContain(
-      '=== CHARACTERS ===\nName: Mara\nDescription: Mara keeps the Greywater lighthouse and trusts Theo.\nPersonality: Wry and stubborn.',
+      '=== CHARACTER PROFILE ===\nName: Mara\nDescription: Mara keeps the Greywater lighthouse and trusts Theo.\nPersonality: Wry and stubborn.\n\nCurrent Scenario: A storm is coming in.',
     );
     expect(system).toContain(
-      "=== THEO (THE READER'S CHARACTER) ===\nName: Theo\nDescription: A visiting cartographer.",
+      '=== USER CHARACTER (PERSONA) ===\nName: Theo\nDescription: A visiting cartographer.\nWriting Style: Careful.',
     );
   });
 
-  it('includes activated lorebook entries as world information', () => {
-    const { system } = build({
-      loreEntries: [{ content: 'The lighthouse went dark in *1971*.' }, { content: '' }],
+  it('keeps every card when writing for one character', () => {
+    const { system, user } = build({
+      cast: [MARA, IVO, THEO],
+      turns: [prose('The lamp was lit.')],
+      request: { action: 'character', character: { castId: 'ivo', name: 'Ivo' } },
     });
 
-    expect(system).toContain('=== WORLD ===\nThe lighthouse went dark in 1971.');
+    expect(system).toContain('=== CHARACTER PROFILES ===');
+    expect(system).toContain('Character 1: Mara');
+    expect(system).toContain('Character 2: Ivo');
+    expect(user).toContain("Write the next part of the story from Ivo's perspective.");
   });
 
-  it('names the year as setting for a story set in another year', () => {
+  it("still describes anyone else marked as a reader's character", () => {
+    const ines = member('Ines', { description: 'A second traveler.' }, { isPersona: true });
+
+    const { system } = build({ cast: [MARA, THEO, ines] });
+
+    expect(system).toContain('Name: Theo');
+    expect(system).toContain('Character 2: Ines\nDescription: A second traveler.');
+  });
+
+  it('includes activated lorebook entries, and the setting year, as world information', () => {
     const { system } = build({
       settingYear: '1996',
-      loreEntries: [{ content: 'The lighthouse went dark in 1971.' }],
+      loreEntries: [{ content: 'The lighthouse went dark in *1971*.' }],
     });
 
     expect(system).toContain(
-      '=== WORLD ===\nThe year is 1996.\n\nThe lighthouse went dark in 1971.',
+      '=== WORLD INFORMATION ===\nThe year is 1996.\n\nThe lighthouse went dark in 1971.',
     );
     expect(build().system).not.toContain('The year is');
   });
 
-  it('adds what a character did the last time they were away', () => {
+  it("puts what Bureau adds before story mode's instructions", () => {
     const { system } = build({
+      bureau: { timezone: 'UTC' },
+      startTime: '2026-10-27T22:15:00.000Z',
+      facts: [{ content: "{{user}} and Mara live in the *keeper's* cottage." }],
+      arcNotesByCast: new Map([
+        ['mara', [{ content: 'Mara lets Theo take the *oars* now.' }]],
+        ['theo', []],
+      ]),
       memoriesByCast: new Map([
-        [
-          'mara',
-          { knowledge: [], episodes: [], offscreen: { content: 'Repainted the *boathouse*.' } },
-        ],
+        ['mara', { knowledge: [{ content: "Theo can't swim." }], episodes: [] }],
       ]),
     });
 
-    expect(system).toContain('Mara lately: Repainted the boathouse.');
+    const order = [
+      '=== USER CHARACTER (PERSONA) ===',
+      '=== ESTABLISHED FACTS ===',
+      '=== CHARACTER DEVELOPMENT ===',
+      '=== MEMORIES ===',
+      '=== TIME ===',
+      '=== INSTRUCTIONS ===',
+      '=== PERSPECTIVE ===',
+    ].map((header) => system.indexOf(header));
+    expect(order.every((at) => at !== -1)).toBe(true);
+    expect(order.toSorted((a, b) => a - b)).toEqual(order);
+
+    expect(system).toContain(
+      "=== ESTABLISHED FACTS ===\nTrue in this story unless the chapter itself shows one changing.\n- Theo and Mara live in the keeper's cottage.",
+    );
+    expect(system).toContain(
+      '=== CHARACTER DEVELOPMENT ===\nHow Mara has changed:\n- Mara lets Theo take the oars now.\n\n',
+    );
+    expect(system).not.toContain('How Theo has changed');
   });
 
   it('adds what each character remembers from earlier stories', () => {
@@ -106,6 +252,7 @@ describe('buildWriterMessages', () => {
               { content: 'They met at the pier.', sourceTitle: 'Story 1' },
               { content: 'Theo texted about the storm.', sourceType: 'correspondence' },
             ],
+            offscreen: { content: 'Repainted the *boathouse*.' },
           },
         ],
         ['theo', { knowledge: [{ content: 'Mara keeps the light.' }], episodes: [] }],
@@ -113,198 +260,73 @@ describe('buildWriterMessages', () => {
     });
 
     expect(system).toContain(
-      "=== MEMORIES ===\nWhat the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.",
+      "=== MEMORIES ===\nWhat the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.\n\nMara knows:\n- Theo can't swim.\n- Theo hates boats.\n\nMara remembers:\n- Story 1: They met at the pier.\n- In messages: Theo texted about the storm.\n\nMara lately: Repainted the boathouse.",
     );
     // The reader's character remembers too.
     expect(system).toContain(
-      '- In messages: Theo texted about the storm.\n\nTheo knows:\n- Mara keeps the light.',
+      'Mara lately: Repainted the boathouse.\n\nTheo knows:\n- Mara keeps the light.',
     );
   });
 
-  it('adds how a character has changed to their profile', () => {
-    const { system } = build({
-      arcNotesByCast: new Map([
-        ['mara', [{ content: 'Mara lets Theo take the *oars* now.' }]],
-        ['theo', []],
-      ]),
-    });
-
-    expect(system).toContain(
-      'Personality: Wry and stubborn.\nHow Mara has changed:\n- Mara lets Theo take the oars now.',
-    );
-    expect(system).not.toContain('How Theo has changed');
-  });
-
-  it('adds the established facts before the memories, with placeholders filled in', () => {
-    const { system } = build({
-      facts: [{ content: "{{user}} and Mara live in the *keeper's* cottage." }],
-      memoriesByCast: new Map([
-        ['mara', { knowledge: [{ content: "Theo can't swim." }], episodes: [] }],
-      ]),
-    });
-
-    expect(system).toContain(
-      "=== ESTABLISHED FACTS ===\nTrue in this story unless the chapter itself shows one changing.\n- Theo and Mara live in the keeper's cottage.",
-    );
-    expect(system.indexOf('=== ESTABLISHED FACTS ===')).toBeLessThan(
-      system.indexOf('=== MEMORIES ==='),
-    );
-    expect(build().system).not.toContain('ESTABLISHED FACTS');
-  });
-
-  it('leaves out the memories section when no one remembers anything', () => {
+  it('leaves out sections with nothing in them', () => {
     const { system } = build({
       memoriesByCast: new Map([['mara', { knowledge: [], episodes: [] }]]),
     });
 
-    expect(system).not.toContain('MEMORIES');
+    expect(system).not.toMatch(/MEMORIES|ESTABLISHED FACTS|CHARACTER DEVELOPMENT|=== TIME ===/);
   });
 
-  it('writes an opening at exactly the chapter start time when nothing has been written', () => {
-    const { user } = build({
-      bureau: { houseStyle: '', timezone: 'America/Los_Angeles' },
-      startTime: '2026-10-27T07:30:00.000Z',
-    });
-
-    expect(user).toContain('(Nothing has been written yet.)');
-    expect(user).toContain('Write the opening of this chapter');
-    expect(user).toContain(
-      'This chapter begins at exactly 12:30 AM on Tuesday, October 27, 2026.\nLet the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this.',
-    );
-  });
-
-  it('gives every later passage the exact time the chapter began', () => {
-    const bureau = { houseStyle: '', timezone: 'UTC' };
+  describe('time', () => {
+    const bureau = { timezone: 'UTC' };
     const startTime = '2026-10-27T22:15:00.000Z';
 
-    const afterUserOpening = build({ bureau, startTime, turns: [prose('Theo knocked.', 'user')] });
-    const later = build({ bureau, startTime, turns: [prose('The lamp was lit.')] });
-
-    for (const { user } of [afterUserOpening, later]) {
-      expect(user).toContain(
-        'When the chapter began, the time was exactly 10:15 PM on Tuesday, October 27, 2026.\nLet the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this and with how much has happened since.',
-      );
-      expect(user).not.toContain('This chapter begins');
-    }
-    expect(build({ bureau, turns: [prose('The lamp was lit.')] }).user).not.toContain('exactly');
-  });
-
-  it('marks time passing in the chapter and goes by the last time it passed to', () => {
-    const bureau = { houseStyle: '', timezone: 'UTC' };
-    const startTime = '2026-10-27T22:15:00.000Z';
-    const turns = [
-      prose('The lamp was lit.'),
-      timePasses('2026-10-28T08:00:00.000Z'),
-      prose('Morning came grey.'),
-      timePasses('2026-10-31T08:00:00.000Z'),
-    ];
-
-    const justPassed = build({ bureau, startTime, turns });
-    expect(justPassed.user).toContain(
-      "=== CHAPTER SO FAR ===\nThe lamp was lit.\n\n---\n\n[Time passes. It's now exactly 8:00 AM on Wednesday, October 28, 2026.]\n\nMorning came grey.\n\n---\n\n[Time passes. It's now exactly 8:00 AM on Saturday, October 31, 2026.]",
-    );
-    expect(justPassed.user).toContain(
-      "Time has just passed: it's now exactly 8:00 AM on Saturday, October 31, 2026. Pick the story up at this time.",
-    );
-    expect(justPassed.user).not.toContain('When the chapter began');
-
-    const afterward = build({ bureau, startTime, turns: [...turns, prose('Rain again.')] });
-    expect(afterward.user).toContain(
-      'When time last passed in the chapter, it was exactly 8:00 AM on Saturday, October 31, 2026.\nLet the time shape the scene',
-    );
-    expect(afterward.user).not.toContain('Time has just passed');
-  });
-
-  it("continues from the reader's passage, naming their character", () => {
-    const { user } = build({
-      turns: [prose('The lamp was lit.'), prose('Theo climbed the stairs.', 'user')],
-      request: { action: 'write' },
-    });
-
-    expect(user).toContain('=== CHAPTER SO FAR ===\nThe lamp was lit.\n\nTheo climbed the stairs.');
-    expect(user).toContain(
-      "=== NEXT ===\nContinue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective and refer to Theo by name.\nTheo is the reader's character, so leave what Theo says, does, decides, and thinks to the reader, including choices made without a word, like writing something down, taking something, or nodding along. Theo stays in the scene as the chapter last left Theo.\n",
-    );
-    expect(user).not.toMatch(/Theo left off|Respond to what/);
-  });
-
-  it("leaves the reader's character to the reader, and ends where the moment turns to them", () => {
-    for (const request of [{ action: 'write' }, { action: 'continue' }]) {
-      const { user } = build({
-        turns: [prose('The lamp was lit.'), prose('Theo climbed the stairs.', 'user')],
-        request,
+    it('gives an opening the exact time the chapter begins', () => {
+      const { system } = build({
+        bureau: { timezone: 'America/Los_Angeles' },
+        startTime: '2026-10-27T07:30:00.000Z',
       });
 
-      expect(user).toContain(
-        "Theo is the reader's character, so leave what Theo says, does, decides, and thinks to the reader, including choices made without a word",
+      expect(system).toContain(
+        '=== TIME ===\nThis chapter begins at exactly 12:30 AM on Tuesday, October 27, 2026.\nLet the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this.\n\n=== INSTRUCTIONS ===',
       );
-      expect(user).toContain(
-        "If the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the passage there.\nIf the chapter so far ends waiting on Theo, such as on a question put to Theo, don't answer it for Theo or say that Theo stays quiet: let the others carry on around it until the moment turns back to Theo.\n",
+    });
+
+    it('gives every later passage the exact time the chapter began', () => {
+      const { system } = build({ bureau, startTime, turns: [prose('The lamp was lit.')] });
+
+      expect(system).toContain(
+        'When the chapter began, the time was exactly 10:15 PM on Tuesday, October 27, 2026.\nLet the time shape the scene without dwelling on the clock, and if anyone mentions the time, keep it consistent with this and with how much has happened since.',
       );
-      expect(user).not.toContain('Beyond that');
-    }
-
-    // An opening leaves them to the reader too, with nothing yet waiting on them.
-    const opening = build().user;
-    expect(opening).toContain('leave what Theo says, does, decides, and thinks to the reader');
-    expect(opening).not.toContain('ends waiting on Theo');
-  });
-
-  it("has the reader's character say or do only what a direction asks", () => {
-    const { user } = build({
-      turns: [prose('The lamp was lit.')],
-      request: { action: 'direct', direction: 'Theo tells her about the map' },
+      expect(build({ bureau, turns: [prose('The lamp was lit.')] }).system).not.toContain(
+        '=== TIME ===',
+      );
     });
 
-    expect(user).toContain(
-      "The author's direction for this passage (not part of the story yet): Theo tells her about the map\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do. Beyond that, leave what Theo says, does, decides, and thinks to the reader, including choices made without a word, like writing something down, taking something, or nodding along.\n",
-    );
-    expect(user).not.toContain('ends waiting on Theo');
-    expect(user).toContain(
-      'Once the direction is carried out, if the moment turns to Theo, such as a question put to Theo or a choice only Theo can make, end the passage there.',
-    );
-    expect(user).not.toContain("Theo is the reader's character");
-  });
+    it('marks time passing in the chapter and goes by the last time it passed to', () => {
+      const turns = [
+        prose('The lamp was lit.'),
+        timePasses('2026-10-28T08:00:00.000Z'),
+        prose('Morning came grey.'),
+        timePasses('2026-10-31T08:00:00.000Z'),
+      ];
 
-  it('writes for a reader with no character in the story without inventing a name', () => {
-    const { user } = build({
-      cast: [MARA],
-      turns: [prose('The lamp was lit.'), prose('I opened the door.', 'user')],
-      request: { action: 'write' },
+      const justPassed = build({ bureau, startTime, turns });
+      expect(justPassed.user).toContain(
+        "Here is the current story so far:\n\nThe lamp was lit.\n\n---\n\n[Time passes. It's now exactly 8:00 AM on Wednesday, October 28, 2026.]\n\nMorning came grey.\n\n---\n\n[Time passes. It's now exactly 8:00 AM on Saturday, October 31, 2026.]\n\n---\n\n",
+      );
+      expect(justPassed.system).toContain(
+        "Time has just passed: it's now exactly 8:00 AM on Saturday, October 31, 2026. Pick the story up at this time.",
+      );
+
+      const afterward = build({ bureau, startTime, turns: [...turns, prose('Rain again.')] });
+      expect(afterward.system).toContain(
+        'When time last passed in the chapter, it was exactly 8:00 AM on Saturday, October 31, 2026.',
+      );
     });
-
-    expect(user).toContain(
-      "Continue the story naturally from where it left off.\nSome passages may be written in first or second person; write in the house style's perspective.\n",
-    );
-    expect(user).not.toContain('User');
-    expect(user).not.toMatch(/thinks to the reader|the moment turns to/);
   });
 
-  it('notes other perspectives once the reader has written', () => {
-    const { user } = build({
-      turns: [prose('I opened the door.', 'user'), prose('The lamp was lit.')],
-      request: { action: 'continue' },
-    });
-    const generatedOnly = build({
-      turns: [prose('The lamp was lit.')],
-      request: { action: 'continue' },
-    });
-
-    expect(user).toContain('Some passages may be written in first or second person');
-    expect(generatedOnly.user).not.toContain('Some passages may be written');
-  });
-
-  it("still describes anyone else marked as a reader's character", () => {
-    const ines = member('Ines', { description: 'A second traveler.' }, { isPersona: true });
-
-    const { system } = build({ cast: [MARA, THEO, ines] });
-
-    expect(system).toContain("=== THEO (THE READER'S CHARACTER) ===");
-    expect(system).toContain('Name: Ines\nDescription: A second traveler.');
-  });
-
-  it('keeps directions out of the story text and passes the current one as an instruction', () => {
-    const { user } = build({
+  it('keeps directions out of the story text', () => {
+    const { user, storySection } = build({
       turns: [
         prose('The lamp was lit.'),
         { kind: 'direction', source: 'user', content: 'An old direction' },
@@ -315,129 +337,61 @@ describe('buildWriterMessages', () => {
       request: { action: 'direct', direction: 'She suggests the night market' },
     });
 
-    expect(user).toContain('=== CHAPTER SO FAR ===\nThe lamp was lit.\n\n---\n\nMorning came.');
+    expect(storySection).toBe('The lamp was lit.\n\n---\n\nMorning came.');
     expect(user).not.toContain('An old direction');
-    expect(user).toContain(
-      "The author's direction for this passage (not part of the story yet): She suggests the night market\nCarry it out in the passage itself: write what it describes as happening, including anything it has Theo say or do.",
-    );
+    expect(user).toMatch(/see occur: She suggests the night market$/);
   });
 
-  it("carries out a direction without naming a reader's character when there is none", () => {
-    const { user } = build({
-      cast: [MARA],
-      turns: [prose('The lamp was lit.')],
-      request: { action: 'direct', direction: 'Make it rain' },
-    });
-
-    expect(user).toContain(
-      'Make it rain\nCarry it out in the passage itself: write what it describes as happening.\n',
-    );
-    expect(user).not.toMatch(/thinks to the reader|the moment turns to/);
-  });
-
-  it("takes up the reader's own passage with the other characters", () => {
-    const { user } = build({
-      turns: [prose('The lamp was lit.'), prose('Theo knocked.', 'user')],
-      request: { action: 'write' },
-    });
-
-    expect(user).toContain(
-      'Take the story up with the other characters rather than carrying on what Theo was doing.',
-    );
-    // Only after the reader writes: a plain Continue doesn't get the line.
-    const continuing = build({
-      turns: [prose('The lamp was lit.')],
-      request: { action: 'continue' },
-    });
-    expect(continuing.user).not.toContain('Take the story up with the other characters');
-  });
-
-  it('keeps the scene moving once the story has prose', () => {
-    const continuing = build({
-      turns: [prose('The lamp was lit.')],
-      request: { action: 'continue' },
-    });
-    const opening = build({ turns: [], request: { action: 'continue' } });
-
-    expect(continuing.user).toMatch(
-      /Write as much as the moment needs, usually 2 to 4 paragraphs\. .*\nIf the moment turns to Theo, .*\nIf the chapter so far ends waiting on Theo, .*\nPick up right where the last passage stopped .*\nKeep the scene moving: don't reuse an action, gesture, image, or turn of phrase from earlier in the chapter .*\nDon't let characters repeat themselves: .*\nEnd where the moment naturally pauses, .*\nThe chapter so far is the story, not a model for the prose: .*$/,
-    );
-    expect(opening.user).not.toContain('Keep the scene moving');
-  });
-
-  it('drops the oldest turns when the story is over budget', () => {
-    const { user, storyTruncated } = build({
+  it('drops the oldest turns when the story is over budget, marked as story mode marks it', () => {
+    const { user, storySection, storyTruncated } = build({
       turns: [prose('A'.repeat(50)), prose('B'.repeat(50)), prose('C'.repeat(50))],
       storyCharacterBudget: 110,
     });
 
     expect(storyTruncated).toBe(true);
-    expect(user).toContain('[Earlier parts of the chapter are omitted.]');
+    expect(storySection).toBe(`...${'B'.repeat(50)}\n\n${'C'.repeat(50)}`);
+    expect(user).toContain(`Here is the current story so far:\n\n${storySection}\n\n---\n\n`);
     expect(user).not.toContain('AAAA');
-    expect(user).toContain(`${'B'.repeat(50)}\n\n${'C'.repeat(50)}`);
   });
 
-  it("rewrites a greeting as the chapter's opening", () => {
-    const { user } = build({
-      request: {
-        action: 'greeting',
-        greeting: { name: 'Mara', content: 'Mara *looks up* as you come in. "Late again."' },
-      },
-    });
+  it('keeps the whole story when it fits the context', () => {
+    const turns = [prose('A'.repeat(50)), prose('B'.repeat(50))];
 
-    expect(user).toContain('=== CHAPTER SO FAR ===\n(Nothing has been written yet.)');
-    expect(user).toContain(
-      [
-        '=== NEXT ===',
-        "Write the opening of this chapter by rewriting Mara's greeting below in the house style. It comes from a character card and isn't part of the story yet.",
-        'Greeting:',
-        'Mara looks up as you come in. "Late again."',
-        'Keep its events, dialogue, and details.',
-        'Where the greeting says "you", it means Theo: refer to Theo by name, in the house style\'s perspective.',
-        'Beyond what the greeting has, leave what Theo says, does, decides, and thinks to the reader.',
-        "Where the greeting disagrees with the chapter's time or with what the characters know, follow the chapter.",
-        'Write about as much as the greeting.',
-      ].join('\n'),
-    );
-    expect(user).not.toMatch(/set the scene|Write 3 to 5 paragraphs|image marker/);
+    expect(build({ turns }).storyTruncated).toBe(false);
+    // A smaller reservation for the Writer's own text leaves more room for the story.
+    expect(build({ turns, maxTokens: 256 }).storyTruncated).toBe(false);
   });
 
-  it("keeps a greeting's images as markers, at the chapter's time", () => {
+  it("keeps a greeting's images as markers, and asks the rewrite to keep them", () => {
     const imagePreserver = {
-      preserve: (text, source) =>
-        source === 'greeting' ? text.replace('![Mara](mara.webp)', '[WG_IMAGE_0]') : text,
+      saved: [],
+      preserve(text, source) {
+        if (source !== 'greeting') return text;
+        this.saved.push({ source });
+        return text.replace('![Mara](mara.webp)', '[WG_IMAGE_0]');
+      },
     };
 
-    const { user } = build({
+    const { user, storySection } = build({
       cast: [MARA],
-      bureau: { houseStyle: '', timezone: 'UTC' },
       request: {
         action: 'greeting',
-        greeting: { name: 'Mara', content: '![Mara](mara.webp)\n\nMara waves at you.' },
+        greeting: { name: 'Mara', content: '![Mara](mara.webp)\n\nMara *waves* at you.' },
       },
-      startTime: '2026-10-27T07:30:00.000Z',
       imagePreserver,
     });
 
-    expect(user).toContain(
-      [
-        'Greeting:',
-        '[WG_IMAGE_0]',
-        '',
-        'Mara waves at you.',
-        'Keep its events, dialogue, and details.',
-        'Keep each image marker, such as [WG_IMAGE_0], exactly as written and where it belongs.',
-        `Where the greeting says "you", write in the house style's perspective without inventing a name.`,
-        'This chapter begins at exactly 7:30 AM on Tuesday, October 27, 2026.',
-      ].join('\n'),
-    );
+    expect(storySection).toBe('[WG_IMAGE_0]\n\nMara waves at you.');
+    expect(user).toContain('Text to rewrite:\n\n[WG_IMAGE_0]\n\nMara waves at you.');
+    expect(user).toContain('IMPORTANT: Preserve any markers like [WG_IMAGE_0]');
   });
 
   it('runs card, lore, and story text through the image preserver', () => {
-    const sources = [];
+    const preserved = [];
     const imagePreserver = {
-      preserve: (text, source) => {
-        sources.push(source);
+      saved: [],
+      preserve: (text, source = 'context') => {
+        preserved.push({ text, source });
         return text;
       },
     };
@@ -448,6 +402,10 @@ describe('buildWriterMessages', () => {
       imagePreserver,
     });
 
-    expect(new Set(sources)).toEqual(new Set(['cast', 'lore', 'story']));
+    const sources = (text) =>
+      preserved.filter((entry) => entry.text.includes(text)).map((entry) => entry.source);
+    expect(sources('Wry and stubborn.')).toContain('context');
+    expect(sources('Lore')).toContain('context');
+    expect(sources('The lamp was lit.')[0]).toBe('story');
   });
 });

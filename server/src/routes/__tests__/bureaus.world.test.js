@@ -10,7 +10,6 @@ import { errorHandler } from '../../middleware/error-handler.js';
 import { getBureauStores } from '../../services/bureau/stores.js';
 import { closeBureauDb } from '../../services/bureau/bureau-db.js';
 import { DEFAULT_SETTINGS } from '../../services/bureau/bureau-settings.js';
-import { DEFAULT_HOUSE_STYLE } from '../../services/bureau/writer-prompt.js';
 
 describe('Bureau settings and world routes', () => {
   let app;
@@ -47,7 +46,6 @@ describe('Bureau settings and world routes', () => {
     const { body } = await request(app).get('/api/bureaus/defaults').expect(200);
 
     expect(body).toEqual({
-      houseStyle: DEFAULT_HOUSE_STYLE,
       correspondenceStyle: expect.stringContaining('text messages'),
       settings: DEFAULT_SETTINGS,
       model: 'deepseek-flash',
@@ -74,22 +72,16 @@ describe('Bureau settings and world routes', () => {
 
       const { body } = await request(app)
         .put(bureauUrl())
-        .send({
-          houseStyle: `${defaults.houseStyle}\n`,
-          settings: { correspondence: { style: defaults.correspondenceStyle } },
-        })
+        .send({ settings: { correspondence: { style: `${defaults.correspondenceStyle}\n` } } })
         .expect(200);
 
-      expect(body.bureau.houseStyle).toBe('');
       expect(body.bureau.settings.correspondence.style).toBe('');
 
-      const edited = `${defaults.houseStyle}\nKeep chapters short.`;
       const custom = await request(app)
         .put(bureauUrl())
-        .send({ houseStyle: edited, settings: { correspondence: { style: 'Write letters.' } } })
+        .send({ settings: { correspondence: { style: 'Write letters.' } } })
         .expect(200);
 
-      expect(custom.body.bureau.houseStyle).toBe(edited);
       expect(custom.body.bureau.settings.correspondence.style).toBe('Write letters.');
     });
 

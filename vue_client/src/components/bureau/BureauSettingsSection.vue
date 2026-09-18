@@ -109,36 +109,10 @@
           </div>
         </div>
         <p class="help-text">
-          Temperature starts at 0.8 and applies to message replies too; higher values make long
-          chapters more likely to come apart. DeepSeek ignores temperature in thinking mode. The
-          Writer's reasoning shows in each turn's seam.
-        </p>
-      </fieldset>
-
-      <fieldset class="writer-settings">
-        <legend>Style checks</legend>
-        <label class="checkbox-label">
-          <input
-            id="bureau-settings-editor-enabled"
-            v-model="form.editor.enabled"
-            type="checkbox"
-          />
-          Let the Editor fix what the checks find
-        </label>
-        <div class="form-group">
-          <label for="bureau-settings-banned-phrases">Banned phrases</label>
-          <textarea
-            id="bureau-settings-banned-phrases"
-            v-model="form.bannedPhrases"
-            class="textarea-input"
-            rows="3"
-            placeholder="One per line"
-          ></textarea>
-        </div>
-        <p class="help-text">
-          Every generated passage is checked for two characters speaking in one paragraph,
-          first-person narration, repeated phrasing, and banned phrases. Findings and fixes show in
-          the turn's seam, where a fix can be reverted.
+          The Writer uses story mode's prompts, and starts with story mode's DeepSeek settings:
+          thinking off, temperature 0.5, and 8000 tokens. Temperature applies to message replies
+          too, and DeepSeek ignores it in thinking mode. The Writer's reasoning shows in each turn's
+          seam.
         </p>
       </fieldset>
 
@@ -234,34 +208,10 @@
           ></textarea>
         </div>
         <p class="help-text">
-          Replies follow these rules instead of the house style. While this is empty, the default
-          shown in the box applies. For a Bureau set before phones, describe letters or telegrams.
+          Replies follow these rules. While this is empty, the default shown in the box applies. For
+          a Bureau set before phones, describe letters or telegrams.
         </p>
       </fieldset>
-
-      <div class="form-group">
-        <div class="label-row">
-          <label for="bureau-settings-house-style">House style</label>
-          <button
-            v-if="defaults && !form.houseStyle"
-            class="btn btn-secondary btn-small"
-            @click="form.houseStyle = defaults.houseStyle"
-          >
-            Edit the default
-          </button>
-        </div>
-        <textarea
-          id="bureau-settings-house-style"
-          v-model="form.houseStyle"
-          class="textarea-input house-style"
-          rows="8"
-          :placeholder="defaults?.houseStyle"
-        ></textarea>
-        <p class="help-text">
-          Rules the Writer follows on every turn. While this is empty, the default shown in the box
-          applies.
-        </p>
-      </div>
 
       <div class="form-group">
         <label for="bureau-settings-time">Bureau time</label>
@@ -354,22 +304,12 @@ function snapshot(bureau) {
     name: bureau.name,
     description: bureau.description,
     model: bureau.model,
-    houseStyle: bureau.houseStyle,
     // To the minute on the Bureau's clock, as the date field shows it.
     bureauTime: toDatetimeLocal(bureau.bureauTime, bureau.timezone),
     writer: { ...bureau.settings.writer },
-    editor: { ...bureau.settings.editor },
     memory: { ...bureau.settings.memory },
     correspondence: { ...bureau.settings.correspondence },
-    bannedPhrases: bureau.settings.style.bannedPhrases.join('\n'),
   };
-}
-
-function phrasesFrom(text) {
-  return text
-    .split('\n')
-    .map((phrase) => phrase.trim())
-    .filter(Boolean);
 }
 
 // What the form was last synced from. When the Bureau changes elsewhere (removing the
@@ -420,12 +360,9 @@ async function save() {
     name: form.name.trim(),
     description: form.description.trim(),
     model: form.model.trim(),
-    houseStyle: form.houseStyle,
     settings: {
       writer: { ...form.writer },
-      editor: { ...form.editor },
       memory: { ...form.memory },
-      style: { bannedPhrases: phrasesFrom(form.bannedPhrases) },
       correspondence: { ...form.correspondence },
     },
   };
@@ -447,7 +384,6 @@ async function save() {
       description: updates.description,
       model: updates.model,
       // A style saved as its default comes back empty, so it keeps following the default.
-      houseStyle: saved.houseStyle,
       correspondence: { ...saved.settings.correspondence },
       bureauTime: toDatetimeLocal(saved.bureauTime, saved.timezone),
       apiKey: '',
@@ -547,22 +483,6 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem;
-}
-
-.label-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-
-.label-row label {
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.house-style {
-  font-size: 0.875rem;
 }
 
 .danger-actions {

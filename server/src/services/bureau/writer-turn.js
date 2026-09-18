@@ -2,24 +2,18 @@
  * Writer Turn
  *
  * Generates one turn for a Bureau story and saves it as a new turn or a new
- * variant of an existing one. The Writer streams the passage, style lint
- * checks it, and the Editor fixes what lint flags (see "Generation pipeline"
- * in docs/bureau-design.md). Every step is recorded in one run, which the
- * turn's seam displays.
- *
- * The Editor only improves a turn: if it fails, the unedited text is kept.
+ * variant of an existing one. The Writer streams the passage with story mode's
+ * prompts (see "Generation pipeline" in docs/bureau-design.md). The run records
+ * it, and the turn's seam displays the run.
  */
 
 import { ImagePreserver } from '../image-preserver.js';
 import { LorebookActivator } from '../lorebook-activator.js';
 import { chapterTime, settingYear } from './bureau-time.js';
-import { DeepSeekError } from './deepseek-client.js';
-import { runEditor } from './editor.js';
 import { imageStream } from './images.js';
 import { factsAsOf, memoriesAsOf, notesAsOf, selectForPrompt } from './memory.js';
 import { RunRecorder } from './run-recorder.js';
-import { inferPronoun, lintProse, usesThirdPerson } from './style-lint.js';
-import { DEFAULT_HOUSE_STYLE, buildWriterMessages } from './writer-prompt.js';
+import { buildWriterMessages } from './writer-prompt.js';
 
 // Story mode's default scan depth, budget, and recursion.
 const LOREBOOK_SETTINGS = {
@@ -34,13 +28,15 @@ export const RECORDED_STORY_TAIL = 4000;
 
 /**
  * The request that produced a generated turn. A rewritten greeting is known by the greeting its run
- * recorded. Otherwise the request is inferred from the turn before it: a direction means 'direct',
- * and the reader's own prose means 'write'.
+ * recorded, and a turn written for one character by the character its Writer step recorded.
+ * Otherwise the request is inferred from the turn before it: a direction means 'direct', and the
+ * reader's own prose means 'write'.
  *
  * @param {Array<Object>} turns - The story's turns in order.
  * @param {number} index - Index of the generated turn in `turns`.
  * @param {Object|null} [run] - The run that wrote the version shown, with its steps.
- * @returns {{ action: string, direction?: string, greeting?: { name: string, content: string } }}
+ * @returns {{ action: string, direction?: string, character?: { castId: string, name: string },
+ *   greeting?: { name: string, content: string } }}
  */
 export function requestForRegeneration(turns, index, run = null) {
   const greeting = run?.steps?.find((step) => step.role === 'greeting')?.response;
@@ -49,6 +45,10 @@ export function requestForRegeneration(turns, index, run = null) {
       action: 'greeting',
       greeting: { name: greeting.name ?? '', content: greeting.content },
     };
+  }
+  const character = run?.steps?.find((step) => step.role === 'writer')?.request?.character;
+  if (character?.name) {
+    return { action: 'character', character: { castId: character.castId, name: character.name } };
   }
 
   const previous = turns[index - 1];
@@ -87,15 +87,6 @@ export async function activatedLore(stores, bureauId, scanText) {
   return new LorebookActivator(LOREBOOK_SETTINGS).activate(lorebooks, scanText);
 }
 
-function nameOf(member) {
-  return member.seedCard?.data?.name || member.name;
-}
-
-function pronounOf(member) {
-  const data = member.seedCard?.data ?? {};
-  return inferPronoun(`${data.description ?? ''}\n${data.personality ?? ''}`);
-}
-
 /**
  * @param {Object} params
  * @param {ReturnType<import('./stores.js').getBureauStores>} params.stores
@@ -103,15 +94,16 @@ function pronounOf(member) {
  * @param {Object} params.story
  * @param {import('./deepseek-client.js').DeepSeekClient} params.client
  * @param {Object} params.request
- * @param {'write'|'direct'|'continue'|'greeting'} params.request.action
+ * @param {'write'|'direct'|'continue'|'character'|'greeting'} params.request.action
  * @param {string} [params.request.direction] - For 'direct'.
+ * @param {{ castId: string, name: string }} [params.request.character] - For 'character': who the
+ *   next part is written for.
  * @param {{ name: string, content: string }} [params.request.greeting] - For 'greeting': the
  *   greeting from a character card to rewrite as the chapter's opening.
  * @param {string|null} [params.regenerateTurnId] - Add a variant to this turn, writing from
  *   the turns before it, instead of appending a new turn.
  * @param {(event: Object) => void} [params.onEvent] - Receives events as they happen: `run`,
- *   `stage` (writing or editing), `reasoning`, `content` (with images in place of their
- *   markers), and `edits`.
+ *   `stage` (writing), `reasoning`, and `content` (with images in place of their markers).
  * @param {AbortSignal} [params.signal]
  * @returns {Promise<Object|null>} The saved turn. When cancelled, the text written so far is
  *   saved, or null is returned if nothing was written yet.
@@ -164,9 +156,9 @@ export async function generateWriterTurn({
   const promptRequest = {
     action: request.action,
     direction: request.direction,
+    character: request.character,
     greeting: request.greeting,
   };
-  const isCancellation = (error) => error?.name === 'AbortError' || Boolean(signal?.aborted);
 
   const recorder = new RunRecorder(bureaus, {
     bureauId: bureau.id,
@@ -194,6 +186,7 @@ export async function generateWriterTurn({
     request.greeting?.content ?? '',
   ].join('\n\n');
   const imagePreserver = new ImagePreserver();
+  const { thinking, reasoningEffort, temperature, maxTokens } = bureau.settings.writer;
   let messages;
   let storySection;
   try {
@@ -210,19 +203,21 @@ export async function generateWriterTurn({
       startTime: story.startTime,
       settingYear: settingYear(bureau, chapterTime(story, turns).time),
       imagePreserver,
+      maxTokens,
     }));
   } catch (error) {
     recorder.fail(error);
     throw error;
   }
 
-  const { thinking, reasoningEffort, temperature, maxTokens } = bureau.settings.writer;
   const recordedRequest = {
     model: client.model,
     thinking,
     reasoningEffort,
     temperature,
     maxTokens,
+    // Who a Continue for Character wrote for, so writing another version does the same.
+    ...(request.action === 'character' ? { character: request.character } : {}),
     messages: recordableMessages(messages, storySection),
   };
 
@@ -337,52 +332,5 @@ export async function generateWriterTurn({
     throw error;
   }
 
-  // Lint runs and is recorded even with the Editor off, so runs can be compared.
-  const houseStyle = bureau.houseStyle?.trim() || DEFAULT_HOUSE_STYLE;
-  const findings = lintProse(finalContent, {
-    names: cast.map((member) => ({ name: nameOf(member), pronoun: pronounOf(member) })),
-    thirdPerson: usesThirdPerson(houseStyle),
-    recentText: turns
-      .filter((turn) => turn.kind === 'prose' && turn.source === 'generated')
-      .slice(-3)
-      .map((turn) => turn.content)
-      .join('\n\n'),
-    bannedPhrases: bureau.settings.style.bannedPhrases,
-  });
-  recorder.recordStep({
-    role: 'lint',
-    kind: 'tool',
-    request: { name: 'style_lint' },
-    response: { findings },
-  });
-
-  let savedContent = finalContent;
-  if (findings.length > 0 && bureau.settings.editor.enabled) {
-    onEvent({ type: 'stage', stage: 'editing' });
-    try {
-      // The Writer revises its own passage, with the chapter still in view.
-      const edited = await runEditor({
-        client,
-        recorder,
-        writerMessages: messages,
-        recordedWriterMessages: recordedRequest.messages,
-        text: finalContent,
-        reasoning,
-        findings,
-        signal,
-      });
-      savedContent = edited.text;
-      if (edited.edits.length > 0) onEvent({ type: 'edits', edits: edited.edits });
-    } catch (error) {
-      if (isCancellation(error)) {
-        return saveAndFinish(finalContent, () => recorder.finish('cancelled', 'Cancelled'));
-      }
-      // The unedited text stands. Failed model calls are already recorded; note anything else.
-      if (!(error instanceof DeepSeekError)) {
-        recorder.recordStep({ role: 'editor', kind: 'model', error: error.message });
-      }
-    }
-  }
-
-  return saveAndFinish(savedContent, () => recorder.complete());
+  return saveAndFinish(finalContent, () => recorder.complete());
 }

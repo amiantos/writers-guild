@@ -59,17 +59,17 @@ const TERMS = [
   {
     name: 'Turns',
     description:
-      'A chapter is written in turns: Write adds your passage and the Writer continues from it, Direct tells the Writer what should happen next, and Continue lets it keep going.',
+      "A chapter is written in turns: Write adds your passage and the Writer continues from it, Direct tells the Writer what should happen next, Continue lets it keep going, and Continue for Character writes the next part from one character's perspective.",
   },
   {
     name: 'Seams',
     description:
-      'Hover between turns to see how a passage was written: the prompt, the reasoning, and any fixes.',
+      'Hover between turns to see how a passage was written: the prompt and the reasoning.',
   },
   {
-    name: 'Writer, Editor, Archivist',
+    name: 'Writer and Archivist',
     description:
-      "The Writer writes each passage from the characters' cards, their memories, and your lorebooks, the Editor fixes what the style checks catch (like two characters speaking in one paragraph), and the Archivist commits what happened to memory.",
+      "The Writer writes each passage with story mode's prompts, plus what the characters remember, and the Archivist commits what happened to memory.",
   },
   {
     name: 'Memories',

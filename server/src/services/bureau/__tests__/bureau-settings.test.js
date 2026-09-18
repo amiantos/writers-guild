@@ -7,15 +7,23 @@ import {
 } from '../bureau-settings.js';
 
 describe('resolveSettings', () => {
+  it("starts the Writer with story mode's DeepSeek settings", () => {
+    expect(DEFAULT_SETTINGS.writer).toMatchObject({
+      thinking: false,
+      temperature: 0.5,
+      maxTokens: 8000,
+    });
+  });
+
+  it('ignores stored groups that are no longer settings', () => {
+    const resolved = resolveSettings({ editor: { enabled: true }, style: { bannedPhrases: [] } });
+
+    expect(resolved).toEqual(DEFAULT_SETTINGS);
+  });
+
   it('fills in defaults for anything not stored', () => {
     expect(resolveSettings({})).toEqual(DEFAULT_SETTINGS);
-    expect(Object.keys(resolveSettings({}))).toEqual([
-      'writer',
-      'memory',
-      'editor',
-      'style',
-      'correspondence',
-    ]);
+    expect(Object.keys(resolveSettings({}))).toEqual(['writer', 'memory', 'correspondence']);
     expect(resolveSettings({ writer: { thinking: true } }).writer).toEqual({
       ...DEFAULT_SETTINGS.writer,
       thinking: true,
@@ -76,9 +84,8 @@ describe('applySettingsUpdate', () => {
     [{ memory: { recentEpisodes: 2.5 } }, /memory.recentEpisodes must be a whole number/],
     [{ memory: 'on' }, /settings.memory must be an object/],
     [{ director: { enabled: true } }, /Unknown settings group: director/],
-    [{ editor: { enabled: null } }, /editor.enabled must be true or false/],
-    [{ style: { bannedPhrases: 'a testament to' } }, /style.bannedPhrases must be a list/],
-    [{ style: { bannedPhrases: [' '] } }, /style.bannedPhrases must be a list/],
+    [{ editor: { enabled: true } }, /Unknown settings group: editor/],
+    [{ style: { bannedPhrases: [] } }, /Unknown settings group: style/],
     [{ narrator: {} }, /Unknown settings group: narrator/],
     [{ writer: [] }, /settings.writer must be an object/],
     [null, /settings must be an object/],

@@ -63,7 +63,6 @@ function bureauFromRow(row) {
     sharedApiKeyPreview: maskApiKey(sharedKey),
     bureauTime: row.bureau_time,
     timezone: row.timezone,
-    houseStyle: row.house_style,
     settings: resolveSettings(parseJson(row.settings, {})),
     avatarWindows: parseJson(row.avatar_windows, []),
     castCount: row.cast_count,
@@ -190,7 +189,7 @@ export class BureauStorage {
       `),
       updateBureau: this.db.prepare(`
         UPDATE bureaus SET name = @name, description = @description, api_key = @apiKey,
-                           model = @model, house_style = @houseStyle, timezone = @timezone,
+                           model = @model, timezone = @timezone,
                            bureau_time = @bureauTime, modified = @modified
         WHERE id = @id
       `),
@@ -373,8 +372,8 @@ export class BureauStorage {
 
   /**
    * @param {string} bureauId
-   * @param {Object} updates - Any of name, description, apiKey, model, houseStyle, timezone, and
-   *   bureauTime (an ISO time, checked by bureau-time.js).
+   * @param {Object} updates - Any of name, description, apiKey, model, timezone, and bureauTime (an
+   *   ISO time, checked by bureau-time.js).
    *   Undefined fields are left alone. An apiKey of '' removes the key, and a
    *   timezone of null clears it.
    * @returns {Object|null} The updated Bureau, or null if it doesn't exist.
@@ -389,7 +388,6 @@ export class BureauStorage {
       description: updates.description ?? row.description,
       apiKey: updates.apiKey ?? row.api_key,
       model: updates.model ?? row.model,
-      houseStyle: updates.houseStyle ?? row.house_style,
       timezone: updates.timezone !== undefined ? updates.timezone : row.timezone,
       bureauTime: updates.bureauTime ?? row.bureau_time,
       modified: new Date().toISOString(),

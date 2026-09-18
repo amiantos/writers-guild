@@ -13,9 +13,10 @@ characters who remember, change, and keep living between chapters. Each Bureau i
 environment: a cast, a world, an ordered set of chapters, correspondence between chapters, and one
 shared clock, **Bureau time**.
 
-A **Writer** produces the prose, an **Editor** enforces house style, and an **Archivist** turns what
-happened into memories. A **Director** used to plan each passage first; it was removed on September
-15, 2026 (see [Generation pipeline](#generation-pipeline)).
+A **Writer** produces the prose with story mode's own prompts, and an **Archivist** turns what
+happened into memories. A **Director** used to plan each passage first, and an **Editor** used to fix
+what style checks flagged; both were removed in September 2026 (see
+[Generation pipeline](#generation-pipeline)).
 
 Story mode stays exactly as it is. Bureau imports existing code rather than changing it, and has its
 own routes, views, and database file.
@@ -91,7 +92,6 @@ idea:
 | **Turn seam**        | A hidden divider between turns that expands to show how the next turn was made.                |
 | **Correspondence**   | A message thread between the persona and one cast member, between chapters.                    |
 | **Bureau time**      | The Bureau's current date and time: a story clock that only the reader moves.                  |
-| **House style**      | An editable prose rulebook used by the Writer and the Editor. Empty follows the default.       |
 
 Code, the API, and the database still call a chapter a `story`: the `stories` and `story_cast`
 tables, routes under `/stories`, and the memory source type `story`.
@@ -139,12 +139,12 @@ The trade-off: you lose typing anywhere in the canvas, but a chapter becomes an 
 
 ### Turn kinds
 
-| Kind                   | Shown as                         | Sent to the Writer as          |
-| ---------------------- | -------------------------------- | ------------------------------ |
-| `prose` (user-written) | Prose, attributed to the persona | Chapter text                   |
-| `prose` (generated)    | Prose                            | Chapter text                   |
-| `direction`            | A small, collapsible note        | Instructions for the next beat |
-| `scene_break`          | A divider                        | A marker in the chapter text   |
+| Kind                   | Shown as                         | Sent to the Writer as                 |
+| ---------------------- | -------------------------------- | ------------------------------------- |
+| `prose` (user-written) | Prose, attributed to the persona | Chapter text                          |
+| `prose` (generated)    | Prose                            | Chapter text                          |
+| `direction`            | A small, collapsible note        | The instruction for the turn after it |
+| `scene_break`          | A divider                        | A marker in the chapter text          |
 
 Turns never move Bureau time. Time passing inside a chapter is written as prose, as in any book
 ("Three hours later…").
@@ -155,16 +155,17 @@ Between every pair of turns is an invisible seam. Hovering reveals a thin divide
 expands in place to show how the turn below it was made:
 
 - Which cast member led the turn
-- The Writer's reasoning, if thinking was on
-- Style lint flags and each Editor fix, with the original text and a revert button
+- The Writer's reasoning, if thinking was on, and the prompt it was sent
+- For turns written before the Editor was removed, style lint flags and each Editor fix, with the
+  original text and a revert button
 - Model, tokens, and timing for every step
 - Later: what the Archivist took from the turn (memories added, arc notes proposed)
 
 Collapsed, a chapter reads like a book. Expanded, it reads like an agent transcript. Everything
 stays in one interface, and no separate screen is needed to see how a turn was made.
 
-- **While a turn is generating,** its seam stays visible with a one-line live status ("Writing…",
-  "Editing…"). Clicking it shows the reasoning as it streams. It collapses when the turn is done.
+- **While a turn is generating,** its seam stays visible with a one-line live status ("Writing…").
+  Clicking it shows the reasoning as it streams. It collapses when the turn is done.
 - **Touch screens have no hover,** so on touch devices seams show as a faint marker you can tap.
 - **User-written turns** have seams too, showing only when they were written and whether they've
   been edited.
@@ -172,21 +173,27 @@ stays in one interface, and no separate screen is needed to see how a turn was m
 ### Composer
 
 A multi-line textarea at the bottom (story mode's preview bar is a single-line input), with these
-actions:
+actions. Each one sends the prompt of the story mode button that does the same thing (see
+[Writer](#writer)):
 
-- **Write:** add the text as a prose turn, then continue the story from it (like story mode's
-  preview bar). Its instructions are the same as Continue's.
-  Ctrl or ⌘ + Enter also writes.
-- **Direct:** add a direction turn, for example "she suggests the night market," then generate. The
-  Writer treats a direction as something that hasn't happened yet and writes it happening.
-- **Continue:** generate with no new input.
+- **Write:** add the text as a prose turn, then continue the story from it, as typing into a story
+  and pressing Continue does. Ctrl or ⌘ + Enter also writes.
+- **Direct:** add a direction turn, for example "she suggests the night market," then generate, as
+  Continue with Instruction does.
+- **Continue:** generate with no new input. In an empty chapter, this is story mode's Start Story.
+- **Continue for Character,** once the chapter has prose, writes the next part from one character's
+  perspective, as story mode's button does. With one character in the chapter it writes for them
+  straight away; with more, it opens story mode's character picker. The reader's character isn't
+  offered, just as story mode offers only a story's characters. Unlike story mode, every card in the
+  chapter stays in the prompt, since everyone is still in the scene. Writing another version writes
+  for the same character.
 - **Greeting**, while the chapter has no prose yet, offers the greetings on the cards of everyone in
   it (first messages and alternate greetings), with the reader's character as `{{user}}`. As in
   story mode, picking one asks whether to rewrite it:
-  - **Rewrite** has the Writer write the chapter's opening from the greeting, in the house style
-    and with everything a passage gets: the cast's cards, the world, memories, and the chapter's
-    time. It keeps the greeting's events, dialogue, and images, and follows the chapter where they
-    disagree. The seam shows the greeting, and writing another version rewrites the same greeting.
+  - **Rewrite** has the Writer rewrite the greeting in third person, past tense, with story mode's
+    rewrite prompt and everything a passage gets: the cast's cards, the world, memories, and the
+    chapter's time. The seam shows the greeting, and writing another version rewrites the same
+    greeting.
   - **Keep as written** adds the greeting as it is on the card.
 - **Scene break** adds a divider without generating, and **Stop** ends a generation early while
   keeping whatever was already written.
@@ -194,20 +201,10 @@ actions:
   Time passes elsewhere, and adds a divider showing the new time (see
   [Bureau time](#bureau-time)).
 
-The reader's character belongs to the reader. The Writer leaves what they say, do, decide, and think
-to the reader, including choices made without a word, like writing something down or nodding along. They stay in the scene as the chapter last left them. A direction is the
-exception: whatever it has the reader's character say or do gets written, and nothing beyond it. A
-rewritten greeting keeps what the card has them do and adds nothing. When the moment turns to the
-reader's character, such as a question put to them or a choice only they can make, the passage ends
-there. When the chapter already ends waiting on them and the reader continues anyway, the others
-carry on around it, without answering for the reader's character or saying they stay quiet.
-
-This is the second try at the rule. The first also had a style check flag the reader's character's
-dialogue, and an Editor that saw only the passage cut it afterward. Those cuts left prose that read
-strangely, so the rule was dropped on September 13, 2026. It came back two days later, from
-comparing Bureau with story mode, whose "write as" action picks from the story's characters, not
-its persona. This time it's prompts only: a line written for the reader's character gets regenerated
-or edited by hand, and nothing is cut after the fact.
+Until September 18, 2026 the Writer had rules of its own for the reader's character: it left what they
+said, did, decided, and thought to the reader, and ended a passage when the moment turned to them.
+Story mode has no such rule, and Bureau now writes as story mode does, so a line written for the
+reader's character gets regenerated or edited by hand.
 
 Editing a turn opens a textarea for just that turn, which recovers most of the feel of editing
 directly.
@@ -239,16 +236,13 @@ clicked to show someone else. A portrait is the library character's image, so dr
 
 ## Generation pipeline
 
-A generated turn passes through up to three roles. Both model roles use DeepSeek V4.1 Flash with
-different prompts and settings.
+A generated turn is written by the Writer and saved as written. The Archivist reads it into memory
+later. Both use DeepSeek V4.1 Flash, with different prompts and settings.
 
 ```mermaid
 flowchart LR
-  U[Composer input] --> W[Writer<br/>streaming prose]
-  W --> L[Style lint<br/>code checks]
-  L -->|flagged paragraphs| E[Editor<br/>targeted fixes]
-  L -->|clean| T[(Turn saved)]
-  E --> T
+  U[Composer input] --> W[Writer<br/>story mode's prompts<br/>+ memories, facts, time]
+  W --> T[(Turn saved)]
   T -.->|later, in background| A[Archivist<br/>memories + arc notes]
 ```
 
@@ -258,7 +252,19 @@ prompt prose-only keeps streaming simple and lets each role be tuned on its own.
 Writer has no tools of its own: creating a character mid-passage would put a tool call and its
 result in the conversation the prose comes out of.
 
-**The Editor only improves a turn:** if it fails, the unedited text stands.
+### Story mode's prompts, and why
+
+On September 18, 2026 the Writer switched to story mode's prompts, because in practice story mode kept
+getting picked over Bureau for writing. Every rule Bureau's own prompts gained fixed something
+measured in test chapters: a house style, closing rules against drift and repetition, the reader's
+character rule, and a style lint with an Editor. Together, though, they made prose that read worse
+than story mode's. An experiment that cut each turn down to a single story beat was set aside for the
+same reason.
+
+What Bureau adds that story mode can't is continuity: memories, established facts, how characters
+have changed, and the chapter's time. That's information, not instructions about how to write, so it
+sits on top of story mode's prompt without changing how it writes. The rest of Bureau's interface
+stays: turns, seams, variants, directions, and time controls.
 
 ### The Director, and why it was removed
 
@@ -299,43 +305,56 @@ lorebook entries activate. That needs no model call and no wait.
 
 ### Writer
 
-Builds the prompt from the most stable parts to the most volatile, to make the most of DeepSeek's
-context caching:
+The Writer's prompt is story mode's own, built by story mode's `PromptBuilder` from its default
+templates, so a chapter is written exactly as a story would be. Tests check that, with nothing
+Bureau-only to add, the messages match what story mode sends for the same story.
 
-1. House style and perspective rules
-2. Cast: each character's profile (description and personality) with accepted arc notes, then the
-   reader's character's
-3. Established facts, "true in this story unless the chapter itself shows one changing" (see
-   [Established facts](#established-facts))
-4. Always-on memories, with a reminder that a profile or established fact wins when a memory
-   disagrees
-5. World: lorebook entries (selected by `LorebookActivator` over recent turns) and the setting year
-6. This chapter's prose so far (oldest turns truncated first). Summaries of earlier chapters don't
-   reach the Writer yet.
-7. The composer input, plus the chapter's exact time: when it began, or when time last passed in it
-   (see [Time in prompts](#time-in-prompts))
+The system prompt is story mode's default system prompt:
 
-Long chapters tend to drift. In 20-passage test chapters, later passages grew longer, with long
-"and"-chained sentences and narration explaining what each gesture meant. The same mannerisms and
-props kept coming back. Plain Continues invented new trouble or skipped ahead a day, and passages
-ended on summing-up lines. Several prompt rules push against this:
+1. The chapter's characters as story mode's character profile (with the card's scenario when there
+   is one character) or character profiles (two or more). Dialogue examples stay out, as in story
+   mode's presets.
+2. World information: activated lorebook entries (selected by `LorebookActivator` over the chapter,
+   the direction, and a greeting being rewritten), after the setting year when there is one.
+3. The reader's character as story mode's persona, whose personality is its "Writing Style".
+4. Bureau's continuity sections, placed before story mode's instructions:
+   - **Established facts,** "true in this story unless the chapter itself shows one changing" (see
+     [Established facts](#established-facts)).
+   - **Character development:** each character's accepted arc notes ("How Mara has changed").
+   - **Memories,** with a reminder that a profile or established fact wins when a memory disagrees,
+     and that people seldom bring up the past.
+   - **Time:** the chapter's exact time, when it began or when time last passed in it (see
+     [Time in prompts](#time-in-prompts)).
+5. Story mode's instructions and perspective: novel-style prose, third person, past tense, the
+   story's language, and no asterisks.
 
-- The house style asks for varied, mostly short sentences and occasional mannerisms.
-- The closing instructions ask the Writer to write only as much as the moment needs and to pick up
-  where the last passage stopped, with no time skip or new twist unless asked.
-- Nobody repeats a point, a figure, or a line, and passages end on what someone does or says.
-- The chapter so far counts as story, not as a model for the prose.
-- After the reader writes a passage of their own, the Writer takes the story up with the other
-  characters rather than carrying on what the reader's character was doing. The line itself says
-  nothing about who wrote the last passage, both because what matters is continuing the story and
-  because a greeting kept as written is stored as the reader's prose too.
+The user message is story mode's too: "Here is the current story so far:" with the chapter's text,
+then the template for the action:
 
-The Writer's temperature defaults to 0.8. At 1.5, test passages dissolved into word salad partway
-through. Message replies use the same temperature. Bureaus that saved their settings before keep
-the temperature they saved.
+| Bureau action          | Story mode template                           |
+| ---------------------- | --------------------------------------------- |
+| Continue, Write        | `continue`, "Continue the story naturally..." |
+| Continue (empty)       | `storyStarter`, as Start Story                |
+| Direct                 | `instruction`, as Continue with Instruction   |
+| Continue for Character | `character`, "from {{char}}'s perspective"    |
+| Greeting's Rewrite     | `rewriteThirdPerson`, on the greeting alone   |
 
-Output streams into the active turn. Images pass through `ImagePreserver` as in story mode (see
-[Images](#images)).
+The chapter's text leaves out directions, and oldest turns are dropped first if it outgrows the
+context. The budget is story mode's, for its DeepSeek preset's 1M-token context: what's left once the
+system prompt and the Writer's max tokens are reserved, at about three characters a token.
+
+The Writer starts with story mode's DeepSeek settings: thinking off, temperature 0.5, and 8,000
+tokens. Message replies use the same temperature. Bureaus that saved their settings before keep what
+they saved.
+
+Output streams into the active turn and is saved as written. Images pass through `ImagePreserver` as
+in story mode (see [Images](#images)).
+
+**Before September 18, 2026** the Writer had its own prompt: an editable house style, a closing list
+of rules for long chapters (write only as much as the moment needs, pick up where the last passage
+stopped, no repeated gestures or lines, end on what someone does or says), and the reader's
+character rule. In 20-passage test chapters those rules cut late passages from about 700 words to
+440 and sentences from 22.8 words to 15.8. The house style is still stored in `bureau.db`, unused.
 
 ### Images
 
@@ -347,47 +366,23 @@ to show when something happens.
   writes comes back as that image. While a passage streams, each marker shows as its image as soon
   as it's complete. A rewritten greeting keeps its images: any the Writer leaves out go at the end,
   as in story mode's rewrite.
-- The other roles only read images. The Editor, Archivist, replies, offscreen life, and the
+- The other roles only read images. The Archivist, replies, offscreen life, interviews, and the
   character generator get each one as a short label from its alt text, such as
   `[image: the harbor at dawn]`. A cached asset URL is long and no use to a model, and it would
   crowd out the words around it, as in a lorebook entry a prompt carries.
 - Messages don't show images, so a reply can't send one.
 
-### Style lint and Editor
+### Style lint and Editor, and why they were removed
 
-`style-lint.js` is a set of pure, unit-tested checks. They run on every generated passage and are
-recorded in its run even with the Editor off, so Writer-only runs can be compared:
+Until September 18, 2026, pure code checks (`style-lint.js`) ran on every generated passage: two
+characters speaking in one paragraph, first-person narration when the house style asked for third
+person, narration repeated from recent turns, and banned phrases. The **Editor** then had the Writer
+revise the flagged paragraphs in its own conversation, with a forced `edit_paragraphs` call, and the
+seam showed each fix with a revert button.
 
-- **Multiple speakers in one paragraph:** attribute each quote from a dialogue tag ("Mara said",
-  "said Mara", "Mara turned to Theo and asked,") or, failing that, from an action beat just before
-  it that starts with a cast member's name and mentions no one else in the cast, and flag
-  paragraphs with two or more speakers. A tag before a quote needs its speaker to start the
-  sentence, so the person spoken to isn't mistaken for the speaker, and a capitalized word outside
-  the cast counts as a name only if it also appears mid-sentence ("Finally" doesn't).
-- **Pronouns:** a "he said" or "she said" counts as someone new only when no named speaker could be
-  them. It's then taken for the one cast member who uses that pronoun (inferred from seed cards),
-  if they're named in this paragraph or the one before.
-- **First-person narration:** three or more of "I", "me", "my", or "myself" outside dialogue and
-  thoughts ("…, she thought") when the house style asks for third person.
-- **Repeated phrasing:** seven-word stretches of narration repeated from the last three generated
-  turns or earlier in the passage, plus a per-Bureau list of banned phrases.
-
-The checks would rather miss a problem than invent one. Paragraphs with images are skipped, and the
-Writer's output already has asterisks stripped. Tense drift is left for later, since present-tense
-checks are noisy.
-
-The Editor is a second turn in the Writer's own conversation, not a separate model reading the
-passage cold. It sends what the Writer was sent (the house style, cast, facts, memories, world, and
-chapter so far), then the passage the Writer wrote, then the flagged paragraphs with the reasons they
-were flagged and how to fix each kind of problem, so a fix fits the scene. DeepSeek has that prompt
-cached from the Writer's call, so the extra call costs little. A repeated phrase is rewritten or cut
-rather than swapped for synonyms: a model that saw only the passage used to trade "sat down on the
-other end of the sofa" for "lowered himself onto the far end", which read stranger than the repeat.
-The revision answers with a forced, strict `edit_paragraphs` call: a list of
-`{ paragraph, replacement }` edits, applied only to flagged paragraphs. Fixes apply automatically;
-the turn's seam shows each fix's before and after, and one click reverts it. A fix reverts only once
-(when its original text is back, it's done), and only where its replacement stands as whole
-paragraphs.
+They went with the move to story mode's prompts. Story mode saves what the model writes, and the
+Editor's rewrites were part of what made Bureau's prose read differently. Seams of turns written
+before then still show the lint flags and fixes, and a fix can still be reverted.
 
 ### Archivist
 
@@ -585,8 +580,8 @@ the word an entry would key on, and a short list costs little.
 Every role gets the established facts, and every role is told that a profile or fact wins when a
 memory disagrees:
 
-- **Writer:** an established facts section after the cast's profiles and before memories, "true in
-  this story unless the chapter itself shows one changing"
+- **Writer:** an established facts section after the cast, the world, and the reader's character,
+  and before memories, "true in this story unless the chapter itself shows one changing"
 - **Replies and offscreen accounts:** the facts as of Bureau time, or the new time
 - **Archivist:** numbered, with the proposals waiting and the facts you turned down
 
@@ -622,7 +617,7 @@ A memory that disagrees with an established fact is held, like one that disagree
   changed"), and can write one yourself, which is accepted as written. Rejected notes stay as
   history, and an accepted note that was edited shows what was first proposed.
 - Accepted notes follow the same timeline rule as memories: a chapter sees notes from before its
-  start. The Writer gets them in the character's profile ("How Mara has changed"). Changing a
+  start. The Writer gets them in a character development section ("How Mara has changed"). Changing a
   passage a note cites marks the note for review.
 - **Why the Archivist doesn't rewrite the profile:** repeated LLM rewrites flatten a character toward
   bland and agreeable. A profile that only you change anchors the voice; notes only add.
@@ -691,8 +686,7 @@ material yours: the model asks and writes up, but the facts come from your answe
 - One thread per cast member, written with the Bureau's reader's character, so choosing a reader's
   character in the cast is what opens messages.
 - Replies are short first-person messages, texts by default. The Bureau's settings have a **message
-  style** used in place of the house style; for a Bureau set before phones, it can describe letters
-  or telegrams.
+  style** for how they read; for a Bureau set before phones, it can describe letters or telegrams.
 - Messages happen at Bureau time: each message and reply is dated at the Bureau's current time, and
   none of them move it (see [Bureau time](#bureau-time)). To let time pass between messages, use
   **Time passes** in the thread's header. Each message keeps the Bureau time it was sent at.
@@ -941,10 +935,8 @@ server/src/services/bureau/
   bureau-storage.js                      # queries
   deepseek-client.js                     # messages, tools, strict schemas, streaming
   tool-loop.js                           # runs tool calls until the model answers
-  writer-turn.js                         # Writer → lint → Editor, one run per turn
-  writer-prompt.js
-  style-lint.js
-  editor.js
+  writer-turn.js                         # the Writer's turn, one run per turn
+  writer-prompt.js                       # story mode's prompts, plus memories, facts, and time
   archivist.js
   memory-storage.js                      # memory queries and FTS
   memory.js                              # what a story or moment can see (memories, notes, facts)
@@ -977,6 +969,8 @@ never touch `data/`.
 - `sqliteStorage.js`: read library characters and lorebooks; save new library characters
 - `lorebook-parser.js`, `lorebook-activator.js`
 - `macro-processor.js`, `template-engine.js`
+- `prompt-builder.js` and `default-presets.js`: story mode's system prompt and templates, for the
+  Writer
 - `image-preserver.js`, `shared/regex-patterns.js`
 - `asset-manager.js` (with a new `bureaus` entity type), `image-cacher.js`
 - `character-parser.js`

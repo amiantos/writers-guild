@@ -23,13 +23,13 @@ So I decided to make Writers Guild, which uses the same character cards and lore
 
 Bureau is a separate mode for an ongoing story with living characters, written in chapters. Each Bureau has a cast, a world of attached lorebooks, an ordered series of chapters, and one clock: Bureau time, a story clock that only you move. Any year from 1 to 9999 works.
 
-- **Agentic generation** - A Writer writes each passage from the characters' cards, their memories, and your lorebooks, style checks and an Editor fix problems like two characters speaking in one paragraph, and an Archivist commits what happened to memory. Every step is recorded and shows in the seam between turns.
+- **Story mode's writing, with memory** - A Writer writes each passage with story mode's prompts (Continue, Continue for Character, and Continue with Instruction as Direct), adding what the characters remember, established facts, and the chapter's time, and an Archivist commits what happened to memory. Every step is recorded and shows in the seam between turns.
 - **Memory** - Characters remember what they know, what happened from their point of view, and how they've changed. Every memory shows its source and can be edited, and a chapter only remembers what came before its start.
 - **Character development** - Changes to a character are proposed for your review, and nothing rewrites their card on its own.
 - **Profiles and interviews** - Read and edit a cast member's profile, the Bureau's copy of their card plus their routine, from the cast list, a chapter, or their messages. An interview asks you about them one question at a time, then writes your answers up as a new description, personality, and routine for you to review, with a line for the profile of anyone they turn out to have a relationship with. Every version of a profile is kept.
 - **Messages** - Write to cast members between chapters. Messages happen at Bureau time, and "Time passes" moves the clock forward when you want, between messages or within a chapter. Replies know their memories, their routine, and the time of day, and conversations become memories too. When time jumps forward, characters get a short account of what they did meanwhile.
 - **Character generator** - Generate characters from an idea, from a Bureau's cast section or from "Who's in this chapter" while you write.
-- **Greetings, images, and avatars** - As in story mode, open a chapter with a greeting from a character's card, rewritten by the Writer in the house style, see the images that cards and lorebooks carry, and float character avatars over the page.
+- **Greetings, images, and avatars** - As in story mode, open a chapter with a greeting from a character's card, rewritten by the Writer in third person, see the images that cards and lorebooks carry, and float character avatars over the page.
 
 Bureau keeps its data in `data/bureau.db`, apart from story mode. Bureaus share one DeepSeek API key unless one has its own, and use DeepSeek V4.1 Flash by default. The Bureaus tab explains the terms the first time you open it, and the full design is in [docs/bureau-design.md](docs/bureau-design.md).
 

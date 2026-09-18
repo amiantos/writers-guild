@@ -126,7 +126,9 @@
         :generating="generating"
         :has-api-key="bureau.hasApiKey"
         :can-use-greeting="!hasProse"
+        :can-continue-for-character="hasProse && chapterCharacters.length > 0"
         @generate="generate"
+        @character="continueForCharacter"
         @greeting="showGreetings = true"
         @scene-break="addSceneBreak"
         @time-passes="showTimePasses = true"
@@ -173,6 +175,12 @@
       :cast-id="profileCastId"
       :has-api-key="bureau.hasApiKey"
       @close="profileCastId = null"
+    />
+    <CharacterResponseModal
+      v-if="showCharacterPicker"
+      :characters="chapterCharacters"
+      @close="showCharacterPicker = false"
+      @select="generateForCharacter"
     />
     <GreetingPickerModal
       v-if="showGreetings"
@@ -223,6 +231,7 @@ import StoryCastModal from '../../components/bureau/StoryCastModal.vue';
 import ProfileModal from '../../components/bureau/ProfileModal.vue';
 import TimePassesPicker from '../../components/bureau/TimePassesPicker.vue';
 import GreetingPickerModal from '../../components/bureau/GreetingPickerModal.vue';
+import CharacterResponseModal from '../../components/CharacterResponseModal.vue';
 import FloatingAvatarWindow from '../../components/FloatingAvatarWindow.vue';
 
 const props = defineProps({
@@ -237,7 +246,6 @@ const READER_SCROLL_EVENTS = ['wheel', 'touchmove', 'pointerdown', 'keydown'];
 
 const STAGE_LABELS = {
   writing: 'Writing...',
-  editing: 'Editing...',
 };
 
 const route = useRoute();
@@ -261,6 +269,8 @@ const showCast = ref(false);
 // The cast member whose profile is open, from "Who's in this chapter".
 const profileCastId = ref(null);
 const showGreetings = ref(false);
+// Picking who Continue for Character writes for.
+const showCharacterPicker = ref(false);
 const showTimePasses = ref(false);
 const passingTime = ref(false);
 const editingTitle = ref(false);
@@ -275,7 +285,8 @@ const reverting = ref(false);
 const highlightTurnId = ref(null);
 // Portraits floating over the chapter. The Bureau keeps them, so they carry over between chapters.
 const avatarWindows = ref([]);
-// Library characters by id, for the windows' portraits, loaded once a window is open.
+// Library characters by id, for portraits in the windows and the character picker, loaded once
+// one of them opens.
 const libraryCharacters = ref(new Map());
 let libraryCharactersRequested = false;
 let saveWindowsTimer = null;
@@ -306,6 +317,15 @@ const hasProse = computed(() => turns.value.some((turn) => turn.kind === 'prose'
 
 const avatarCharacters = computed(() =>
   windowCharacters(cast.value, story.value?.castIds ?? [], libraryCharacters.value),
+);
+
+// Who Continue for Character can write for: the chapter's characters, as in story mode, where the
+// reader's character isn't one of the story's characters.
+const chapterCharacters = computed(() =>
+  avatarCharacters.value.filter(
+    (character) =>
+      story.value?.castIds.includes(character.id) && !castById.value[character.id]?.isPersona,
+  ),
 );
 // ==================== Loading ====================
 
@@ -522,6 +542,28 @@ function generate({ action, text }) {
   );
 }
 
+// As in story mode, one character is written for straight away, and several are picked from.
+function continueForCharacter() {
+  if (chapterCharacters.value.length === 1) {
+    generateForCharacter(chapterCharacters.value[0].id);
+    return;
+  }
+  loadLibraryCharacters();
+  showCharacterPicker.value = true;
+}
+
+function generateForCharacter(castId) {
+  showCharacterPicker.value = false;
+  runStream((signal) =>
+    bureauStoriesAPI.generate(
+      props.bureauId,
+      props.storyId,
+      { action: 'character', castId },
+      signal,
+    ),
+  );
+}
+
 // The Writer rewrites a picked greeting as the chapter's opening, streaming in like any passage.
 function rewriteGreeting({ castId, content }) {
   showGreetings.value = false;
@@ -670,7 +712,7 @@ async function loadLibraryCharacters() {
     const { characters } = await charactersAPI.list();
     libraryCharacters.value = new Map(characters.map((character) => [character.id, character]));
   } catch (error) {
-    // The windows go without portraits for now, and the next window opened tries again.
+    // Portraits are left out for now, and the next window or picker opened tries again.
     libraryCharactersRequested = false;
     console.error('Failed to load portraits:', error);
   }

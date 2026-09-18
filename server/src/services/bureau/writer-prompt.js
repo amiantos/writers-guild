@@ -1,39 +1,31 @@
 /**
  * Writer Prompt
  *
- * Builds the messages for the Writer, the role that produces a story's prose
- * (see "Generation pipeline" in docs/bureau-design.md).
+ * Builds the messages for the Writer, the role that produces a chapter's prose (see "Generation
+ * pipeline" in docs/bureau-design.md).
  *
- * The story reaches the model as continuous prose, never as a chat transcript:
- * turns are storage and UI structure only. Direction turns are instructions
- * for the next beat, so they appear in the instructions, not the story text.
+ * The prompts are story mode's own: its PromptBuilder renders the default system prompt and the
+ * default template for the matching story mode button, so a chapter reads like a story written in
+ * story mode. What Bureau adds is continuity: established facts, how the characters have changed,
+ * what they remember, and the chapter's time, in sections placed before story mode's instructions.
+ *
+ * The story reaches the model as continuous prose, never as a chat transcript: turns are storage
+ * and UI structure only. Directions reach the Writer as story mode's "Continue with Instruction"
+ * does, so they're never part of the story text.
  */
 
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
 import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
 
-export const DEFAULT_HOUSE_STYLE = [
-  'Write in a narrative, novel-style format with proper paragraphs and dialogue.',
-  'Write in third-person past tense, including dialogue tags.',
-  "Give each character's dialogue its own paragraph: when a different character speaks, start a new paragraph.",
-  'Show rather than tell, with specific, concrete detail and natural dialogue.',
-  'Let dialogue sound like real speech: mostly short lines, broken up by action, without characters explaining their feelings or recapping what they both know.',
-  'Keep the narration concrete rather than clever: use similes sparingly, and avoid punchy sentence fragments for emphasis.',
-  `Keep most sentences short or medium, and vary their length. Don't string clauses together with "and" into long, breathless sentences.`,
-  "Don't explain what a look, gesture, or silence means, or call something a character's way of saying a thing: let what people do and say carry it.",
-  "Use a character's habits and mannerisms from their profile now and then, not in every passage.",
-  'Do not use asterisks for actions. Write everything as prose.',
-  'Character profiles and memories may be written in another tense or perspective; take facts from them, not style.',
-  'Write in the same language as the existing story.',
-].join('\n');
-
-// Roughly 100k tokens of story text. The oldest turns are dropped first.
-export const STORY_CHARACTER_BUDGET = 300_000;
+// Story mode's DeepSeek preset: a 1M-token context, budgeted the way story mode's buildPrompts does.
+export const MAX_CONTEXT_TOKENS = 1_000_000;
+const PROMPT_OVERHEAD_TOKENS = 100;
+const DEFAULT_MAX_TOKENS = 8000;
 
 const SCENE_BREAK = '---';
 
-// Turns that are part of the chapter's text. Directions are instructions, so they go in NEXT.
+// Turns that are part of the chapter's text. Directions are instructions, so they go in the request.
 const CHAPTER_TEXT_KINDS = ['prose', 'scene_break', 'time_passes'];
 
 const KEEP_TO_THE_TIME =
@@ -42,15 +34,16 @@ const KEEP_TO_THE_TIME =
 const MEMORIES_PREFACE =
   "What the characters remember from before this chapter, as background for how they act. People seldom talk about the past, so bring it up only when the moment calls for it, and never recite it. When a memory disagrees with a character's profile or an established fact, the profile or fact is right.";
 
-// PromptBuilder is story mode's, reused here only for its {{user}}/{{char}} replacement.
-const placeholders = new PromptBuilder();
-
 function section(title, body) {
   return `=== ${title} ===\n${body}`;
 }
 
 function stripAsterisks(text) {
   return text.replace(/\*/g, '');
+}
+
+function nameOf(member) {
+  return member.seedCard?.data?.name || member.name;
 }
 
 /** Where an episode happened: a story's title, or messages. */
@@ -102,7 +95,7 @@ function fitToBudget(parts, budget) {
  * Where the chapter stands in time: exactly when it began, or when time last passed in it (see
  * chapterTime). Nothing when the start time isn't known.
  */
-function timeInstructions({ startTime, turns, timeZone, hasProse }) {
+function timeLines({ startTime, turns, timeZone, hasProse }) {
   if (!startTime) return [];
   const { time, passed, justPassed } = chapterTime({ startTime }, turns);
   const exactly = describeBureauTime(time, timeZone);
@@ -124,123 +117,36 @@ function timeInstructions({ startTime, turns, timeZone, hasProse }) {
 }
 
 /**
- * Rewriting a greeting from a character's card as the chapter's opening, as story mode rewrites a
- * greeting, but with everything else a passage gets.
+ * The story mode template for a request, by the story mode button that does the same thing. Writing
+ * a passage and then generating is typing into a story and pressing Continue.
  */
-function greetingInstruction({ greeting, greetingText, readerName, timeLines }) {
-  const lines = [
-    `Write the opening of this chapter by rewriting ${greeting.name ? `${greeting.name}'s greeting` : 'a greeting'} below in the house style. It comes from a character card and isn't part of the story yet.`,
-    `Greeting:\n${greetingText}`,
-    'Keep its events, dialogue, and details.',
-  ];
-  if (/\[WG_IMAGE_\d+\]/.test(greetingText)) {
-    lines.push(
-      'Keep each image marker, such as [WG_IMAGE_0], exactly as written and where it belongs.',
-    );
+export function generationTypeFor(action, hasProse) {
+  switch (action) {
+    case 'greeting':
+      return 'rewriteThirdPerson';
+    case 'direct':
+      return 'instruction';
+    case 'character':
+      return 'character';
+    default:
+      return hasProse ? 'continue' : 'storyStarter';
   }
-  lines.push(
-    ...(readerName
-      ? [
-          `Where the greeting says "you", it means ${readerName}: refer to ${readerName} by name, in the house style's perspective.`,
-          `Beyond what the greeting has, leave what ${readerName} says, does, decides, and thinks to the reader.`,
-        ]
-      : [
-          `Where the greeting says "you", write in the house style's perspective without inventing a name.`,
-        ]),
-    ...timeLines,
-    "Where the greeting disagrees with the chapter's time or with what the characters know, follow the chapter.",
-    'Write about as much as the greeting.',
-  );
-  return lines.join('\n');
 }
 
-function instructionFor({
-  request,
-  readerName,
-  timeLines,
-  hasProse,
-  hasReaderProse,
-  greetingText,
-}) {
-  if (request.action === 'greeting' && request.greeting) {
-    return greetingInstruction({ greeting: request.greeting, greetingText, readerName, timeLines });
-  }
-
-  const lines = [];
-
-  // Who wrote the latest passage doesn't matter: every passage continues the story, as in story mode.
-  if (!hasProse) {
-    lines.push(
-      'Write the opening of this chapter: set the scene, bring in the characters naturally, and end at a point that invites what comes next.',
-    );
-  } else {
-    lines.push('Continue the story naturally from where it left off.');
-  }
-  if (hasReaderProse) {
-    lines.push(
-      readerName
-        ? `Some passages may be written in first or second person; write in the house style's perspective and refer to ${readerName} by name.`
-        : "Some passages may be written in first or second person; write in the house style's perspective.",
-    );
-  }
-  // The reader's character is the reader's to write, except for what a direction asks.
-  const directed = request.action === 'direct' && Boolean(request.direction);
-  const leftToReader = `leave what ${readerName} says, does, decides, and thinks to the reader, including choices made without a word, like writing something down, taking something, or nodding along`;
-  if (directed) {
-    lines.push(
-      `The author's direction for this passage (not part of the story yet): ${request.direction}`,
-      readerName
-        ? `Carry it out in the passage itself: write what it describes as happening, including anything it has ${readerName} say or do. Beyond that, ${leftToReader}.`
-        : 'Carry it out in the passage itself: write what it describes as happening.',
-    );
-  } else if (readerName) {
-    lines.push(
-      `${readerName} is the reader's character, so ${leftToReader}. ${readerName} stays in the scene as the chapter last left ${readerName}.`,
-    );
-    // Right after the reader writes a passage of their own is where the Writer most often carries
-    // on with their character. What matters is continuing the story, so the line says nothing
-    // about who wrote what: a greeting kept as written is stored as the reader's prose too.
-    if (request.action === 'write') {
-      lines.push(
-        `Take the story up with the other characters rather than carrying on what ${readerName} was doing.`,
-      );
-    }
-  }
-  lines.push(...timeLines);
-
-  lines.push(
-    hasProse
-      ? 'Write as much as the moment needs, usually 2 to 4 paragraphs. A quick exchange or a reaction can be a single paragraph: stop rather than pad.'
-      : 'Write 3 to 5 paragraphs.',
-  );
-  if (readerName) {
-    lines.push(
-      `${directed ? 'Once the direction is carried out, if' : 'If'} the moment turns to ${readerName}, such as a question put to ${readerName} or a choice only ${readerName} can make, end the passage there.`,
-    );
-    // Continuing while the chapter waits on them mustn't answer for them.
-    if (!directed && hasProse) {
-      lines.push(
-        `If the chapter so far ends waiting on ${readerName}, such as on a question put to ${readerName}, don't answer it for ${readerName} or say that ${readerName} stays quiet: let the others carry on around it until the moment turns back to ${readerName}.`,
-      );
-    }
-  }
-  if (hasProse) {
-    lines.push(
-      "Pick up right where the last passage stopped and stay in that moment: don't skip ahead to later in the day or to another day, or bring in a new secret, twist, or trouble, unless the instructions above ask for it.",
-      "Keep the scene moving: don't reuse an action, gesture, image, or turn of phrase from earlier in the chapter unless something new comes of it or the instructions above ask for it.",
-      "Don't let characters repeat themselves: no one restates a point, a figure, or a line already said in the chapter, or talks through plans and facts everyone in the scene already knows.",
-      'End where the moment naturally pauses, on what someone does or says, not on a line that sums the moment up or hints at what comes next.',
-      'The chapter so far is the story, not a model for the prose: write this passage fresh in the house style, even where earlier passages drifted from it.',
-    );
-  }
-  return lines.join('\n');
+/** Bureau's sections go before story mode's instructions, or at the end if those aren't found. */
+function withContinuity(systemPrompt, sections, instructionsHeader) {
+  if (sections.length === 0) return systemPrompt;
+  const continuity = sections.join('\n\n');
+  const at = systemPrompt.indexOf(instructionsHeader);
+  if (at === -1) return `${systemPrompt}\n\n${continuity}`;
+  return `${systemPrompt.slice(0, at)}${continuity}\n\n${systemPrompt.slice(at)}`;
 }
 
 /**
  * Build the Writer's messages for the next generated turn.
  *
  * @param {Object} params
- * @param {Object} params.bureau - Uses houseStyle and timezone.
+ * @param {Object} params.bureau - Uses timezone.
  * @param {Array<Object>} params.cast - Cast members, each with seedCard and isPersona.
  * @param {Array<{content: string}>} [params.loreEntries] - Lorebook entries already activated.
  * @param {Map<string, {knowledge: Array<Object>, episodes: Array<Object>}>} [params.memoriesByCast] -
@@ -252,8 +158,10 @@ function instructionFor({
  * @param {Array<Object>} params.turns - The story's turns in order, including any turn just
  *   added from the composer. Uses kind, source, content, and bureauTime.
  * @param {Object} params.request
- * @param {'write'|'direct'|'continue'|'greeting'} params.request.action
+ * @param {'write'|'direct'|'continue'|'character'|'greeting'} params.request.action
  * @param {string} [params.request.direction] - The direction text, for 'direct'.
+ * @param {{ castId: string, name: string }} [params.request.character] - For 'character': who
+ *   the next part is written for, as story mode's Continue for Character.
  * @param {{ name: string, content: string }} [params.request.greeting] - For 'greeting': the
  *   greeting from a character card to rewrite as the chapter's opening.
  * @param {string|null} [params.startTime] - When the chapter began (ISO), so the Writer knows
@@ -262,9 +170,12 @@ function instructionFor({
  *   another year (see settingYear in bureau-time.js).
  * @param {import('../image-preserver.js').ImagePreserver|null} [params.imagePreserver] - Swaps
  *   image markup for placeholders the model can reproduce.
- * @param {number} [params.storyCharacterBudget]
+ * @param {number} [params.maxTokens] - What the Writer may write, reserved from the context.
+ * @param {number} [params.storyCharacterBudget] - Characters of story text to keep. By default,
+ *   what the context has room for once the system prompt and maxTokens are reserved.
  * @returns {{ messages: Array<{role: string, content: string}>, storyTruncated: boolean,
- *   storySection: string }} storySection is the story text exactly as placed in the prompt.
+ *   storySection: string, generationType: string }} storySection is the story text exactly as
+ *   placed in the prompt, or '' when there is none.
  */
 export function buildWriterMessages({
   bureau,
@@ -278,59 +189,59 @@ export function buildWriterMessages({
   startTime = null,
   settingYear = null,
   imagePreserver = null,
-  storyCharacterBudget = STORY_CHARACTER_BUDGET,
+  maxTokens = DEFAULT_MAX_TOKENS,
+  storyCharacterBudget = null,
 }) {
   const persona = cast.find((member) => member.isPersona) ?? null;
   // A Bureau has one reader's character. Anyone else still marked as one is described as a
   // character rather than dropped.
   const characters = cast.filter((member) => member !== persona);
-  const personaInfo = persona ? { name: persona.seedCard?.data?.name || persona.name } : null;
-  const userName = personaInfo?.name || 'User';
+  const personaData = persona?.seedCard?.data ?? {};
+  // Shaped as story mode loads a story's persona, whose personality is its writing style.
+  const personaInfo = persona
+    ? {
+        name: nameOf(persona),
+        description: personaData.description || '',
+        writingStyle: personaData.personality || '',
+      }
+    : null;
+  const characterCards = characters.map((member) => ({
+    ...member.seedCard,
+    data: { ...member.seedCard?.data, name: nameOf(member) },
+  }));
   const macros = new MacroProcessor({
-    userName,
-    charName: characters[0]?.name || 'Character',
+    userName: personaInfo?.name || 'User',
+    charName: characterCards[0]?.data.name || 'Character',
   });
 
+  const builder = new PromptBuilder();
+  // processContent reads it, as buildPrompts sets it in story mode.
+  builder.imagePreserver = imagePreserver;
   const preserve = (text, source) =>
     imagePreserver ? imagePreserver.preserve(text, source) : text;
 
-  const prepareCardText = (text, card) => {
-    if (!text) return '';
-    const replaced = placeholders.replacePlaceholders(text, card, personaInfo);
-    return preserve(stripAsterisks(macros.process(replaced)), 'cast');
-  };
+  const storyTurns = turns.filter((turn) => CHAPTER_TEXT_KINDS.includes(turn.kind));
+  const hasProse = storyTurns.some((turn) => turn.kind === 'prose');
+  const generationType = generationTypeFor(request.action, hasProse);
 
-  const profile = (member) => {
-    const card = member.seedCard;
-    const data = card?.data ?? {};
-    const lines = [`Name: ${data.name || member.name}`];
-    const description = prepareCardText(data.description, card);
-    if (description) lines.push(`Description: ${description}`);
-    const personality = prepareCardText(data.personality, card);
-    if (personality) lines.push(`Personality: ${personality}`);
-    const notes = arcNotesByCast.get(member.id) ?? [];
-    if (notes.length > 0) {
-      const changes = notes.map((note) => `- ${stripAsterisks(note.content)}`);
-      lines.push(`How ${data.name || member.name} has changed:\n${changes.join('\n')}`);
-    }
-    return lines.join('\n');
-  };
+  const systemPrompt = builder.buildSystemPrompt({
+    persona: personaInfo,
+    characterCards,
+    // The setting year goes with the world, as setting rather than a timestamp.
+    activatedLorebooks: [
+      ...(settingYear ? [{ content: `The year is ${settingYear}.` }] : []),
+      ...loreEntries,
+    ],
+    story: null,
+    settings: { includeDialogueExamples: false },
+  });
 
-  const system = [
-    'You are the Writer for an ongoing story. Write only the next passage of the story itself, with no titles, notes, or commentary.',
-    section('HOUSE STYLE', bureau.houseStyle?.trim() || DEFAULT_HOUSE_STYLE),
-  ];
-  if (characters.length > 0) {
-    system.push(section('CHARACTERS', characters.map(profile).join('\n\n---\n\n')));
-  }
-  if (persona) {
-    system.push(section(`${userName.toUpperCase()} (THE READER'S CHARACTER)`, profile(persona)));
-  }
+  const continuity = [];
   const establishedFacts = facts
     .map((fact) => stripAsterisks(macros.process(fact.content)).trim())
     .filter(Boolean);
   if (establishedFacts.length > 0) {
-    system.push(
+    continuity.push(
       section(
         'ESTABLISHED FACTS',
         [
@@ -340,66 +251,79 @@ export function buildWriterMessages({
       ),
     );
   }
-  // The reader's character remembers too; only what they say and do is left to the reader.
-  const remembered = [...characters, ...(persona ? [persona] : [])]
-    .map((member) =>
-      memoryBlock(member.seedCard?.data?.name || member.name, memoriesByCast.get(member.id)),
-    )
+  const everyone = [...characters, ...(persona ? [persona] : [])];
+  const changes = everyone
+    .map((member) => {
+      const notes = arcNotesByCast.get(member.id) ?? [];
+      if (notes.length === 0) return '';
+      const lines = notes.map((note) => `- ${stripAsterisks(note.content)}`);
+      return `How ${nameOf(member)} has changed:\n${lines.join('\n')}`;
+    })
+    .filter(Boolean);
+  if (changes.length > 0) {
+    continuity.push(section('CHARACTER DEVELOPMENT', changes.join('\n\n')));
+  }
+  // The reader's character remembers too.
+  const remembered = everyone
+    .map((member) => memoryBlock(nameOf(member), memoriesByCast.get(member.id)))
     .filter(Boolean);
   if (remembered.length > 0) {
-    system.push(section('MEMORIES', [MEMORIES_PREFACE, ...remembered].join('\n\n')));
+    continuity.push(section('MEMORIES', [MEMORIES_PREFACE, ...remembered].join('\n\n')));
   }
-  const lore = loreEntries
-    .map((entry) =>
-      entry.content ? preserve(stripAsterisks(macros.process(entry.content)), 'lore') : '',
-    )
-    .filter(Boolean);
-  if (settingYear) {
-    lore.unshift(`The year is ${settingYear}.`);
+  const time = timeLines({ startTime, turns, timeZone: bureau.timezone, hasProse });
+  if (time.length > 0) {
+    continuity.push(section('TIME', time.join('\n')));
   }
-  if (lore.length > 0) {
-    system.push(section('WORLD', lore.join('\n\n')));
+  const system = withContinuity(
+    systemPrompt,
+    continuity,
+    builder.config.sectionHeaders.instructions,
+  );
+
+  // A greeting is rewritten on its own, as story mode rewrites a story that holds only the greeting.
+  let storySection = '';
+  let truncated = false;
+  if (generationType === 'rewriteThirdPerson') {
+    storySection = preserve(stripAsterisks(request.greeting?.content ?? ''), 'greeting');
+  } else {
+    const parts = storyTurns.map((turn) => {
+      if (turn.kind === 'scene_break') return SCENE_BREAK;
+      if (turn.kind === 'time_passes') {
+        return `${SCENE_BREAK}\n\n${describeTimePassing(turn.bureauTime, bureau.timezone)}`;
+      }
+      return turn.content;
+    });
+    const budget =
+      storyCharacterBudget ??
+      Math.max(
+        1000,
+        (MAX_CONTEXT_TOKENS - builder.estimateTokens(system) - maxTokens - PROMPT_OVERHEAD_TOKENS) *
+          3,
+      );
+    const fitted = fitToBudget(parts, budget);
+    truncated = fitted.truncated;
+    const storyText = fitted.kept.join('\n\n');
+    // Story mode marks a story cut to fit the same way.
+    storySection = preserve(truncated ? `...${storyText}` : storyText, 'story');
   }
 
-  const storyTurns = turns.filter((turn) => CHAPTER_TEXT_KINDS.includes(turn.kind));
-  const parts = storyTurns.map((turn) => {
-    if (turn.kind === 'scene_break') return SCENE_BREAK;
-    if (turn.kind === 'time_passes') {
-      return `${SCENE_BREAK}\n\n${describeTimePassing(turn.bureauTime, bureau.timezone)}`;
-    }
-    return turn.content;
+  // The text is already fitted and preserved, so story mode neither cuts it nor preserves it again.
+  // Its preserver still goes in, so a rewrite is told to keep the greeting's image markers.
+  const user = builder.buildGenerationPrompt(generationType, {
+    storyContent: storySection,
+    characterName: request.character?.name,
+    customInstruction: request.direction,
+    maxChars: Math.max(storySection.length, 1),
+    userName: personaInfo?.name,
+    imagePreserver,
   });
-  const { kept, truncated } = fitToBudget(parts, storyCharacterBudget);
-  let storyText = kept.join('\n\n');
-  if (truncated) {
-    storyText = `[Earlier parts of the chapter are omitted.]\n\n${storyText}`;
-  }
-
-  const hasProse = storyTurns.some((turn) => turn.kind === 'prose');
-  const instruction = instructionFor({
-    request,
-    readerName: personaInfo?.name ?? null,
-    timeLines: timeInstructions({ startTime, turns, timeZone: bureau.timezone, hasProse }),
-    hasProse,
-    hasReaderProse: storyTurns.some((turn) => turn.kind === 'prose' && turn.source === 'user'),
-    // Its images become markers to keep; writer-turn.js puts back any the Writer leaves out.
-    greetingText: request.greeting
-      ? preserve(stripAsterisks(request.greeting.content), 'greeting')
-      : '',
-  });
-
-  const storySection = storyText ? preserve(storyText, 'story') : '(Nothing has been written yet.)';
 
   return {
     storySection,
+    generationType,
     messages: [
-      { role: 'system', content: system.join('\n\n') },
-      {
-        role: 'user',
-        content: [section('CHAPTER SO FAR', storySection), section('NEXT', instruction)].join(
-          '\n\n',
-        ),
-      },
+      { role: 'system', content: system },
+      { role: 'user', content: user },
     ],
     storyTruncated: truncated,
   };

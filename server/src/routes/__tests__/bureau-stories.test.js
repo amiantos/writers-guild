@@ -586,7 +586,39 @@ describe('Bureau story routes', () => {
         content: 'She suggests the night market',
       });
       expect(client.calls[0].messages[1].content).toContain(
-        "The author's direction for this passage (not part of the story yet): She suggests the night market",
+        'these instructions for what events they would like to see occur: She suggests the night market',
+      );
+    });
+
+    it('continues for a character in the chapter, and again for another version', async () => {
+      const story = await startStory();
+      const url = `${storiesUrl()}/${story.id}/generate`;
+      await request(app).post(url).send({ action: 'write', text: 'Theo knocked.' }).expect(201);
+
+      await request(app).post(url).send({ action: 'character' }).expect(400);
+      await request(app)
+        .post(url)
+        .send({ action: 'character', castId: 'someone-else' })
+        .expect(400);
+      client = fakeClient('Mara opened the door.');
+      const { body } = await request(app)
+        .post(url)
+        .send({ action: 'character', castId: mara.id })
+        .expect(201);
+
+      expect(body.userTurn).toBeNull();
+      expect(body.turn).toMatchObject({ source: 'generated', content: 'Mara opened the door.' });
+      expect(client.calls[0].messages[1].content).toContain(
+        "Write the next part of the story from Mara's perspective.",
+      );
+
+      client = fakeClient('Mara let him in.');
+      await request(app)
+        .post(`${storiesUrl()}/${story.id}/turns/${body.turn.id}/regenerate`)
+        .send({})
+        .expect(200);
+      expect(client.calls[0].messages[1].content).toContain(
+        "Write the next part of the story from Mara's perspective.",
       );
     });
 
@@ -645,8 +677,8 @@ describe('Bureau story routes', () => {
         content: 'The lamp was lit.',
         authorCastId: null,
       });
-      expect(client.calls[0].messages[1].content).toContain(
-        "rewriting Mara's greeting below in the house style",
+      expect(client.calls[0].messages[1].content).toMatch(
+        /^Rewrite the following text to be in third person narrative perspective/,
       );
 
       client = fakeClient('The lamp guttered out.');
@@ -655,7 +687,7 @@ describe('Bureau story routes', () => {
         .send({})
         .expect(200);
       expect(client.calls[0].messages[1].content).toContain(
-        'Greeting:\nMara looks up as you come in.',
+        'Text to rewrite:\n\nMara looks up as you come in.',
       );
     });
 
@@ -707,7 +739,9 @@ describe('Bureau story routes', () => {
         content: 'The lamp guttered out.',
       });
       expect(regenerated.turn.variants).toHaveLength(2);
-      expect(client.calls[0].messages[1].content).toContain('refer to Theo by name');
+      expect(client.calls[0].messages[1].content).toMatch(
+        /Theo knocked\.\n\n---\n\nContinue the story naturally/,
+      );
 
       const { body: switched } = await request(app)
         .put(`${turnUrl}/variant`)

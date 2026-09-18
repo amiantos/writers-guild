@@ -26,34 +26,6 @@ function done(content, extra = {}) {
   };
 }
 
-function toolTurn(name, args) {
-  return {
-    content: '',
-    reasoning: '',
-    toolCalls: [
-      { id: `call-${name}`, type: 'function', function: { name, arguments: JSON.stringify(args) } },
-    ],
-    finishReason: 'tool_calls',
-    usage: { prompt_tokens: 80, completion_tokens: 20 },
-    model: 'deepseek-flash',
-  };
-}
-
-/** Give a streaming client a chat() for the Editor, answering in order. */
-function withChat(client, answers) {
-  client.chatCalls = [];
-  client.chat = async (options) => {
-    client.chatCalls.push(options);
-    const answer = answers[client.chatCalls.length - 1];
-    if (answer instanceof Error) throw answer;
-    return answer;
-  };
-  return client;
-}
-
-const TWO_SPEAKERS = '"Coming?" Mara asked. "No," Theo said.';
-const SPLIT_SPEAKERS = '"Coming?" Mara asked.\n\n"No," Theo said.';
-
 /** A client that streams the given events, stopping with AbortError once aborted. */
 function streamingClient(events, { failWith = null } = {}) {
   const client = {
@@ -158,11 +130,8 @@ describe('generateWriterTurn', () => {
       targetId: story.id,
       status: 'completed',
     });
-    expect(run.steps.map((step) => [step.role, step.kind])).toEqual([
-      ['writer', 'model'],
-      ['lint', 'tool'],
-    ]);
-    expect(run.steps[1].response).toEqual({ findings: [] });
+    // The Writer's text is saved as written, with no checks or fixes after it.
+    expect(run.steps.map((step) => [step.role, step.kind])).toEqual([['writer', 'model']]);
     expect(run.steps[0]).toMatchObject({
       role: 'writer',
       kind: 'model',
@@ -170,9 +139,18 @@ describe('generateWriterTurn', () => {
       usage: { prompt_tokens: 120, completion_tokens: 20 },
       response: { content: 'Mara opened the door.', finishReason: 'stop' },
     });
-    expect(run.steps[0].request.messages[1].content).toContain(
-      "Theo is the reader's character, so leave what Theo says, does, decides, and thinks to the reader",
+    // Writing a passage and generating is story mode's Continue.
+    expect(run.steps[0].request.messages[1].content).toMatch(
+      /^Here is the current story so far:\n\nTheo knocked\.\n\n---\n\nContinue the story naturally from where it left off\. Write the next 7 paragraphs/,
     );
+  });
+
+  it("starts with story mode's DeepSeek settings", async () => {
+    const client = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
+
+    await generate(client, { action: 'continue' });
+
+    expect(client.calls[0]).toMatchObject({ thinking: false, temperature: 0.5, maxTokens: 8000 });
   });
 
   it("uses the Bureau's writer settings and the story's cast", async () => {
@@ -226,7 +204,7 @@ describe('generateWriterTurn', () => {
     await generate(client, { action: 'write' });
 
     expect(client.calls[0].messages[0].content).toContain(
-      '=== WORLD ===\nThe lighthouse went dark in 1971.',
+      '=== WORLD INFORMATION ===\nThe lighthouse went dark in 1971.',
     );
   });
 
@@ -256,7 +234,7 @@ describe('generateWriterTurn', () => {
     });
 
     expect(client.calls[0].messages[0].content).toContain(
-      '=== WORLD ===\nThe lighthouse went dark in 1971.',
+      '=== WORLD INFORMATION ===\nThe lighthouse went dark in 1971.',
     );
   });
 
@@ -307,7 +285,7 @@ describe('generateWriterTurn', () => {
 
     await generate(client, { action: 'continue' });
 
-    expect(client.calls[0].messages[1].content).toContain(
+    expect(client.calls[0].messages[0].content).toContain(
       'This chapter begins at exactly 12:30 AM on Tuesday, October 27, 2026.',
     );
   });
@@ -326,10 +304,11 @@ describe('generateWriterTurn', () => {
 
     await generate(client, { action: 'continue' }, { regenerateTurnId: morning.id });
 
-    const user = client.calls[0].messages[1].content;
-    expect(user).toContain(
+    const [system, user] = client.calls[0].messages.map((message) => message.content);
+    expect(system).toContain(
       "Time has just passed: it's now exactly 8:00 AM on Wednesday, October 28, 2026.",
     );
+    expect(system).not.toContain('October 31');
     expect(user).not.toContain('October 31');
   });
 
@@ -519,111 +498,51 @@ describe('generateWriterTurn', () => {
     });
   });
 
-  describe('with the Editor', () => {
-    it('rewrites a greeting, keeping an image the Writer leaves out', async () => {
-      const greeting = {
-        name: 'Mara',
-        content:
-          '![Mara at the lamp](/api/assets/characters/c1/lamp.webp)\n\nMara looks up as you come in.',
-      };
-      const client = withChat(
-        streamingClient([
-          { type: 'content', text: 'Mara looked up as Theo came in.' },
-          done('Mara looked up as Theo came in.'),
-        ]),
-        [],
-      );
+  it('rewrites a greeting, keeping an image the Writer leaves out', async () => {
+    const greeting = {
+      name: 'Mara',
+      content:
+        '![Mara at the lamp](/api/assets/characters/c1/lamp.webp)\n\nMara looks up as you come in.',
+    };
+    const client = streamingClient([
+      { type: 'content', text: 'Mara looked up as Theo came in.' },
+      done('Mara looked up as Theo came in.'),
+    ]);
 
-      const turn = await generate(client, { action: 'greeting', greeting });
+    const turn = await generate(client, { action: 'greeting', greeting });
 
-      expect(client.chatCalls).toHaveLength(0);
-      expect(client.calls[0].messages[1].content).toContain(
-        'Greeting:\n[WG_IMAGE_0]\n\nMara looks up as you come in.',
-      );
-      expect(turn.content).toBe(
-        'Mara looked up as Theo came in.\n\n![Mara at the lamp](/api/assets/characters/c1/lamp.webp)',
-      );
-      const run = stores.bureaus.getRun(bureau.id, turn.runId);
-      expect(run.steps.map((step) => step.role)).toEqual(['greeting', 'writer', 'lint']);
-      expect(requestForRegeneration([turn], 0, run)).toEqual({ action: 'greeting', greeting });
-    });
+    expect(client.calls[0].messages[1].content).toContain(
+      'Text to rewrite:\n\n[WG_IMAGE_0]\n\nMara looks up as you come in.',
+    );
+    expect(turn.content).toBe(
+      'Mara looked up as Theo came in.\n\n![Mara at the lamp](/api/assets/characters/c1/lamp.webp)',
+    );
+    const run = stores.bureaus.getRun(bureau.id, turn.runId);
+    expect(run.steps.map((step) => step.role)).toEqual(['greeting', 'writer']);
+    expect(requestForRegeneration([turn], 0, run)).toEqual({ action: 'greeting', greeting });
+  });
 
-    it('fixes flagged paragraphs with the Editor and records each fix', async () => {
-      const client = withChat(
-        streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
-        [toolTurn('edit_paragraphs', { edits: [{ paragraph: 0, replacement: SPLIT_SPEAKERS }] })],
-      );
-      const events = [];
+  it('continues for one character, and records who for writing another version', async () => {
+    const ivo = stores.bureaus.addCastMember(bureau.id, { seedCard: card('Ivo', 'Harbormaster.') });
+    stores.stories.updateStory(bureau.id, story.id, { castIds: [mara.id, ivo.id, theo.id] });
+    stores.stories.addTurn(story.id, { kind: 'prose', source: 'user', content: 'Theo knocked.' });
+    const client = streamingClient([
+      { type: 'content', text: 'Ivo grunted.' },
+      done('Ivo grunted.'),
+    ]);
+    const character = { castId: ivo.id, name: 'Ivo' };
 
-      const turn = await generate(
-        client,
-        { action: 'continue' },
-        { onEvent: (event) => events.push(event) },
-      );
+    const turn = await generate(client, { action: 'character', character });
 
-      expect(turn.content).toBe(SPLIT_SPEAKERS);
-      expect(events.find((event) => event.type === 'edits').edits).toMatchObject([
-        {
-          paragraph: 0,
-          rules: ['multiple_speakers'],
-          original: TWO_SPEAKERS,
-          replacement: SPLIT_SPEAKERS,
-        },
-      ]);
-      const run = stores.bureaus.getRun(bureau.id, turn.runId);
-      expect(run.steps.map((step) => [step.role, step.kind])).toEqual([
-        ['writer', 'model'],
-        ['lint', 'tool'],
-        ['editor', 'model'],
-        ['editor', 'tool'],
-      ]);
-      expect(run.steps[1].response.findings).toHaveLength(1);
-      // The Writer revises in its own conversation: what it was sent, its passage, then the request.
-      const revision = client.chatCalls[0].messages;
-      expect(revision.slice(0, 2)).toEqual(client.calls[0].messages);
-      expect(revision[2]).toMatchObject({ role: 'assistant', content: TWO_SPEAKERS });
-      expect(revision[3].content).toContain('=== REVISE ===');
-    });
-
-    it("doesn't flag the reader's character speaking, on any action", async () => {
-      stores.bureaus.updateSettings(bureau.id, { editor: { enabled: false } });
-      const rulesFor = async (request) => {
-        const client = withChat(
-          streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
-          [],
-        );
-        const turn = await generate(client, request);
-        const lint = stores.bureaus
-          .getRun(bureau.id, turn.runId)
-          .steps.find((step) => step.role === 'lint');
-        return lint.response.findings.map((finding) => finding.rule);
-      };
-
-      expect(await rulesFor({ action: 'direct', direction: 'Theo says no' })).toEqual([
-        'multiple_speakers',
-      ]);
-      expect(await rulesFor({ action: 'continue' })).toEqual(['multiple_speakers']);
-    });
-
-    it('keeps the unedited text when the Editor is off or fails', async () => {
-      stores.bureaus.updateSettings(bureau.id, { editor: { enabled: false } });
-      const off = withChat(
-        streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
-        [],
-      );
-      expect((await generate(off, { action: 'continue' })).content).toBe(TWO_SPEAKERS);
-      expect(off.chatCalls).toHaveLength(0);
-
-      stores.bureaus.updateSettings(bureau.id, { editor: { enabled: true } });
-      const failing = withChat(
-        streamingClient([{ type: 'content', text: TWO_SPEAKERS }, done(TWO_SPEAKERS)]),
-        [new DeepSeekError('DeepSeek API error 500')],
-      );
-      const turn = await generate(failing, { action: 'continue' });
-
-      expect(turn.content).toBe(TWO_SPEAKERS);
-      expect(stores.bureaus.getRun(bureau.id, turn.runId).status).toBe('completed');
-    });
+    const [system, user] = client.calls[0].messages.map((message) => message.content);
+    // Everyone's card stays in the prompt; only the instruction changes.
+    expect(system).toContain('Character 1: Mara');
+    expect(system).toContain('Character 2: Ivo');
+    expect(user).toContain("Write the next part of the story from Ivo's perspective.");
+    const run = stores.bureaus.getRun(bureau.id, turn.runId);
+    expect(run.steps[0].request.character).toEqual(character);
+    const turns = stores.stories.listTurns(story.id);
+    expect(requestForRegeneration(turns, 1, run)).toEqual({ action: 'character', character });
   });
 });
 
@@ -665,5 +584,15 @@ describe('requestForRegeneration', () => {
 
     expect(requestForRegeneration([generated], 0, run)).toEqual({ action: 'greeting', greeting });
     expect(requestForRegeneration([generated], 0, { steps: [] })).toEqual({ action: 'continue' });
+  });
+
+  it('continues for the same character again, from the one its Writer step recorded', () => {
+    const character = { castId: 'cast-ivo', name: 'Ivo' };
+    const turns = [{ kind: 'prose', source: 'user', content: 'Theo waved.' }, generated];
+    const run = { steps: [{ role: 'writer', kind: 'model', request: { character } }] };
+
+    expect(requestForRegeneration(turns, 1, run)).toEqual({ action: 'character', character });
+    const plain = { steps: [{ role: 'writer', kind: 'model', request: {} }] };
+    expect(requestForRegeneration(turns, 1, plain)).toEqual({ action: 'write' });
   });
 });

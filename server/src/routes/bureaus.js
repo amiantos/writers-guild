@@ -22,7 +22,6 @@ import { DEFAULT_MODEL, DeepSeekError } from '../services/bureau/deepseek-client
 import { exportedCard } from '../services/bureau/character-export.js';
 import { generateCharacter } from '../services/bureau/character-generator.js';
 import { DEFAULT_CORRESPONDENCE_STYLE } from '../services/bureau/correspondence.js';
-import { DEFAULT_HOUSE_STYLE } from '../services/bureau/writer-prompt.js';
 import bureauCorrespondenceRouter from './bureau-correspondence.js';
 import bureauFactsRouter from './bureau-facts.js';
 import bureauMemoriesRouter from './bureau-memories.js';
@@ -92,7 +91,6 @@ router.get(
   '/defaults',
   asyncHandler(async (req, res) => {
     res.json({
-      houseStyle: DEFAULT_HOUSE_STYLE,
       correspondenceStyle: DEFAULT_CORRESPONDENCE_STYLE,
       settings: DEFAULT_SETTINGS,
       model: DEFAULT_MODEL,
@@ -151,8 +149,8 @@ function withBureauTime(resolve) {
 
 // Update a Bureau. An apiKey of '' removes the key; a timezone of null clears it. bureauTime
 // sets the Bureau's clock to any time in the years 1 to 9999, earlier or later.
-// `settings` is a partial update, such as { writer: { thinking: true } }. A house style or
-// correspondence style that matches its default is saved empty (see followingDefault).
+// `settings` is a partial update, such as { writer: { thinking: true } }. A correspondence style
+// that matches its default is saved empty (see followingDefault).
 router.put(
   '/:bureauId',
   asyncHandler(async (req, res) => {
@@ -166,7 +164,6 @@ router.put(
       description: optionalString(body, 'description'),
       apiKey: optionalString(body, 'apiKey'),
       model: optionalString(body, 'model'),
-      houseStyle: followingDefault(optionalString(body, 'houseStyle'), DEFAULT_HOUSE_STYLE),
       timezone: body.timezone,
       bureauTime:
         body.bureauTime === undefined

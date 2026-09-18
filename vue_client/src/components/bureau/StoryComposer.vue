@@ -48,6 +48,15 @@
       <div class="composer-actions">
         <template v-if="!generating">
           <button
+            v-if="canContinueForCharacter"
+            class="btn btn-secondary"
+            title="Let the Writer continue from one character's perspective"
+            :disabled="!hasApiKey"
+            @click="$emit('character')"
+          >
+            <i class="fas fa-comments"></i> Continue for Character
+          </button>
+          <button
             class="btn btn-secondary"
             title="Let the Writer continue"
             :disabled="!hasApiKey"
@@ -88,9 +97,18 @@ const props = defineProps({
   hasApiKey: { type: Boolean, default: true },
   /** Offer to open the chapter with a greeting, before it has any prose. */
   canUseGreeting: { type: Boolean, default: false },
+  /** Offer Continue for Character, once the chapter has prose and a character to write for. */
+  canContinueForCharacter: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['generate', 'greeting', 'scene-break', 'time-passes', 'stop']);
+const emit = defineEmits([
+  'generate',
+  'character',
+  'greeting',
+  'scene-break',
+  'time-passes',
+  'stop',
+]);
 
 const text = ref('');
 const inputRef = ref(null);

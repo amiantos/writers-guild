@@ -65,12 +65,12 @@ describe('BureauStorage', () => {
         apiKeyPreview: 'sk-…1234',
         sharedApiKeyPreview: '',
         timezone: null,
-        houseStyle: '',
         settings: resolveSettings({}),
         castCount: 0,
       });
       expect(Number.isNaN(Date.parse(bureau.bureauTime))).toBe(false);
       expect(bureau).not.toHaveProperty('presentOffsetDays');
+      expect(bureau).not.toHaveProperty('houseStyle');
       expect(JSON.stringify(bureau)).not.toContain(API_KEY);
     });
 
@@ -107,15 +107,11 @@ describe('BureauStorage', () => {
         apiKey: API_KEY,
       });
 
-      const updated = storage.updateBureau(bureau.id, {
-        name: 'Lighthouse',
-        houseStyle: 'One speaker per paragraph.',
-      });
+      const updated = storage.updateBureau(bureau.id, { name: 'Lighthouse' });
 
       expect(updated).toMatchObject({
         name: 'Lighthouse',
         description: 'Seaside',
-        houseStyle: 'One speaker per paragraph.',
         hasApiKey: true,
       });
     });

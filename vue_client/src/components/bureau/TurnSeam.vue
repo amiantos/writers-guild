@@ -136,6 +136,7 @@ const props = defineProps({
 
 defineEmits(['revert-edit']);
 
+// Runs written before the Director, style lint, and the Editor were removed still show their steps.
 const ROLE_LABELS = {
   director: 'Director',
   writer: 'Writer',
