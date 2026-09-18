@@ -209,9 +209,7 @@ onMounted(loadStories);
   font-size: 0.85rem;
   line-height: 1.45;
   color: var(--text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  /* The whole summary, keeping any paragraph breaks in it. */
+  white-space: pre-line;
 }
 </style>
