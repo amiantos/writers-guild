@@ -207,6 +207,11 @@ said, did, decided, and thought to the reader, and ended a passage when the mome
 Story mode has no such rule, and Bureau now writes as story mode does, so a line written for the
 reader's character gets regenerated or edited by hand.
 
+**Edit chapter**, the pencil in the chapter's header, is story mode's Edit Story: the chapter's title
+and its **scenario**, the situation, setting, or premise the chapter follows. The Writer gets the
+scenario at the top of every prompt, and the pencil is highlighted while a chapter has one. Each
+chapter has its own scenario, starting empty.
+
 Editing a turn opens a textarea for just that turn, which recovers most of the feel of editing
 directly.
 
@@ -312,14 +317,18 @@ Bureau-only to add, the messages match what story mode sends for the same story.
 
 The system prompt is story mode's default system prompt:
 
-1. The chapter's characters as story mode's character profile (one character) or character
+1. The chapter's scenario, when it has one, as story mode's story scenario, with `{{user}}` and
+   `{{char}}` filled in as in card text (story mode leaves them as written).
+2. The chapter's characters as story mode's character profile (one character) or character
    profiles (two or more). Dialogue examples stay out, as in story mode's presets. Story mode adds a
-   lone character's scenario, but Bureau leaves it out: a card's scenario is where its story starts,
-   such as a first meeting, and a chapter goes on from what the characters remember instead.
-2. World information: activated lorebook entries (selected by `LorebookActivator` over the chapter,
-   the direction, and a greeting being rewritten), after the setting year when there is one.
-3. The reader's character as story mode's persona, whose personality is its "Writing Style".
-4. Bureau's continuity sections, placed before story mode's instructions:
+   lone character's scenario when the story has none of its own, but Bureau always leaves it out: a
+   card's scenario is where its story starts, such as a first meeting, and a chapter goes on from
+   what the characters remember, and from its own scenario.
+3. World information: activated lorebook entries (selected by `LorebookActivator` over the chapter's
+   scenario and text, the direction, and a greeting being rewritten), after the setting year when
+   there is one.
+4. The reader's character as story mode's persona, whose personality is its "Writing Style".
+5. Bureau's continuity sections, placed before story mode's instructions:
    - **Established facts,** "true in this story unless the chapter itself shows one changing" (see
      [Established facts](#established-facts)).
    - **Character development:** each character's accepted arc notes ("How Mara has changed").
@@ -327,7 +336,7 @@ The system prompt is story mode's default system prompt:
      and that people seldom bring up the past.
    - **Time:** the chapter's exact time, when it began or when time last passed in it (see
      [Time in prompts](#time-in-prompts)).
-5. Story mode's instructions and perspective: novel-style prose, third person, past tense, the
+6. Story mode's instructions and perspective: novel-style prose, third person, past tense, the
    story's language, and no asterisks.
 
 The user message is story mode's too: "Here is the current story so far:" with the chapter's text,
@@ -900,7 +909,7 @@ facts          (id, bureau_id, content, proposed_content, rationale,
                 source_turn_ids JSON, run_id NULL, needs_review, created, decided NULL, modified)
 world_threads  [later] (id, bureau_id, title, summary, status, modified)
 
-stories        (id, bureau_id, position, title, status [active|ended], start_time,
+stories        (id, bureau_id, position, title, scenario, status [active|ended], start_time,
                 end_time NULL, archived_through, summary, created, modified)
 story_cast     (story_id, cast_member_id)
 turns          (id, story_id, position, kind, source [user|generated], author_cast_id NULL,

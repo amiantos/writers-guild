@@ -27,6 +27,7 @@ function storyFromRow(row, castIds) {
     bureauId: row.bureau_id,
     position: row.position,
     title: row.title,
+    scenario: row.scenario,
     status: row.status,
     startTime: row.start_time,
     endTime: row.end_time,
@@ -87,6 +88,9 @@ export class StoryStorage {
         VALUES (@id, @bureauId, @position, @title, 'active', @startTime, @created, @modified)
       `),
       updateStoryTitle: this.db.prepare('UPDATE stories SET title = ?, modified = ? WHERE id = ?'),
+      updateStoryScenario: this.db.prepare(
+        'UPDATE stories SET scenario = ?, modified = ? WHERE id = ?',
+      ),
       endStory: this.db.prepare(
         "UPDATE stories SET status = 'ended', end_time = ?, modified = ? WHERE id = ?",
       ),
@@ -203,16 +207,20 @@ export class StoryStorage {
    * @param {string} storyId
    * @param {Object} updates
    * @param {string} [updates.title]
+   * @param {string} [updates.scenario] - The premise the chapter follows; '' clears it.
    * @param {string[]} [updates.castIds] - Replaces who is present.
    * @returns {Object|null} The updated story, or null if it doesn't exist.
    */
-  updateStory(bureauId, storyId, { title, castIds }) {
+  updateStory(bureauId, storyId, { title, scenario, castIds }) {
     if (!this.stmts.getStory.get(bureauId, storyId)) return null;
 
     const modified = timestamp();
     this.db.transaction(() => {
       if (title !== undefined) {
         this.stmts.updateStoryTitle.run(title, modified, storyId);
+      }
+      if (scenario !== undefined) {
+        this.stmts.updateStoryScenario.run(scenario, modified, storyId);
       }
       if (castIds !== undefined) {
         this.stmts.clearStoryCast.run(storyId);

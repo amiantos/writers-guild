@@ -172,6 +172,8 @@ function withContinuity(systemPrompt, sections, instructionsHeader) {
  *   the next part is written for, as story mode's Continue for Character.
  * @param {{ name: string, content: string }} [params.request.greeting] - For 'greeting': the
  *   greeting from a character card to rewrite as the chapter's opening.
+ * @param {string} [params.scenario] - The chapter's scenario, which story mode puts first as the
+ *   story scenario.
  * @param {string|null} [params.startTime] - When the chapter began (ISO), so the Writer knows
  *   the exact time.
  * @param {string|null} [params.settingYear] - The year to name as setting, for a story set in
@@ -194,6 +196,7 @@ export function buildWriterMessages({
   facts = [],
   turns,
   request,
+  scenario = '',
   startTime = null,
   settingYear = null,
   imagePreserver = null,
@@ -213,8 +216,9 @@ export function buildWriterMessages({
         writingStyle: personaData.personality || '',
       }
     : null;
-  // Story mode adds a lone character's scenario, but a card's scenario is where its story starts,
-  // such as a first meeting. A chapter goes on from what the characters remember instead.
+  // Story mode adds a lone character's scenario when a story has none of its own, but a card's
+  // scenario is where its story starts, such as a first meeting. A chapter goes on from what the
+  // characters remember instead, and from its own scenario when it has one.
   const characterCards = characters.map((member) => ({
     ...member.seedCard,
     data: { ...member.seedCard?.data, name: nameOf(member), scenario: '' },
@@ -242,7 +246,10 @@ export function buildWriterMessages({
       ...(settingYear ? [{ content: `The year is ${settingYear}.` }] : []),
       ...loreEntries,
     ],
-    story: null,
+    // Unlike story mode, the scenario gets {{user}} and {{char}} filled in, as card text does.
+    story: {
+      scenario: builder.processContent(scenario, characterCards[0], personaInfo, macros) ?? '',
+    },
     settings: { includeDialogueExamples: false },
   });
 

@@ -335,6 +335,16 @@ describe('Bureau story routes', () => {
       expect(updated.story).toMatchObject({ title: 'Lamplight', castIds: [theo.id] });
       await request(app).put(`${storiesUrl()}/${story.id}`).send({ title: ' ' }).expect(400);
 
+      const { body: withScenario } = await request(app)
+        .put(`${storiesUrl()}/${story.id}`)
+        .send({ scenario: '  A storm cuts the power.  ' })
+        .expect(200);
+      expect(withScenario.story).toMatchObject({
+        title: 'Lamplight',
+        scenario: 'A storm cuts the power.',
+      });
+      await request(app).put(`${storiesUrl()}/${story.id}`).send({ scenario: 5 }).expect(400);
+
       await request(app).delete(`${storiesUrl()}/${story.id}`).expect(200);
       await request(app).get(`${storiesUrl()}/${story.id}`).expect(404);
     });

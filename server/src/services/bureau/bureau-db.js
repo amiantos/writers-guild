@@ -343,6 +343,11 @@ const MIGRATIONS = [
   `
     ALTER TABLE memories ADD COLUMN pending_supersedes INTEGER;
   `,
+
+  // 15: A chapter's scenario, as story mode's story scenario: the premise it follows.
+  `
+    ALTER TABLE stories ADD COLUMN scenario TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export const BUREAU_SCHEMA_VERSION = MIGRATIONS.length;

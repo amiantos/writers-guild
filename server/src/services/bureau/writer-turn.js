@@ -179,8 +179,10 @@ export async function generateWriterTurn({
   }
 
   onEvent({ type: 'stage', stage: 'writing' });
-  // A greeting being rewritten activates lore too; it's often all the chapter has so far.
+  // The chapter's scenario and a greeting being rewritten activate lore too; they're often all the
+  // chapter has so far.
   const scanText = [
+    story.scenario ?? '',
     ...turns.map((turn) => turn.content),
     request.direction ?? '',
     request.greeting?.content ?? '',
@@ -199,6 +201,7 @@ export async function generateWriterTurn({
       facts: factsAsOf(stores.facts.listFacts(bureau.id), story),
       turns,
       request: promptRequest,
+      scenario: story.scenario,
       // Turns stop before a turn being regenerated, so the time is the chapter's as of that turn.
       startTime: story.startTime,
       settingYear: settingYear(bureau, chapterTime(story, turns).time),

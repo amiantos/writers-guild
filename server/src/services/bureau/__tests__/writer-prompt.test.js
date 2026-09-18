@@ -42,13 +42,13 @@ function build(overrides = {}) {
 }
 
 /** What story mode sends for the same story, from its own PromptBuilder. */
-function storyMode({ characterCards, content, generationType, options = {} }) {
+function storyMode({ characterCards, content, scenario = '', generationType, options = {} }) {
   return new PromptBuilder().buildPrompts(
     {
       persona: { name: 'Theo', description: 'A visiting cartographer.', writingStyle: 'Careful.' },
       characterCards,
       activatedLorebooks: [],
-      story: { content },
+      story: { content, scenario },
       settings: { includeDialogueExamples: false },
     },
     { generationType, maxContextTokens: MAX_CONTEXT_TOKENS, maxGenerationTokens: 8000, ...options },
@@ -114,6 +114,23 @@ describe('buildWriterMessages', () => {
       );
     });
 
+    it("with the chapter's scenario, as the story scenario", () => {
+      const scenario = 'A storm has cut the power to the lighthouse.';
+      const expected = storyMode({
+        characterCards: [MARA.seedCard],
+        content,
+        scenario,
+        generationType: 'continue',
+      });
+
+      const { system, user } = build({ turns, scenario });
+      expect(system).toBe(expected.system);
+      expect(user).toBe(expected.user);
+      expect(system).toMatch(
+        /^You are a creative writing assistant helping to write a novel-style story\.\n\n=== SCENARIO ===\nA storm has cut the power to the lighthouse\.\n\n=== CHARACTER PROFILE ===/,
+      );
+    });
+
     it('for Continue for Character', () => {
       const expected = storyMode({
         characterCards: [MARA.seedCard],
@@ -171,6 +188,13 @@ describe('buildWriterMessages', () => {
     expect(user).toMatch(
       /^Write the opening 3-5 paragraphs for a new story\. .* End at a natural point that invites continuation\. The user additionally sends along these instructions for what events they would like to see occur: They meet at the night market$/,
     );
+  });
+
+  it("fills in names in the chapter's scenario, as in card text", () => {
+    const { system } = build({ scenario: '{{user}} has *finally* come back to {{char}}.' });
+
+    expect(system).toContain('=== SCENARIO ===\nTheo has finally come back to Mara.\n');
+    expect(build().system).not.toContain('=== SCENARIO ===');
   });
 
   it("leaves out a lone character's scenario, which is where their card's story starts", () => {

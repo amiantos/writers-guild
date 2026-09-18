@@ -331,6 +331,10 @@ export const bureauStoriesAPI = {
     return request(`/${bureauId}/stories/${storyId}`);
   },
 
+  /**
+   * @param {{ title?: string, scenario?: string, castIds?: string[] }} updates - A scenario of ''
+   *   clears it.
+   */
   update(bureauId, storyId, updates) {
     return request(`/${bureauId}/stories/${storyId}`, { method: 'PUT', body: updates });
   },

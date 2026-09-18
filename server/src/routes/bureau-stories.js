@@ -306,7 +306,7 @@ router.get(
   }),
 );
 
-// Update a story's title or who is present
+// Update a story's title, its scenario ('' clears it), or who is present
 router.put(
   '/:storyId',
   asyncHandler(async (req, res) => {
@@ -320,13 +320,14 @@ router.put(
     if (title === '') {
       throw new AppError('Title cannot be empty', 400);
     }
+    const scenario = optionalString(body, 'scenario');
     const castIds =
       body.castIds === undefined ? undefined : validateCastIds(bureaus, bureauId, body.castIds);
-    if (title === undefined && castIds === undefined) {
+    if (title === undefined && scenario === undefined && castIds === undefined) {
       throw new AppError('No updates provided', 400);
     }
 
-    res.json({ story: stories.updateStory(bureauId, storyId, { title, castIds }) });
+    res.json({ story: stories.updateStory(bureauId, storyId, { title, scenario, castIds }) });
   }),
 );
 

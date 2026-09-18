@@ -47,6 +47,15 @@
           <i class="fas fa-users"></i>
         </button>
         <button
+          class="icon-btn"
+          :class="{ 'has-scenario': Boolean(story?.scenario) }"
+          :title="story?.scenario ? 'Edit chapter (has a scenario)' : 'Edit chapter'"
+          :disabled="!story"
+          @click="showEditChapter = true"
+        >
+          <i class="fas fa-pencil"></i>
+        </button>
+        <button
           v-if="bureau?.hasApiKey && hasUnarchived"
           class="btn btn-secondary btn-small header-action"
           :disabled="archiving"
@@ -169,6 +178,13 @@
       @cast-added="castAdded"
       @profile="profileCastId = $event.id"
     />
+    <EditChapterModal
+      v-if="showEditChapter"
+      :bureau-id="bureauId"
+      :story="story"
+      @close="showEditChapter = false"
+      @updated="chapterEdited"
+    />
     <ProfileModal
       v-if="profileCastId"
       :bureau-id="bureauId"
@@ -228,6 +244,7 @@ import TurnSeam from '../../components/bureau/TurnSeam.vue';
 import StoryComposer from '../../components/bureau/StoryComposer.vue';
 import EndStoryModal from '../../components/bureau/EndStoryModal.vue';
 import StoryCastModal from '../../components/bureau/StoryCastModal.vue';
+import EditChapterModal from '../../components/bureau/EditChapterModal.vue';
 import ProfileModal from '../../components/bureau/ProfileModal.vue';
 import TimePassesPicker from '../../components/bureau/TimePassesPicker.vue';
 import GreetingPickerModal from '../../components/bureau/GreetingPickerModal.vue';
@@ -266,6 +283,8 @@ let abortController = null;
 
 const showEnd = ref(false);
 const showCast = ref(false);
+// The chapter's title and scenario, as story mode's Edit Story.
+const showEditChapter = ref(false);
 // The cast member whose profile is open, from "Who's in this chapter".
 const profileCastId = ref(null);
 const showGreetings = ref(false);
@@ -820,6 +839,12 @@ function handleStoryUpdated(updated) {
   story.value = updated;
 }
 
+function chapterEdited(updated) {
+  showEditChapter.value = false;
+  story.value = updated;
+  setPageTitle(updated.title);
+}
+
 function backToBureau() {
   router.push({ name: 'bureau', params: { bureauId: props.bureauId } });
 }
@@ -925,6 +950,11 @@ onBeforeUnmount(() => {
   font-size: 0.8rem;
   color: var(--text-secondary);
   white-space: nowrap;
+}
+
+/* The chapter has a scenario. */
+.icon-btn.has-scenario {
+  color: var(--accent-primary);
 }
 
 .loading-container {

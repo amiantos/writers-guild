@@ -208,6 +208,36 @@ describe('generateWriterTurn', () => {
     );
   });
 
+  it("gives the Writer the chapter's scenario, which activates lore too", async () => {
+    stores.library = {
+      close: () => {},
+      getLorebook: async () => ({
+        id: 'lb-1',
+        name: 'Harbor Lore',
+        entries: [
+          {
+            id: 1,
+            keys: ['lighthouse'],
+            content: 'The lighthouse went dark in 1971.',
+            enabled: true,
+            insertionOrder: 0,
+          },
+        ],
+      }),
+    };
+    stores.bureaus.attachLorebook(bureau.id, 'lb-1');
+    stores.stories.updateStory(bureau.id, story.id, {
+      scenario: 'Theo spends a stormy night at the lighthouse.',
+    });
+    const client = streamingClient([{ type: 'content', text: 'Dusk.' }, done('Dusk.')]);
+
+    await generate(client, { action: 'continue' });
+
+    const system = client.calls[0].messages[0].content;
+    expect(system).toContain('=== SCENARIO ===\nTheo spends a stormy night at the lighthouse.');
+    expect(system).toContain('=== WORLD INFORMATION ===\nThe lighthouse went dark in 1971.');
+  });
+
   it('adds lore activated by a greeting being rewritten', async () => {
     stores.library = {
       close: () => {},

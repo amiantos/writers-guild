@@ -78,6 +78,16 @@ describe('StoryStorage', () => {
       expect(updated).toMatchObject({ title: 'Lamplight', castIds: [theo.id, mara.id] });
     });
 
+    it('keeps a scenario for the chapter, and clears it', () => {
+      const story = stories.createStory(bureau.id, { startTime: START, castIds: [mara.id] });
+      expect(story.scenario).toBe('');
+
+      const set = stories.updateStory(bureau.id, story.id, { scenario: 'A storm cuts the power.' });
+      expect(set).toMatchObject({ title: 'Chapter 1', scenario: 'A storm cuts the power.' });
+
+      expect(stories.updateStory(bureau.id, story.id, { scenario: '' }).scenario).toBe('');
+    });
+
     it('ends a story', () => {
       const story = stories.createStory(bureau.id, { startTime: START, castIds: [] });
 
