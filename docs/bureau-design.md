@@ -181,7 +181,8 @@ actions. Each one sends the prompt of the story mode button that does the same t
   and pressing Continue does. Ctrl or ⌘ + Enter also writes.
 - **Direct:** add a direction turn, for example "she suggests the night market," then generate, as
   Continue with Instruction does. In an empty chapter, it's Start Story with the direction added.
-- **Continue:** generate with no new input. In an empty chapter, this is story mode's Start Story.
+- **Continue:** generate with no new input. Until the chapter has prose, the button says **Start**
+  and uses story mode's Start Story prompt.
 - **Continue for Character,** once the chapter has prose, writes the next part from one character's
   perspective, as story mode's button does. With one character in the chapter it writes for them
   straight away; with more, it opens story mode's character picker. The reader's character isn't

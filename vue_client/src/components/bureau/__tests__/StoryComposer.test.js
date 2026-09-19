@@ -29,6 +29,16 @@ describe('StoryComposer', () => {
     expect(wrapper.emitted('generate')).toEqual([[{ action: 'continue', text: '' }]]);
   });
 
+  it('offers Start in place of Continue before the chapter has prose', async () => {
+    expect(buttonNamed(mount(StoryComposer), 'Start')).toBeUndefined();
+
+    const wrapper = mount(StoryComposer, { props: { empty: true } });
+    expect(buttonNamed(wrapper, 'Continue')).toBeUndefined();
+    await buttonNamed(wrapper, 'Start').trigger('click');
+
+    expect(wrapper.emitted('generate')).toEqual([[{ action: 'continue', text: '' }]]);
+  });
+
   it('sends a direction', async () => {
     const wrapper = mount(StoryComposer);
 

@@ -58,11 +58,12 @@
           </button>
           <button
             class="btn btn-secondary"
-            title="Let the Writer continue"
+            :title="empty ? 'Let the Writer open the chapter' : 'Let the Writer continue'"
             :disabled="!hasApiKey"
             @click="submit('continue')"
           >
-            <i class="fas fa-forward"></i> Continue
+            <template v-if="empty"><i class="fas fa-rocket"></i> Start</template>
+            <template v-else><i class="fas fa-forward"></i> Continue</template>
           </button>
           <button
             class="btn btn-secondary"
@@ -97,6 +98,8 @@ const props = defineProps({
   hasApiKey: { type: Boolean, default: true },
   /** Offer to open the chapter with a greeting, before it has any prose. */
   canUseGreeting: { type: Boolean, default: false },
+  /** The chapter has no prose yet, so Continue starts it, as story mode's Start Story does. */
+  empty: { type: Boolean, default: false },
   /** Offer Continue for Character, once the chapter has prose and a character to write for. */
   canContinueForCharacter: { type: Boolean, default: false },
 });

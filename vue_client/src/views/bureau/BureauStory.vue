@@ -91,8 +91,7 @@
         <div class="story-column">
           <p v-if="turns.length === 0 && !pending" class="story-empty">
             This chapter hasn't started. Write the opening yourself, open with a character's
-            greeting, give the Writer a direction, or press Continue and the Writer will set the
-            scene.
+            greeting, give the Writer a direction, or press Start and the Writer will set the scene.
           </p>
 
           <template v-for="turn in turns" :key="turn.id">
@@ -135,6 +134,7 @@
         :generating="generating"
         :has-api-key="bureau.hasApiKey"
         :can-use-greeting="!hasProse"
+        :empty="!hasProse"
         :can-continue-for-character="hasProse && chapterCharacters.length > 0"
         @generate="generate"
         @character="continueForCharacter"
