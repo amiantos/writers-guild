@@ -64,7 +64,10 @@ export class ChatStorage {
     this.stmts = {
       listChats: this.db.prepare(`
         SELECT c.*,
-          (SELECT COUNT(*) FROM chat_turns t WHERE t.chat_id = c.id) AS turn_count
+          (SELECT COUNT(*) FROM chat_turns t WHERE t.chat_id = c.id) AS turn_count,
+          (SELECT COALESCE(SUM(json_array_length(t.swipes,
+                    '$[' || t.active_swipe || '].messages')), 0)
+             FROM chat_turns t WHERE t.chat_id = c.id) AS message_count
         FROM chats c
         ORDER BY c.modified DESC, c.rowid DESC
       `),
@@ -118,6 +121,7 @@ export class ChatStorage {
         'UPDATE chat_turns SET swipes = ?, active_swipe = ?, modified = ? WHERE id = ?',
       ),
       deleteTurn: this.db.prepare('DELETE FROM chat_turns WHERE chat_id = ? AND id = ?'),
+      clearTurns: this.db.prepare('DELETE FROM chat_turns WHERE chat_id = ?'),
     };
   }
 
@@ -145,6 +149,7 @@ export class ChatStorage {
       return {
         ...this.chatFromRow(row),
         turnCount: row.turn_count,
+        messageCount: row.message_count,
         lastMessage: lastTurn
           ? { senderName: lastTurn.senderName, content: lastTurn.messages.at(-1) ?? '' }
           : null,
@@ -377,6 +382,12 @@ export class ChatStorage {
       }
     })();
     return result;
+  }
+
+  /** Delete every turn in a chat. */
+  clearTurns(chatId) {
+    this.stmts.clearTurns.run(chatId);
+    this.stmts.touchChat.run(timestamp(), chatId);
   }
 
   /** @returns {boolean} Whether the turn existed. */

@@ -134,6 +134,10 @@ async function characterCard(characterId) {
   }
 }
 
+function isAutoTitle(title) {
+  return title === 'Untitled Chat' || title.startsWith('Chat with ');
+}
+
 async function defaultTitle(characterIds) {
   const cards = await Promise.all(characterIds.map(characterCard));
   const names = cards.filter(Boolean).map((card) => card.data?.name || 'Character');
@@ -284,7 +288,12 @@ router.put(
     if (personaId && characterIds.includes(personaId)) {
       throw new AppError("The persona can't also be a character in the chat", 400);
     }
-    if (fields.title === '') {
+    // A title named after the characters follows them, as a story's does.
+    const characterChange =
+      fields.characterIds !== undefined &&
+      fields.title === undefined &&
+      isAutoTitle(existing.title);
+    if (fields.title === '' || characterChange) {
       fields.title = await defaultTitle(characterIds);
     }
     const chat = saveChat(() => chats.updateChat(existing.id, fields));
@@ -414,6 +423,16 @@ router.delete(
       throw new AppError('Message not found', 404);
     }
     res.json(result);
+  }),
+);
+
+// Clear the chat: delete every message, keeping its setup
+router.delete(
+  '/:id/turns',
+  asyncHandler(async (req, res) => {
+    const chat = requireChat(req.params.id);
+    chats.clearTurns(chat.id);
+    res.json({ success: true });
   }),
 );
 

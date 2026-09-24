@@ -86,6 +86,7 @@ describe('ChatStorage', () => {
     ]);
     expect(chats.listChats()[0]).toMatchObject({
       turnCount: 2,
+      messageCount: 3,
       lastMessage: { senderName: 'Layla', content: 'what’s up' },
     });
     expect(() => chats.addTurn(chat.id, { source: 'narrator', messages: ['x'] })).toThrow(

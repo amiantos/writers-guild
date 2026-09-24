@@ -115,6 +115,11 @@ export const chatsAPI = {
     return streamEvents(`/${chatId}/turns/${turnId}/regenerate`, {}, signal);
   },
 
+  /** Delete every message, keeping the chat's setup. */
+  clear(chatId) {
+    return request(`/${chatId}/turns`, { method: 'DELETE' });
+  },
+
   setSwipe(chatId, turnId, index) {
     return request(`/${chatId}/turns/${turnId}/swipe`, { method: 'PUT', body: { index } });
   },

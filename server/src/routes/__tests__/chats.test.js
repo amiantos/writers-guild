@@ -327,6 +327,36 @@ describe('Chats API', () => {
     });
   });
 
+  describe('titles and clearing', () => {
+    it('renames a chat titled after its characters when they change, but not a chosen title', async () => {
+      const chat = await createChat({ characterIds: [] });
+      expect(chat.title).toBe('Untitled Chat');
+      const renamed = await request(app)
+        .put(`/api/chats/${chat.id}`)
+        .send({ characterIds: [layla, sam] })
+        .expect(200);
+      expect(renamed.body.chat.title).toBe('Chat with Layla and Sam');
+
+      await request(app).put(`/api/chats/${chat.id}`).send({ title: 'Late night' }).expect(200);
+      const kept = await request(app)
+        .put(`/api/chats/${chat.id}`)
+        .send({ characterIds: [layla] })
+        .expect(200);
+      expect(kept.body.chat.title).toBe('Late night');
+    });
+
+    it('clears every message, keeping the chat', async () => {
+      const chat = await createChat();
+      await request(app)
+        .post(`/api/chats/${chat.id}/messages`)
+        .send({ text: 'hi', reply: false })
+        .expect(201);
+      await request(app).delete(`/api/chats/${chat.id}/turns`).expect(200);
+      const read = await request(app).get(`/api/chats/${chat.id}`).expect(200);
+      expect(read.body).toMatchObject({ chat: { id: chat.id }, turns: [] });
+    });
+  });
+
   describe('messages', () => {
     it('edits and deletes single messages, and whole turns', async () => {
       const chat = await createChat();

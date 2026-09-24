@@ -14,6 +14,9 @@ vi.mock('../../services/chatsApi', () => ({
     setSwipe: vi.fn(),
     editMessage: vi.fn(),
     deleteMessage: vi.fn(),
+    update: vi.fn(),
+    clear: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 vi.mock('../../services/api', () => ({ settingsAPI: { get: vi.fn() } }));
@@ -62,7 +65,28 @@ const TURNS = [
 function mountChat() {
   return mount(ChatView, {
     props: { chatId: 'c1' },
-    global: { stubs: { ChatSetupModal: true, ViewPromptModal: true } },
+    global: {
+      stubs: {
+        ViewPromptModal: true,
+        EditChatModal: true,
+        StoryPresetModal: true,
+        ManageLorebooksModal: true,
+        ManageCharactersModal: {
+          props: ['story', 'adapter'],
+          template: '<div class="manage-characters" />',
+        },
+        ReasoningPanel: {
+          props: ['reasoning'],
+          template: '<pre class="reasoning-panel">{{ reasoning }}</pre>',
+        },
+        CharacterResponseModal: {
+          props: ['characters'],
+          emits: ['select'],
+          template:
+            '<div class="character-picker"><button v-for="c in characters" :key="c.id" class="pick" @click="$emit(\'select\', c.id)">{{ c.name }}</button></div>',
+        },
+      },
+    },
   });
 }
 
@@ -107,20 +131,17 @@ describe('ChatView', () => {
     const wrapper = mountChat();
     await flushPromises();
 
-    await wrapper.find('.composer-input').setValue('landed');
-    await wrapper.find('.composer-input').trigger('keydown', { key: 'Enter' });
+    await wrapper.find('.message-input').setValue('landed');
+    await wrapper.find('.message-input').trigger('keydown', { key: 'Enter' });
     await flushPromises();
 
-    expect(chatsAPI.send).toHaveBeenCalledWith('c1', 'landed', {
-      characterId: null,
-      signal: expect.anything(),
-    });
-    expect(wrapper.find('.composer-input').element.value).toBe('');
+    expect(chatsAPI.send).toHaveBeenCalledWith('c1', 'landed', { signal: expect.anything() });
+    expect(wrapper.find('.generating-status').text()).toContain('Layla is typing...');
+    expect(wrapper.find('.message-input').element.value).toBe('');
     expect(wrapper.findAll('.pending-bubble').map((bubble) => bubble.text())).toEqual([
       'finally',
       'how',
     ]);
-    expect(button(wrapper, 'View the last prompt sent')).toBeTruthy();
 
     chatsAPI.get.mockResolvedValue({
       chat: CHAT,
@@ -150,11 +171,11 @@ describe('ChatView', () => {
     const wrapper = mountChat();
     await flushPromises();
 
-    await wrapper.find('.composer-input').setValue('hello?');
-    await wrapper.find('.composer-input').trigger('keydown', { key: 'Enter' });
+    await wrapper.find('.message-input').setValue('hello?');
+    await wrapper.find('.message-input').trigger('keydown', { key: 'Enter' });
     await flushPromises();
 
-    expect(wrapper.find('.composer-input').element.value).toBe('hello?');
+    expect(wrapper.find('.message-input').element.value).toBe('hello?');
   });
 
   it('regenerates the last reply, hiding the version it replaces', async () => {
@@ -196,7 +217,7 @@ describe('ChatView', () => {
 
     expect(wrapper.find('.swipe-count').text()).toBe('1/2');
     await button(wrapper, "Show the model's reasoning").trigger('click');
-    expect(wrapper.find('.reasoning').text()).toBe('She is awake.');
+    expect(wrapper.find('.reasoning-panel').text()).toBe('She is awake.');
 
     await button(wrapper, 'Next version').trigger('click');
     await flushPromises();
@@ -206,7 +227,7 @@ describe('ChatView', () => {
     expect(wrapper.findAll('.bubble').at(-1).text()).toBe('no');
   });
 
-  it('names speakers in a group chat and lets the user pick who replies', async () => {
+  it('names speakers in a group chat and asks who should write', async () => {
     chatsAPI.get.mockResolvedValue({
       chat: { ...CHAT, characterIds: ['layla', 'sam'] },
       turns: [...TURNS, turn('t3', 'character', ['sup'], { characterId: 'sam' })],
@@ -218,17 +239,69 @@ describe('ChatView', () => {
     await flushPromises();
 
     expect(wrapper.findAll('.sender').map((sender) => sender.text())).toEqual(['Layla', 'Sam']);
-    await wrapper.find('.reply-from').setValue('sam');
+    expect(wrapper.find('.message-input').attributes('placeholder')).toBe('Message the group...');
     await wrapper
       .findAll('button')
-      .find((candidate) => candidate.text().includes('Let them write'))
+      .find((candidate) => candidate.text().includes('Let a Character Write'))
       .trigger('click');
+    await wrapper.findAll('.pick')[1].trigger('click');
     await flushPromises();
 
     expect(chatsAPI.reply).toHaveBeenCalledWith('c1', {
       characterId: 'sam',
       signal: expect.anything(),
     });
+  });
+
+  it('starts a new chat by choosing its characters', async () => {
+    chatsAPI.get.mockResolvedValue({
+      chat: { ...CHAT, characterIds: [], scenario: '' },
+      turns: [],
+    });
+    const wrapper = mountChat();
+    await flushPromises();
+
+    expect(wrapper.find('.manage-characters').exists()).toBe(true);
+    expect(wrapper.find('.empty-state').text()).toContain('Add characters to start chatting.');
+    expect(wrapper.find('.scenario-text').text()).toContain('Describe this scenario');
+    expect(wrapper.find('.message-input').attributes('disabled')).toBeDefined();
+  });
+
+  it('adds characters through the chat, keeping the persona out of it', async () => {
+    chatsAPI.update.mockImplementation(async (_id, fields) => ({ chat: { ...CHAT, ...fields } }));
+    const wrapper = mountChat();
+    await flushPromises();
+
+    await button(wrapper, 'Manage Characters').trigger('click');
+    const { adapter } = wrapper.findComponent('.manage-characters').props();
+    await adapter.addCharacter('sam');
+    expect(chatsAPI.update).toHaveBeenLastCalledWith('c1', {
+      characterIds: ['layla', 'sam'],
+      personaCharacterId: null,
+    });
+    await adapter.setPersona('layla');
+    expect(chatsAPI.update).toHaveBeenLastCalledWith('c1', {
+      personaCharacterId: 'layla',
+      characterIds: ['sam'],
+    });
+    await flushPromises();
+    expect(wrapper.find('.chat-title').text()).toBe('Chat with Layla');
+  });
+
+  it('clears the chat from the overflow menu', async () => {
+    chatsAPI.clear.mockResolvedValue({ success: true });
+    const wrapper = mountChat();
+    await flushPromises();
+
+    await wrapper.find('[aria-label="More options"]').trigger('click');
+    await wrapper
+      .findAll('.overflow-menu-item')
+      .find((item) => item.text() === 'Clear Chat')
+      .trigger('click');
+    await flushPromises();
+
+    expect(chatsAPI.clear).toHaveBeenCalledWith('c1');
+    expect(wrapper.find('.bubble').exists()).toBe(false);
   });
 
   it('edits and deletes single messages', async () => {

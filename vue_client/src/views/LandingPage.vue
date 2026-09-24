@@ -60,7 +60,27 @@
 
           <!-- Chats Tab (experimental, turned on in Settings) -->
           <template #tab-chats>
-            <ChatsTab />
+            <div class="section-header">
+              <h2><i class="fas fa-comments"></i> All Chats</h2>
+              <button class="btn btn-primary" @click="createNewChat">
+                <i class="fas fa-plus"></i> New Chat
+              </button>
+            </div>
+
+            <div v-if="loadingChats" class="loading">Loading chats...</div>
+
+            <div v-else-if="chats.length === 0" class="empty-state">
+              <i class="fas fa-comments"></i>
+              <p>No chats yet. Start a chat to text with your characters!</p>
+            </div>
+
+            <ChatsTable
+              v-else
+              :chats="chats"
+              :characters="characters"
+              @open="openChat"
+              @delete="deleteChat"
+            />
           </template>
 
           <!-- Characters Tab -->
@@ -242,7 +262,8 @@ import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
 import ProviderSelectionModal from '../components/ProviderSelectionModal.vue';
 import BureausTab from '../components/bureau/BureausTab.vue';
-import ChatsTab from '../components/chat/ChatsTab.vue';
+import ChatsTable from '../components/chat/ChatsTable.vue';
+import { chatsAPI } from '../services/chatsApi';
 
 const router = useRouter();
 const toast = useToast();
@@ -345,6 +366,9 @@ watch(activeTab, (newTab) => {
   localStorage.setItem(STORAGE_KEY, newTab);
 });
 
+const chats = ref([]);
+const loadingChats = ref(false);
+
 async function loadChatsEnabled() {
   try {
     const { settings } = await settingsAPI.get();
@@ -352,8 +376,56 @@ async function loadChatsEnabled() {
   } catch (error) {
     console.error('Failed to load settings:', error);
   }
-  if (chatsEnabled.value && savedTab === 'chats' && activeTab.value === 'stories') {
+  if (!chatsEnabled.value) return;
+  if (savedTab === 'chats' && activeTab.value === 'stories') {
     activeTab.value = 'chats';
+  }
+  await loadChats();
+}
+
+async function loadChats() {
+  loadingChats.value = true;
+  try {
+    const { chats: list } = await chatsAPI.list();
+    chats.value = list;
+  } catch (error) {
+    console.error('Error loading chats:', error);
+    toast.error('Failed to load chats');
+  } finally {
+    loadingChats.value = false;
+  }
+}
+
+async function createNewChat() {
+  try {
+    const { chat } = await chatsAPI.create({});
+    openChat(chat.id);
+  } catch (error) {
+    console.error('Error creating chat:', error);
+    toast.error('Failed to create chat');
+  }
+}
+
+function openChat(chatId) {
+  router.push({ name: 'chat', params: { chatId } });
+}
+
+async function deleteChat(chat) {
+  const confirmed = await confirm({
+    message: `Delete chat "${chat.title}"? This cannot be undone.`,
+    confirmText: 'Delete Chat',
+    variant: 'danger',
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await chatsAPI.delete(chat.id);
+    chats.value = chats.value.filter((item) => item.id !== chat.id);
+    toast.success('Chat deleted successfully');
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    toast.error('Failed to delete chat');
   }
 }
 
