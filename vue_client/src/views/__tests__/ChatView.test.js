@@ -227,6 +227,26 @@ describe('ChatView', () => {
     expect(wrapper.findAll('.bubble').at(-1).text()).toBe('no');
   });
 
+  it('locks versions and regenerating once a later message comes through', async () => {
+    const earlier = turn('t2', 'character', ['always'], {
+      characterId: 'layla',
+      swipes: [
+        { messages: ['always'], reasoning: '' },
+        { messages: ['no'], reasoning: '' },
+      ],
+    });
+    chatsAPI.get.mockResolvedValue({
+      chat: CHAT,
+      turns: [TURNS[0], earlier, turn('t3', 'user', ['ok'])],
+    });
+    const wrapper = mountChat();
+    await flushPromises();
+
+    expect(wrapper.find('.swipe-count').exists()).toBe(false);
+    expect(button(wrapper, 'Next version')).toBeUndefined();
+    expect(button(wrapper, 'Write another version of this reply')).toBeUndefined();
+  });
+
   it('names speakers in a group chat and asks who should write', async () => {
     chatsAPI.get.mockResolvedValue({
       chat: { ...CHAT, characterIds: ['layla', 'sam'] },

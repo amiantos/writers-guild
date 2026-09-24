@@ -383,12 +383,15 @@ router.post(
 
 // ==================== Messages ====================
 
-// Show another version of a reply
+// Show another version of the last reply. Once the chat has moved on, a reply's version stays.
 router.put(
   '/:id/turns/:turnId/swipe',
   asyncHandler(async (req, res) => {
     const chat = requireChat(req.params.id);
     requireTurn(chat.id, req.params.turnId);
+    if (chats.getLastTurn(chat.id)?.id !== req.params.turnId) {
+      throw new AppError('Only the last reply can switch versions', 400);
+    }
     const turn = chats.setActiveSwipe(chat.id, req.params.turnId, req.body?.index);
     if (!turn) {
       throw new AppError('No such version of this reply', 400);

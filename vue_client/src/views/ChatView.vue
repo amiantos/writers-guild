@@ -121,7 +121,7 @@
             @delete="deleteMessage(turn, messageIndex)"
           />
           <div v-if="turn.source === 'character' && hasTurnTools(turn)" class="turn-tools">
-            <template v-if="turn.swipes.length > 1">
+            <template v-if="turn.id === lastTurn?.id && turn.swipes.length > 1">
               <button
                 class="turn-tool"
                 title="Previous version"
@@ -233,10 +233,6 @@
 
             <!-- Overflow Menu -->
             <div v-if="showOverflowMenu" class="overflow-menu" @click="showOverflowMenu = false">
-              <button class="overflow-menu-item" @click="openEditChat(true)">
-                <i class="fas fa-clapperboard"></i>
-                <span>Describe Scenario</span>
-              </button>
               <button
                 v-if="lastPrompt"
                 class="overflow-menu-item"
@@ -406,8 +402,10 @@ function turnReasoning(turn) {
   return shouldShowReasoning.value ? turn.swipes[turn.activeSwipe]?.reasoning || '' : '';
 }
 
+// Only the last reply can switch versions or be regenerated: once the chat moves on, the
+// version it moved on from stays.
 function hasTurnTools(turn) {
-  return turn.swipes.length > 1 || turn.id === lastTurn.value?.id || Boolean(turnReasoning(turn));
+  return turn.id === lastTurn.value?.id || Boolean(turnReasoning(turn));
 }
 
 // ==================== Loading ====================

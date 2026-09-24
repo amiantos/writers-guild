@@ -280,6 +280,27 @@ describe('Chats API', () => {
         .expect(400);
     });
 
+    it('keeps an earlier reply’s version once the chat moves on', async () => {
+      const chat = await createChat();
+      streamReplies([{ content: 'first' }], [{ content: 'second' }]);
+      const sent = await request(app)
+        .post(`/api/chats/${chat.id}/messages`)
+        .send({ text: 'hi' })
+        .expect(201);
+      const turnId = sent.body.turn.id;
+      await request(app).post(`/api/chats/${chat.id}/turns/${turnId}/regenerate`).expect(201);
+      await request(app)
+        .post(`/api/chats/${chat.id}/messages`)
+        .send({ text: 'more', reply: false })
+        .expect(201);
+
+      const response = await request(app)
+        .put(`/api/chats/${chat.id}/turns/${turnId}/swipe`)
+        .send({ index: 0 })
+        .expect(400);
+      expect(response.body.error).toContain('last reply');
+    });
+
     it('only regenerates the last reply', async () => {
       const chat = await createChat();
       streamReplies([{ content: 'hi' }]);
