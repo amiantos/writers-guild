@@ -3,7 +3,6 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import ChatView from '../ChatView.vue';
 import { chatsAPI } from '../../services/chatsApi';
-import { settingsAPI } from '../../services/api';
 
 vi.mock('../../services/chatsApi', () => ({
   chatsAPI: {
@@ -19,7 +18,6 @@ vi.mock('../../services/chatsApi', () => ({
     delete: vi.fn(),
   },
 }));
-vi.mock('../../services/api', () => ({ settingsAPI: { get: vi.fn() } }));
 
 const characters = ref([
   { id: 'layla', name: 'Layla', thumbnailUrl: null },
@@ -75,10 +73,6 @@ function mountChat() {
           props: ['story', 'adapter'],
           template: '<div class="manage-characters" />',
         },
-        ReasoningPanel: {
-          props: ['reasoning'],
-          template: '<pre class="reasoning-panel">{{ reasoning }}</pre>',
-        },
         CharacterResponseModal: {
           props: ['characters'],
           emits: ['select'],
@@ -97,7 +91,6 @@ function button(wrapper, title) {
 describe('ChatView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    settingsAPI.get.mockResolvedValue({ settings: { showReasoning: true } });
     chatsAPI.get.mockResolvedValue({ chat: CHAT, turns: TURNS });
   });
 
@@ -163,6 +156,37 @@ describe('ChatView', () => {
     ).toEqual(['finally', 'how was it']);
   });
 
+  it('streams reasoning into the live seam above the reply', async () => {
+    let finish;
+    const finished = new Promise((resolve) => {
+      finish = resolve;
+    });
+    chatsAPI.reply.mockImplementation(async function* stream() {
+      yield { type: 'speaker', characterId: 'layla', name: 'Layla' };
+      yield { type: 'reasoning', text: 'He sounds tired. ' };
+      yield { type: 'reasoning', text: 'Keep it short.' };
+      await finished;
+    });
+    const wrapper = mountChat();
+    await flushPromises();
+
+    await wrapper
+      .findAll('button')
+      .find((candidate) => candidate.text().includes('Let Layla Write'))
+      .trigger('click');
+    await flushPromises();
+
+    const seam = wrapper.findAll('.turn-seam').at(-1);
+    expect(seam.classes()).toContain('live');
+    expect(seam.find('.seam-label').text()).toBe('Layla is thinking...');
+    await seam.find('.seam-toggle').trigger('click');
+    expect(seam.find('.block-text').text()).toBe('He sounds tired. Keep it short.');
+    // No top panel, whatever the display settings say.
+    expect(wrapper.find('.reasoning-panel').exists()).toBe(false);
+    finish();
+    await flushPromises();
+  });
+
   it('gives the message back when the reply fails before it was saved', async () => {
     chatsAPI.send.mockImplementation(async function* stream() {
       yield* [];
@@ -216,8 +240,8 @@ describe('ChatView', () => {
     await flushPromises();
 
     expect(wrapper.find('.swipe-count').text()).toBe('1/2');
-    await button(wrapper, "Show the model's reasoning").trigger('click');
-    expect(wrapper.find('.reasoning-panel').text()).toBe('She is awake.');
+    await wrapper.find('.seam-toggle').trigger('click');
+    expect(wrapper.find('.seam-panel .block-text').text()).toBe('She is awake.');
 
     await button(wrapper, 'Next version').trigger('click');
     await flushPromises();
@@ -225,6 +249,8 @@ describe('ChatView', () => {
     expect(chatsAPI.setSwipe).toHaveBeenCalledWith('c1', 't2', 1);
     expect(wrapper.find('.swipe-count').text()).toBe('2/2');
     expect(wrapper.findAll('.bubble').at(-1).text()).toBe('no');
+    // The seam follows the version shown.
+    expect(wrapper.find('.seam-panel').text()).toContain("didn't share any reasoning");
   });
 
   it('locks versions and regenerating once a later message comes through', async () => {

@@ -66,13 +66,6 @@
     </div>
 
     <div v-else class="editor-content">
-      <!-- Reasoning Panel -->
-      <ReasoningPanel
-        v-if="reasoningPanel"
-        :reasoning="reasoningPanel.text"
-        @close="reasoningPanel = null"
-      />
-
       <!-- Conversation -->
       <main ref="listRef" class="chat-reading">
         <button
@@ -108,6 +101,10 @@
           class="turn"
           :class="turn.source === 'user' ? 'from-user' : 'from-character'"
         >
+          <ChatSeam
+            v-if="turn.source === 'character'"
+            :reasoning="turn.swipes[turn.activeSwipe]?.reasoning ?? ''"
+          />
           <div v-if="showsSender(visibleTurns, index, isGroup)" class="sender">
             {{ senderName(turn) }}
           </div>
@@ -120,8 +117,10 @@
             @save="saveMessage(turn, messageIndex, $event)"
             @delete="deleteMessage(turn, messageIndex)"
           />
-          <div v-if="turn.source === 'character' && hasTurnTools(turn)" class="turn-tools">
-            <template v-if="turn.id === lastTurn?.id && turn.swipes.length > 1">
+          <!-- Only the last reply can switch versions or be regenerated: once the chat moves on,
+               the version it moved on from stays. -->
+          <div v-if="turn.source === 'character' && turn.id === lastTurn?.id" class="turn-tools">
+            <template v-if="turn.swipes.length > 1">
               <button
                 class="turn-tool"
                 title="Previous version"
@@ -141,7 +140,6 @@
               </button>
             </template>
             <button
-              v-if="turn.id === lastTurn?.id"
               class="turn-tool"
               title="Write another version of this reply"
               :disabled="sending"
@@ -149,19 +147,11 @@
             >
               <i class="fas fa-rotate-right"></i>
             </button>
-            <button
-              v-if="turnReasoning(turn)"
-              class="turn-tool"
-              :class="{ active: reasoningPanel?.turnId === turn.id }"
-              title="Show the model's reasoning"
-              @click="toggleReasoning(turn)"
-            >
-              <i class="fas fa-brain"></i>
-            </button>
           </div>
         </section>
 
         <section v-if="pending" class="turn from-character">
+          <ChatSeam :reasoning="pending.reasoning" :live="pending" />
           <div v-if="isGroup && pending.speakerName" class="sender">
             {{ pending.speakerName }}
           </div>
@@ -307,7 +297,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { chatsAPI } from '../services/chatsApi';
-import { settingsAPI } from '../services/api';
 import { useDataCache } from '../composables/useDataCache';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
@@ -315,7 +304,7 @@ import { setPageTitle } from '../router';
 import { describeQueue, showsSender, splitReply } from '../composables/chatMessages';
 import ChatBubble from '../components/chat/ChatBubble.vue';
 import EditChatModal from '../components/chat/EditChatModal.vue';
-import ReasoningPanel from '../components/ReasoningPanel.vue';
+import ChatSeam from '../components/chat/ChatSeam.vue';
 import ManageCharactersModal from '../components/ManageCharactersModal.vue';
 import ManageLorebooksModal from '../components/ManageLorebooksModal.vue';
 import StoryPresetModal from '../components/StoryPresetModal.vue';
@@ -335,9 +324,6 @@ const chat = ref(null);
 const turns = ref([]);
 const loading = ref(true);
 const loadError = ref('');
-const shouldShowReasoning = ref(false);
-// The reasoning shown in the panel: a saved reply's ({ turnId, text }) or the live one.
-const reasoningPanel = ref(null);
 
 const text = ref('');
 const sending = ref(false);
@@ -398,30 +384,15 @@ function senderName(turn) {
   );
 }
 
-function turnReasoning(turn) {
-  return shouldShowReasoning.value ? turn.swipes[turn.activeSwipe]?.reasoning || '' : '';
-}
-
-// Only the last reply can switch versions or be regenerated: once the chat moves on, the
-// version it moved on from stays.
-function hasTurnTools(turn) {
-  return turn.id === lastTurn.value?.id || Boolean(turnReasoning(turn));
-}
-
 // ==================== Loading ====================
 
 async function load() {
   loading.value = true;
   loadError.value = '';
   try {
-    const [data, settingsData] = await Promise.all([
-      chatsAPI.get(props.chatId),
-      settingsAPI.get().catch(() => ({ settings: {} })),
-      loadCharacters(),
-    ]);
+    const [data] = await Promise.all([chatsAPI.get(props.chatId), loadCharacters()]);
     chat.value = data.chat;
     turns.value = data.turns;
-    shouldShowReasoning.value = Boolean(settingsData.settings?.showReasoning);
     setPageTitle(chat.value.title);
     // A new chat starts by picking who's in it, as a story starts with its greeting.
     if (chat.value.characterIds.length === 0 && turns.value.length === 0) {
@@ -477,11 +448,10 @@ async function runReply(start, { composerText = '', regenerating = null } = {}) 
   pending.value = {
     status: 'Writing...',
     content: '',
+    reasoning: '',
     speakerName: '',
     regenerating,
   };
-  // Only open when reasoning is actually received, as in story mode.
-  reasoningPanel.value = null;
   let messageSaved = false;
   let stopped = false;
 
@@ -498,12 +468,7 @@ async function runReply(start, { composerText = '', regenerating = null } = {}) 
       } else if (event.type === 'queue') {
         pending.value.status = describeQueue(event);
       } else if (event.type === 'reasoning') {
-        if (shouldShowReasoning.value) {
-          reasoningPanel.value = {
-            turnId: null,
-            text: (reasoningPanel.value?.text ?? '') + event.text,
-          };
-        }
+        pending.value.reasoning += event.text;
         pending.value.status = `${pending.value.speakerName || 'The model'} is thinking...`;
       } else if (event.type === 'content') {
         pending.value.content += event.text;
@@ -595,11 +560,6 @@ async function setSwipe(turn, index) {
   try {
     const { turn: updated } = await chatsAPI.setSwipe(props.chatId, turn.id, index);
     replaceTurn(updated);
-    if (reasoningPanel.value?.turnId === turn.id) {
-      reasoningPanel.value = turnReasoning(updated)
-        ? { turnId: turn.id, text: turnReasoning(updated) }
-        : null;
-    }
   } catch (error) {
     toast.error(`Failed to switch versions: ${error.message}`);
   }
@@ -634,13 +594,6 @@ async function deleteMessage(turn, index) {
   }
 }
 
-function toggleReasoning(turn) {
-  reasoningPanel.value =
-    reasoningPanel.value?.turnId === turn.id
-      ? null
-      : { turnId: turn.id, text: turnReasoning(turn) };
-}
-
 async function clearChat() {
   const confirmed = await confirm({
     message: 'Clear every message in this chat? Its characters and scenario stay.',
@@ -652,7 +605,6 @@ async function clearChat() {
   try {
     await chatsAPI.clear(props.chatId);
     turns.value = [];
-    reasoningPanel.value = null;
     toast.success('Chat cleared');
   } catch (error) {
     toast.error(`Failed to clear the chat: ${error.message}`);
