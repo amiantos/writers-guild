@@ -26,6 +26,7 @@ import presetsRouter from './src/routes/presets.js';
 import onboardingRouter from './src/routes/onboarding.js';
 import assetsRouter from './src/routes/assets.js';
 import bureausRouter from './src/routes/bureaus.js';
+import chatsRouter from './src/routes/chats.js';
 
 // Import migration service
 import { runMigration } from './src/services/migration.js';
@@ -118,6 +119,7 @@ app.use('/api/presets', presetsRouter);
 app.use('/api/onboarding', onboardingRouter);
 app.use('/api/assets', assetsRouter);
 app.use('/api/bureaus', bureausRouter);
+app.use('/api/chats', chatsRouter);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: `Not found: ${req.method} ${req.originalUrl}` });

@@ -66,6 +66,29 @@
           </div>
         </section>
 
+        <!-- Experimental Features Section -->
+        <section class="edit-section">
+          <div class="section-header">
+            <h2>Experimental Features</h2>
+          </div>
+          <div class="section-content">
+            <p class="help-text">
+              Features still being tried out. They may change, and may not always work as expected.
+            </p>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="settings.experimentalChats" />
+                <span>Chats</span>
+              </label>
+              <p class="help-text">
+                Adds a Chats tab next to Stories: text message conversations with one or more of
+                your characters, set up by a scenario you describe. Replies use your presets, and
+                their prompts can be customized under Chat Templates in each preset.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <!-- Legacy Lorebook Settings Section (if needed for backwards compat) -->
         <section v-if="false" class="edit-section">
           <div class="section-header">
@@ -166,6 +189,7 @@ const settings = ref({
   lorebookTokenBudget: 1800,
   lorebookRecursionDepth: 3,
   lorebookEnableRecursion: true,
+  experimentalChats: false,
 });
 
 onMounted(async () => {
@@ -226,6 +250,7 @@ async function loadSettings() {
       lorebookTokenBudget: serverSettings.lorebookTokenBudget ?? 1800,
       lorebookRecursionDepth: serverSettings.lorebookRecursionDepth ?? 3,
       lorebookEnableRecursion: serverSettings.lorebookEnableRecursion ?? true,
+      experimentalChats: serverSettings.experimentalChats ?? false,
     };
   } catch (error) {
     console.error('Failed to load settings:', error);

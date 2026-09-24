@@ -47,6 +47,7 @@ router.put(
       lorebookEnableRecursion,
       defaultPersonaId,
       onboardingCompleted,
+      experimentalChats,
     } = req.body;
 
     // Get current settings
@@ -82,6 +83,7 @@ router.put(
       ...(onboardingCompleted !== undefined && {
         onboardingCompleted: Boolean(onboardingCompleted),
       }),
+      ...(experimentalChats !== undefined && { experimentalChats: Boolean(experimentalChats) }),
     };
 
     const saved = await storage.saveSettings(updated);

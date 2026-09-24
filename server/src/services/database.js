@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 /**
  * Initialize the SQLite database with schema
@@ -83,7 +83,8 @@ function createAllTables(db) {
       lorebook_enable_recursion INTEGER DEFAULT 1,
       default_persona_id TEXT,
       default_preset_id TEXT,
-      onboarding_completed INTEGER DEFAULT 0
+      onboarding_completed INTEGER DEFAULT 0,
+      experimental_chats INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -233,7 +234,63 @@ function createAllTables(db) {
     );
   `);
 
+  createChatTables(db);
+
   console.log('Database schema created successfully');
+}
+
+/**
+ * Create the tables for chat mode: text message conversations between the
+ * user's persona and one or more characters. Each turn is one message from the
+ * user or one reply from a character; a reply's versions (swipes) are kept in
+ * its swipes column as JSON, each holding the reply's messages in order.
+ */
+function createChatTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chats (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      scenario TEXT DEFAULT '',
+      persona_character_id TEXT,
+      config_preset_id TEXT,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_characters (
+      chat_id TEXT NOT NULL,
+      character_id TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (chat_id, character_id),
+      FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+      FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_lorebooks (
+      chat_id TEXT NOT NULL,
+      lorebook_id TEXT NOT NULL,
+      PRIMARY KEY (chat_id, lorebook_id),
+      FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+      FOREIGN KEY (lorebook_id) REFERENCES lorebooks(id) ON DELETE CASCADE
+    );
+
+    -- sender_name keeps a turn readable after its character is deleted.
+    CREATE TABLE IF NOT EXISTS chat_turns (
+      id TEXT PRIMARY KEY,
+      chat_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      source TEXT NOT NULL,
+      character_id TEXT,
+      sender_name TEXT NOT NULL DEFAULT '',
+      swipes TEXT NOT NULL DEFAULT '[]',
+      active_swipe INTEGER NOT NULL DEFAULT 0,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL,
+      FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_turns_chat ON chat_turns(chat_id, position);
+  `);
 }
 
 /**
@@ -378,6 +435,19 @@ function migrateSchema(db, fromVersion) {
       );
 
       console.log('Added checksum columns (backfill runs on startup)');
+    }
+
+    // Migration to version 10: Add chat mode tables and its experimental toggle
+    if (fromVersion < 10) {
+      console.log('Adding chat tables...');
+
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_chats')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_chats INTEGER DEFAULT 0');
+      }
+      createChatTables(db);
+
+      console.log('Added chat tables');
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

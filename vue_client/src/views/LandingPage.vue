@@ -58,6 +58,11 @@
             />
           </template>
 
+          <!-- Chats Tab (experimental, turned on in Settings) -->
+          <template #tab-chats>
+            <ChatsTab />
+          </template>
+
           <!-- Characters Tab -->
           <template #tab-characters>
             <div class="section-header">
@@ -218,7 +223,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI } from '../services/api';
+import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI, settingsAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 import { useDataCache } from '../composables/useDataCache';
@@ -237,6 +242,7 @@ import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
 import ProviderSelectionModal from '../components/ProviderSelectionModal.vue';
 import BureausTab from '../components/bureau/BureausTab.vue';
+import ChatsTab from '../components/chat/ChatsTab.vue';
 
 const router = useRouter();
 const toast = useToast();
@@ -315,27 +321,45 @@ const recentCharacters = computed(() => {
     .filter((char) => char != null);
 });
 
+// Chats are experimental: their tab shows once they're turned on in Settings.
+const chatsEnabled = ref(false);
+
 // Tabs configuration
-const tabs = [
+const tabs = computed(() => [
   { key: 'stories', label: 'Stories', icon: 'fas fa-book' },
+  ...(chatsEnabled.value ? [{ key: 'chats', label: 'Chats', icon: 'fas fa-comments' }] : []),
   { key: 'characters', label: 'Characters', icon: 'fas fa-users' },
   { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' },
   { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' },
   { key: 'bureaus', label: 'Bureaus', icon: 'fas fa-landmark' },
-];
+]);
 
 // Active tab with localStorage persistence
 const STORAGE_KEY = 'writers-guild-active-tab';
-const activeTab = ref(localStorage.getItem(STORAGE_KEY) || 'stories');
+const savedTab = localStorage.getItem(STORAGE_KEY) || 'stories';
+// The Chats tab waits for settings to load before it can be shown.
+const activeTab = ref(savedTab === 'chats' ? 'stories' : savedTab);
 
 // Save active tab to localStorage when it changes
 watch(activeTab, (newTab) => {
   localStorage.setItem(STORAGE_KEY, newTab);
 });
 
+async function loadChatsEnabled() {
+  try {
+    const { settings } = await settingsAPI.get();
+    chatsEnabled.value = Boolean(settings?.experimentalChats);
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+  }
+  if (chatsEnabled.value && savedTab === 'chats' && activeTab.value === 'stories') {
+    activeTab.value = 'chats';
+  }
+}
+
 onMounted(async () => {
   // Load all data using cache - will skip API calls if data is fresh
-  await loadAll();
+  await Promise.all([loadAll(), loadChatsEnabled()]);
 });
 
 async function createNewStory() {

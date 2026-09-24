@@ -50,6 +50,17 @@ describe('Settings API Routes', () => {
   });
 
   describe('PUT / - Update Settings', () => {
+    it('keeps chats off until they are turned on', async () => {
+      const initial = await request(app).get('/api/settings').expect(200);
+      expect(initial.body.settings.experimentalChats).toBe(false);
+
+      await request(app).put('/api/settings').send({ experimentalChats: true }).expect(200);
+      const enabled = await request(app).get('/api/settings').expect(200);
+      expect(enabled.body.settings.experimentalChats).toBe(true);
+
+      await request(app).put('/api/settings').send({ experimentalChats: false }).expect(200);
+    });
+
     it('should update API key', async () => {
       const response = await request(app)
         .put('/api/settings')

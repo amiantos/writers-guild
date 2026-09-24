@@ -80,12 +80,67 @@ Aspects of character information, such as their profile or dialog style examples
 Do not use asterisks (*) for actions. Write everything as prose.`;
 
 /**
+ * Default system prompt template for chat mode: a text message conversation
+ * between the user's persona and one or more characters.
+ *
+ * Available variables:
+ * - user (the persona's name, or "User"), char (the character writing now)
+ * - is_group (more than one character), character_names ("Layla and Sam"),
+ *   participant_names ("Bradley, Layla, and Sam", the user first)
+ * - has_chat_scenario, chat_scenario
+ * - characters (array) - each has: name, description, personality, scenario, mes_example
+ *   (mes_example is empty unless the preset includes dialogue examples)
+ * - has_persona, persona.name, persona.description, persona.personality
+ * - has_lorebook, lorebook_entries (array) - each has: content, comment
+ *
+ * Same template syntax as the story system prompt. Inside {{#each}}, only the
+ * item's own fields are available.
+ */
+export const DEFAULT_CHAT_SYSTEM_PROMPT_TEMPLATE = `You write text messages in a {{#if is_group}}group chat{{/if}}{{#unless is_group}}private chat{{/unless}} between {{participant_names}}. {{user}} is the user's character, and the user writes their messages. You write the other side: only the character whose turn it is, and only what they type.
+
+{{#if has_chat_scenario}}
+=== SCENARIO ===
+{{chat_scenario}}
+
+{{/if}}=== {{#if is_group}}CHARACTERS{{/if}}{{#unless is_group}}CHARACTER{{/unless}} ===
+{{#each characters}}Name: {{name}}
+{{#if description}}Description: {{description}}
+{{/if}}{{#if personality}}Personality: {{personality}}
+{{/if}}{{#if mes_example}}How they talk:
+{{mes_example}}
+{{/if}}{{#unless @last}}
+---
+{{/unless}}{{/each}}
+
+{{#if has_persona}}=== {{user}} (THE USER'S CHARACTER) ===
+{{#if persona.description}}Description: {{persona.description}}
+{{/if}}{{#if persona.personality}}Personality: {{persona.personality}}
+{{/if}}
+{{/if}}{{#if has_lorebook}}=== WORLD INFORMATION ===
+{{#each lorebook_entries}}{{content}}{{#unless @last}}
+
+{{/unless}}{{/each}}
+
+{{/if}}=== MESSAGE STYLE ===
+Write text messages, the way the character would type them on their phone.
+Keep messages short, usually a sentence or two, and send a few short messages rather than one long one.
+Write only what they type: no narration, no descriptions of actions, no asterisks, and no quotation marks around messages.
+Match the character's voice and mood, and what the scenario says they're doing.
+Write in the same language as the conversation.`;
+
+/**
  * Default user prompt templates with placeholders
  * Available placeholders:
  * - {{char}} / {{charName}} - Character name
  * - {{instruction}} - Custom user instruction
  * - {{storyContent}} - Current story content
  * - {{user}} - User/persona name
+ *
+ * chatReply is chat mode's instruction for the next reply, rendered with the
+ * same template syntax as the system prompts. Variables: char, user, is_group,
+ * is_first_message (the chat is empty), is_reply (someone else spoke last),
+ * is_follow_up (char spoke last), and conversation (the transcript; placed
+ * before the instruction when the template doesn't use it).
  */
 export const DEFAULT_PROMPT_TEMPLATES = {
   continue:
@@ -105,6 +160,10 @@ export const DEFAULT_PROMPT_TEMPLATES = {
 
   storyStarter:
     'Write the opening 3-5 paragraphs for a new story. Establish the setting, introduce the characters naturally, and create an engaging hook that draws readers in. Focus on vivid scene-setting and character introduction without rushing into action. End at a natural point that invites continuation.',
+
+  chatReply: `{{#if is_first_message}}The chat is empty. Write the first message {{char}} sends{{#if is_group}} to the group{{/if}}.{{/if}}{{#if is_reply}}Write {{char}}'s reply.{{/if}}{{#if is_follow_up}}No one has answered {{char}} yet. Write a short follow-up from {{char}}.{{/if}}
+Stay in character. Write only what {{char}} sends, never anyone else's messages, and don't label messages with names.
+Write one to four messages, with a line containing only --- between messages.`,
 };
 
 export function getDefaultPresets() {

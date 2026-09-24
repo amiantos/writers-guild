@@ -98,6 +98,8 @@ const localPromptTemplates = computed({
       rewriteThirdPerson: templates.rewriteThirdPerson ?? null,
       ideate: templates.ideate ?? null,
       storyStarter: templates.storyStarter ?? null,
+      chatSystemPrompt: templates.chatSystemPrompt ?? null,
+      chatReply: templates.chatReply ?? null,
     };
   },
   set(value) {

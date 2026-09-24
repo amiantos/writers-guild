@@ -77,15 +77,13 @@ export class AIHordeProvider extends LLMProvider {
   }
 
   /**
-   * Build both system and user prompts with context management
-   * OVERRIDES base implementation for AI Horde-specific dynamic context calculation
-   * @param {Object} context - Generation context
-   * @param {string} generationType - Type of generation (continue, character, custom)
-   * @param {Object} customParams - Custom parameters (characterName, customInstruction, etc.)
+   * The context window for this request: the preset's, narrowed to what the
+   * workers serving its models can take. With no models configured, suitable
+   * ones are auto-selected and kept on this instance for generate().
    * @param {Object} preset - Preset configuration
-   * @returns {Promise<Object>} { system: string, user: string }
+   * @returns {Promise<number>} Tokens
    */
-  async buildPrompts(context, generationType, customParams, preset) {
+  async resolveContextTokens(preset) {
     const maxGenerationTokens = preset.generationSettings?.maxTokens || 512;
     let maxContextTokens = preset.generationSettings?.maxContextTokens || 8192;
 
@@ -121,6 +119,22 @@ export class AIHordeProvider extends LLMProvider {
         console.warn('Failed to calculate dynamic context, using preset value:', error);
       }
     }
+
+    return maxContextTokens;
+  }
+
+  /**
+   * Build both system and user prompts with context management
+   * OVERRIDES base implementation for AI Horde-specific dynamic context calculation
+   * @param {Object} context - Generation context
+   * @param {string} generationType - Type of generation (continue, character, custom)
+   * @param {Object} customParams - Custom parameters (characterName, customInstruction, etc.)
+   * @param {Object} preset - Preset configuration
+   * @returns {Promise<Object>} { system: string, user: string }
+   */
+  async buildPrompts(context, generationType, customParams, preset) {
+    const maxGenerationTokens = preset.generationSettings?.maxTokens || 512;
+    const maxContextTokens = await this.resolveContextTokens(preset);
 
     return this.promptBuilder.buildPrompts(context, {
       maxContextTokens,
