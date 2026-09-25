@@ -1075,6 +1075,7 @@ async function handleStoryStarter() {
     pending.value = null;
     abortController = null;
   }
+  return Boolean(generatedContent.trim());
 }
 
 /**
@@ -1304,35 +1305,40 @@ async function handlePassageDelete(block) {
   await saveStory(true);
 }
 
-/** Write the last passage again: remove it, then send what wrote it once more. */
+/**
+ * Write the last passage again: remove it, then send what wrote it once more. Its record stays, for
+ * Undo, and the new version's record, being newer, wins if the text comes back the same.
+ */
 async function handlePassageRegenerate(block) {
   const record = block.record;
   if (generating.value || !record) return;
-  content.value = removeBlock(content.value, block);
-  // The old version's record is kept for Undo, but after the new one's, so the new one wins if the
-  // model writes the same text again.
-  passages.value = passages.value.filter((item) => item.id !== record.id);
-  passagesDirty = true;
+  if (
+    record.action === 'character' &&
+    !storyCharacters.value.some((character) => character.id === record.characterId)
+  ) {
+    toast.info(`${record.characterName ?? 'That character'} is no longer in this story`);
+    return;
+  }
 
-  try {
-    if (record.action === 'starter') {
-      await saveStory(true);
-      await handleStoryStarter();
-    } else if (record.action === 'instruction') {
-      await generate(true, record.instruction, null);
-    } else if (record.action === 'character') {
-      if (storyCharacters.value.some((character) => character.id === record.characterId)) {
-        await generate(false, null, record.characterId);
-      } else {
-        await saveStory(true);
-        handleCharacterResponse();
-      }
-    } else {
-      await generate(false, null, null);
-    }
-  } finally {
-    passages.value = [...passages.value, record];
-    passagesDirty = true;
+  const before = content.value;
+  const without = removeBlock(before, block);
+  content.value = without;
+
+  let written;
+  if (record.action === 'starter') {
+    await saveStory(true);
+    written = await handleStoryStarter();
+  } else if (record.action === 'instruction') {
+    written = await generate(true, record.instruction, null);
+  } else if (record.action === 'character') {
+    written = await generate(false, null, record.characterId);
+  } else {
+    written = await generate(false, null, null);
+  }
+
+  // Nothing came back, so the passage it was to replace goes back where it was.
+  if (!written && content.value === without) {
+    content.value = before;
     await saveStory(true);
   }
 }

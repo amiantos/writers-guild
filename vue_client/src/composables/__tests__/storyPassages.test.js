@@ -60,6 +60,16 @@ describe('splitPassages', () => {
     expect(blocks.map((block) => block.record?.id ?? null)).toEqual(['one', null, 'two']);
   });
 
+  it('lets a newer record claim text an older one also matches', () => {
+    const content = 'Hello there.\n\nShe smiled.\n\n';
+    const blocks = splitPassages(content, [
+      record('greeting', 'Hello there.', { created: '2026-01-01T00:00:00.000Z' }),
+      record('rewrite', 'Hello there.\n\nShe smiled.', { created: '2026-01-02T00:00:00.000Z' }),
+    ]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].record.id).toBe('rewrite');
+  });
+
   it('prefers a whole paragraph over the same words inside another', () => {
     const content = 'He said yes. Then left.\n\nyes.\n\n';
     const blocks = splitPassages(content, [record('p', 'yes.')]);

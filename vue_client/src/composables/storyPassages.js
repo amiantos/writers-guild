@@ -63,12 +63,20 @@ function findUnclaimed(content, text, claimed) {
 }
 
 /**
- * Place each record in the content: earlier records claim their text first.
+ * Place each record in the content. Newer records claim their text first, so what was written last
+ * over a stretch of the story is what shows: a rewrite over the passages it kept word for word, or
+ * another version over the one it replaced. Records written at the same time keep their order.
  * @returns {{ start: number, end: number, record: Object }[]} Sorted by where they start.
  */
 function placeRecords(content, records) {
   const placed = [];
-  for (const record of records) {
+  const newestFirst = records
+    .map((record, index) => ({ record, index }))
+    .toSorted(
+      (a, b) =>
+        (b.record?.created ?? '').localeCompare(a.record?.created ?? '') || a.index - b.index,
+    );
+  for (const { record } of newestFirst) {
     const text = record?.text?.trim();
     if (!text) continue;
     const start = findUnclaimed(content, text, placed);

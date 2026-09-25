@@ -61,6 +61,12 @@ async function* stream(chunks) {
   yield { finished: true };
 }
 
+/** A stream that fails before sending anything. */
+async function* failedStream(message) {
+  yield* [];
+  throw new Error(message);
+}
+
 function loadStory(content, passages = []) {
   storiesAPI.get.mockResolvedValue({
     story: { id: 's1', title: 'Rain', content, passages, characterIds: [] },
@@ -368,10 +374,57 @@ describe('StoryEditor in Enhanced Story Mode', () => {
 
     const { content, passages } = lastSave();
     expect(content).toBe('Opening.\n\nThunder.\n\n');
-    // The old version stays, for Undo, after the new one.
-    expect(passages.map((record) => record.reasoning)).toEqual(['Second try.', 'First try.']);
+    // The old version stays, for Undo, but the newer record wins the text.
+    expect(passages.map((record) => record.reasoning)).toEqual(['First try.', 'Second try.']);
     await wrapper.findAll('.seam-toggle').at(-1).trigger('click');
     expect(wrapper.find('.seam-panel').text()).toContain('Second try.');
+  });
+
+  it('puts the passage back when writing another version fails', async () => {
+    loadStory('Opening.\n\nThunder.\n\n', [
+      { id: 'p1', text: 'Thunder.', source: 'generated', action: 'continue' },
+    ]);
+    storiesAPI.continueStory.mockReturnValue(failedStream('Network down'));
+    const wrapper = await mountEditor();
+
+    await wrapper
+      .findAll('article.turn')[1]
+      .find('button[title="Write another version"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(lastSave().content).toBe('Opening.\n\nThunder.\n\n');
+    expect(wrapper.findAll('article.turn').map((block) => block.text())).toEqual([
+      'Opening.',
+      'Thunder.',
+    ]);
+    expect(wrapper.findAll('.seam-label').map((label) => label.text())).toEqual([
+      'How this was written',
+    ]);
+  });
+
+  it("leaves a character's passage alone when the character has left the story", async () => {
+    loadStory('Opening.\n\nMara spoke.\n\n', [
+      {
+        id: 'p1',
+        text: 'Mara spoke.',
+        source: 'generated',
+        action: 'character',
+        characterId: 'gone',
+        characterName: 'Mara',
+      },
+    ]);
+    const wrapper = await mountEditor();
+
+    await wrapper
+      .findAll('article.turn')[1]
+      .find('button[title="Write another version"]')
+      .trigger('click');
+    await flushPromises();
+
+    expect(storiesAPI.updateContent).not.toHaveBeenCalled();
+    expect(storiesAPI.continueStory).not.toHaveBeenCalled();
+    expect(wrapper.findAll('article.turn')).toHaveLength(2);
   });
 
   it('stays plain story mode with the setting off: preview, toolbar, and no record', async () => {
