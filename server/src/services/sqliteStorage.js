@@ -38,7 +38,8 @@ export class SqliteStorageService {
           default_persona_id = @defaultPersonaId,
           default_preset_id = @defaultPresetId,
           onboarding_completed = @onboardingCompleted,
-          experimental_chats = @experimentalChats
+          experimental_chats = @experimentalChats,
+          experimental_bureaus = @experimentalBureaus
         WHERE id = 1
       `),
 
@@ -379,6 +380,7 @@ export class SqliteStorageService {
       defaultPresetId: row.default_preset_id,
       onboardingCompleted: !!row.onboarding_completed,
       experimentalChats: !!row.experimental_chats,
+      experimentalBureaus: !!row.experimental_bureaus,
     };
   }
 
@@ -398,6 +400,7 @@ export class SqliteStorageService {
       defaultPresetId: settings.defaultPresetId || null,
       onboardingCompleted: settings.onboardingCompleted ? 1 : 0,
       experimentalChats: settings.experimentalChats ? 1 : 0,
+      experimentalBureaus: settings.experimentalBureaus ? 1 : 0,
     });
     return settings;
   }

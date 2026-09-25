@@ -6,8 +6,9 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 /**
  * Initialize the SQLite database with schema
@@ -29,7 +30,7 @@ export function initializeDatabase(dataRoot) {
   db.pragma('journal_mode = WAL');
 
   // Create schema
-  createSchema(db);
+  createSchema(db, dataRoot);
 
   return db;
 }
@@ -37,7 +38,7 @@ export function initializeDatabase(dataRoot) {
 /**
  * Create database schema
  */
-function createSchema(db) {
+function createSchema(db, dataRoot) {
   // Check current schema version
   const versionRow = db
     .prepare(`
@@ -48,11 +49,12 @@ function createSchema(db) {
   if (!versionRow) {
     // Fresh database - create all tables
     createAllTables(db);
+    enableBureausIfInUse(db, dataRoot);
   } else {
     // Check if migration needed
     const currentVersion = db.prepare('SELECT version FROM schema_version').get();
     if (currentVersion && currentVersion.version < SCHEMA_VERSION) {
-      migrateSchema(db, currentVersion.version);
+      migrateSchema(db, currentVersion.version, dataRoot);
     }
   }
 }
@@ -84,7 +86,8 @@ function createAllTables(db) {
       default_persona_id TEXT,
       default_preset_id TEXT,
       onboarding_completed INTEGER DEFAULT 0,
-      experimental_chats INTEGER DEFAULT 0
+      experimental_chats INTEGER DEFAULT 0,
+      experimental_bureaus INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -294,6 +297,35 @@ function createChatTables(db) {
 }
 
 /**
+ * Whether bureau.db in the data directory holds at least one Bureau. It's read
+ * directly and read-only, so a check never creates or migrates the file.
+ */
+function hasBureaus(dataRoot) {
+  const bureauDbPath = path.join(dataRoot, BUREAU_DB_FILENAME);
+  if (!fs.existsSync(bureauDbPath)) return false;
+  let bureauDb;
+  try {
+    bureauDb = new Database(bureauDbPath, { readonly: true, fileMustExist: true });
+    return Boolean(bureauDb.prepare('SELECT 1 FROM bureaus LIMIT 1').get());
+  } catch {
+    return false;
+  } finally {
+    bureauDb?.close();
+  }
+}
+
+/**
+ * Bureaus are experimental and off by default, but anyone who already has one
+ * keeps its tab.
+ */
+function enableBureausIfInUse(db, dataRoot) {
+  if (dataRoot && hasBureaus(dataRoot)) {
+    db.exec('UPDATE settings SET experimental_bureaus = 1 WHERE id = 1');
+    console.log('Found existing Bureaus: turned on the Bureaus experimental feature');
+  }
+}
+
+/**
  * Calculate word count from text content
  * Counts words including contractions (don't, it's) and hyphenated words (well-known)
  * as single words, matching typical word processor behavior.
@@ -310,7 +342,7 @@ function calculateWordCount(content) {
 /**
  * Migrate schema to latest version
  */
-function migrateSchema(db, fromVersion) {
+function migrateSchema(db, fromVersion, dataRoot) {
   console.log(`Migrating database from version ${fromVersion} to ${SCHEMA_VERSION}`);
 
   // Wrap all migrations in a transaction for atomicity
@@ -448,6 +480,15 @@ function migrateSchema(db, fromVersion) {
       createChatTables(db);
 
       console.log('Added chat tables');
+    }
+
+    // Migration to version 11: Put Bureaus behind an experimental toggle, on for existing users
+    if (fromVersion < 11) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_bureaus')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_bureaus INTEGER DEFAULT 0');
+      }
+      enableBureausIfInUse(db, dataRoot);
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

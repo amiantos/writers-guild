@@ -86,6 +86,17 @@
                 their prompts can be customized under Chat Templates in each preset.
               </p>
             </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="settings.experimentalBureaus" />
+                <span>Bureaus</span>
+              </label>
+              <p class="help-text">
+                Adds a Bureaus tab: ongoing stories written in chapters, with characters who
+                remember, change over time, and can be messaged between chapters. Uses DeepSeek.
+                Turning this off only hides the tab; your Bureaus are kept.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -156,6 +167,8 @@
           </div>
         </section>
       </div>
+
+      <p class="app-version">Writers Guild v{{ appVersion }}</p>
     </div>
   </div>
 </template>
@@ -168,6 +181,7 @@ import { useNavigation } from '../composables/useNavigation';
 
 const toast = useToast();
 const { goBack } = useNavigation();
+const appVersion = __APP_VERSION__;
 
 // State
 const loading = ref(true);
@@ -190,6 +204,7 @@ const settings = ref({
   lorebookRecursionDepth: 3,
   lorebookEnableRecursion: true,
   experimentalChats: false,
+  experimentalBureaus: false,
 });
 
 onMounted(async () => {
@@ -251,6 +266,7 @@ async function loadSettings() {
       lorebookRecursionDepth: serverSettings.lorebookRecursionDepth ?? 3,
       lorebookEnableRecursion: serverSettings.lorebookEnableRecursion ?? true,
       experimentalChats: serverSettings.experimentalChats ?? false,
+      experimentalBureaus: serverSettings.experimentalBureaus ?? false,
     };
   } catch (error) {
     console.error('Failed to load settings:', error);
@@ -458,5 +474,11 @@ async function saveSettings() {
   font-size: 0.8rem;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+.app-version {
+  margin: 2rem 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 </style>

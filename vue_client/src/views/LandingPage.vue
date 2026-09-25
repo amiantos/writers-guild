@@ -172,7 +172,7 @@
           </template>
 
           <!-- Bureaus Tab (experimental) -->
-          <template #tab-bureaus>
+          <template v-if="bureausEnabled" #tab-bureaus>
             <BureausTab />
           </template>
         </Tabs>
@@ -342,8 +342,10 @@ const recentCharacters = computed(() => {
     .filter((char) => char != null);
 });
 
-// Chats are experimental: their tab shows once they're turned on in Settings.
+// Chats and Bureaus are experimental: their tabs show once they're turned on in Settings.
 const chatsEnabled = ref(false);
+const bureausEnabled = ref(false);
+const EXPERIMENTAL_TABS = ['chats', 'bureaus'];
 
 // Tabs configuration
 const tabs = computed(() => [
@@ -352,14 +354,14 @@ const tabs = computed(() => [
   { key: 'characters', label: 'Characters', icon: 'fas fa-users' },
   { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' },
   { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' },
-  { key: 'bureaus', label: 'Bureaus', icon: 'fas fa-landmark' },
+  ...(bureausEnabled.value ? [{ key: 'bureaus', label: 'Bureaus', icon: 'fas fa-landmark' }] : []),
 ]);
 
 // Active tab with localStorage persistence
 const STORAGE_KEY = 'writers-guild-active-tab';
 const savedTab = localStorage.getItem(STORAGE_KEY) || 'stories';
-// The Chats tab waits for settings to load before it can be shown.
-const activeTab = ref(savedTab === 'chats' ? 'stories' : savedTab);
+// Experimental tabs wait for settings to load before they can be shown.
+const activeTab = ref(EXPERIMENTAL_TABS.includes(savedTab) ? 'stories' : savedTab);
 
 // Save active tab to localStorage when it changes
 watch(activeTab, (newTab) => {
@@ -369,18 +371,21 @@ watch(activeTab, (newTab) => {
 const chats = ref([]);
 const loadingChats = ref(false);
 
-async function loadChatsEnabled() {
+async function loadExperimentalFeatures() {
   try {
     const { settings } = await settingsAPI.get();
     chatsEnabled.value = Boolean(settings?.experimentalChats);
+    bureausEnabled.value = Boolean(settings?.experimentalBureaus);
   } catch (error) {
     console.error('Failed to load settings:', error);
   }
-  if (!chatsEnabled.value) return;
-  if (savedTab === 'chats' && activeTab.value === 'stories') {
-    activeTab.value = 'chats';
+  const savedTabEnabled =
+    (savedTab === 'chats' && chatsEnabled.value) ||
+    (savedTab === 'bureaus' && bureausEnabled.value);
+  if (savedTabEnabled && activeTab.value === 'stories') {
+    activeTab.value = savedTab;
   }
-  await loadChats();
+  if (chatsEnabled.value) await loadChats();
 }
 
 async function loadChats() {
@@ -431,7 +436,7 @@ async function deleteChat(chat) {
 
 onMounted(async () => {
   // Load all data using cache - will skip API calls if data is fresh
-  await Promise.all([loadAll(), loadChatsEnabled()]);
+  await Promise.all([loadAll(), loadExperimentalFeatures()]);
 });
 
 async function createNewStory() {

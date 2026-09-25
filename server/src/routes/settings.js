@@ -48,6 +48,7 @@ router.put(
       defaultPersonaId,
       onboardingCompleted,
       experimentalChats,
+      experimentalBureaus,
     } = req.body;
 
     // Get current settings
@@ -84,6 +85,9 @@ router.put(
         onboardingCompleted: Boolean(onboardingCompleted),
       }),
       ...(experimentalChats !== undefined && { experimentalChats: Boolean(experimentalChats) }),
+      ...(experimentalBureaus !== undefined && {
+        experimentalBureaus: Boolean(experimentalBureaus),
+      }),
     };
 
     const saved = await storage.saveSettings(updated);

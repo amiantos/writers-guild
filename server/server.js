@@ -35,6 +35,11 @@ import { runMigration } from './src/services/migration.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Version, as released
+const { version: VERSION } = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'),
+);
+
 // Load configuration
 const configPath = path.join(__dirname, 'config.yaml');
 const config = yaml.parse(fs.readFileSync(configPath, 'utf8'));
@@ -163,9 +168,11 @@ app.use((err, req, res, _next) => {
 
 // Start server
 app.listen(PORT, HOST, () => {
+  const title = `Writers Guild v${VERSION}`;
+  const left = Math.floor((40 - title.length) / 2);
   console.log(`
 ╔════════════════════════════════════════╗
-║       Writers Guild Server v2.0        ║
+║${' '.repeat(left)}${title}${' '.repeat(40 - title.length - left)}║
 ╚════════════════════════════════════════╝
 
 Server running at: http://${HOST}:${PORT}
