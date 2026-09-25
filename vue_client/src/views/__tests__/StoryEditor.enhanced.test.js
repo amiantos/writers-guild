@@ -11,6 +11,7 @@ vi.mock('../../services/api', () => ({
     continueStory: vi.fn(),
     continueWithInstruction: vi.fn(),
     storyStarter: vi.fn(),
+    rewriteThirdPerson: vi.fn(),
     undo: vi.fn(),
     setRewritePrompt: vi.fn(),
   },
@@ -35,7 +36,11 @@ vi.mock('../../composables/useConfirm', () => ({
 const STUBS = {
   ReasoningPanel: true,
   CharacterResponseModal: true,
-  GreetingSelectorModal: true,
+  GreetingSelectorModal: {
+    emits: ['select'],
+    template:
+      '<button class="pick-greeting" @click="$emit(\'select\', \'I wave.\\n\\nI grin.\')">Pick</button>',
+  },
   ViewPromptModal: true,
   CustomPromptModal: true,
   ManageCharactersModal: true,
@@ -44,7 +49,10 @@ const STUBS = {
   StoryPresetModal: true,
   IdeateModal: true,
   FloatingAvatarWindow: true,
-  ThirdPersonPromptModal: true,
+  ThirdPersonPromptModal: {
+    emits: ['rewrite'],
+    template: '<button class="accept-rewrite" @click="$emit(\'rewrite\')">Rewrite</button>',
+  },
 };
 
 async function* stream(chunks) {
@@ -190,6 +198,38 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     await flushPromises();
 
     expect(wrapper.find('textarea.composer-input').element.value).toBe('Add thunder');
+  });
+
+  it('keeps a rewritten greeting as one passage under one seam', async () => {
+    loadStory('');
+    storiesAPI.rewriteThirdPerson.mockReturnValue(
+      stream([{ reasoning: 'Shift to third person.' }, { content: 'She waved.\n\nShe grinned.' }]),
+    );
+    const wrapper = await mountEditor();
+
+    await button(wrapper, 'Greeting').trigger('click');
+    await wrapper.find('.pick-greeting').trigger('click');
+    await flushPromises();
+    await wrapper.find('.accept-rewrite').trigger('click');
+    await flushPromises();
+    // The rewrite waits a frame after saving, to scroll the preview.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await flushPromises();
+
+    const blocks = wrapper.findAll('article.turn');
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].text()).toContain('She waved.');
+    expect(blocks[0].text()).toContain('She grinned.');
+    expect(wrapper.findAll('.seam-label').map((label) => label.text())).toEqual([
+      'How this was written',
+    ]);
+    expect(lastSave().passages.at(-1)).toEqual(
+      expect.objectContaining({
+        text: 'She waved.\n\nShe grinned.',
+        action: 'rewrite',
+        reasoning: 'Shift to third person.',
+      }),
+    );
   });
 
   it('edits a passage in place, marking its record edited', async () => {

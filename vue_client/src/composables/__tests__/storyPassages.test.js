@@ -5,7 +5,6 @@ import {
   replaceBlock,
   removeBlock,
   appendText,
-  paragraphsOf,
 } from '../storyPassages.js';
 
 const record = (id, text, extra = {}) => ({ id, text, source: 'generated', ...extra });
@@ -115,11 +114,5 @@ describe('appendText', () => {
   it('adds a paragraph at the end, as the preview input does', () => {
     expect(appendText('Alpha.\n\n\n', ' Beta. ')).toBe('Alpha.\n\nBeta.\n\n');
     expect(appendText('', 'Beta.')).toBe('Beta.\n\n');
-  });
-});
-
-describe('paragraphsOf', () => {
-  it('splits text into trimmed paragraphs', () => {
-    expect(paragraphsOf('  One.\n\nTwo.\nStill two.\n\n\n')).toEqual(['One.', 'Two.\nStill two.']);
   });
 });

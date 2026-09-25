@@ -377,7 +377,6 @@ import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys';
 import {
   appendText,
   newPassageId,
-  paragraphsOf,
   pruneRecords,
   removeBlock,
   replaceBlock,
@@ -1275,19 +1274,6 @@ function recordPassage(text, passage, reasoningText = '') {
   return true;
 }
 
-/**
- * Record a third-person rewrite a paragraph at a time, so each can be edited on its own. The
- * reasoning goes with the first.
- */
-function recordRewrite(text, passage, reasoningText) {
-  if (!enhancedEnabled.value || recordedPassages.has(passage)) return false;
-  paragraphsOf(text).forEach((paragraph, index) => {
-    recordPassage(paragraph, { ...passage }, index === 0 ? reasoningText : '');
-  });
-  recordedPassages.add(passage);
-  return passagesDirty;
-}
-
 async function handlePassageSave(block, text) {
   const trimmed = normalizeMarkdownImageSpacing(text.trim());
   content.value = replaceBlock(content.value, block, trimmed);
@@ -1505,7 +1491,7 @@ async function rewriteToThirdPerson(skipConfirm = false) {
 
     // Add two line breaks and position cursor at end
     if (rewrittenContent) {
-      recordRewrite(rewrittenContent, passage, reasoningText);
+      recordPassage(rewrittenContent, passage, reasoningText);
       rewrittenContent += '\n\n';
       content.value = rewrittenContent;
 
@@ -1534,7 +1520,7 @@ async function rewriteToThirdPerson(skipConfirm = false) {
       previewRef.value.scrollTop = previewRef.value.scrollHeight;
     }
   } catch (error) {
-    if (recordRewrite(rewrittenContent, passage, reasoningText)) {
+    if (recordPassage(rewrittenContent, passage, reasoningText)) {
       await saveStory(true);
     }
     // Check if it was a cancellation

@@ -23,9 +23,6 @@
         <p v-else-if="live" class="seam-meta">
           Nothing to show yet. Reasoning streams in here when the model thinks before writing.
         </p>
-        <p v-else-if="passage?.action === 'rewrite'" class="seam-meta">
-          The rewrite's reasoning is with its first passage.
-        </p>
         <p v-else class="seam-meta">The model didn't share any reasoning for this passage.</p>
       </template>
     </div>

@@ -165,8 +165,3 @@ export function appendText(content, text) {
   const before = content.replace(/\s+$/, '');
   return `${before ? `${before}\n\n` : ''}${text.trim()}\n\n`;
 }
-
-/** Paragraphs of text, trimmed, for recording a rewrite passage by passage. */
-export function paragraphsOf(text) {
-  return paragraphRanges(text, 0, text.length).map(({ start, end }) => text.slice(start, end));
-}
