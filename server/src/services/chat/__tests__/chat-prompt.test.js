@@ -97,6 +97,14 @@ describe('splitReply', () => {
     ]);
   });
 
+  it('reads CRLF and CR line endings as LF', () => {
+    expect(splitReply('one\r\ntwo\r\n---\r\nthree\r---\rfour', 'Layla', ['Bradley'])).toEqual([
+      'one\ntwo',
+      'three',
+      'four',
+    ]);
+  });
+
   it('keeps colons that are not labels', () => {
     expect(splitReply('meet at 5:30\nNote: bring cash', 'Layla')).toEqual([
       'meet at 5:30\nNote: bring cash',

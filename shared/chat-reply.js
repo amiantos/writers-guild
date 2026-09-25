@@ -39,7 +39,8 @@ export function splitReply(text, name = '', otherNames = []) {
   const own = labelSource(ownVariants);
   const others = labelSource(otherVariants);
 
-  let body = text.replace(/\*/g, '');
+  // CRLF and CR line endings become LF, so no stray CR is saved inside a message.
+  let body = text.replace(/\r\n?/g, '\n').replace(/\*/g, '');
   if (others) {
     // Someone else's lines at the start are the model echoing the conversation, and are
     // skipped; once the reply has begun, someone else's label ends it.

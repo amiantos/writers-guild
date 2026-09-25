@@ -320,7 +320,12 @@ function hasBureaus(dataRoot) {
  */
 function enableBureausIfInUse(db, dataRoot) {
   if (dataRoot && hasBureaus(dataRoot)) {
-    db.exec('UPDATE settings SET experimental_bureaus = 1 WHERE id = 1');
+    // An upsert, since the migration runs once and an older database may not have a settings row
+    // yet for a plain UPDATE to change.
+    db.exec(`
+      INSERT INTO settings (id, experimental_bureaus) VALUES (1, 1)
+      ON CONFLICT(id) DO UPDATE SET experimental_bureaus = 1
+    `);
     console.log('Found existing Bureaus: turned on the Bureaus experimental feature');
   }
 }

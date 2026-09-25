@@ -57,6 +57,17 @@ describe('the Bureaus experimental toggle', () => {
     db.close();
   });
 
+  it('turns on when the upgraded database has no settings row yet', async () => {
+    new SqliteStorageService(dataRoot).close();
+    createBureau(dataRoot);
+    downgradeToV10(dataRoot);
+    const db = new Database(path.join(dataRoot, 'writers-guild.db'));
+    db.prepare('DELETE FROM settings').run();
+    db.close();
+
+    expect(await bureausEnabled(dataRoot)).toBe(true);
+  });
+
   it('stays off on upgrade when bureau.db has no Bureaus, or there is none', async () => {
     new SqliteStorageService(dataRoot).close();
     downgradeToV10(dataRoot);
