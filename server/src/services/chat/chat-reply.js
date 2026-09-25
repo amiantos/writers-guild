@@ -21,6 +21,17 @@ function nameOf(card) {
 }
 
 /**
+ * Labels that stop a text-completion reply: everyone else's, by full and first name as
+ * splitReply reads them, leaving out any the speaker's own name shares.
+ */
+export function stopLabels(speakerName, otherNames) {
+  const variants = (name) => [name, name.split(/\s+/)[0]].filter(Boolean);
+  const own = new Set(variants(speakerName));
+  const names = new Set(otherNames.flatMap(variants).filter((name) => !own.has(name)));
+  return [...names].map((name) => `\n${name}:`);
+}
+
+/**
  * Lorebook entries activated by the recent conversation and the scenario, with the preset's
  * lorebook settings.
  */
@@ -181,7 +192,7 @@ export async function generateChatReply({
     system,
     user,
     maxContextTokens,
-    stopSequences: textCompletion ? otherNames.map((name) => `\n${name}:`) : [],
+    stopSequences: textCompletion ? stopLabels(speakerName, otherNames) : [],
     signal,
     onEvent,
   });

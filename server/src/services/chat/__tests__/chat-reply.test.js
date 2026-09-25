@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import { SqliteStorageService } from '../../sqliteStorage.js';
 import { ChatStorage } from '../chat-storage.js';
-import { activateChatLore, generateChatReply } from '../chat-reply.js';
+import { activateChatLore, generateChatReply, stopLabels } from '../chat-reply.js';
 
 const layla = { id: 'layla', data: { name: 'Layla' } };
 const bradley = { id: 'bradley', data: { name: 'Bradley' } };
@@ -165,6 +165,17 @@ describe('generateChatReply', () => {
     // KoboldCpp and Ollama read maxContextTokens: the context the prompt was budgeted for.
     expect(options.maxContextTokens).toBe(8000);
     expect(turn.messages).toEqual(['omw']);
+  });
+});
+
+describe('stopLabels', () => {
+  it('stops at everyone else’s full and first names, never at the speaker’s own', () => {
+    expect(stopLabels('Layla Hart', ['Brad Root', 'Sam', 'Layla Jones'])).toEqual([
+      '\nBrad Root:',
+      '\nBrad:',
+      '\nSam:',
+      '\nLayla Jones:',
+    ]);
   });
 });
 
