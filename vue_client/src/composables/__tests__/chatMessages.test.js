@@ -15,6 +15,12 @@ describe('chatMessages', () => {
     expect(splitReply('Layla: hey')).toEqual(['Layla: hey']);
   });
 
+  it('skips echoed lines and stops at someone else’s label, as the saved reply will', () => {
+    expect(splitReply('Bradley: you up?\nLayla: hi\nBradley: hey', 'Layla', ['Bradley'])).toEqual([
+      'hi',
+    ]);
+  });
+
   it('names a character’s turn in a group when the speaker changes', () => {
     const turns = [
       { source: 'user' },

@@ -183,6 +183,7 @@ describe('Chats API', () => {
         'done',
       ]);
       expect(stream[0].turn).toMatchObject({ source: 'user', messages: ['you up?'] });
+      expect(stream[1]).toMatchObject({ characterId: layla, otherNames: ['Bradley'] });
       expect(stream.at(-1).turn).toMatchObject({
         source: 'character',
         characterId: layla,

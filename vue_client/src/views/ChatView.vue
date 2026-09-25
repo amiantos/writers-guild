@@ -357,7 +357,9 @@ const visibleTurns = computed(() =>
     : turns.value,
 );
 const pendingParts = computed(() =>
-  pending.value ? splitReply(pending.value.content, pending.value.speakerName) : [],
+  pending.value
+    ? splitReply(pending.value.content, pending.value.speakerName, pending.value.otherNames)
+    : [],
 );
 const nudgeName = computed(() =>
   isGroup.value ? 'someone' : (chatCharacters.value[0]?.name ?? 'them'),
@@ -462,10 +464,13 @@ async function runReply(start, { composerText = '', regenerating = null } = {}) 
     content: '',
     reasoning: '',
     speakerName: '',
+    otherNames: [],
     regenerating,
   };
   let messageSaved = false;
   let stopped = false;
+  let failed = false;
+  const earlierTurnIds = new Set(turns.value.map((turn) => turn.id));
 
   try {
     for await (const event of start(abortController.signal)) {
@@ -474,6 +479,7 @@ async function runReply(start, { composerText = '', regenerating = null } = {}) 
         turns.value = [...turns.value, event.turn];
       } else if (event.type === 'speaker') {
         pending.value.speakerName = event.name;
+        pending.value.otherNames = event.otherNames ?? [];
         pending.value.status = `${event.name} is typing...`;
       } else if (event.type === 'prompt') {
         lastPrompt.value = { system: event.system, user: event.user };
@@ -498,11 +504,7 @@ async function runReply(start, { composerText = '', regenerating = null } = {}) 
       toast.info('Stopped. Anything already written was kept.');
     } else {
       toast.error(`The reply failed: ${error.message}`);
-      // Nothing was saved, so give the user their words back.
-      if (!messageSaved && composerText) {
-        text.value = composerText;
-        nextTick(resizeInput);
-      }
+      failed = true;
     }
   } finally {
     sending.value = false;
@@ -511,6 +513,20 @@ async function runReply(start, { composerText = '', regenerating = null } = {}) 
   }
 
   await refresh();
+  if (failed && !messageSaved && composerText) {
+    // Give the user their words back unless the server saved them after all, as it may have
+    // when the connection dropped before the saved message was reported.
+    const savedAfterAll = turns.value.some(
+      (turn) =>
+        !earlierTurnIds.has(turn.id) &&
+        turn.source === 'user' &&
+        turn.messages.join('\n') === composerText,
+    );
+    if (!savedAfterAll) {
+      text.value = composerText;
+      nextTick(resizeInput);
+    }
+  }
   scrollToEnd();
   if (stopped) {
     // The server saves the partial reply once it notices the disconnect.

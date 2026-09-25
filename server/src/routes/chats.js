@@ -13,7 +13,7 @@ import express from 'express';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { SqliteStorageService } from '../services/sqliteStorage.js';
 import { ChatStorage } from '../services/chat/chat-storage.js';
-import { generateChatReply } from '../services/chat/chat-reply.js';
+import { generateChatReply, replyNames } from '../services/chat/chat-reply.js';
 import { joinNames, pickSpeaker } from '../services/chat/chat-prompt.js';
 import { getProvider } from '../services/provider-factory.js';
 import { sseChannel } from '../utils/sse.js';
@@ -206,7 +206,9 @@ async function respondWithReply(req, res, { chat, context, speaker, userTurn, re
   if (userTurn) {
     channel.send({ type: 'turn', turn: userTurn });
   }
-  channel.send({ type: 'speaker', characterId: speaker.id, name: speaker.data?.name ?? '' });
+  // The names the reply is split with, so the client's preview splits it the same way.
+  const { speakerName, otherNames } = replyNames(speaker, context.characters, context.persona);
+  channel.send({ type: 'speaker', characterId: speaker.id, name: speakerName, otherNames });
 
   try {
     const turn = await generateChatReply({

@@ -21,6 +21,21 @@ function nameOf(card) {
 }
 
 /**
+ * The speaker's name and everyone else's, as a reply is split with them.
+ *
+ * @param {Object} speaker - The character card writing.
+ * @param {Array<Object>} characters - Every character card in the chat.
+ * @param {Object|null} persona - The user's character card, if any.
+ * @returns {{ speakerName: string, otherNames: string[] }}
+ */
+export function replyNames(speaker, characters, persona) {
+  const speakerName = nameOf(speaker);
+  const userName = persona ? nameOf(persona) : 'User';
+  const otherNames = [userName, ...characters.map(nameOf)].filter((name) => name !== speakerName);
+  return { speakerName, otherNames };
+}
+
+/**
  * Labels that stop a text-completion reply: everyone else's, by full and first name as
  * splitReply reads them, leaving out any the speaker's own name shares.
  */
@@ -171,9 +186,7 @@ export async function generateChatReply({
   const turns = regenerate
     ? allTurns.filter((turn) => turn.position < regenerate.position)
     : allTurns;
-  const speakerName = nameOf(speaker);
-  const userName = persona ? nameOf(persona) : 'User';
-  const otherNames = [userName, ...characters.map(nameOf)].filter((name) => name !== speakerName);
+  const { speakerName, otherNames } = replyNames(speaker, characters, persona);
   // Provider ids match case-insensitively, as getProvider() matches them.
   const textCompletion = TEXT_COMPLETION_PROVIDERS.has(preset.provider?.toLowerCase());
 

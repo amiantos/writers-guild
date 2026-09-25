@@ -2,32 +2,8 @@
  * Chat Message Helpers
  */
 
-const SEPARATOR_LINE = /^[ \t]*---[ \t]*$/m;
-
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * A reply being written, split into the messages it will likely be saved as. As the server
- * does, a line starting with the sender's own "Name:" label, full or first name, starts a new
- * message and loses the label.
- * @param {string} text
- * @param {string} [name] - The sender's name.
- */
-export function splitReply(text, name = '') {
-  const variants = [...new Set([name, name.split(/\s+/)[0]])].filter(Boolean);
-  const own = variants.length
-    ? `[ \\t]*(?:${variants.map(escapeRegExp).join('|')})[ \\t]*:[ \\t]*`
-    : null;
-  const ownLabel = own ? new RegExp(`^${own}`, 'i') : null;
-  const ownLabelLine = own ? new RegExp(`\\n(?=${own})`, 'i') : null;
-  return text
-    .split(SEPARATOR_LINE)
-    .flatMap((part) => (ownLabelLine ? part.split(ownLabelLine) : [part]))
-    .map((part) => (ownLabel ? part.trim().replace(ownLabel, '') : part).trim())
-    .filter(Boolean);
-}
+// The server's own rules, so a reply being written previews as the messages it will be saved as.
+export { splitReply } from '../../../shared/chat-reply.js';
 
 /**
  * Whether a turn's sender should be named above it: in a group chat, when a character's turn

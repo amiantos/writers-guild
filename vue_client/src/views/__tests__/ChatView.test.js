@@ -115,9 +115,10 @@ describe('ChatView', () => {
     });
     chatsAPI.send.mockImplementation(async function* stream() {
       yield { type: 'turn', turn: turn('t3', 'user', ['landed']) };
-      yield { type: 'speaker', characterId: 'layla', name: 'Layla' };
+      yield { type: 'speaker', characterId: 'layla', name: 'Layla', otherNames: ['Bradley'] };
       yield { type: 'prompt', system: 'sys', user: 'usr' };
-      yield { type: 'content', text: 'finally\n---\nhow' };
+      // An echoed line and the sender's own label, which the saved reply won't have either.
+      yield { type: 'content', text: 'Bradley: landed\nLayla: finally\n---\nhow' };
       await finished;
       yield { type: 'done' };
     });
@@ -200,6 +201,26 @@ describe('ChatView', () => {
     await flushPromises();
 
     expect(wrapper.find('.message-input').element.value).toBe('hello?');
+  });
+
+  it('keeps the composer empty when a dropped reply’s message was saved after all', async () => {
+    chatsAPI.send.mockImplementation(async function* stream() {
+      yield* [];
+      throw new Error('The connection closed before the reply finished');
+    });
+    const wrapper = mountChat();
+    await flushPromises();
+    chatsAPI.get.mockResolvedValue({
+      chat: CHAT,
+      turns: [...TURNS, turn('t3', 'user', ['hello?'])],
+    });
+
+    await wrapper.find('.message-input').setValue('hello?');
+    await wrapper.find('.message-input').trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+
+    expect(wrapper.find('.message-input').element.value).toBe('');
+    expect(wrapper.findAll('.bubble').at(-1).text()).toBe('hello?');
   });
 
   it('regenerates the last reply, hiding the version it replaces', async () => {
