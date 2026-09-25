@@ -7,7 +7,8 @@
       </p>
 
       <template v-for="(block, index) in blocks" :key="block.key">
-        <PassageSeam :passage="block.record" />
+        <!-- Text with no record, such as an older story's, has no seam to open -->
+        <PassageSeam v-if="block.record" :passage="block.record" />
         <PassageBlock
           :block="block"
           :busy="busy"

@@ -10,10 +10,6 @@
     </button>
 
     <div v-if="open" class="seam-panel">
-      <p v-if="!live && !passage" class="seam-meta">
-        This was written in the editor, or before Enhanced Story Mode kept a record of how passages
-        were written.
-      </p>
       <p v-if="meta" class="seam-meta">{{ meta }}</p>
       <div v-if="instruction" class="seam-block">
         <div class="block-label">Your instruction</div>
@@ -41,7 +37,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { formatDateTime } from '../../composables/bureau/format';
 
 const props = defineProps({
-  /** The record of the passage below; absent while it's being written, or when there is none. */
+  /** The record of the passage below; absent while it's being written. */
   passage: { type: Object, default: null },
   /** Live progress ({ status, action, characterName, instruction }) while the passage is written. */
   live: { type: Object, default: null },
@@ -70,8 +66,7 @@ const instruction = computed(() => source.value.instruction ?? '');
 
 const label = computed(() => {
   if (props.live) return props.live.status;
-  if (!props.passage) return 'No record';
-  if (props.passage.source === 'generated') return 'How this was written';
+  if (props.passage?.source === 'generated') return 'How this was written';
   return props.passage?.action === 'greeting' ? 'Greeting' : 'Written by you';
 });
 

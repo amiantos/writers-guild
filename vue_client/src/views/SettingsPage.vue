@@ -103,10 +103,10 @@
                 <span>Enhanced Story Mode</span>
               </label>
               <p class="help-text">
-                Replaces story mode's preview with the story as passages: hover one to edit, delete,
-                or write the last one again, and open the seam above it to see how it was written,
-                reasoning included. A text box at the bottom writes, instructs, and continues.
-                Prompts and generation are the same as story mode's.
+                Replaces story mode's editor and preview with the story as passages: hover one to
+                edit, delete, or write the last one again, and open the seam above it to see how it
+                was written, reasoning included. A text box at the bottom writes, instructs, and
+                continues. Prompts and generation are the same as story mode's.
               </p>
             </div>
           </div>

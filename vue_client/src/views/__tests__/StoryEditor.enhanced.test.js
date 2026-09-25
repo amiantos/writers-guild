@@ -85,7 +85,7 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     charactersAPI.list.mockResolvedValue({ characters: [] });
   });
 
-  it('opens on the story as passages, with a seam above each', async () => {
+  it('opens on the story as passages, with a seam above each recorded one', async () => {
     loadStory('Opening.\n\nThe rain came down.\n\n', [
       { id: 'p1', text: 'The rain came down.', source: 'generated', action: 'continue' },
     ]);
@@ -95,9 +95,19 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     const blocks = wrapper.findAll('article.turn');
     expect(blocks.map((block) => block.text())).toEqual(['Opening.', 'The rain came down.']);
     expect(wrapper.findAll('.seam-label').map((label) => label.text())).toEqual([
-      'No record',
       'How this was written',
     ]);
+  });
+
+  it('is the only view, with no switch to the editor or preview', async () => {
+    loadStory('Opening.\n\n![map](/map.png)\n\n');
+    const wrapper = await mountEditor();
+
+    expect(wrapper.find('.story-column').exists()).toBe(true);
+    expect(wrapper.find('button[title="Switch to editor"]').exists()).toBe(false);
+    expect(wrapper.find('button[title="Preview rendered content"]').exists()).toBe(false);
+    expect(wrapper.find('.story-preview').exists()).toBe(false);
+    expect(wrapper.find('.bottom-toolbar').exists()).toBe(false);
   });
 
   it('records a continuation and its reasoning, and shows them in the seam', async () => {
@@ -257,7 +267,7 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     await flushPromises();
 
     expect(lastSave().passages).toBeUndefined();
-    await wrapper.find('.header-right .icon-btn').trigger('click');
+    await wrapper.find('button[title="Preview rendered content"]').trigger('click');
     expect(wrapper.find('.story-preview').exists()).toBe(true);
     expect(wrapper.find('.preview-input-bar').exists()).toBe(true);
   });

@@ -1,5 +1,8 @@
 <template>
-  <article class="turn" :class="{ 'from-user': block.record?.source === 'user' }">
+  <article
+    class="turn"
+    :class="{ 'from-user': block.record?.source === 'user', 'no-seam': !block.record }"
+  >
     <div v-if="editing" class="turn-editor">
       <textarea
         ref="editorRef"
@@ -124,6 +127,14 @@ function save() {
   z-index: 2;
 }
 
+/* With no seam above to sit in, the actions stand beside the paragraph instead of over the one
+   before it. */
+.no-seam .turn-actions {
+  top: 0;
+  right: -2.75rem;
+  flex-direction: column;
+}
+
 .turn:hover .turn-actions,
 .turn:focus-within .turn-actions {
   opacity: 1;
@@ -167,9 +178,20 @@ function save() {
   gap: 0.5rem;
 }
 
+/* Too narrow for room beside the text, so over its top corner instead. */
+@media (max-width: 860px) {
+  .no-seam .turn-actions {
+    top: -0.25rem;
+    right: 0;
+    flex-direction: row;
+  }
+}
+
 @media (hover: none) {
-  .turn-actions {
+  .turn-actions,
+  .no-seam .turn-actions {
     position: static;
+    flex-direction: row;
     opacity: 0.6;
     pointer-events: auto;
     justify-content: flex-end;

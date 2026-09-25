@@ -9,17 +9,13 @@
         <h1 class="story-title">{{ story?.title || 'Loading...' }}</h1>
       </div>
       <div class="header-right">
+        <!-- Enhanced Story Mode is its own view, with nothing to switch to -->
         <button
+          v-if="!enhancedEnabled"
           class="icon-btn"
           :class="{ 'icon-btn-active': showPreview }"
           @click="showPreview = !showPreview"
-          :title="
-            showPreview
-              ? 'Switch to editor'
-              : enhancedEnabled
-                ? 'Switch to Enhanced Story Mode'
-                : 'Preview rendered content'
-          "
+          :title="showPreview ? 'Switch to editor' : 'Preview rendered content'"
         >
           <i class="fas fa-eye"></i>
         </button>
@@ -49,24 +45,15 @@
       <!-- Reasoning Panel -->
       <!-- Enhanced Story Mode shows reasoning in the seam above each passage instead -->
       <ReasoningPanel
-        v-if="showReasoningPanel && !enhancedView"
+        v-if="showReasoningPanel && !enhancedEnabled"
         :reasoning="reasoning"
         @close="showReasoningPanel = false"
       />
 
       <!-- Text Editor / Preview -->
-      <div class="editor-container">
-        <textarea
-          v-if="!showPreview"
-          ref="editorRef"
-          v-model="content"
-          class="story-editor"
-          placeholder="Start writing your story here..."
-          spellcheck="true"
-          @input="handleInput"
-        ></textarea>
+      <div v-if="viewReady" class="editor-container">
         <EnhancedStoryView
-          v-else-if="enhancedEnabled"
+          v-if="enhancedEnabled"
           ref="enhancedRef"
           :content="content"
           :passages="passages"
@@ -78,6 +65,15 @@
           @delete="handlePassageDelete"
           @regenerate="handlePassageRegenerate"
         />
+        <textarea
+          v-else-if="!showPreview"
+          ref="editorRef"
+          v-model="content"
+          class="story-editor"
+          placeholder="Start writing your story here..."
+          spellcheck="true"
+          @input="handleInput"
+        ></textarea>
         <div v-else ref="previewRef" class="story-preview" v-html="renderedContent"></div>
 
         <!-- Bottom input bar for preview mode -->
@@ -102,7 +98,7 @@
 
       <!-- Enhanced Story Mode's composer, in place of the toolbar -->
       <StoryModeComposer
-        v-if="enhancedView"
+        v-if="viewReady && enhancedEnabled"
         ref="composerRef"
         :generating="generating"
         :status="generationStatus"
@@ -164,7 +160,7 @@
       </StoryModeComposer>
 
       <!-- Bottom Toolbar -->
-      <div v-else class="bottom-toolbar">
+      <div v-else-if="viewReady" class="bottom-toolbar">
         <!-- Generation Status Overlay -->
         <div v-if="generating" class="generating-status">
           <div class="spinner"></div>
@@ -432,10 +428,12 @@ let abortController = null;
 const bottomInput = ref('');
 const bottomInputRef = ref(null);
 
-// Enhanced Story Mode (experimental): the preview as passages, with how each was written between
-// them. It changes how the story is shown and edited, never what's sent to the model.
+// Enhanced Story Mode (experimental): in place of the editor and preview, the story as passages,
+// with how each was written between them. It changes how the story is shown and edited, never
+// what's sent to the model.
 const enhancedEnabled = ref(false);
-const enhancedView = computed(() => showPreview.value && enhancedEnabled.value);
+// The story and settings have loaded, so it's known which view to show.
+const viewReady = ref(false);
 const enhancedRef = ref(null);
 const composerRef = ref(null);
 // The record of the story's passages (see storyPassages.js), kept while Enhanced Story Mode is on.
@@ -559,7 +557,11 @@ function handleKeyboardShortcut(event) {
 
   // In Enhanced Story Mode, text boxes keep their own shortcuts: the composer sends with
   // Cmd/Ctrl+Enter, and undo stays inside the box being typed in.
-  if (enhancedView.value && event.target instanceof Element && event.target.closest('textarea')) {
+  if (
+    enhancedEnabled.value &&
+    event.target instanceof Element &&
+    event.target.closest('textarea')
+  ) {
     return;
   }
 
@@ -596,8 +598,9 @@ function shouldShowThirdPersonPrompt() {
 }
 
 onMounted(async () => {
-  await loadStory();
-  await Promise.all([loadCharacters(), loadSettings()]);
+  await Promise.all([loadStory(), loadSettings()]);
+  viewReady.value = true;
+  await loadCharacters();
   startAutoSave();
 
   // Load avatar windows from story
@@ -605,8 +608,8 @@ onMounted(async () => {
     avatarWindows.value = story.value.avatarWindows;
   }
 
-  // Set preview mode as default if story has images, or Enhanced Story Mode is on
-  if (hasImages.value || enhancedEnabled.value) {
+  // Set preview mode as default if story has images
+  if (hasImages.value) {
     showPreview.value = true;
   }
 
