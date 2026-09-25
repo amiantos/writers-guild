@@ -98,6 +98,13 @@ describe('splitReply', () => {
     expect(splitReply('hey\nBradley: hi!\nLayla: ok', 'Layla', ['Bradley'])).toEqual(['hey']);
   });
 
+  it('reads a first name the sender shares with someone else as the sender’s own label', () => {
+    expect(splitReply('Layla: hey\nBradley: hi', 'Layla Hart', ['Layla Jones', 'Bradley'])).toEqual(
+      ['hey'],
+    );
+    expect(splitReply('hey\nLayla Jones: me too', 'Layla Hart', ['Layla Jones'])).toEqual(['hey']);
+  });
+
   it('joins messages past the limit into the last one', () => {
     const parts = splitReply(['1', '2', '3', '4', '5', '6', '7'].join('\n---\n'), 'Layla');
     expect(parts).toHaveLength(6);

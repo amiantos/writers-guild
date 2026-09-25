@@ -98,14 +98,19 @@ export function pickSpeaker(characters, turns) {
  * @returns {string[]}
  */
 export function splitReply(text, name, otherNames = []) {
-  const labelSource = (names) => {
-    const variants = [...new Set(names.flatMap((n) => [n, n.split(/\s+/)[0]]).filter(Boolean))];
-    return variants.length > 0
+  const variantsOf = (names) => names.flatMap((n) => [n, n.split(/\s+/)[0]]).filter(Boolean);
+  const labelSource = (variants) =>
+    variants.length > 0
       ? `[ \\t]*(?:${variants.map(escapeRegExp).join('|')})[ \\t]*:[ \\t]*`
       : null;
-  };
-  const own = labelSource([name]);
-  const others = labelSource(otherNames.filter((other) => other && other !== name));
+  // A name the sender shares, like another Layla's first name, is the sender's own label.
+  const ownVariants = [...new Set(variantsOf([name]))];
+  const ownKeys = new Set(ownVariants.map((variant) => variant.toLowerCase()));
+  const otherVariants = [...new Set(variantsOf(otherNames))].filter(
+    (variant) => !ownKeys.has(variant.toLowerCase()),
+  );
+  const own = labelSource(ownVariants);
+  const others = labelSource(otherVariants);
 
   let body = stripAsterisks(text);
   if (others) {

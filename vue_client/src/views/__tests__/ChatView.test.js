@@ -334,6 +334,35 @@ describe('ChatView', () => {
     expect(wrapper.find('.chat-title').text()).toBe('Chat with Layla');
   });
 
+  it('loads the new chat, dropping the old one’s prompt, when only the chat changes', async () => {
+    chatsAPI.reply.mockImplementation(async function* stream() {
+      yield { type: 'prompt', system: 'old system', user: 'old user' };
+      yield { type: 'done' };
+    });
+    const wrapper = mountChat();
+    await flushPromises();
+    await wrapper
+      .findAll('button')
+      .find((candidate) => candidate.text().includes('Let Layla Write'))
+      .trigger('click');
+    await flushPromises();
+    await wrapper.find('[aria-label="More options"]').trigger('click');
+    expect(wrapper.text()).toContain('View Last Prompt');
+
+    chatsAPI.get.mockResolvedValue({
+      chat: { ...CHAT, id: 'c2', title: 'Another chat' },
+      turns: [turn('t9', 'user', ['different'])],
+    });
+    await wrapper.setProps({ chatId: 'c2' });
+    await flushPromises();
+
+    expect(chatsAPI.get).toHaveBeenLastCalledWith('c2');
+    expect(wrapper.find('.chat-title').text()).toBe('Another chat');
+    expect(wrapper.findAll('.bubble').map((bubble) => bubble.text())).toEqual(['different']);
+    await wrapper.find('[aria-label="More options"]').trigger('click');
+    expect(wrapper.text()).not.toContain('View Last Prompt');
+  });
+
   it('clears the chat from the overflow menu', async () => {
     chatsAPI.clear.mockResolvedValue({ success: true });
     const wrapper = mountChat();

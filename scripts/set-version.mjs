@@ -12,8 +12,13 @@ import { fileURLToPath } from 'url';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const version = process.argv[2];
 
-if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version ?? '')) {
-  console.error('Usage: npm run version:set <major.minor.patch>');
+// Semantic Versioning 2.0.0's own pattern (semver.org): no leading zeros, no empty identifiers,
+// and optional prerelease and build metadata.
+const SEMVER =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
+
+if (!SEMVER.test(version ?? '')) {
+  console.error('Usage: npm run version:set <version>, a semantic version such as 1.2.0');
   process.exit(1);
 }
 

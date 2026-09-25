@@ -294,7 +294,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { chatsAPI } from '../services/chatsApi';
 import { useDataCache } from '../composables/useDataCache';
@@ -682,6 +682,25 @@ function goToSettings() {
 }
 
 onMounted(load);
+
+// The router reuses this view when only the chat changes, as when going back and forward
+// between two chats, so everything from the previous chat is dropped first.
+watch(
+  () => props.chatId,
+  () => {
+    abortController?.abort();
+    lastPrompt.value = null;
+    text.value = '';
+    showOverflowMenu.value = false;
+    showManageCharacters.value = false;
+    showManageLorebooks.value = false;
+    showEditChat.value = false;
+    showPresetSelector.value = false;
+    showCharacterSelector.value = false;
+    showViewPromptModal.value = false;
+    load();
+  },
+);
 onBeforeUnmount(() => {
   abortController?.abort();
 });
