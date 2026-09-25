@@ -171,10 +171,11 @@ export const storiesAPI = {
     });
   },
 
-  updateContent(storyId, content) {
+  /** Save the content, and the record of its passages when given (see storyPassages.js). */
+  updateContent(storyId, content, passages) {
     return request(`/stories/${storyId}/content`, {
       method: 'PUT',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(passages ? { content, passages } : { content }),
     });
   },
 

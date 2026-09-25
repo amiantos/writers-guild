@@ -308,6 +308,91 @@ describe('Stories API Routes - CRUD Operations', () => {
       expect(response.body).toHaveProperty('canUndo');
       expect(response.body).toHaveProperty('canRedo');
     });
+
+    it('saves the record of passages with the content, keeping only the fields it uses', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Title', description: 'Desc' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+
+      const initial = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(initial.body.story.passages).toEqual([]);
+
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({
+          content: 'The rain came down.\n\n',
+          passages: [
+            {
+              id: 'p1',
+              text: 'The rain came down.',
+              source: 'generated',
+              action: 'character',
+              characterId: 'c1',
+              characterName: 'Mara',
+              reasoning: 'Set the mood.',
+              created: '2026-01-01T00:00:00.000Z',
+              edited: true,
+              extra: 'dropped',
+            },
+          ],
+        })
+        .expect(200);
+
+      const saved = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(saved.body.story.passages).toEqual([
+        {
+          id: 'p1',
+          text: 'The rain came down.',
+          source: 'generated',
+          action: 'character',
+          characterId: 'c1',
+          characterName: 'Mara',
+          reasoning: 'Set the mood.',
+          created: '2026-01-01T00:00:00.000Z',
+          edited: true,
+        },
+      ]);
+
+      // Saving content alone leaves the record as it was.
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content: 'The rain came down. It kept on.\n\n' })
+        .expect(200);
+      const after = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(after.body.story.passages).toHaveLength(1);
+
+      const duplicate = await request(app).post(`/api/stories/${storyId}/duplicate`).expect(201);
+      expect(duplicate.body.story.passages).toEqual(saved.body.story.passages);
+    });
+
+    it('rejects a malformed record of passages without saving the content', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Title', description: 'Desc' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+
+      const cases = [
+        [{ passages: 'nope' }, 'passages must be an array'],
+        [{ passages: [null] }, 'passages[0] must be an object'],
+        [{ passages: [{ text: 'x', source: 'user' }] }, 'passages[0].id'],
+        [{ passages: [{ id: 'a', source: 'user' }] }, 'passages[0].text'],
+        [{ passages: [{ id: 'a', text: 'x', source: 'model' }] }, 'passages[0].source'],
+        [{ passages: [{ id: 'a', text: 'x', source: 'user', reasoning: 5 }] }, 'reasoning'],
+      ];
+      for (const [body, message] of cases) {
+        const response = await request(app)
+          .put(`/api/stories/${storyId}/content`)
+          .send({ content: 'Changed', ...body })
+          .expect(400);
+        expect(response.body.error).toContain(message);
+      }
+
+      const story = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(story.body.story.content).toBe('');
+    });
   });
 
   describe('DELETE /:id - Delete Story', () => {

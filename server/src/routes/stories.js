@@ -254,17 +254,69 @@ router.put(
   }),
 );
 
-// Update story content
+const MAX_PASSAGES = 2000;
+const PASSAGE_SOURCES = new Set(['generated', 'user']);
+const PASSAGE_STRING_FIELDS = [
+  'action',
+  'characterId',
+  'characterName',
+  'instruction',
+  'reasoning',
+  'created',
+];
+
+/**
+ * Check Enhanced Story Mode's record of a story's passages and keep only the fields it uses.
+ * Throws an AppError naming the first bad entry.
+ */
+function sanitizePassages(passages) {
+  if (!Array.isArray(passages)) {
+    throw new AppError('passages must be an array', 400);
+  }
+  if (passages.length > MAX_PASSAGES) {
+    throw new AppError(`A story can record at most ${MAX_PASSAGES} passages`, 400);
+  }
+  return passages.map((passage, index) => {
+    if (!passage || typeof passage !== 'object' || Array.isArray(passage)) {
+      throw new AppError(`passages[${index}] must be an object`, 400);
+    }
+    if (typeof passage.id !== 'string' || !passage.id) {
+      throw new AppError(`passages[${index}].id must be a non-empty string`, 400);
+    }
+    if (typeof passage.text !== 'string') {
+      throw new AppError(`passages[${index}].text must be a string`, 400);
+    }
+    if (!PASSAGE_SOURCES.has(passage.source)) {
+      throw new AppError(`passages[${index}].source must be "generated" or "user"`, 400);
+    }
+    const clean = { id: passage.id, text: passage.text, source: passage.source };
+    for (const field of PASSAGE_STRING_FIELDS) {
+      if (passage[field] === undefined || passage[field] === null) continue;
+      if (typeof passage[field] !== 'string') {
+        throw new AppError(`passages[${index}].${field} must be a string`, 400);
+      }
+      clean[field] = passage[field];
+    }
+    if (passage.edited) clean.edited = true;
+    return clean;
+  });
+}
+
+// Update story content, and optionally the record of its passages
 router.put(
   '/:id/content',
   asyncHandler(async (req, res) => {
-    const { content } = req.body;
+    const { content, passages } = req.body;
 
     if (content === undefined) {
       throw new AppError('Content is required', 400);
     }
+    const cleanPassages = passages === undefined ? null : sanitizePassages(passages);
 
     const result = await storage.updateStoryContent(req.params.id, content);
+    if (cleanPassages) {
+      await storage.updateStoryPassages(req.params.id, cleanPassages);
+    }
 
     // Include history status in response
     const historyStatus = await storage.getHistoryStatus(req.params.id);
