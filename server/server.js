@@ -168,12 +168,15 @@ app.use((err, req, res, _next) => {
 
 // Start server
 app.listen(PORT, HOST, () => {
+  // At least 40 wide, and wider for a long prerelease version.
   const title = `Writers Guild v${VERSION}`;
-  const left = Math.floor((40 - title.length) / 2);
+  const width = Math.max(40, title.length + 4);
+  const left = Math.floor((width - title.length) / 2);
+  const rule = '═'.repeat(width);
   console.log(`
-╔════════════════════════════════════════╗
-║${' '.repeat(left)}${title}${' '.repeat(40 - title.length - left)}║
-╚════════════════════════════════════════╝
+╔${rule}╗
+║${' '.repeat(left)}${title}${' '.repeat(width - title.length - left)}║
+╚${rule}╝
 
 Server running at: http://${HOST}:${PORT}
 Data directory: ${DATA_ROOT}

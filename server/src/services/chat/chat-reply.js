@@ -203,6 +203,12 @@ export async function generateChatReply({
     throw new Error(`${speakerName}'s reply came back empty`);
   }
   if (regenerate) {
+    // Checked again now, since a message may have been sent while this version was written, and
+    // a reply's versions are fixed once the chat moves on. The check and the save run together.
+    if (chats.getLastTurn(chat.id)?.id !== regenerate.id) {
+      if (cancelled) return null;
+      throw new Error('The chat moved on while this version was written, so it wasn’t saved');
+    }
     return chats.addSwipe(chat.id, regenerate.id, { messages, reasoning });
   }
   return chats.addTurn(chat.id, {

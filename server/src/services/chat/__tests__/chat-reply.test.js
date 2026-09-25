@@ -101,6 +101,24 @@ describe('generateChatReply', () => {
     expect(provider.generateStreaming.mock.calls[0][1]).not.toContain('Layla: hi');
   });
 
+  it('drops a regenerated version when the chat moved on while it was written', async () => {
+    const first = await reply(streamingProvider([{ content: 'hi' }]));
+    const provider = {
+      resolveContextTokens: () => 8000,
+      getCapabilities: () => ({ streaming: true }),
+      generateStreaming: async () => ({
+        stream: (async function* () {
+          yield { content: 'hello' };
+          // Someone sends a message mid-generation.
+          chats.addTurn(chat.id, { source: 'user', senderName: 'Bradley', messages: ['wait'] });
+        })(),
+      }),
+    };
+
+    await expect(reply(provider, { regenerate: first })).rejects.toThrow('The chat moved on');
+    expect(chats.getTurn(chat.id, first.id).swipes).toHaveLength(1);
+  });
+
   it('saves what was written so far when cancelled, and nothing when nothing was', async () => {
     const abort = Object.assign(new Error('aborted'), { name: 'AbortError' });
     const partial = await reply(streamingProvider([{ content: 'wait' }, abort]));
