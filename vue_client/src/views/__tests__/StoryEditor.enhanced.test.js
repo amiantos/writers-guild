@@ -345,6 +345,35 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     expect(lastSave().content).toBe('Opening.\n\nLightning.\n\n');
   });
 
+  it("shows the new version's seam when it comes back with the same text", async () => {
+    loadStory('Opening.\n\nThunder.\n\n', [
+      {
+        id: 'p1',
+        text: 'Thunder.',
+        source: 'generated',
+        action: 'continue',
+        reasoning: 'First try.',
+      },
+    ]);
+    storiesAPI.continueStory.mockReturnValue(
+      stream([{ reasoning: 'Second try.' }, { content: 'Thunder.' }]),
+    );
+    const wrapper = await mountEditor();
+
+    await wrapper
+      .findAll('article.turn')[1]
+      .find('button[title="Write another version"]')
+      .trigger('click');
+    await flushPromises();
+
+    const { content, passages } = lastSave();
+    expect(content).toBe('Opening.\n\nThunder.\n\n');
+    // The old version stays, for Undo, after the new one.
+    expect(passages.map((record) => record.reasoning)).toEqual(['Second try.', 'First try.']);
+    await wrapper.findAll('.seam-toggle').at(-1).trigger('click');
+    expect(wrapper.find('.seam-panel').text()).toContain('Second try.');
+  });
+
   it('stays plain story mode with the setting off: preview, toolbar, and no record', async () => {
     loadStory('Opening.\n\n');
     storiesAPI.continueStory.mockReturnValue(stream([{ content: 'More.' }]));

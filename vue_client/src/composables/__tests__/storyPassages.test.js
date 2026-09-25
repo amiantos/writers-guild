@@ -81,6 +81,14 @@ describe('pruneRecords', () => {
     ]);
     expect(pruneRecords(records, 'Here.\n\n', 0).map((item) => item.id)).toEqual(['here']);
   });
+
+  it('keeps within the most the server takes, dropping the oldest first', () => {
+    const records = ['A.', 'B.', 'C.'].map((text, index) => record(`r${index}`, text));
+    expect(pruneRecords(records, 'A.\n\nB.\n\nC.\n\n', 50, 2).map((item) => item.id)).toEqual([
+      'r1',
+      'r2',
+    ]);
+  });
 });
 
 describe('editing blocks', () => {

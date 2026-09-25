@@ -11,6 +11,8 @@
  * back.
  */
 
+import { MAX_STORY_PASSAGES } from '../../../shared/story-passages.js';
+
 /** Stale records kept for a passage undo or redo could bring back. */
 export const STALE_PASSAGES_KEPT = 50;
 
@@ -131,13 +133,20 @@ export function splitPassages(content, records = []) {
 }
 
 /**
- * The records to keep: every one found in the content, and the latest few that aren't, for undo.
+ * The records to keep: every one found in the content, and the latest few that aren't, for undo,
+ * up to the most the server takes. Past that, the oldest go first.
  */
-export function pruneRecords(records, content, keepStale = STALE_PASSAGES_KEPT) {
+export function pruneRecords(
+  records,
+  content,
+  keepStale = STALE_PASSAGES_KEPT,
+  max = MAX_STORY_PASSAGES,
+) {
   const found = new Set(placeRecords(content, records).map(({ record }) => record));
   const stale = records.filter((record) => !found.has(record));
   const keptStale = new Set(keepStale > 0 ? stale.slice(-keepStale) : []);
-  return records.filter((record) => found.has(record) || keptStale.has(record));
+  const kept = records.filter((record) => found.has(record) || keptStale.has(record));
+  return kept.length > max ? kept.slice(-max) : kept;
 }
 
 /** The content with a block's text replaced. */

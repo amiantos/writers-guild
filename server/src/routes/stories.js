@@ -12,6 +12,7 @@ import { ImagePreserver } from '../services/image-preserver.js';
 import { REWRITE_GENERATION_TYPES } from '../services/prompt-builder.js';
 import { getProvider } from '../services/provider-factory.js';
 import { createPresetFromSettings } from '../services/default-presets.js';
+import { MAX_STORY_PASSAGES } from '../../../shared/story-passages.js';
 
 const router = express.Router();
 
@@ -254,7 +255,6 @@ router.put(
   }),
 );
 
-const MAX_PASSAGES = 2000;
 const PASSAGE_SOURCES = new Set(['generated', 'user']);
 const PASSAGE_STRING_FIELDS = [
   'action',
@@ -273,8 +273,8 @@ function sanitizePassages(passages) {
   if (!Array.isArray(passages)) {
     throw new AppError('passages must be an array', 400);
   }
-  if (passages.length > MAX_PASSAGES) {
-    throw new AppError(`A story can record at most ${MAX_PASSAGES} passages`, 400);
+  if (passages.length > MAX_STORY_PASSAGES) {
+    throw new AppError(`A story can record at most ${MAX_STORY_PASSAGES} passages`, 400);
   }
   return passages.map((passage, index) => {
     if (!passage || typeof passage !== 'object' || Array.isArray(passage)) {

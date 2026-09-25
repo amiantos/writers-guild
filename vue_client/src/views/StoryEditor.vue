@@ -1309,21 +1309,31 @@ async function handlePassageRegenerate(block) {
   const record = block.record;
   if (generating.value || !record) return;
   content.value = removeBlock(content.value, block);
+  // The old version's record is kept for Undo, but after the new one's, so the new one wins if the
+  // model writes the same text again.
+  passages.value = passages.value.filter((item) => item.id !== record.id);
+  passagesDirty = true;
 
-  if (record.action === 'starter') {
-    await saveStory(true);
-    await handleStoryStarter();
-  } else if (record.action === 'instruction') {
-    await generate(true, record.instruction, null);
-  } else if (record.action === 'character') {
-    if (storyCharacters.value.some((character) => character.id === record.characterId)) {
-      await generate(false, null, record.characterId);
-    } else {
+  try {
+    if (record.action === 'starter') {
       await saveStory(true);
-      handleCharacterResponse();
+      await handleStoryStarter();
+    } else if (record.action === 'instruction') {
+      await generate(true, record.instruction, null);
+    } else if (record.action === 'character') {
+      if (storyCharacters.value.some((character) => character.id === record.characterId)) {
+        await generate(false, null, record.characterId);
+      } else {
+        await saveStory(true);
+        handleCharacterResponse();
+      }
+    } else {
+      await generate(false, null, null);
     }
-  } else {
-    await generate(false, null, null);
+  } finally {
+    passages.value = [...passages.value, record];
+    passagesDirty = true;
+    await saveStory(true);
   }
 }
 
