@@ -11,7 +11,8 @@ AI-powered short story writing application that supports Tavern character cards 
 - **Full Lorebook Support** - Import SillyTavern lorebooks with fully featured activation engine
 - **ST Macro Support** - Supports ST macros like `{{random:a,b,c}}` and `{{pick:x,y,z}}`
 - **Generation Control** - Continue the story from a specific character's perspective; open-ended generation based on story context; or request specific events to occur.
-- **Bureau (experimental)** - Write an ongoing story, chapter by chapter, with characters who remember, change over time, and can be messaged between chapters. See [Bureau](#bureau-experimental).
+- **Chats (experimental)** - Text with one or more of your characters, in a scenario you describe, with any provider. Turn it on under Experimental Features in Settings; its prompts are customizable in each preset.
+- **Bureau (experimental)** - Write an ongoing story, chapter by chapter, with characters who remember, change over time, and can be messaged between chapters. Turn it on under Experimental Features in Settings. See [Bureau](#bureau-experimental).
 
 ## Motivations
 
@@ -31,7 +32,7 @@ Bureau is a separate mode for an ongoing story with living characters, written i
 - **Character generator** - Generate characters from an idea, from a Bureau's cast section or from "Who's in this chapter" while you write.
 - **Greetings, images, and avatars** - As in story mode, open a chapter with a greeting from a character's card, rewritten by the Writer in third person, see the images that cards and lorebooks carry, and float character avatars over the page.
 
-Bureau keeps its data in `data/bureau.db`, apart from story mode. Bureaus share one DeepSeek API key unless one has its own, and use DeepSeek V4.1 Flash by default. The Bureaus tab explains the terms the first time you open it, and the full design is in [docs/bureau-design.md](docs/bureau-design.md).
+Bureau keeps its data in `data/bureau.db`, apart from story mode. Bureaus share one DeepSeek API key unless one has its own, and use DeepSeek V4.1 Flash by default. Bureaus are off by default: turn them on under Experimental Features in Settings (they turn on automatically if you already have one). The Bureaus tab explains the terms the first time you open it, and the full design is in [docs/bureau-design.md](docs/bureau-design.md).
 
 ## Quick Start
 
@@ -118,6 +119,19 @@ writers-guild/
 - **Client**: Vue 3 with Vue Router and Vite
 - **Hot Reload**: Both server and client support hot-reload in dev mode
 
+## Releases
+
+Writers Guild follows [Semantic Versioning](https://semver.org/), and each release's changes are in
+[CHANGELOG.md](CHANGELOG.md). To cut a release:
+
+1. Set the version everywhere it's recorded (the root, server, and client `package.json` files and
+   the root lockfile): `npm run version:set 1.1.0`
+2. Add the release to `CHANGELOG.md`, then commit and merge.
+3. Tag the merged commit (`git tag v1.1.0 && git push origin v1.1.0`) and publish a GitHub release
+   from the tag, with that version's changelog section as its notes.
+
+The version shows at the bottom of Settings and in the server's startup banner.
+
 ## Android Build
 
 - To build natively in Android you need `node-addon-api` and `node-gyp`
@@ -130,6 +144,7 @@ The server runs on port 8000 and provides:
 - `/api/characters` - Character library
 - `/api/lorebooks` - Lorebook management
 - `/api/settings` - User settings
+- `/api/chats` - Chats and their messages (experimental)
 - `/api/bureaus` - Bureaus, their cast, stories, messages, and memories (experimental)
 - `/` - Serves the Vue client (production) or forwards to Vite (dev)
 

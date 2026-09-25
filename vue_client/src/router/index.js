@@ -6,6 +6,7 @@ import LandingPage from '../views/LandingPage.vue';
 
 // Lazy load heavy views for better performance
 const StoryEditor = () => import('../views/StoryEditor.vue');
+const ChatView = () => import('../views/ChatView.vue');
 const CharacterDetail = () => import('../views/CharacterDetail.vue');
 const LorebookDetail = () => import('../views/LorebookDetail.vue');
 const SettingsPage = () => import('../views/SettingsPage.vue');
@@ -34,6 +35,13 @@ const routes = [
     component: StoryEditor,
     props: true,
     meta: { title: 'Story Editor - Writers Guild', dynamicTitle: true },
+  },
+  {
+    path: '/chats/:chatId',
+    name: 'chat',
+    component: ChatView,
+    props: true,
+    meta: { title: 'Chat - Writers Guild', dynamicTitle: true },
   },
   {
     path: '/characters/:characterId',

@@ -66,6 +66,40 @@
           </div>
         </section>
 
+        <!-- Experimental Features Section -->
+        <section class="edit-section">
+          <div class="section-header">
+            <h2>Experimental Features</h2>
+          </div>
+          <div class="section-content">
+            <p class="help-text">
+              Features still being tried out. They may change, and may not always work as expected.
+            </p>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="settings.experimentalChats" />
+                <span>Chats</span>
+              </label>
+              <p class="help-text">
+                Adds a Chats tab next to Stories: text message conversations with one or more of
+                your characters, set up by a scenario you describe. Replies use your presets, and
+                their prompts can be customized under Chat Templates in each preset.
+              </p>
+            </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="settings.experimentalBureaus" />
+                <span>Bureaus</span>
+              </label>
+              <p class="help-text">
+                Adds a Bureaus tab: ongoing stories written in chapters, with characters who
+                remember, change over time, and can be messaged between chapters. Uses DeepSeek.
+                Turning this off only hides the tab; your Bureaus are kept.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <!-- Legacy Lorebook Settings Section (if needed for backwards compat) -->
         <section v-if="false" class="edit-section">
           <div class="section-header">
@@ -133,18 +167,22 @@
           </div>
         </section>
       </div>
+
+      <p class="app-version">Writers Guild v{{ appVersion }}</p>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, watch, onMounted, nextTick } from 'vue';
+import { onBeforeRouteLeave } from 'vue-router';
 import { settingsAPI, charactersAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useNavigation } from '../composables/useNavigation';
 
 const toast = useToast();
 const { goBack } = useNavigation();
+const appVersion = __APP_VERSION__;
 
 // State
 const loading = ref(true);
@@ -166,6 +204,8 @@ const settings = ref({
   lorebookTokenBudget: 1800,
   lorebookRecursionDepth: 3,
   lorebookEnableRecursion: true,
+  experimentalChats: false,
+  experimentalBureaus: false,
 });
 
 onMounted(async () => {
@@ -196,6 +236,7 @@ watch(
 
     // Set new timeout to save after 500ms of no changes
     saveTimeout.value = setTimeout(() => {
+      saveTimeout.value = null;
       saveSettings();
     }, 500);
   },
@@ -226,6 +267,8 @@ async function loadSettings() {
       lorebookTokenBudget: serverSettings.lorebookTokenBudget ?? 1800,
       lorebookRecursionDepth: serverSettings.lorebookRecursionDepth ?? 3,
       lorebookEnableRecursion: serverSettings.lorebookEnableRecursion ?? true,
+      experimentalChats: serverSettings.experimentalChats ?? false,
+      experimentalBureaus: serverSettings.experimentalBureaus ?? false,
     };
   } catch (error) {
     console.error('Failed to load settings:', error);
@@ -248,20 +291,56 @@ async function loadCharacters() {
   }
 }
 
-async function saveSettings() {
-  if (saving.value) return;
+// The save in flight, and whether settings changed while it was
+let savePromise = null;
+let saveAgain = false;
 
-  try {
-    saving.value = true;
-    await settingsAPI.update(settings.value);
-    toast.success('Settings saved');
-  } catch (error) {
-    console.error('Failed to save settings:', error);
-    toast.error('Failed to save settings');
-  } finally {
-    saving.value = false;
+function saveSettings() {
+  if (savePromise) {
+    // Saved once this save finishes, so a change made mid-save isn't lost.
+    saveAgain = true;
+    return savePromise;
   }
+  savePromise = (async () => {
+    saving.value = true;
+    let failure = null;
+    try {
+      // Each save sends every setting, so a change made during a failed save is still sent by
+      // the save after it; only the last save's outcome is reported.
+      do {
+        saveAgain = false;
+        try {
+          await settingsAPI.update(settings.value);
+          failure = null;
+        } catch (error) {
+          failure = error;
+        }
+      } while (saveAgain);
+      if (failure) {
+        console.error('Failed to save settings:', failure);
+        toast.error('Failed to save settings');
+      } else {
+        toast.success('Settings saved');
+      }
+    } finally {
+      saving.value = false;
+      savePromise = null;
+    }
+  })();
+  return savePromise;
 }
+
+// Save pending changes before leaving, so the next page (like the landing page's tabs, which
+// follow the experimental toggles) loads what was just set.
+onBeforeRouteLeave(async () => {
+  if (saveTimeout.value) {
+    clearTimeout(saveTimeout.value);
+    saveTimeout.value = null;
+    await saveSettings();
+  } else if (savePromise) {
+    await savePromise;
+  }
+});
 </script>
 
 <style scoped>
@@ -433,5 +512,11 @@ async function saveSettings() {
   font-size: 0.8rem;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+.app-version {
+  margin: 2rem 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 </style>

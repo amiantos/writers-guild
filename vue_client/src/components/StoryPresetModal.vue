@@ -6,11 +6,11 @@
         <h3>Current Preset</h3>
         <p class="help-text">
           <template v-if="currentStoryPresetId">
-            This story is using a specific preset. To use the default preset instead, select "Use
-            Default" below.
+            This {{ noun }} is using a specific preset. To use the default preset instead, select
+            "Use Default" below.
           </template>
           <template v-else>
-            This story is using the default preset. You can override it by selecting a specific
+            This {{ noun }} is using the default preset. You can override it by selecting a specific
             preset below.
           </template>
         </p>
@@ -88,6 +88,16 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  // What uses the preset, for messages: 'story' or 'chat'.
+  noun: {
+    type: String,
+    default: 'story',
+  },
+  // Overrides how the choice is saved: receives a preset id, or null for the default.
+  savePreset: {
+    type: Function,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['close', 'updated']);
@@ -130,9 +140,13 @@ async function loadPresets() {
 async function handlePresetChange() {
   try {
     // Update story's preset
-    await storiesAPI.updateMetadata(props.storyId, {
-      configPresetId: selectedPresetId.value,
-    });
+    if (props.savePreset) {
+      await props.savePreset(selectedPresetId.value);
+    } else {
+      await storiesAPI.updateMetadata(props.storyId, {
+        configPresetId: selectedPresetId.value,
+      });
+    }
 
     currentStoryPresetId.value = selectedPresetId.value;
 

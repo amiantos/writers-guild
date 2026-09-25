@@ -130,6 +130,7 @@ onMounted(async () => {
       // Ensure promptTemplates has all required fields (null = use system defaults)
       const presetTemplates = preset.promptTemplates || {};
       const promptTemplates = {
+        ...presetTemplates,
         systemPrompt: presetTemplates.systemPrompt ?? null,
         continue: presetTemplates.continue ?? null,
         character: presetTemplates.character ?? null,

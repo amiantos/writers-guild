@@ -290,6 +290,8 @@ describe('Presets API Routes', () => {
       expect(response.body).toHaveProperty('instruction');
       expect(response.body).toHaveProperty('rewriteThirdPerson');
       expect(response.body).toHaveProperty('ideate');
+      expect(response.body.chatSystemPrompt).toContain('=== MESSAGE STYLE ===');
+      expect(response.body.chatReply).toContain('{{char}}');
     });
   });
 

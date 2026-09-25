@@ -26,6 +26,7 @@ import presetsRouter from './src/routes/presets.js';
 import onboardingRouter from './src/routes/onboarding.js';
 import assetsRouter from './src/routes/assets.js';
 import bureausRouter from './src/routes/bureaus.js';
+import chatsRouter from './src/routes/chats.js';
 
 // Import migration service
 import { runMigration } from './src/services/migration.js';
@@ -33,6 +34,11 @@ import { runMigration } from './src/services/migration.js';
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Version, as released
+const { version: VERSION } = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'),
+);
 
 // Load configuration
 const configPath = path.join(__dirname, 'config.yaml');
@@ -118,6 +124,7 @@ app.use('/api/presets', presetsRouter);
 app.use('/api/onboarding', onboardingRouter);
 app.use('/api/assets', assetsRouter);
 app.use('/api/bureaus', bureausRouter);
+app.use('/api/chats', chatsRouter);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: `Not found: ${req.method} ${req.originalUrl}` });
@@ -161,10 +168,15 @@ app.use((err, req, res, _next) => {
 
 // Start server
 app.listen(PORT, HOST, () => {
+  // At least 40 wide, and wider for a long prerelease version.
+  const title = `Writers Guild v${VERSION}`;
+  const width = Math.max(40, title.length + 4);
+  const left = Math.floor((width - title.length) / 2);
+  const rule = '═'.repeat(width);
   console.log(`
-╔════════════════════════════════════════╗
-║       Writers Guild Server v2.0        ║
-╚════════════════════════════════════════╝
+╔${rule}╗
+║${' '.repeat(left)}${title}${' '.repeat(width - title.length - left)}║
+╚${rule}╝
 
 Server running at: http://${HOST}:${PORT}
 Data directory: ${DATA_ROOT}

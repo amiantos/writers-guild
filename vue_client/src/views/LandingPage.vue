@@ -58,6 +58,31 @@
             />
           </template>
 
+          <!-- Chats Tab (experimental, turned on in Settings) -->
+          <template #tab-chats>
+            <div class="section-header">
+              <h2><i class="fas fa-comments"></i> All Chats</h2>
+              <button class="btn btn-primary" @click="createNewChat">
+                <i class="fas fa-plus"></i> New Chat
+              </button>
+            </div>
+
+            <div v-if="loadingChats" class="loading">Loading chats...</div>
+
+            <div v-else-if="chats.length === 0" class="empty-state">
+              <i class="fas fa-comments"></i>
+              <p>No chats yet. Start a chat to text with your characters!</p>
+            </div>
+
+            <ChatsTable
+              v-else
+              :chats="chats"
+              :characters="characters"
+              @open="openChat"
+              @delete="deleteChat"
+            />
+          </template>
+
           <!-- Characters Tab -->
           <template #tab-characters>
             <div class="section-header">
@@ -147,7 +172,7 @@
           </template>
 
           <!-- Bureaus Tab (experimental) -->
-          <template #tab-bureaus>
+          <template v-if="bureausEnabled" #tab-bureaus>
             <BureausTab />
           </template>
         </Tabs>
@@ -218,7 +243,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI } from '../services/api';
+import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI, settingsAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 import { useDataCache } from '../composables/useDataCache';
@@ -237,6 +262,8 @@ import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
 import ProviderSelectionModal from '../components/ProviderSelectionModal.vue';
 import BureausTab from '../components/bureau/BureausTab.vue';
+import ChatsTable from '../components/chat/ChatsTable.vue';
+import { chatsAPI } from '../services/chatsApi';
 
 const router = useRouter();
 const toast = useToast();
@@ -315,27 +342,101 @@ const recentCharacters = computed(() => {
     .filter((char) => char != null);
 });
 
+// Chats and Bureaus are experimental: their tabs show once they're turned on in Settings.
+const chatsEnabled = ref(false);
+const bureausEnabled = ref(false);
+const EXPERIMENTAL_TABS = ['chats', 'bureaus'];
+
 // Tabs configuration
-const tabs = [
+const tabs = computed(() => [
   { key: 'stories', label: 'Stories', icon: 'fas fa-book' },
+  ...(chatsEnabled.value ? [{ key: 'chats', label: 'Chats', icon: 'fas fa-comments' }] : []),
   { key: 'characters', label: 'Characters', icon: 'fas fa-users' },
   { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' },
   { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' },
-  { key: 'bureaus', label: 'Bureaus', icon: 'fas fa-landmark' },
-];
+  ...(bureausEnabled.value ? [{ key: 'bureaus', label: 'Bureaus', icon: 'fas fa-landmark' }] : []),
+]);
 
 // Active tab with localStorage persistence
 const STORAGE_KEY = 'writers-guild-active-tab';
-const activeTab = ref(localStorage.getItem(STORAGE_KEY) || 'stories');
+const savedTab = localStorage.getItem(STORAGE_KEY) || 'stories';
+// Experimental tabs wait for settings to load before they can be shown.
+const activeTab = ref(EXPERIMENTAL_TABS.includes(savedTab) ? 'stories' : savedTab);
 
 // Save active tab to localStorage when it changes
 watch(activeTab, (newTab) => {
   localStorage.setItem(STORAGE_KEY, newTab);
 });
 
+const chats = ref([]);
+const loadingChats = ref(false);
+
+async function loadExperimentalFeatures() {
+  try {
+    const { settings } = await settingsAPI.get();
+    chatsEnabled.value = Boolean(settings?.experimentalChats);
+    bureausEnabled.value = Boolean(settings?.experimentalBureaus);
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+  }
+  const savedTabEnabled =
+    (savedTab === 'chats' && chatsEnabled.value) ||
+    (savedTab === 'bureaus' && bureausEnabled.value);
+  if (savedTabEnabled && activeTab.value === 'stories') {
+    activeTab.value = savedTab;
+  }
+  if (chatsEnabled.value) await loadChats();
+}
+
+async function loadChats() {
+  loadingChats.value = true;
+  try {
+    const { chats: list } = await chatsAPI.list();
+    chats.value = list;
+  } catch (error) {
+    console.error('Error loading chats:', error);
+    toast.error('Failed to load chats');
+  } finally {
+    loadingChats.value = false;
+  }
+}
+
+async function createNewChat() {
+  try {
+    const { chat } = await chatsAPI.create({});
+    openChat(chat.id);
+  } catch (error) {
+    console.error('Error creating chat:', error);
+    toast.error('Failed to create chat');
+  }
+}
+
+function openChat(chatId) {
+  router.push({ name: 'chat', params: { chatId } });
+}
+
+async function deleteChat(chat) {
+  const confirmed = await confirm({
+    message: `Delete chat "${chat.title}"? This cannot be undone.`,
+    confirmText: 'Delete Chat',
+    variant: 'danger',
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await chatsAPI.delete(chat.id);
+    chats.value = chats.value.filter((item) => item.id !== chat.id);
+    toast.success('Chat deleted successfully');
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    toast.error('Failed to delete chat');
+  }
+}
+
 onMounted(async () => {
   // Load all data using cache - will skip API calls if data is fresh
-  await loadAll();
+  await Promise.all([loadAll(), loadExperimentalFeatures()]);
 });
 
 async function createNewStory() {

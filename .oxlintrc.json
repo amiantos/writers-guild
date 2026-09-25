@@ -10,6 +10,9 @@
     "node": true,
     "es2024": true
   },
+  "globals": {
+    "__APP_VERSION__": "readonly"
+  },
   "rules": {
     "no-unused-vars": [
       "error",
