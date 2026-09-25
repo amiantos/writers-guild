@@ -13,6 +13,7 @@ vi.mock('../../services/api', () => ({
     storyStarter: vi.fn(),
     rewriteThirdPerson: vi.fn(),
     undo: vi.fn(),
+    redo: vi.fn(),
     setRewritePrompt: vi.fn(),
   },
   settingsAPI: { get: vi.fn() },
@@ -248,7 +249,53 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     expect(content).toBe('Opening.\n\nThe rain poured.\n\nEnd.\n\n');
     expect(passages).toEqual([
       expect.objectContaining({ id: 'p1', text: 'The rain poured.', edited: true }),
+      expect.objectContaining({ text: 'The rain came down.', action: 'continue' }),
     ]);
+    expect(passages[1].id).not.toBe('p1');
+    expect(passages[1].edited).toBeUndefined();
+  });
+
+  it('keeps the seam on a passage through undoing and redoing its edit', async () => {
+    loadStory('Opening.\n\nThe rain came down.\n\n', [
+      {
+        id: 'p1',
+        text: 'The rain came down.',
+        source: 'generated',
+        action: 'continue',
+        reasoning: 'Keep it wet.',
+      },
+    ]);
+    const wrapper = await mountEditor();
+
+    const passage = wrapper.findAll('article.turn')[1];
+    await passage.find('button[title="Edit"]').trigger('click');
+    await passage.find('textarea').setValue('The rain poured.');
+    await button(passage, 'Save').trigger('click');
+    await flushPromises();
+
+    const seamLabels = () => wrapper.findAll('.seam-label').map((label) => label.text());
+    storiesAPI.undo.mockResolvedValue({
+      content: 'Opening.\n\nThe rain came down.\n\n',
+      canUndo: false,
+      canRedo: true,
+    });
+    await wrapper.find('button[aria-label="Undo"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('article.turn')[1].text()).toBe('The rain came down.');
+    expect(seamLabels()).toEqual(['How this was written']);
+    await wrapper.find('.seam-toggle').trigger('click');
+    expect(wrapper.find('.seam-panel').text()).toContain('Keep it wet.');
+    expect(wrapper.find('.seam-panel').text()).not.toContain('edited');
+
+    storiesAPI.redo.mockResolvedValue({
+      content: 'Opening.\n\nThe rain poured.\n\n',
+      canUndo: true,
+      canRedo: false,
+    });
+    await wrapper.find('button[aria-label="Redo"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('article.turn')[1].text()).toBe('The rain poured.');
+    expect(seamLabels()).toEqual(['How this was written']);
   });
 
   it('deletes a passage, keeping its record for undo', async () => {

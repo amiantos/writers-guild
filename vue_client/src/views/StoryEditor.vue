@@ -1278,9 +1278,13 @@ async function handlePassageSave(block, text) {
   const trimmed = normalizeMarkdownImageSpacing(text.trim());
   content.value = replaceBlock(content.value, block, trimmed);
   if (block.record) {
-    passages.value = passages.value.map((record) =>
-      record.id === block.record.id ? { ...record, text: trimmed, edited: true } : record,
-    );
+    passages.value = [
+      ...passages.value.map((record) =>
+        record.id === block.record.id ? { ...record, text: trimmed, edited: true } : record,
+      ),
+      // The version before the edit, so Undo brings it back with how it was written.
+      { ...block.record, id: newPassageId() },
+    ];
     passagesDirty = true;
   }
   await saveStory(true);
