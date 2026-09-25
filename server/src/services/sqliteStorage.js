@@ -62,6 +62,9 @@ export class SqliteStorageService {
         'UPDATE stories SET avatar_windows = ? WHERE id = ?',
       ),
       updateStoryPassages: this.db.prepare('UPDATE stories SET passages = ? WHERE id = ?'),
+      updateStoryContentAndPassages: this.db.prepare(
+        'UPDATE stories SET content = ?, word_count = ?, modified = ?, passages = ? WHERE id = ?',
+      ),
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, scenario = @scenario,
                           persona_character_id = @personaCharacterId,
@@ -520,19 +523,6 @@ export class SqliteStorageService {
     return { success: true, avatarWindows };
   }
 
-  /**
-   * Save the record of a story's passages: where each one came from, and the reasoning behind it.
-   * Enhanced Story Mode shows it between passages; the content itself is saved on its own.
-   */
-  async updateStoryPassages(storyId, passages) {
-    const existing = this.stmts.getStory.get(storyId);
-    if (!existing) {
-      throw new Error(`Story not found: ${storyId}`);
-    }
-    this.stmts.updateStoryPassages.run(JSON.stringify(passages), storyId);
-    return { success: true };
-  }
-
   async updateStoryMetadata(storyId, updates) {
     const existing = this.stmts.getStory.get(storyId);
     if (!existing) {
@@ -562,6 +552,11 @@ export class SqliteStorageService {
     };
   }
 
+  /**
+   * Save a story's content. `options.passages`, when given, is Enhanced Story Mode's record of the
+   * story's passages (where each came from, and the reasoning behind it), saved in the same write
+   * so the two never disagree.
+   */
   async updateStoryContent(storyId, content, options = {}) {
     const existing = this.stmts.getStory.get(storyId);
     if (!existing) {
@@ -569,6 +564,7 @@ export class SqliteStorageService {
     }
 
     const changed = existing.content !== content;
+    const passages = options.passages ? JSON.stringify(options.passages) : null;
 
     if (changed) {
       const modified = new Date().toISOString();
@@ -579,10 +575,23 @@ export class SqliteStorageService {
         await this.saveToHistory(storyId, content, wordCount);
       }
 
-      this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
+      if (passages) {
+        this.stmts.updateStoryContentAndPassages.run(
+          content,
+          wordCount,
+          modified,
+          passages,
+          storyId,
+        );
+      } else {
+        this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
+      }
       return { success: true, modified, changed };
     }
 
+    if (passages) {
+      this.stmts.updateStoryPassages.run(passages, storyId);
+    }
     return { success: true, modified: existing.modified, changed };
   }
 

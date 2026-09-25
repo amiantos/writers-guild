@@ -313,10 +313,9 @@ router.put(
     }
     const cleanPassages = passages === undefined ? null : sanitizePassages(passages);
 
-    const result = await storage.updateStoryContent(req.params.id, content);
-    if (cleanPassages) {
-      await storage.updateStoryPassages(req.params.id, cleanPassages);
-    }
+    const result = await storage.updateStoryContent(req.params.id, content, {
+      ...(cleanPassages && { passages: cleanPassages }),
+    });
 
     // Include history status in response
     const historyStatus = await storage.getHistoryStatus(req.params.id);

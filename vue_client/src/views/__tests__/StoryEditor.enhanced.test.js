@@ -298,16 +298,19 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     expect(seamLabels()).toEqual(['How this was written']);
   });
 
-  it('deletes a passage, keeping its record for undo', async () => {
+  it('deletes a passage, keeping its record last for undo', async () => {
     loadStory('Opening.\n\nThe rain came down.\n\nEnd.\n\n', [
       { id: 'p1', text: 'The rain came down.', source: 'generated', action: 'continue' },
+      { id: 'p2', text: 'End.', source: 'generated', action: 'continue' },
     ]);
     const wrapper = await mountEditor();
 
     await wrapper.findAll('article.turn')[1].find('button[title="Delete"]').trigger('click');
     await flushPromises();
 
-    expect(lastSave()).toEqual({ content: 'Opening.\n\nEnd.\n\n', passages: undefined });
+    const { content, passages } = lastSave();
+    expect(content).toBe('Opening.\n\nEnd.\n\n');
+    expect(passages.map((record) => record.id)).toEqual(['p2', 'p1']);
     expect(wrapper.findAll('article.turn').map((block) => block.text())).toEqual([
       'Opening.',
       'End.',

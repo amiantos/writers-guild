@@ -367,6 +367,25 @@ describe('Stories API Routes - CRUD Operations', () => {
       expect(duplicate.body.story.passages).toEqual(saved.body.story.passages);
     });
 
+    it('saves a changed record of passages even when the content is unchanged', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Title', description: 'Desc' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+      const content = 'Rain.\n\n';
+      await request(app).put(`/api/stories/${storyId}/content`).send({ content }).expect(200);
+
+      const response = await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content, passages: [{ id: 'p1', text: 'Rain.', source: 'user' }] })
+        .expect(200);
+
+      expect(response.body.changed).toBe(false);
+      const story = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(story.body.story.passages).toEqual([{ id: 'p1', text: 'Rain.', source: 'user' }]);
+    });
+
     it('rejects a malformed record of passages without saving the content', async () => {
       const createResponse = await request(app)
         .post('/api/stories')

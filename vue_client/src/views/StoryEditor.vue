@@ -1293,6 +1293,14 @@ async function handlePassageSave(block, text) {
 // No confirmation, since Undo brings a deleted passage back, along with how it was written.
 async function handlePassageDelete(block) {
   content.value = removeBlock(content.value, block);
+  if (block.record) {
+    // Last in the record, so pruning keeps it as the newest stale record for Undo to find.
+    passages.value = [
+      ...passages.value.filter((record) => record.id !== block.record.id),
+      block.record,
+    ];
+    passagesDirty = true;
+  }
   await saveStory(true);
 }
 
