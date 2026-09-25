@@ -363,6 +363,28 @@ describe('ChatView', () => {
     expect(wrapper.text()).not.toContain('View Last Prompt');
   });
 
+  it('keeps the newest chat when an older chat’s load finishes last', async () => {
+    let finishOld;
+    chatsAPI.get.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishOld = () => resolve({ chat: { ...CHAT, title: 'Old chat' }, turns: TURNS });
+        }),
+    );
+    const wrapper = mountChat();
+    chatsAPI.get.mockResolvedValue({
+      chat: { ...CHAT, id: 'c2', title: 'New chat' },
+      turns: [turn('t9', 'user', ['new'])],
+    });
+    await wrapper.setProps({ chatId: 'c2' });
+    await flushPromises();
+    finishOld();
+    await flushPromises();
+
+    expect(wrapper.find('.chat-title').text()).toBe('New chat');
+    expect(wrapper.findAll('.bubble').map((bubble) => bubble.text())).toEqual(['new']);
+  });
+
   it('clears the chat from the overflow menu', async () => {
     chatsAPI.clear.mockResolvedValue({ success: true });
     const wrapper = mountChat();

@@ -59,6 +59,15 @@ describe('pickSpeaker', () => {
     expect(pickSpeaker([layla, sam], turns)).toBe(layla);
   });
 
+  it('finds names with letters beyond ASCII, but not inside longer words', () => {
+    const jose = card('jose', 'José');
+    const zoe = card('zoe', 'Zoë Park');
+    expect(pickSpeaker([layla, jose], [turn('user', null, ['you there, José?'])])).toBe(jose);
+    expect(pickSpeaker([layla, zoe], [turn('user', null, ['Zoë, hi'])])).toBe(zoe);
+    const turns = [turn('character', 'layla', ['hi']), turn('user', null, ['Josébastian says hi'])];
+    expect(pickSpeaker([layla, jose], turns)).toBe(layla);
+  });
+
   it('is whoever spoke last when nobody is named', () => {
     const turns = [
       turn('character', 'layla', ['hi']),
@@ -103,6 +112,14 @@ describe('splitReply', () => {
       ['hey'],
     );
     expect(splitReply('hey\nLayla Jones: me too', 'Layla Hart', ['Layla Jones'])).toEqual(['hey']);
+  });
+
+  it('skips someone else’s lines the model echoes before replying', () => {
+    expect(splitReply('Bradley: you up?\nLayla: yeah\n---\nwhy', 'Layla', ['Bradley'])).toEqual([
+      'yeah',
+      'why',
+    ]);
+    expect(splitReply('Bradley: you up?', 'Layla', ['Bradley'])).toEqual([]);
   });
 
   it('joins messages past the limit into the last one', () => {

@@ -26,9 +26,14 @@ function nameOf(card) {
  */
 export function stopLabels(speakerName, otherNames) {
   const variants = (name) => [name, name.split(/\s+/)[0]].filter(Boolean);
-  const own = new Set(variants(speakerName));
-  const names = new Set(otherNames.flatMap(variants).filter((name) => !own.has(name)));
-  return [...names].map((name) => `\n${name}:`);
+  // Compared case-insensitively, as splitReply reads labels, keeping each name's own spelling.
+  const own = new Set(variants(speakerName).map((name) => name.toLowerCase()));
+  const labels = new Map();
+  for (const name of otherNames.flatMap(variants)) {
+    const key = name.toLowerCase();
+    if (!own.has(key) && !labels.has(key)) labels.set(key, `\n${name}:`);
+  }
+  return [...labels.values()];
 }
 
 /**

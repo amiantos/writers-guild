@@ -386,11 +386,18 @@ function senderName(turn) {
 
 // ==================== Loading ====================
 
+// Loads can overlap when the chat changes; only the current chat's response is used.
+function isCurrent(chatId) {
+  return chatId === props.chatId;
+}
+
 async function load() {
+  const chatId = props.chatId;
   loading.value = true;
   loadError.value = '';
   try {
-    const [data] = await Promise.all([chatsAPI.get(props.chatId), loadCharacters()]);
+    const [data] = await Promise.all([chatsAPI.get(chatId), loadCharacters()]);
+    if (!isCurrent(chatId)) return;
     chat.value = data.chat;
     turns.value = data.turns;
     setPageTitle(chat.value.title);
@@ -399,21 +406,24 @@ async function load() {
       showManageCharacters.value = true;
     }
   } catch (error) {
+    if (!isCurrent(chatId)) return;
     loadError.value =
       error.status === 404 ? 'This chat no longer exists.' : `Failed to load: ${error.message}`;
   } finally {
-    loading.value = false;
+    if (isCurrent(chatId)) loading.value = false;
   }
   scrollToEnd();
 }
 
 async function refresh() {
+  const chatId = props.chatId;
   try {
-    const data = await chatsAPI.get(props.chatId);
+    const data = await chatsAPI.get(chatId);
+    if (!isCurrent(chatId)) return;
     chat.value = data.chat;
     turns.value = data.turns;
   } catch (error) {
-    toast.error(`Failed to refresh the chat: ${error.message}`);
+    if (isCurrent(chatId)) toast.error(`Failed to refresh the chat: ${error.message}`);
   }
 }
 

@@ -71,7 +71,12 @@ export function pickSpeaker(characters, turns) {
     let earliest = null;
     for (const character of characters) {
       const names = [...new Set([nameOf(character), nameOf(character).split(/\s+/)[0]])];
-      const pattern = new RegExp(`\\b(?:${names.map(escapeRegExp).join('|')})\\b`, 'i');
+      // Letters on either side mean a longer word; \\b alone only knows ASCII letters, so it
+      // would miss names like José or Zoë.
+      const pattern = new RegExp(
+        `(?<![\\p{L}\\p{N}_])(?:${names.map(escapeRegExp).join('|')})(?![\\p{L}\\p{N}_])`,
+        'iu',
+      );
       const match = pattern.exec(text);
       if (match && (!earliest || match.index < earliest.index)) {
         earliest = { index: match.index, character };
@@ -114,10 +119,14 @@ export function splitReply(text, name, otherNames = []) {
 
   let body = stripAsterisks(text);
   if (others) {
+    // Someone else's lines at the start are the model echoing the conversation, and are
+    // skipped; once the reply has begun, someone else's label ends it.
     const otherLabel = new RegExp(`^${others}`, 'i');
     const lines = body.split('\n');
-    const cut = lines.findIndex((line) => otherLabel.test(line));
-    if (cut !== -1) body = lines.slice(0, cut).join('\n');
+    const start = lines.findIndex((line) => line.trim() && !otherLabel.test(line));
+    if (start === -1) return [];
+    const cut = lines.findIndex((line, index) => index > start && otherLabel.test(line));
+    body = lines.slice(start, cut === -1 ? undefined : cut).join('\n');
   }
 
   // A line starting with the sender's own label starts another message, as a separator would.

@@ -195,6 +195,13 @@ describe('stopLabels', () => {
       '\nLayla Jones:',
     ]);
   });
+
+  it('matches names case-insensitively, keeping their own spelling', () => {
+    expect(stopLabels('Layla', ['layla Jones', 'Sam', 'SAM'])).toEqual([
+      '\nlayla Jones:',
+      '\nSam:',
+    ]);
+  });
 });
 
 describe('activateChatLore', () => {
