@@ -137,7 +137,10 @@ function transcriptLines(turns, nameForTurn) {
   );
 }
 
-/** The latest turns that fit the budget, always keeping at least the last one. */
+/**
+ * The latest turns that fit the budget. The last one is always kept; when it alone is over the
+ * budget, it keeps its sender's label and its end, as the conversation's most recent words.
+ */
 function latestThatFit(lines, budget) {
   let size = 0;
   let start = lines.length;
@@ -147,7 +150,15 @@ function latestThatFit(lines, budget) {
     size += lineSize;
     start -= 1;
   }
-  return { kept: lines.slice(start), truncated: start > 0 };
+  const kept = lines.slice(start);
+  const last = kept.at(-1);
+  if (kept.length === 1 && last.length > budget) {
+    const labelEnd = last.indexOf(': ') + 2;
+    const label = last.slice(0, labelEnd);
+    kept[0] = `${label}...${last.slice(-(budget - label.length - 3))}`;
+    return { kept, truncated: true };
+  }
+  return { kept, truncated: start > 0 };
 }
 
 /**

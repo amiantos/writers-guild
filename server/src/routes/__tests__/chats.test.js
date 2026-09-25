@@ -280,6 +280,19 @@ describe('Chats API', () => {
         .expect(400);
     });
 
+    it('has no versions to switch on the user’s messages', async () => {
+      const chat = await createChat();
+      const sent = await request(app)
+        .post(`/api/chats/${chat.id}/messages`)
+        .send({ text: 'hi', reply: false })
+        .expect(201);
+      const response = await request(app)
+        .put(`/api/chats/${chat.id}/turns/${sent.body.userTurn.id}/swipe`)
+        .send({ index: 0 })
+        .expect(400);
+      expect(response.body.error).toContain('Only replies');
+    });
+
     it('keeps an earlier reply’s version once the chat moves on', async () => {
       const chat = await createChat();
       streamReplies([{ content: 'first' }], [{ content: 'second' }]);

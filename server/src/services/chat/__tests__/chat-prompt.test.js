@@ -193,6 +193,18 @@ describe('buildChatPrompts', () => {
     expect(user).not.toContain('message number 0 ');
   });
 
+  it('cuts a latest message too long for the context, keeping its label and its end', () => {
+    const long = `start ${'x'.repeat(20000)} the end`;
+    const { user } = build({
+      turns: [turn('user', null, [long], 'Bradley')],
+      maxContextTokens: 1500,
+    });
+    expect(user).toContain('(Earlier messages are omitted.)\nBradley: ...xxx');
+    expect(user).toContain('the end');
+    expect(user).not.toContain('start');
+    expect(user.length).toBeLessThan(2000);
+  });
+
   it('uses the preset’s templates, placing the conversation where the reply template says', () => {
     const { system, user } = build({
       preset: {

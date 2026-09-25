@@ -158,10 +158,12 @@ describe('generateChatReply', () => {
       onGenerate: (value) => (options = value),
     });
     const turn = await reply(provider, {
-      preset: { provider: 'koboldcpp', generationSettings: { stop_sequences: ['###'] } },
+      preset: { provider: 'KoboldCpp', generationSettings: { stop_sequences: ['###'] } },
     });
     expect(provider.generateStreaming.mock.calls[0][1].endsWith('\n\nLayla:')).toBe(true);
     expect(options.stop_sequences).toEqual(['###', '\nBradley:']);
+    // KoboldCpp and Ollama read maxContextTokens: the context the prompt was budgeted for.
+    expect(options.maxContextTokens).toBe(8000);
     expect(turn.messages).toEqual(['omw']);
   });
 });

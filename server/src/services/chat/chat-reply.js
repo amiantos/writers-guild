@@ -60,6 +60,8 @@ async function runProvider({
     ...settings,
     stop_sequences: [...(settings.stop_sequences ?? []), ...stopSequences],
     // The context the prompt was budgeted for, which AI Horde narrows to what its workers take.
+    // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+    maxContextTokens,
     maxContextLength: maxContextTokens,
     signal,
   };
@@ -156,7 +158,8 @@ export async function generateChatReply({
   const speakerName = nameOf(speaker);
   const userName = persona ? nameOf(persona) : 'User';
   const otherNames = [userName, ...characters.map(nameOf)].filter((name) => name !== speakerName);
-  const textCompletion = TEXT_COMPLETION_PROVIDERS.has(preset.provider);
+  // Provider ids match case-insensitively, as getProvider() matches them.
+  const textCompletion = TEXT_COMPLETION_PROVIDERS.has(preset.provider?.toLowerCase());
 
   const maxContextTokens = await provider.resolveContextTokens(preset);
   const { system, user } = buildChatPrompts({
