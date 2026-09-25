@@ -120,21 +120,24 @@ describe('generateChatReply', () => {
     expect(chats.listTurns(chat.id)).toHaveLength(1);
   });
 
-  it('uses the queue for polling providers', async () => {
+  it('uses the queue for polling providers, with the context their workers take', async () => {
     const events = [];
+    let options;
     const provider = {
       resolveContextTokens: async () => 4096,
       getCapabilities: () => ({ streaming: false, requiresPolling: true }),
-      generateStreamingWithStatus: async function* () {
+      generateStreamingWithStatus: async function* (_system, _user, requestOptions) {
+        options = requestOptions;
         yield { type: 'status', queuePosition: 3, waitTime: 20 };
         yield { type: 'complete', content: 'on my way' };
       },
     };
     const turn = await reply(provider, {
-      preset: { provider: 'aihorde', generationSettings: {} },
+      preset: { provider: 'aihorde', generationSettings: { maxContextTokens: 16000 } },
       onEvent: (event) => events.push(event),
     });
     expect(turn.messages).toEqual(['on my way']);
+    expect(options.maxContextLength).toBe(4096);
     expect(events).toContainEqual({ type: 'queue', position: 3, waitTime: 20 });
   });
 

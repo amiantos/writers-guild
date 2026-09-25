@@ -269,6 +269,8 @@ describe('generateWriterTurn', () => {
   });
 
   it('reminds characters of earlier stories, but not of this one', async () => {
+    // Pinned, so chapter times format the same on any machine.
+    stores.bureaus.updateBureau(bureau.id, { timezone: 'America/Los_Angeles' });
     const earlier = stores.stories.createStory(bureau.id, {
       startTime: '2026-10-01T20:00:00.000Z',
       castIds: [mara.id, theo.id],

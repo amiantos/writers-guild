@@ -45,12 +45,22 @@ export function activateChatLore(lorebooks, preset, { chat, turns, pendingText =
  * Run a generation and report its progress. Resolves with what was written; when cancelled,
  * resolves with what was written so far and `cancelled: true`.
  */
-async function runProvider({ provider, preset, system, user, stopSequences, signal, onEvent }) {
+async function runProvider({
+  provider,
+  preset,
+  system,
+  user,
+  maxContextTokens,
+  stopSequences,
+  signal,
+  onEvent,
+}) {
   const settings = preset.generationSettings ?? {};
   const options = {
     ...settings,
     stop_sequences: [...(settings.stop_sequences ?? []), ...stopSequences],
-    maxContextLength: settings.maxContextTokens,
+    // The context the prompt was budgeted for, which AI Horde narrows to what its workers take.
+    maxContextLength: maxContextTokens,
     signal,
   };
   const capabilities = provider.getCapabilities();
@@ -167,6 +177,7 @@ export async function generateChatReply({
     preset,
     system,
     user,
+    maxContextTokens,
     stopSequences: textCompletion ? otherNames.map((name) => `\n${name}:`) : [],
     signal,
     onEvent,
