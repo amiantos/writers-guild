@@ -54,12 +54,15 @@ export async function* streamEvents(path, body, signal) {
     while (true) {
       const { done, value } = await reader.read();
       buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
+      // Events end lines with LF, CRLF, or CR (a proxy may rewrite them). A CR at the end of the
+      // buffer may be half of a CRLF, so it waits for the next chunk.
+      const lines = buffer.split(/\r\n|\r(?!$)|\n/);
       buffer = done ? '' : lines.pop();
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const event = JSON.parse(line.slice('data: '.length));
+        const data = /^data: ?(.*)$/.exec(line);
+        if (!data) continue;
+        const event = JSON.parse(data[1]);
         if (event.type === 'error') {
           throw new Error(event.error || 'The reply failed');
         }

@@ -94,6 +94,22 @@ describe('chatsApi', () => {
     expect(JSON.parse(init.body)).toEqual({ text: 'you up?', characterId: 'layla' });
   });
 
+  it('reads events whose lines end in CRLF or CR, even with a CRLF split across chunks', async () => {
+    const crlf = `data: ${JSON.stringify({ type: 'content', text: 'hey' })}\r\n\r\n`;
+    fetch.mockResolvedValue(
+      streamResponse([
+        crlf.slice(0, crlf.indexOf('\r') + 1),
+        crlf.slice(crlf.indexOf('\r') + 1),
+        `data:${JSON.stringify({ type: 'content', text: 'you' })}\r\r`,
+        sse({ type: 'done', turn: { id: 't1' } }),
+      ]),
+    );
+
+    const events = await collect(chatsAPI.reply('c1'));
+
+    expect(events.map((event) => event.text ?? event.type)).toEqual(['hey', 'you', 'done']);
+  });
+
   it('throws when the stream reports an error', async () => {
     fetch.mockResolvedValue(
       streamResponse([

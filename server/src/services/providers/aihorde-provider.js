@@ -399,7 +399,6 @@ export class AIHordeProvider extends LLMProvider {
         // Check if aborted
         if (options.signal?.aborted) {
           console.log(`[AI Horde] Abort signal detected for request ${requestId}`);
-          await this.cancelRequest(requestId);
           throw new Error('Generation cancelled');
         }
 
@@ -468,14 +467,13 @@ export class AIHordeProvider extends LLMProvider {
         });
       }
     } catch (error) {
-      // Clean up request on error
-      if (error.message !== 'Generation cancelled') {
-        console.log(`[AI Horde] Error during generation, cleaning up request ${requestId}`);
-        try {
-          await this.cancelRequest(requestId);
-        } catch (cancelError) {
-          console.error(`[AI Horde] Failed to cleanup request: ${cancelError.message}`);
-        }
+      // Clean up the request on any error, a cancellation included, so the Horde stops working
+      // on it whether the abort came before a poll or during the wait between polls.
+      console.log(`[AI Horde] Cleaning up request ${requestId}: ${error.message}`);
+      try {
+        await this.cancelRequest(requestId);
+      } catch (cancelError) {
+        console.error(`[AI Horde] Failed to cleanup request: ${cancelError.message}`);
       }
       throw error;
     }

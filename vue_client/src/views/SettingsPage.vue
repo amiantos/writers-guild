@@ -175,6 +175,7 @@
 
 <script setup>
 import { ref, watch, onMounted, nextTick } from 'vue';
+import { onBeforeRouteLeave } from 'vue-router';
 import { settingsAPI, charactersAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useNavigation } from '../composables/useNavigation';
@@ -235,6 +236,7 @@ watch(
 
     // Set new timeout to save after 500ms of no changes
     saveTimeout.value = setTimeout(() => {
+      saveTimeout.value = null;
       saveSettings();
     }, 500);
   },
@@ -289,20 +291,46 @@ async function loadCharacters() {
   }
 }
 
-async function saveSettings() {
-  if (saving.value) return;
+// The save in flight, and whether settings changed while it was
+let savePromise = null;
+let saveAgain = false;
 
-  try {
-    saving.value = true;
-    await settingsAPI.update(settings.value);
-    toast.success('Settings saved');
-  } catch (error) {
-    console.error('Failed to save settings:', error);
-    toast.error('Failed to save settings');
-  } finally {
-    saving.value = false;
+function saveSettings() {
+  if (savePromise) {
+    // Saved once this save finishes, so a change made mid-save isn't lost.
+    saveAgain = true;
+    return savePromise;
   }
+  savePromise = (async () => {
+    saving.value = true;
+    try {
+      do {
+        saveAgain = false;
+        await settingsAPI.update(settings.value);
+      } while (saveAgain);
+      toast.success('Settings saved');
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      toast.error('Failed to save settings');
+    } finally {
+      saving.value = false;
+      savePromise = null;
+    }
+  })();
+  return savePromise;
 }
+
+// Save pending changes before leaving, so the next page (like the landing page's tabs, which
+// follow the experimental toggles) loads what was just set.
+onBeforeRouteLeave(async () => {
+  if (saveTimeout.value) {
+    clearTimeout(saveTimeout.value);
+    saveTimeout.value = null;
+    await saveSettings();
+  } else if (savePromise) {
+    await savePromise;
+  }
+});
 </script>
 
 <style scoped>
