@@ -134,7 +134,9 @@ export class AIHordeProvider extends LLMProvider {
    */
   async buildPrompts(context, generationType, customParams, preset) {
     const maxGenerationTokens = preset.generationSettings?.maxTokens || 512;
-    const maxContextTokens = await this.resolveContextTokens(preset);
+    // A caller that already resolved the context passes it, so the workers aren't fetched twice.
+    const maxContextTokens =
+      customParams.maxContextTokens ?? (await this.resolveContextTokens(preset));
 
     return this.promptBuilder.buildPrompts(context, {
       maxContextTokens,

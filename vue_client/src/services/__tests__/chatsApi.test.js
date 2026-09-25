@@ -110,6 +110,14 @@ describe('chatsApi', () => {
     expect(events.map((event) => event.text ?? event.type)).toEqual(['hey', 'you', 'done']);
   });
 
+  it('throws when the stream ends before done', async () => {
+    fetch.mockResolvedValue(streamResponse([sse({ type: 'content', text: 'hey' })]));
+
+    await expect(collect(chatsAPI.reply('c1'))).rejects.toThrow(
+      'The connection closed before the reply finished',
+    );
+  });
+
   it('throws when the stream reports an error', async () => {
     fetch.mockResolvedValue(
       streamResponse([

@@ -763,6 +763,10 @@ async function streamGeneration(
   // the story's images appended to them.
   const appendMissingImages = REWRITE_GENERATION_TYPES.has(generationType);
 
+  // The context the prompt is budgeted for, which AI Horde narrows to what its workers take. It
+  // goes to the provider as well, so the backend is asked for the same size.
+  const maxContextTokens = await provider.resolveContextTokens(preset);
+
   // Build both system and user prompts with proper context management
   const prompts = await provider.buildPrompts(
     {
@@ -778,6 +782,7 @@ async function streamGeneration(
       customInstruction: params.customInstruction,
       templateText: preset.promptTemplates?.[generationType],
       imagePreserver,
+      maxContextTokens,
     },
     preset,
   );
@@ -805,7 +810,9 @@ async function streamGeneration(
     const { stream } = await provider.generateStreaming(systemPrompt, userPrompt, {
       // Pass all advanced sampling parameters
       ...preset.generationSettings,
-      maxContextLength: preset.generationSettings.maxContextTokens,
+      // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+      maxContextTokens,
+      maxContextLength: maxContextTokens,
       signal: abortSignal,
     });
 
@@ -853,7 +860,9 @@ async function streamGeneration(
     const streamWithStatus = provider.generateStreamingWithStatus(systemPrompt, userPrompt, {
       // Pass all advanced sampling parameters
       ...preset.generationSettings,
-      maxContextLength: preset.generationSettings.maxContextTokens,
+      // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+      maxContextTokens,
+      maxContextLength: maxContextTokens,
       timeout: preset.generationSettings.timeout || 300000,
       signal: abortSignal,
     });
@@ -895,7 +904,9 @@ async function streamGeneration(
     const result = await provider.generate(systemPrompt, userPrompt, {
       // Pass all advanced sampling parameters
       ...preset.generationSettings,
-      maxContextLength: preset.generationSettings.maxContextTokens,
+      // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+      maxContextTokens,
+      maxContextLength: maxContextTokens,
     });
 
     // NOTE: this read `update.content` before, but `update` is out of scope in

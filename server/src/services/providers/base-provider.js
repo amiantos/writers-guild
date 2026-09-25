@@ -93,7 +93,8 @@ export class LLMProvider {
    * @returns {Object|Promise<Object>} { system: string, user: string }
    */
   buildPrompts(context, generationType, customParams, preset) {
-    const maxContextTokens = this.resolveContextTokens(preset);
+    // A caller that already resolved the context passes it, so it isn't resolved twice.
+    const maxContextTokens = customParams.maxContextTokens ?? this.resolveContextTokens(preset);
     const maxGenerationTokens = preset.generationSettings?.maxTokens || 4000;
 
     // Get custom system prompt template from preset (null = use default)

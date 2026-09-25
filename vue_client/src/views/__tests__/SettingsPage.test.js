@@ -80,4 +80,27 @@ describe('SettingsPage', () => {
       vi.useRealTimers();
     }
   });
+
+  it('sends a change made during a save that fails', async () => {
+    vi.useFakeTimers();
+    try {
+      let failFirst;
+      mockSettingsAPI.update.mockImplementationOnce(
+        () => new Promise((_resolve, reject) => (failFirst = reject)),
+      );
+      const wrapper = await mountPage();
+
+      await chatsToggle(wrapper).setValue(true);
+      await vi.advanceTimersByTimeAsync(500);
+      await chatsToggle(wrapper).setValue(false);
+      await vi.advanceTimersByTimeAsync(500);
+      failFirst(new Error('offline'));
+      await flushPromises();
+
+      expect(mockSettingsAPI.update).toHaveBeenCalledTimes(2);
+      expect(mockSettingsAPI.update.mock.calls[1][0].experimentalChats).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

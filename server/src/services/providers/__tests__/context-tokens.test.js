@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { KoboldCppProvider } from '../koboldcpp-provider.js';
 import { OllamaProvider } from '../ollama-provider.js';
 import { OpenAIProvider } from '../openai-provider.js';
@@ -21,5 +21,18 @@ describe('resolveContextTokens', () => {
     expect(new KoboldCppProvider({ baseURL: 'x' }).resolveContextTokens(unset)).toBe(4096);
     expect(new OllamaProvider({ baseURL: 'x' }).resolveContextTokens(unset)).toBe(4096);
     expect(new OpenAIProvider({ apiKey: 'k' }).resolveContextTokens(unset)).toBe(128000);
+  });
+
+  it('is taken from the caller when buildPrompts is given one', () => {
+    const provider = new OpenAIProvider({ apiKey: 'k' });
+    const resolve = vi.spyOn(provider, 'resolveContextTokens');
+    const build = vi
+      .spyOn(provider.promptBuilder, 'buildPrompts')
+      .mockReturnValue({ system: '', user: '' });
+
+    provider.buildPrompts({}, 'continue', { maxContextTokens: 2048 }, { generationSettings: {} });
+
+    expect(resolve).not.toHaveBeenCalled();
+    expect(build.mock.calls[0][1].maxContextTokens).toBe(2048);
   });
 });

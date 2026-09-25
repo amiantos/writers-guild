@@ -356,7 +356,9 @@ const visibleTurns = computed(() =>
     ? turns.value.filter((turn) => turn.id !== pending.value.regenerating)
     : turns.value,
 );
-const pendingParts = computed(() => (pending.value ? splitReply(pending.value.content) : []));
+const pendingParts = computed(() =>
+  pending.value ? splitReply(pending.value.content, pending.value.speakerName) : [],
+);
 const nudgeName = computed(() =>
   isGroup.value ? 'someone' : (chatCharacters.value[0]?.name ?? 'them'),
 );

@@ -7,6 +7,14 @@ describe('chatMessages', () => {
     expect(splitReply('')).toEqual([]);
   });
 
+  it('drops and splits at the sender’s own labels, as the saved reply will', () => {
+    expect(splitReply('Layla: hey\nlayla hart: you up?\nmeet at 5:30', 'Layla Hart')).toEqual([
+      'hey',
+      'you up?\nmeet at 5:30',
+    ]);
+    expect(splitReply('Layla: hey')).toEqual(['Layla: hey']);
+  });
+
   it('names a character’s turn in a group when the speaker changes', () => {
     const turns = [
       { source: 'user' },

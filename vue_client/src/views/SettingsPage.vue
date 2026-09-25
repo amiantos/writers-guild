@@ -303,15 +303,25 @@ function saveSettings() {
   }
   savePromise = (async () => {
     saving.value = true;
+    let failure = null;
     try {
+      // Each save sends every setting, so a change made during a failed save is still sent by
+      // the save after it; only the last save's outcome is reported.
       do {
         saveAgain = false;
-        await settingsAPI.update(settings.value);
+        try {
+          await settingsAPI.update(settings.value);
+          failure = null;
+        } catch (error) {
+          failure = error;
+        }
       } while (saveAgain);
-      toast.success('Settings saved');
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-      toast.error('Failed to save settings');
+      if (failure) {
+        console.error('Failed to save settings:', failure);
+        toast.error('Failed to save settings');
+      } else {
+        toast.success('Settings saved');
+      }
     } finally {
       saving.value = false;
       savePromise = null;

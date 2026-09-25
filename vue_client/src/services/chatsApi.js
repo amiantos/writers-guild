@@ -33,7 +33,8 @@ async function request(path, { method = 'GET', body } = {}) {
 
 /**
  * POST a request that answers with server-sent events. Yields each event,
- * throws when the server sends an `error` event, and stops after `done`.
+ * throws when the server sends an `error` event or the stream ends without
+ * one, and stops after `done`.
  */
 export async function* streamEvents(path, body, signal) {
   const response = await fetch(`${baseURL}${path}`, {
@@ -55,8 +56,8 @@ export async function* streamEvents(path, body, signal) {
       const { done, value } = await reader.read();
       buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
       // Events end lines with LF, CRLF, or CR (a proxy may rewrite them). A CR at the end of the
-      // buffer may be half of a CRLF, so it waits for the next chunk.
-      const lines = buffer.split(/\r\n|\r(?!$)|\n/);
+      // buffer may be half of a CRLF, so it waits for the next chunk unless the stream is over.
+      const lines = buffer.split(done ? /\r\n|\r|\n/ : /\r\n|\r(?!$)|\n/);
       buffer = done ? '' : lines.pop();
 
       for (const line of lines) {
@@ -70,7 +71,10 @@ export async function* streamEvents(path, body, signal) {
         if (event.type === 'done') return;
       }
 
-      if (done) return;
+      if (done) {
+        // The server always ends with done or error, so this is a dropped connection.
+        throw new Error('The connection closed before the reply finished');
+      }
     }
   } finally {
     await reader.cancel().catch(() => {});

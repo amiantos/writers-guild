@@ -1171,7 +1171,9 @@ describe('Stories API Routes - Generation Endpoints', () => {
       apiConfig: { apiKey: '0000000000', models: ['test-model'] },
     });
 
-    vi.spyOn(AIHordeProvider.prototype, 'buildPrompts').mockResolvedValue({
+    // The workers take less context than the preset's, and the request must ask for that.
+    vi.spyOn(AIHordeProvider.prototype, 'resolveContextTokens').mockResolvedValue(2048);
+    const buildPrompts = vi.spyOn(AIHordeProvider.prototype, 'buildPrompts').mockResolvedValue({
       system: 'system prompt',
       user: 'user prompt',
     });
@@ -1182,14 +1184,19 @@ describe('Stories API Routes - Generation Endpoints', () => {
       visionAPI: false,
       maxContextWindow: 8192,
     });
-    vi.spyOn(AIHordeProvider.prototype, 'generateStreamingWithStatus').mockImplementation(() =>
-      (async function* () {
-        yield { type: 'status', queuePosition: 2, waitTime: 5, finished: false, faulted: false };
-        yield { type: 'complete', content: '*done*' };
-      })(),
-    );
+    const generate = vi
+      .spyOn(AIHordeProvider.prototype, 'generateStreamingWithStatus')
+      .mockImplementation(() =>
+        (async function* () {
+          yield { type: 'status', queuePosition: 2, waitTime: 5, finished: false, faulted: false };
+          yield { type: 'complete', content: '*done*' };
+        })(),
+      );
 
     const response = await request(app).post(`/api/stories/${storyId}/ideate`).expect(200);
+
+    expect(buildPrompts.mock.calls[0][2].maxContextTokens).toBe(2048);
+    expect(generate.mock.calls[0][2].maxContextLength).toBe(2048);
 
     expect(response.text).toContain('"queueStatus"');
     expect(response.text).toContain('"content":"done"');
