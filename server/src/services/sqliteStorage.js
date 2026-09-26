@@ -39,7 +39,8 @@ export class SqliteStorageService {
           default_preset_id = @defaultPresetId,
           onboarding_completed = @onboardingCompleted,
           experimental_chats = @experimentalChats,
-          experimental_bureaus = @experimentalBureaus
+          experimental_bureaus = @experimentalBureaus,
+          experimental_enhanced_story = @experimentalEnhancedStory
         WHERE id = 1
       `),
 
@@ -59,6 +60,10 @@ export class SqliteStorageService {
       ),
       updateStoryAvatarWindows: this.db.prepare(
         'UPDATE stories SET avatar_windows = ? WHERE id = ?',
+      ),
+      updateStoryPassages: this.db.prepare('UPDATE stories SET passages = ? WHERE id = ?'),
+      updateStoryContentAndPassages: this.db.prepare(
+        'UPDATE stories SET content = ?, word_count = ?, modified = ?, passages = ? WHERE id = ?',
       ),
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, scenario = @scenario,
@@ -381,6 +386,7 @@ export class SqliteStorageService {
       onboardingCompleted: !!row.onboarding_completed,
       experimentalChats: !!row.experimental_chats,
       experimentalBureaus: !!row.experimental_bureaus,
+      experimentalEnhancedStory: !!row.experimental_enhanced_story,
     };
   }
 
@@ -401,6 +407,7 @@ export class SqliteStorageService {
       onboardingCompleted: settings.onboardingCompleted ? 1 : 0,
       experimentalChats: settings.experimentalChats ? 1 : 0,
       experimentalBureaus: settings.experimentalBureaus ? 1 : 0,
+      experimentalEnhancedStory: settings.experimentalEnhancedStory ? 1 : 0,
     });
     return settings;
   }
@@ -461,6 +468,7 @@ export class SqliteStorageService {
       characters,
       needsRewritePrompt: !!row.needs_rewrite_prompt,
       avatarWindows: JSON.parse(row.avatar_windows || '[]'),
+      passages: JSON.parse(row.passages || '[]'),
     };
   }
 
@@ -544,6 +552,11 @@ export class SqliteStorageService {
     };
   }
 
+  /**
+   * Save a story's content. `options.passages`, when given, is Enhanced Story Mode's record of the
+   * story's passages (where each came from, and the reasoning behind it), saved in the same write
+   * so the two never disagree.
+   */
   async updateStoryContent(storyId, content, options = {}) {
     const existing = this.stmts.getStory.get(storyId);
     if (!existing) {
@@ -551,6 +564,7 @@ export class SqliteStorageService {
     }
 
     const changed = existing.content !== content;
+    const passages = options.passages ? JSON.stringify(options.passages) : null;
 
     if (changed) {
       const modified = new Date().toISOString();
@@ -561,10 +575,23 @@ export class SqliteStorageService {
         await this.saveToHistory(storyId, content, wordCount);
       }
 
-      this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
+      if (passages) {
+        this.stmts.updateStoryContentAndPassages.run(
+          content,
+          wordCount,
+          modified,
+          passages,
+          storyId,
+        );
+      } else {
+        this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
+      }
       return { success: true, modified, changed };
     }
 
+    if (passages) {
+      this.stmts.updateStoryPassages.run(passages, storyId);
+    }
     return { success: true, modified: existing.modified, changed };
   }
 
@@ -616,6 +643,11 @@ export class SqliteStorageService {
       // Copy avatar windows if present
       if (existing.avatar_windows) {
         this.stmts.updateStoryAvatarWindows.run(existing.avatar_windows, newId);
+      }
+
+      // Copy the record of how each passage was written
+      if (existing.passages) {
+        this.stmts.updateStoryPassages.run(existing.passages, newId);
       }
 
       // Copy character associations

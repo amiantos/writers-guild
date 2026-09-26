@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
-const SCHEMA_VERSION = 11;
+const SCHEMA_VERSION = 12;
 
 /**
  * Initialize the SQLite database with schema
@@ -87,7 +87,8 @@ function createAllTables(db) {
       default_preset_id TEXT,
       onboarding_completed INTEGER DEFAULT 0,
       experimental_chats INTEGER DEFAULT 0,
-      experimental_bureaus INTEGER DEFAULT 0
+      experimental_bureaus INTEGER DEFAULT 0,
+      experimental_enhanced_story INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -103,6 +104,7 @@ function createAllTables(db) {
       word_count INTEGER DEFAULT 0,
       needs_rewrite_prompt INTEGER DEFAULT 0,
       avatar_windows TEXT DEFAULT '[]',
+      passages TEXT DEFAULT '[]',
       persona_character_id TEXT,
       config_preset_id TEXT,
       created TEXT NOT NULL,
@@ -494,6 +496,18 @@ function migrateSchema(db, fromVersion, dataRoot) {
         db.exec('ALTER TABLE settings ADD COLUMN experimental_bureaus INTEGER DEFAULT 0');
       }
       enableBureausIfInUse(db, dataRoot);
+    }
+
+    // Migration to version 12: Enhanced Story Mode's toggle, and the record of each story's passages
+    if (fromVersion < 12) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_enhanced_story')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_enhanced_story INTEGER DEFAULT 0');
+      }
+      const storyColumns = db.prepare('PRAGMA table_info(stories)').all();
+      if (!storyColumns.some((column) => column.name === 'passages')) {
+        db.exec("ALTER TABLE stories ADD COLUMN passages TEXT DEFAULT '[]'");
+      }
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

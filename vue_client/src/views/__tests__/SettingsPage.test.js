@@ -56,6 +56,19 @@ describe('SettingsPage', () => {
     expect(mockSettingsAPI.update.mock.calls[0][0].experimentalChats).toBe(true);
   });
 
+  it('turns Enhanced Story Mode on from its checkbox', async () => {
+    const wrapper = await mountPage();
+    const toggle = wrapper
+      .findAll('input[type="checkbox"]')
+      .find((input) => input.element.closest('label')?.textContent.includes('Enhanced Story Mode'));
+    expect(toggle.element.checked).toBe(false);
+
+    await toggle.setValue(true);
+    await Promise.all(leaveGuards.map((guard) => guard()));
+
+    expect(mockSettingsAPI.update.mock.calls[0][0].experimentalEnhancedStory).toBe(true);
+  });
+
   it('saves again when settings change while a save is in flight', async () => {
     vi.useFakeTimers();
     try {

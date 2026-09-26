@@ -49,6 +49,7 @@ router.put(
       onboardingCompleted,
       experimentalChats,
       experimentalBureaus,
+      experimentalEnhancedStory,
     } = req.body;
 
     // Get current settings
@@ -87,6 +88,9 @@ router.put(
       ...(experimentalChats !== undefined && { experimentalChats: Boolean(experimentalChats) }),
       ...(experimentalBureaus !== undefined && {
         experimentalBureaus: Boolean(experimentalBureaus),
+      }),
+      ...(experimentalEnhancedStory !== undefined && {
+        experimentalEnhancedStory: Boolean(experimentalEnhancedStory),
       }),
     };
 
