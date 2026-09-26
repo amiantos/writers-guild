@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 /**
  * Initialize the SQLite database with schema
@@ -240,6 +240,7 @@ function createAllTables(db) {
   `);
 
   createChatTables(db);
+  createCharacterVersionTables(db);
 
   console.log('Database schema created successfully');
 }
@@ -295,6 +296,33 @@ function createChatTables(db) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_chat_turns_chat ON chat_turns(chat_id, position);
+  `);
+}
+
+/**
+ * Create the table of character card versions. A library character keeps a
+ * full copy of its card each time it changes, and the first change also keeps
+ * the card as it was, so every version can be seen and restored.
+ */
+function createCharacterVersionTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS character_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id TEXT NOT NULL,
+      -- The whole V2 card at this version; portraits aren't kept.
+      data TEXT NOT NULL,
+      checksum TEXT NOT NULL,
+      image_changed INTEGER NOT NULL DEFAULT 0,
+      -- CHARACTER_VERSION_SOURCES in sqliteStorage.js
+      source TEXT NOT NULL,
+      -- The version restored, or the Bureau the card was saved from.
+      source_id TEXT,
+      created TEXT NOT NULL,
+      FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_character_versions_character
+      ON character_versions(character_id, id);
   `);
 }
 
@@ -508,6 +536,11 @@ function migrateSchema(db, fromVersion, dataRoot) {
       if (!storyColumns.some((column) => column.name === 'passages')) {
         db.exec("ALTER TABLE stories ADD COLUMN passages TEXT DEFAULT '[]'");
       }
+    }
+
+    // Migration to version 13: Keep a version of a character's card each time it changes
+    if (fromVersion < 13) {
+      createCharacterVersionTables(db);
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

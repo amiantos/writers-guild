@@ -8,6 +8,70 @@ import { computeCharacterChecksum, computeLorebookChecksum } from './checksum-se
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 
+/**
+ * Where a character version came from. original: the card as it was imported or created, kept
+ * before its first change. baseline: the card as it was when its history started, for a card
+ * already edited before versions were kept.
+ */
+export const CHARACTER_VERSION_SOURCES = ['original', 'baseline', 'edit', 'restore'];
+
+/** The card fields a version lists as changed, besides the portrait and everything else. */
+const CHARACTER_VERSION_FIELDS = [
+  'name',
+  'description',
+  'personality',
+  'scenario',
+  'first_mes',
+  'mes_example',
+  'system_prompt',
+  'alternate_greetings',
+];
+
+/** The library lorebook linked to a card. The checksum leaves it out, but versions keep it. */
+function linkedLorebookOf(card) {
+  return card?.data?.extensions?.ursceal_lorebook_id ?? null;
+}
+
+function characterVersionFromRow(row) {
+  return {
+    id: row.id,
+    characterId: row.character_id,
+    data: JSON.parse(row.data),
+    imageChanged: !!row.image_changed,
+    source: row.source,
+    sourceId: row.source_id,
+    created: row.created,
+  };
+}
+
+/** The checksum of everything in a card besides CHARACTER_VERSION_FIELDS. */
+function checksumOfOtherFields(card) {
+  const data = { ...card.data };
+  for (const field of CHARACTER_VERSION_FIELDS) delete data[field];
+  return computeCharacterChecksum({ data });
+}
+
+/**
+ * The fields that differ between two versions of a card: any of CHARACTER_VERSION_FIELDS,
+ * 'lorebook' for its linked lorebook, 'other' when something else in the card changed, and
+ * 'portrait' when the portrait was replaced.
+ */
+function changedCharacterFields(previousRow, row) {
+  const previousCard = JSON.parse(previousRow.data);
+  const card = JSON.parse(row.data);
+  const before = previousCard.data ?? {};
+  const after = card.data ?? {};
+  const changed = CHARACTER_VERSION_FIELDS.filter(
+    (field) => JSON.stringify(before[field] ?? '') !== JSON.stringify(after[field] ?? ''),
+  );
+  if (linkedLorebookOf(previousCard) !== linkedLorebookOf(card)) {
+    changed.push('lorebook');
+  }
+  if (checksumOfOtherFields(previousCard) !== checksumOfOtherFields(card)) changed.push('other');
+  if (row.image_changed) changed.push('portrait');
+  return changed;
+}
+
 export class SqliteStorageService {
   constructor(dataRoot) {
     this.dataRoot = dataRoot;
@@ -122,6 +186,24 @@ export class SqliteStorageService {
         ORDER BY name
       `),
       deleteCharacter: this.db.prepare('DELETE FROM characters WHERE id = ?'),
+      getCharacterVersionBase: this.db.prepare(
+        'SELECT data, created, current_checksum, import_internal_checksum FROM characters WHERE id = ?',
+      ),
+
+      // Character versions
+      listCharacterVersions: this.db.prepare(
+        'SELECT * FROM character_versions WHERE character_id = ? ORDER BY id',
+      ),
+      getCharacterVersion: this.db.prepare(
+        'SELECT * FROM character_versions WHERE character_id = ? AND id = ?',
+      ),
+      hasCharacterVersions: this.db.prepare(
+        'SELECT 1 FROM character_versions WHERE character_id = ? LIMIT 1',
+      ),
+      insertCharacterVersion: this.db.prepare(`
+        INSERT INTO character_versions (character_id, data, checksum, image_changed, source, source_id, created)
+        VALUES (@characterId, @data, @checksum, @imageChanged, @source, @sourceId, @created)
+      `),
       characterExists: this.db.prepare('SELECT 1 FROM characters WHERE id = ?'),
 
       // Story-Character relationships
@@ -757,6 +839,9 @@ export class SqliteStorageService {
    * @param {string|null} [options.originChecksum] - Checksum of the source content
    *   before local image URLs were rewritten. Only meaningful on import; ignored
    *   when updating an existing character.
+   * @param {'edit'|'restore'} [options.source] - Why an existing character changed. Each change
+   *   is kept as a version, and the first also keeps the card as it was.
+   * @param {string|null} [options.sourceId] - The version restored.
    */
   async saveCharacter(characterId, characterData, imageBuffer = null, options = {}) {
     const existing = this.stmts.characterExists.get(characterId);
@@ -773,32 +858,74 @@ export class SqliteStorageService {
 
     if (existing) {
       // Update existing character
+      let thumbnail = null;
+      let thumbnailMedium = null;
       if (imageBuffer) {
-        const [thumbnail, thumbnailMedium] = await Promise.all([
+        [thumbnail, thumbnailMedium] = await Promise.all([
           this.generateThumbnail(imageBuffer),
           this.generateMediumThumbnail(imageBuffer),
         ]);
-        this.stmts.updateCharacterWithImage.run({
-          id: characterId,
-          name,
-          data: dataJson,
-          image: imageBuffer,
-          thumbnail,
-          thumbnailMedium,
-          modified: now,
-        });
-      } else {
-        this.stmts.updateCharacter.run({
-          id: characterId,
-          name,
-          data: dataJson,
-          modified: now,
-        });
       }
-      // `import_origin_checksum` and `import_internal_checksum` are import-time
-      // baselines: leaving them alone is what makes "edited since import"
-      // (current !== internal) mean anything.
-      this.stmts.updateCharacterCurrentChecksum.run(currentChecksum, characterId);
+
+      this.db.transaction(() => {
+        const previous = this.stmts.getCharacterVersionBase.get(characterId);
+        if (!previous) return;
+        const previousCard = JSON.parse(previous.data);
+        const previousChecksum = computeCharacterChecksum(previousCard);
+        const changed =
+          imageBuffer !== null ||
+          previousChecksum !== currentChecksum ||
+          linkedLorebookOf(previousCard) !== linkedLorebookOf(characterData);
+
+        // The first change also keeps the card as it was, so it can be restored.
+        if (changed && !this.stmts.hasCharacterVersions.get(characterId)) {
+          const untouched = previousChecksum === previous.import_internal_checksum;
+          this.stmts.insertCharacterVersion.run({
+            characterId,
+            data: previous.data,
+            checksum: previousChecksum,
+            imageChanged: 0,
+            source: untouched ? 'original' : 'baseline',
+            sourceId: null,
+            created: untouched ? previous.created : now,
+          });
+        }
+
+        if (imageBuffer) {
+          this.stmts.updateCharacterWithImage.run({
+            id: characterId,
+            name,
+            data: dataJson,
+            image: imageBuffer,
+            thumbnail,
+            thumbnailMedium,
+            modified: now,
+          });
+        } else {
+          this.stmts.updateCharacter.run({
+            id: characterId,
+            name,
+            data: dataJson,
+            modified: now,
+          });
+        }
+        // `import_origin_checksum` and `import_internal_checksum` are import-time
+        // baselines: leaving them alone is what makes "edited since import"
+        // (current !== internal) mean anything.
+        this.stmts.updateCharacterCurrentChecksum.run(currentChecksum, characterId);
+
+        if (changed) {
+          this.stmts.insertCharacterVersion.run({
+            characterId,
+            data: dataJson,
+            checksum: currentChecksum,
+            imageChanged: imageBuffer ? 1 : 0,
+            source: options.source ?? 'edit',
+            sourceId: options.sourceId ?? null,
+            created: now,
+          });
+        }
+      })();
     } else {
       // Insert new character
       let thumbnail = null;
@@ -826,6 +953,55 @@ export class SqliteStorageService {
     }
 
     return { id: characterId };
+  }
+
+  /**
+   * A character's versions, oldest first, each with the fields it changed from the one before
+   * (see changedCharacterFields). The first is the card as it was before anything changed, and
+   * there are none until something does.
+   */
+  listCharacterVersions(characterId) {
+    let previous = null;
+    return this.stmts.listCharacterVersions.all(characterId).map((row) => {
+      const version = characterVersionFromRow(row);
+      version.changed = previous ? changedCharacterFields(previous, row) : [];
+      previous = row;
+      return version;
+    });
+  }
+
+  /**
+   * Whether a character's card has changed since it was imported or created. The portrait
+   * doesn't count.
+   * @returns {boolean|null|undefined} null when it can't be told, for a character imported
+   *   before checksums were kept; undefined when the character doesn't exist.
+   */
+  characterEditedSinceImport(characterId) {
+    const row = this.stmts.getCharacterVersionBase.get(characterId);
+    if (!row) return undefined;
+    if (!row.import_internal_checksum) return null;
+    return row.current_checksum !== row.import_internal_checksum;
+  }
+
+  /** One version of a character, or null if it doesn't exist. */
+  getCharacterVersion(characterId, versionId) {
+    const row = this.stmts.getCharacterVersion.get(characterId, versionId);
+    return row ? characterVersionFromRow(row) : null;
+  }
+
+  /**
+   * Put a character's card back as it was at an earlier version, kept as a new version. The
+   * portrait stays as it is.
+   * @returns {Promise<Object|null>} The restored card, or null if the version doesn't exist.
+   */
+  async restoreCharacterVersion(characterId, versionId) {
+    const version = this.getCharacterVersion(characterId, versionId);
+    if (!version) return null;
+    await this.saveCharacter(characterId, version.data, null, {
+      source: 'restore',
+      sourceId: String(versionId),
+    });
+    return this.getCharacter(characterId);
   }
 
   async getCharacterImage(characterId) {

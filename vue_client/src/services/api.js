@@ -546,6 +546,16 @@ export const charactersAPI = {
     });
   },
 
+  listVersions(characterId) {
+    return request(`/characters/${characterId}/versions`);
+  },
+
+  restoreVersion(characterId, versionId) {
+    return request(`/characters/${characterId}/versions/${versionId}/restore`, {
+      method: 'POST',
+    });
+  },
+
   update(characterId, data) {
     return request(`/characters/${characterId}`, {
       method: 'PUT',
