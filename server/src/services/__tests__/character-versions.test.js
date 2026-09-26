@@ -87,9 +87,23 @@ describe('character versions', () => {
       'c1',
       card({ extensions: { ursceal_lorebook_id: 'lb1' }, tags: ['science'] }),
     );
+    await storage.saveCharacter(
+      'c1',
+      card({
+        extensions: { ursceal_lorebook_id: 'lb1' },
+        tags: ['science', 'history'],
+        description: 'A famous inventor.',
+      }),
+    );
 
     const versions = storage.listCharacterVersions('c1');
-    expect(versions.map((v) => v.changed)).toEqual([[], ['lorebook'], ['portrait'], ['other']]);
+    expect(versions.map((v) => v.changed)).toEqual([
+      [],
+      ['lorebook'],
+      ['portrait'],
+      ['other'],
+      ['description', 'other'],
+    ]);
     expect(versions[2].imageChanged).toBe(true);
   });
 

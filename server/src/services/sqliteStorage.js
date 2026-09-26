@@ -44,6 +44,13 @@ function characterVersionFromRow(row) {
   };
 }
 
+/** The checksum of everything in a card besides CHARACTER_VERSION_FIELDS. */
+function checksumOfOtherFields(card) {
+  const data = { ...card.data };
+  for (const field of CHARACTER_VERSION_FIELDS) delete data[field];
+  return computeCharacterChecksum({ data });
+}
+
 /**
  * The fields that differ between two versions of a card: any of CHARACTER_VERSION_FIELDS,
  * 'lorebook' for its linked lorebook, 'other' when something else in the card changed, and
@@ -60,7 +67,7 @@ function changedCharacterFields(previousRow, row) {
   if (linkedLorebookOf(previousCard) !== linkedLorebookOf(card)) {
     changed.push('lorebook');
   }
-  if (changed.length === 0 && previousRow.checksum !== row.checksum) changed.push('other');
+  if (checksumOfOtherFields(previousCard) !== checksumOfOtherFields(card)) changed.push('other');
   if (row.image_changed) changed.push('portrait');
   return changed;
 }
