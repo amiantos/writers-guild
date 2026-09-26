@@ -903,7 +903,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { characterId } = req.params;
     const editedSinceImport = storage.characterEditedSinceImport(characterId);
-    if (editedSinceImport === null) {
+    if (editedSinceImport === undefined) {
       throw new AppError('Character not found', 404);
     }
     res.json({ versions: storage.listCharacterVersions(characterId), editedSinceImport });

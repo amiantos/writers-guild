@@ -129,6 +129,16 @@ describe('character versions', () => {
     expect(await storage.restoreCharacterVersion('c2', original.id)).toBeNull();
   });
 
+  it("can't tell whether a character from before checksums were kept was edited", async () => {
+    await storage.saveCharacter('c1', card());
+    storage.db.prepare('UPDATE characters SET import_internal_checksum = NULL').run();
+    expect(storage.characterEditedSinceImport('c1')).toBeNull();
+    expect(storage.characterEditedSinceImport('missing')).toBeUndefined();
+
+    await storage.saveCharacter('c1', card({ description: 'Changed.' }));
+    expect(storage.listCharacterVersions('c1')[0].source).toBe('baseline');
+  });
+
   it('deletes versions with their character', async () => {
     await storage.saveCharacter('c1', card());
     await storage.saveCharacter('c1', card({ description: 'Changed.' }));

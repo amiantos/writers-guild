@@ -3,10 +3,12 @@
     <p v-if="loading" class="history-hint">Loading history...</p>
     <template v-else>
       <p class="history-hint">
-        <template v-if="editedSinceImport">
+        <template v-if="editedSinceImport === true">
           This card has changed since it was imported or created.
         </template>
-        <template v-else>This card is as it was when it was imported or created.</template>
+        <template v-else-if="editedSinceImport === false">
+          This card is as it was when it was imported or created.
+        </template>
         Every change is kept here, and restoring one keeps the current card too.
       </p>
       <p v-if="versions.length === 0" class="history-hint">No changes yet.</p>
@@ -89,7 +91,8 @@ const toast = useToast();
 const { confirm } = useConfirm();
 
 const versions = ref([]);
-const editedSinceImport = ref(false);
+/** null when it can't be told, for a character from before checksums were kept. */
+const editedSinceImport = ref(null);
 const loading = ref(true);
 const busy = ref(false);
 

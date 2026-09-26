@@ -69,6 +69,13 @@ describe('CharacterHistory', () => {
     expect(wrapper.text()).toContain('changed since it was imported');
   });
 
+  it("says nothing about import when it can't be told", async () => {
+    mockCharactersAPI.listVersions.mockResolvedValue({ editedSinceImport: null, versions: [] });
+    const wrapper = await mountHistory();
+    expect(wrapper.text()).not.toContain('imported or created');
+    expect(wrapper.text()).toContain('No changes yet.');
+  });
+
   it('restores an earlier version once confirmed', async () => {
     mockConfirm.mockResolvedValue(true);
     mockCharactersAPI.restoreVersion.mockResolvedValue({});

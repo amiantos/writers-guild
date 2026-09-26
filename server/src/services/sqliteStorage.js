@@ -964,12 +964,15 @@ export class SqliteStorageService {
   }
 
   /**
-   * Whether a character's card has changed since it was imported or created, or null if it
-   * doesn't exist. The portrait doesn't count.
+   * Whether a character's card has changed since it was imported or created. The portrait
+   * doesn't count.
+   * @returns {boolean|null|undefined} null when it can't be told, for a character imported
+   *   before checksums were kept; undefined when the character doesn't exist.
    */
   characterEditedSinceImport(characterId) {
     const row = this.stmts.getCharacterVersionBase.get(characterId);
-    if (!row) return null;
+    if (!row) return undefined;
+    if (!row.import_internal_checksum) return null;
     return row.current_checksum !== row.import_internal_checksum;
   }
 
