@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import fs from 'fs';
@@ -10,7 +10,8 @@ describe('character versions routes', () => {
   let app;
   let tempDir;
 
-  beforeEach(() => {
+  // The router keeps the storage it opens first, so every case shares one data directory.
+  beforeAll(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'character-versions-routes-'));
     app = express();
     app.use(express.json());
@@ -21,7 +22,7 @@ describe('character versions routes', () => {
     });
   });
 
-  afterEach(() => {
+  afterAll(() => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
