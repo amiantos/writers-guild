@@ -47,6 +47,7 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue';
 import { renderProse } from '../../composables/bureau/renderProse';
+import { displayText } from '../../composables/storyPassages';
 
 const props = defineProps({
   /** A block of the story, from splitPassages. */
@@ -61,7 +62,7 @@ const editing = ref(false);
 const draft = ref('');
 const editorRef = ref(null);
 
-const html = computed(() => renderProse(props.block.text));
+const html = computed(() => renderProse(displayText(props.block.text)));
 const editorRows = computed(() => Math.min(20, Math.max(3, Math.ceil(draft.value.length / 70))));
 
 function startEdit() {

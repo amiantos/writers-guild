@@ -26,7 +26,11 @@
           :open-on-reasoning="showReasoning"
         />
         <article class="pending-turn">
-          <div v-if="pending.text" class="prose" v-html="renderProse(pending.text)"></div>
+          <div
+            v-if="pending.text"
+            class="prose"
+            v-html="renderProse(displayText(pending.text))"
+          ></div>
           <p v-else class="pending-placeholder">{{ pending.status }}</p>
         </article>
       </div>
@@ -36,7 +40,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { splitPassages } from '../../composables/storyPassages';
+import { displayText, splitPassages } from '../../composables/storyPassages';
 import { renderProse } from '../../composables/bureau/renderProse';
 import { followScroll } from '../../composables/bureau/followScroll';
 import PassageSeam from './PassageSeam.vue';

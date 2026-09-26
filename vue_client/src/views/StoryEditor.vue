@@ -102,7 +102,7 @@
         ref="composerRef"
         :generating="generating"
         :status="generationStatus"
-        :ready="Boolean(story)"
+        :ready="Boolean(story) && charactersLoaded"
         :empty="isStoryEmpty"
         :can-continue-for-character="storyCharacters.length > 0"
         @send="handleComposerSend"
@@ -433,6 +433,8 @@ const bottomInputRef = ref(null);
 const enhancedEnabled = ref(false);
 // The story and settings have loaded, so it's known which view to show.
 const viewReady = ref(false);
+// The story's characters have loaded, so the composer's Send knows whether to write for one.
+const charactersLoaded = ref(false);
 const enhancedRef = ref(null);
 const composerRef = ref(null);
 // The record of the story's passages (see storyPassages.js), kept while Enhanced Story Mode is on.
@@ -600,6 +602,7 @@ onMounted(async () => {
   await Promise.all([loadStory(), loadSettings()]);
   viewReady.value = true;
   await loadCharacters();
+  charactersLoaded.value = true;
   startAutoSave();
 
   // Load avatar windows from story

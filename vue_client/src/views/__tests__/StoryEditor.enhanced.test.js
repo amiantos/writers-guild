@@ -427,6 +427,34 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     expect(wrapper.findAll('article.turn')).toHaveLength(2);
   });
 
+  it("keeps the composer's buttons off until the story's characters have loaded", async () => {
+    storiesAPI.get.mockResolvedValue({
+      story: {
+        id: 's1',
+        title: 'Rain',
+        content: 'Opening.\n\n',
+        passages: [],
+        characterIds: ['mara'],
+      },
+    });
+    let finishLoading;
+    charactersAPI.list.mockReturnValue(
+      new Promise((resolve) => {
+        finishLoading = () => resolve({ characters: [{ id: 'mara', name: 'Mara' }] });
+      }),
+    );
+    const wrapper = await mountEditor();
+
+    await wrapper.find('textarea.composer-input').setValue('She waited.');
+    expect(button(wrapper, 'Send').element.disabled).toBe(true);
+    expect(button(wrapper, 'Continue').element.disabled).toBe(true);
+
+    finishLoading();
+    await flushPromises();
+    expect(button(wrapper, 'Send').element.disabled).toBe(false);
+    expect(button(wrapper, 'Continue for Character').element.disabled).toBe(false);
+  });
+
   it('stays plain story mode with the setting off: preview, toolbar, and no record', async () => {
     loadStory('Opening.\n\n');
     storiesAPI.continueStory.mockReturnValue(stream([{ content: 'More.' }]));

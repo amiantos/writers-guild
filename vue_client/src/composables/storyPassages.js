@@ -16,10 +16,13 @@ import { MAX_STORY_PASSAGES } from '../../../shared/story-passages.js';
 /** Stale records kept for a passage undo or redo could bring back. */
 export const STALE_PASSAGES_KEPT = 50;
 
-/** Blank lines separate paragraphs, as in the rendered story. */
-const PARAGRAPH_BREAK_RE = /\n[ \t]*\n\s*/g;
+/**
+ * Blank lines separate paragraphs, as in the rendered story. Text from a character card can have
+ * Windows line endings.
+ */
+const PARAGRAPH_BREAK_RE = /\r?\n[ \t]*\r?\n\s*/g;
 
-const isBlank = (char) => char === ' ' || char === '\t';
+const isBlank = (char) => char === ' ' || char === '\t' || char === '\r';
 const isSpace = (char) => char === undefined || /\s/.test(char);
 
 /**
@@ -181,4 +184,9 @@ export function removeBlock(content, block) {
 export function appendText(content, text) {
   const before = content.replace(/\s+$/, '');
   return `${before ? `${before}\n\n` : ''}${text.trim()}\n\n`;
+}
+
+/** Text to render, with Windows line endings made plain, so its paragraphs show as paragraphs. */
+export function displayText(text) {
+  return text.replace(/\r\n?/g, '\n');
 }

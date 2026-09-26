@@ -5,6 +5,7 @@ import {
   replaceBlock,
   removeBlock,
   appendText,
+  displayText,
 } from '../storyPassages.js';
 
 const record = (id, text, extra = {}) => ({ id, text, source: 'generated', ...extra });
@@ -70,6 +71,17 @@ describe('splitPassages', () => {
     expect(blocks[0].record.id).toBe('rewrite');
   });
 
+  it('splits and matches text with Windows line endings, as a character card can have', () => {
+    const content = 'Hello.\r\n\r\nHow are you?\r\n\r\nShe waved.\r\nThen left.\r\n\r\n';
+    const blocks = splitPassages(content, [record('wave', 'She waved.\r\nThen left.')]);
+    expect(blocks.map((block) => block.text)).toEqual([
+      'Hello.',
+      'How are you?',
+      'She waved.\r\nThen left.',
+    ]);
+    expect(blocks[2].record.id).toBe('wave');
+  });
+
   it('prefers a whole paragraph over the same words inside another', () => {
     const content = 'He said yes. Then left.\n\nyes.\n\n';
     const blocks = splitPassages(content, [record('p', 'yes.')]);
@@ -132,5 +144,11 @@ describe('appendText', () => {
   it('adds a paragraph at the end, as the preview input does', () => {
     expect(appendText('Alpha.\n\n\n', ' Beta. ')).toBe('Alpha.\n\nBeta.\n\n');
     expect(appendText('', 'Beta.')).toBe('Beta.\n\n');
+  });
+});
+
+describe('displayText', () => {
+  it('makes Windows and old Mac line endings plain', () => {
+    expect(displayText('One.\r\n\r\nTwo.\rThree.')).toBe('One.\n\nTwo.\nThree.');
   });
 });
