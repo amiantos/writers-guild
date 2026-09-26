@@ -897,6 +897,35 @@ router.get(
   }),
 );
 
+// A character's versions, oldest first: every change to its card is kept
+router.get(
+  '/:characterId/versions',
+  asyncHandler(async (req, res) => {
+    const { characterId } = req.params;
+    const editedSinceImport = storage.characterEditedSinceImport(characterId);
+    if (editedSinceImport === null) {
+      throw new AppError('Character not found', 404);
+    }
+    res.json({ versions: storage.listCharacterVersions(characterId), editedSinceImport });
+  }),
+);
+
+// Put a character's card back as it was at an earlier version, saved as a new version
+router.post(
+  '/:characterId/versions/:versionId/restore',
+  asyncHandler(async (req, res) => {
+    const { characterId } = req.params;
+    const versionId = Number(req.params.versionId);
+    const character = Number.isInteger(versionId)
+      ? await storage.restoreCharacterVersion(characterId, versionId)
+      : null;
+    if (!character) {
+      throw new AppError('Version not found', 404);
+    }
+    res.json({ character });
+  }),
+);
+
 // Delete character from global library
 router.delete(
   '/:characterId',

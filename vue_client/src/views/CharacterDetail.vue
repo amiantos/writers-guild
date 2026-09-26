@@ -396,6 +396,19 @@
               </div>
             </div>
           </section>
+
+          <!-- History Section -->
+          <section class="edit-section">
+            <div class="section-header">
+              <h2>History</h2>
+            </div>
+            <CharacterHistory
+              :character-id="characterId"
+              :character="character"
+              :lorebooks="availableLorebooks"
+              @restored="loadCharacter"
+            />
+          </section>
         </div>
       </div>
     </div>
@@ -427,6 +440,7 @@ import { useOrphanedLorebook } from '../composables/useOrphanedLorebook';
 import { setPageTitle } from '../router';
 import CharacterCard from '../components/CharacterCard.vue';
 import GreetingSelectorModal from '../components/GreetingSelectorModal.vue';
+import CharacterHistory from '../components/CharacterHistory.vue';
 
 const props = defineProps({
   characterId: {
