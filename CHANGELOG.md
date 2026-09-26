@@ -3,6 +3,25 @@
 All notable changes to Writers Guild are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-26
+
+### Library
+
+- Character card history: every change to a library character's card is kept as a version, listed
+  in a History section on the character's page with what changed. Any version can be restored, and
+  an imported card keeps an "As imported" entry once it's first edited.
+
+### Experimental features
+
+- **Enhanced Story Mode**: story mode as passages, in Bureau's chapter-writer layout. Each passage
+  has a seam above it showing how it was written, its instruction, and the model's reasoning
+  (streamed live), with hover edit, delete, and write another version, and a composer at the bottom.
+  When on, it replaces the editor and preview outright.
+
+### Fixes
+
+- Rewrite to Third Person no longer skips its confirmation when picked from the overflow menu.
+
 ## [1.0.0] - 2026-09-25
 
 The first versioned release of Writers Guild.
