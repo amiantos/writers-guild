@@ -279,30 +279,38 @@ router.post(
         .map((suggestion) => [suggestion.id, suggestion]),
     );
 
-    const acceptedByCharacter = new Map();
+    const decidedByCharacter = new Map();
     for (const decision of decisions) {
       const suggestion = own.get(decision.id);
       if (!suggestion) continue;
-      if (!decision.accept) {
-        suggestions.setStatus(suggestion.id, 'rejected');
-        continue;
-      }
-      const list = acceptedByCharacter.get(suggestion.characterId) ?? [];
-      list.push({ ...suggestion, replace: decision.replace ?? suggestion.replace });
-      acceptedByCharacter.set(suggestion.characterId, list);
+      const list = decidedByCharacter.get(suggestion.characterId) ?? [];
+      list.push({
+        ...suggestion,
+        accept: decision.accept,
+        replace: decision.replace ?? suggestion.replace,
+      });
+      decidedByCharacter.set(suggestion.characterId, list);
     }
 
     const stale = [];
     let applied = 0;
-    for (const [characterId, accepted] of acceptedByCharacter) {
-      // The card is read, edited and saved under its lock, and each suggestion is checked again
-      // there, so a review running at the same time can't apply it twice or lose an edit.
+    for (const [characterId, decided] of decidedByCharacter) {
+      // Each suggestion is checked again and decided under its card's lock, rejections included,
+      // so a review running at the same time can't apply it twice, lose an edit, or reject an edit
+      // that is already on the card.
       applied += await withCardLock(characterId, async () => {
+        const still = decided.filter(
+          (suggestion) => suggestions.get(suggestion.id)?.status === 'proposed',
+        );
+        for (const suggestion of still) {
+          if (!suggestion.accept) suggestions.setStatus(suggestion.id, 'rejected');
+        }
+        const accepted = still.filter((suggestion) => suggestion.accept);
+        if (accepted.length === 0) return 0;
         const card = await storage.getCharacter(characterId).catch(() => null);
         if (!card) return 0;
         const made = [];
         for (const suggestion of accepted.toSorted((a, b) => a.id - b.id)) {
-          if (suggestions.get(suggestion.id)?.status !== 'proposed') continue;
           if (!CARD_SUGGESTION_FIELDS.includes(suggestion.field)) continue;
           const edited = applyEdit(
             card.data[suggestion.field],

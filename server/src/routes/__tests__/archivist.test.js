@@ -7,6 +7,7 @@ import path from 'path';
 import os from 'os';
 import { SqliteStorageService } from '../../services/sqliteStorage.js';
 import { ChatStorage } from '../../services/chat/chat-storage.js';
+import { CardSuggestionStorage } from '../../services/archivist/card-suggestion-storage.js';
 import { DeepSeekProvider } from '../../services/providers/deepseek-provider.js';
 import archivistRouter from '../archivist.js';
 
@@ -290,6 +291,47 @@ describe('Archivist routes', () => {
     const card = await storage.getCharacter(layla);
     expect(card.data.description).toBe('She is with Sam.');
     expect(card.data.personality).toBe('Warm. Hopeful.');
+  });
+
+  it('decide a suggestion once when an accept and a reject of it run at once', async () => {
+    await setArchivist(true);
+    const app = createApp();
+    const layla = await character('Layla', { description: 'She is single.' });
+    const storyId = await story('Layla met Sam.', [layla]);
+    answerWith([
+      {
+        character: 'Layla',
+        field: 'description',
+        find: 'She is single.',
+        replace: 'She is with Sam.',
+      },
+    ]);
+    const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    const [relationship] = run.body.suggestions;
+
+    // The reject arrives while the accept is saving the card.
+    const save = SqliteStorageService.prototype.saveCharacter;
+    let rejecting;
+    const review = (accept) =>
+      request(app)
+        .post(`/api/archivist/story/${storyId}/review`)
+        .send({ decisions: [{ id: relationship.id, accept }] });
+    vi.spyOn(SqliteStorageService.prototype, 'saveCharacter').mockImplementation(async function (
+      ...args
+    ) {
+      rejecting ??= review(false).then((r) => r);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return save.apply(this, args);
+    });
+    const setStatus = vi.spyOn(CardSuggestionStorage.prototype, 'setStatus');
+    await review(true);
+    await rejecting;
+    vi.restoreAllMocks();
+
+    // The accept won, so the reject waiting behind it found the suggestion already decided.
+    expect(setStatus.mock.calls.map(([, status]) => status)).toEqual(['accepted']);
+    const card = await storage.getCharacter(layla);
+    expect(card.data.description).toBe('She is with Sam.');
   });
 
   it('reject malformed review decisions, and a suggestion decided twice', async () => {
