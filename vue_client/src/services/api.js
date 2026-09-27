@@ -533,8 +533,9 @@ export const charactersAPI = {
     return request(`/characters/${characterId}/stories`);
   },
 
-  delete(characterId) {
-    return request(`/characters/${characterId}`, {
+  delete(characterId, { deleteStories = false } = {}) {
+    const query = deleteStories ? '?deleteStories=true' : '';
+    return request(`/characters/${characterId}${query}`, {
       method: 'DELETE',
     });
   },

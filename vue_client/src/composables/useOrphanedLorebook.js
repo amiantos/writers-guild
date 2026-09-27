@@ -2,8 +2,8 @@
  * Offer to clean up a lorebook that deleting a character just left behind.
  *
  * The delete endpoint reports an orphan rather than removing it, so the choice
- * stays with the user — same as characters, which refuse to delete while a
- * story still uses them.
+ * stays with the user — same as the stories a character is in, which are only
+ * deleted with it once the user has agreed.
  */
 import { lorebooksAPI } from '../services/api';
 import { useConfirm } from './useConfirm';

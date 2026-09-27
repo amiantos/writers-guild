@@ -206,9 +206,9 @@ async function cleanupFailedImport(storageInstance, dataRoot, characterId, creat
  * The lorebook a character is about to strand, or null.
  *
  * Nothing is deleted here — the client asks the user, then calls
- * DELETE /api/lorebooks/:id if they say yes. Deleting it outright would be
- * inconsistent with this route refusing to delete a character that is still
- * used by a story.
+ * DELETE /api/lorebooks/:id if they say yes. Deleting it outright would take
+ * the choice away, the same way stories are only deleted along with their
+ * character once the user has agreed to it.
  */
 async function findLorebookLeftBehindBy(characterId) {
   let lorebookId;
@@ -232,6 +232,28 @@ async function findLorebookLeftBehindBy(characterId) {
     // Already gone.
     return null;
   }
+}
+
+/**
+ * Stories a character is in, as cast or persona, each with the other
+ * characters it involves so the client can warn about them before deleting.
+ */
+async function findStoriesUsing(characterId) {
+  const stories = (await storage.listStories()).filter(
+    (story) =>
+      story.characterIds?.includes(characterId) || story.personaCharacterId === characterId,
+  );
+  if (stories.length === 0) return [];
+
+  const names = new Map((await storage.listAllCharacters()).map((c) => [c.id, c.name]));
+  return stories.map((story) => {
+    const otherIds = new Set([...(story.characterIds || []), story.personaCharacterId]);
+    otherIds.delete(characterId);
+    const otherCharacters = [...otherIds]
+      .filter((id) => names.has(id))
+      .map((id) => ({ id, name: names.get(id) }));
+    return { ...story, otherCharacters };
+  });
 }
 
 // ==================== Global Character Library ====================
@@ -884,16 +906,7 @@ router.put(
 router.get(
   '/:characterId/stories',
   asyncHandler(async (req, res) => {
-    const { characterId } = req.params;
-
-    // Get all stories and filter for ones that include this character
-    const allStories = await storage.listStories();
-    const characterStories = allStories.filter(
-      (story) =>
-        story.characterIds?.includes(characterId) || story.personaCharacterId === characterId,
-    );
-
-    res.json({ stories: characterStories });
+    res.json({ stories: await findStoriesUsing(req.params.characterId) });
   }),
 );
 
@@ -931,24 +944,28 @@ router.delete(
   '/:characterId',
   asyncHandler(async (req, res) => {
     const { characterId } = req.params;
+    const deleteStories = req.query.deleteStories === 'true';
 
-    // Check if character is used in any stories
-    const allStories = await storage.listStories();
-    const storiesUsingChar = allStories.filter(
-      (story) =>
-        story.characterIds?.includes(characterId) || story.personaCharacterId === characterId,
-    );
+    // Stories using the character go with it, but only when the client says
+    // the user agreed to that. Otherwise refuse and say which ones.
+    const storiesUsingChar = await findStoriesUsing(characterId);
 
-    if (storiesUsingChar.length > 0) {
+    if (storiesUsingChar.length > 0 && !deleteStories) {
       const storyTitles = storiesUsingChar.map((s) => s.title).join(', ');
       throw new AppError(
         `Cannot delete character: Used in ${storiesUsingChar.length} story(ies): ${storyTitles}. Remove from stories first.`,
         409,
+        { stories: storiesUsingChar },
       );
     }
 
+    for (const story of storiesUsingChar) {
+      await storage.deleteStory(story.id);
+    }
+
     // Work out whether this character's lorebook is about to be left behind,
-    // before the character row (and its link) is gone.
+    // before the character row (and its link) is gone. This runs after the
+    // stories are deleted, since one of them may have been the last to use it.
     const orphanedLorebook = await findLorebookLeftBehindBy(characterId);
 
     await storage.deleteCharacter(characterId);
@@ -963,6 +980,9 @@ router.delete(
 
     res.json({
       success: true,
+      ...(storiesUsingChar.length > 0
+        ? { deletedStoryIds: storiesUsingChar.map((s) => s.id) }
+        : {}),
       ...(orphanedLorebook ? { orphanedLorebook } : {}),
     });
   }),

@@ -45,6 +45,7 @@ describe('Characters API Routes', () => {
     app.use((err, req, res, _next) => {
       res.status(err.statusCode || 500).json({
         error: err.message || 'Internal server error',
+        ...err.details,
       });
     });
   });
@@ -347,6 +348,67 @@ describe('Characters API Routes', () => {
 
       expect(response.body.error).toContain('Cannot delete character');
       expect(response.body.error).toContain('Used in 1 story');
+      expect(response.body.stories.map((s) => s.id)).toEqual([story.id]);
+    });
+
+    it('should list the other characters each blocking story involves', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Target', description: 'Being deleted' })
+        .expect(201);
+      const castmate = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Castmate', description: 'Shares a story' })
+        .expect(201);
+
+      const shared = await storage.createStory('Shared Story', 'Two characters');
+      await storage.addCharacterToStory(shared.id, target.body.id);
+      await storage.setStoryPersona(shared.id, castmate.body.id);
+      const solo = await storage.createStory('Solo Story', 'Just the target');
+      await storage.addCharacterToStory(solo.id, target.body.id);
+
+      const response = await request(app).delete(`/api/characters/${target.body.id}`).expect(409);
+
+      const byTitle = Object.fromEntries(response.body.stories.map((s) => [s.title, s]));
+      expect(byTitle['Shared Story'].otherCharacters).toEqual([
+        { id: castmate.body.id, name: 'Castmate' },
+      ]);
+      expect(byTitle['Solo Story'].otherCharacters).toEqual([]);
+    });
+
+    it('should delete the character and its stories when deleteStories=true', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Doomed', description: 'Being deleted' })
+        .expect(201);
+      const other = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Survivor', description: 'Stays' })
+        .expect(201);
+
+      const asCast = await storage.createStory('Cast Story', 'Target in cast');
+      await storage.addCharacterToStory(asCast.id, target.body.id);
+      await storage.addCharacterToStory(asCast.id, other.body.id);
+      const asPersona = await storage.createStory('Persona Story', 'Target as persona');
+      await storage.setStoryPersona(asPersona.id, target.body.id);
+      const unrelated = await storage.createStory('Unrelated Story', 'Target not in it');
+      await storage.addCharacterToStory(unrelated.id, other.body.id);
+
+      const response = await request(app)
+        .delete(`/api/characters/${target.body.id}?deleteStories=true`)
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.deletedStoryIds.toSorted()).toEqual(
+        [asCast.id, asPersona.id].toSorted(),
+      );
+
+      const remaining = (await storage.listStories()).map((s) => s.id);
+      expect(remaining).toContain(unrelated.id);
+      expect(remaining).not.toContain(asCast.id);
+      expect(remaining).not.toContain(asPersona.id);
+      await request(app).get(`/api/characters/${target.body.id}/data`).expect(500);
+      await request(app).get(`/api/characters/${other.body.id}/data`).expect(200);
     });
   });
 
