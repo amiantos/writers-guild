@@ -412,6 +412,39 @@ describe('Characters API Routes', () => {
       await request(app).get(`/api/characters/${other.body.id}/data`).expect(200);
     });
 
+    it('should reject a malformed deleteStoryIds with 400', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Malformed', description: 'Bad payload' })
+        .expect(201);
+
+      for (const deleteStoryIds of [123, {}, 'abc', [1]]) {
+        await request(app)
+          .delete(`/api/characters/${target.body.id}`)
+          .send({ deleteStoryIds })
+          .expect(400);
+      }
+      await request(app).get(`/api/characters/${target.body.id}/data`).expect(200);
+    });
+
+    it('should re-check stories inside the delete transaction', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Late', description: 'Joins a story mid-delete' })
+        .expect(201);
+      const shown = await storage.createStory('Shown', 'Confirmed');
+      await storage.addCharacterToStory(shown.id, target.body.id);
+      const late = await storage.createStory('Late', 'Not confirmed');
+      await storage.setStoryPersona(late.id, target.body.id);
+
+      expect(await storage.deleteCharacterWithStories(target.body.id, [shown.id])).toBeNull();
+      const remaining = (await storage.listStories()).map((s) => s.id);
+      expect(remaining).toEqual(expect.arrayContaining([shown.id, late.id]));
+
+      const deleted = await storage.deleteCharacterWithStories(target.body.id, [shown.id, late.id]);
+      expect(deleted.toSorted()).toEqual([shown.id, late.id].toSorted());
+    });
+
     it('should delete nothing when a story was not among those confirmed', async () => {
       const target = await request(app)
         .post('/api/characters')

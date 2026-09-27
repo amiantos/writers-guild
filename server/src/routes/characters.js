@@ -945,21 +945,32 @@ router.delete(
   '/:characterId',
   asyncHandler(async (req, res) => {
     const { characterId } = req.params;
-    const confirmedStoryIds = new Set(req.body?.deleteStoryIds || []);
+    const confirmedStoryIds = req.body?.deleteStoryIds ?? [];
+    if (
+      !Array.isArray(confirmedStoryIds) ||
+      confirmedStoryIds.some((id) => typeof id !== 'string')
+    ) {
+      throw new AppError('deleteStoryIds must be an array of story ids', 400);
+    }
 
     // Stories using the character go with it, but only the ones the client
     // says the user agreed to. If any story wasn't confirmed (including one
     // added after the user was asked), refuse and say which ones.
+    const refuse = async () => {
+      const stories = await findStoriesUsing(characterId);
+      const storyTitles = stories.map((s) => s.title).join(', ');
+      return new AppError(
+        `Cannot delete character: Used in ${stories.length} story(ies): ${storyTitles}. ` +
+          'Those stories must be confirmed for deletion along with the character.',
+        409,
+        { stories },
+      );
+    };
+
     const storiesUsingChar = await findStoriesUsing(characterId);
     const storyIds = storiesUsingChar.map((s) => s.id);
-
-    if (storyIds.some((id) => !confirmedStoryIds.has(id))) {
-      const storyTitles = storiesUsingChar.map((s) => s.title).join(', ');
-      throw new AppError(
-        `Cannot delete character: Used in ${storiesUsingChar.length} story(ies): ${storyTitles}. Remove from stories first.`,
-        409,
-        { stories: storiesUsingChar },
-      );
+    if (storyIds.some((id) => !confirmedStoryIds.includes(id))) {
+      throw await refuse();
     }
 
     // Work out whether this character's lorebook is about to be left behind,
@@ -967,7 +978,15 @@ router.delete(
     // alongside it don't count as still using it.
     const orphanedLorebook = await findLorebookLeftBehindBy(characterId, storyIds);
 
-    await storage.deleteCharacterWithStories(characterId, storyIds);
+    // The storage call re-checks the stories inside its transaction, in case
+    // one was added since the check above.
+    const deletedStoryIds = await storage.deleteCharacterWithStories(
+      characterId,
+      confirmedStoryIds,
+    );
+    if (!deletedStoryIds) {
+      throw await refuse();
+    }
 
     // Clean up cached asset files
     try {
@@ -979,7 +998,7 @@ router.delete(
 
     res.json({
       success: true,
-      ...(storyIds.length > 0 ? { deletedStoryIds: storyIds } : {}),
+      ...(deletedStoryIds.length > 0 ? { deletedStoryIds } : {}),
       ...(orphanedLorebook ? { orphanedLorebook } : {}),
     });
   }),
