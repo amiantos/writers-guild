@@ -109,6 +109,18 @@
                 continues. Prompts and generation are the same as story mode's.
               </p>
             </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="settings.experimentalArchivist" />
+                <span>Archivist</span>
+              </label>
+              <p class="help-text">
+                Adds a Review Cards button to stories and chats. The Archivist reads what happened
+                and suggests small edits to your characters' descriptions and personalities, such as
+                a new relationship or goal, for you to accept, edit, or reject. Uses the story or
+                chat's preset. Accepted edits show in each card's History and can be restored.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -219,6 +231,7 @@ const settings = ref({
   experimentalChats: false,
   experimentalBureaus: false,
   experimentalEnhancedStory: false,
+  experimentalArchivist: false,
 });
 
 onMounted(async () => {
@@ -283,6 +296,7 @@ async function loadSettings() {
       experimentalChats: serverSettings.experimentalChats ?? false,
       experimentalBureaus: serverSettings.experimentalBureaus ?? false,
       experimentalEnhancedStory: serverSettings.experimentalEnhancedStory ?? false,
+      experimentalArchivist: serverSettings.experimentalArchivist ?? false,
     };
   } catch (error) {
     console.error('Failed to load settings:', error);

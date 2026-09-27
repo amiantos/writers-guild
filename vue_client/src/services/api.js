@@ -850,3 +850,23 @@ export default {
   presets: presetsAPI,
   onboarding: onboardingAPI,
 };
+
+// The experimental Archivist: suggested edits to a story or chat's character cards.
+// `kind` is 'story' or 'chat'.
+export const archivistAPI = {
+  async list(kind, sourceId) {
+    return request(`/archivist/${kind}/${sourceId}`);
+  },
+
+  async run(kind, sourceId, { signal } = {}) {
+    return request(`/archivist/${kind}/${sourceId}/run`, { method: 'POST', signal });
+  },
+
+  /** @param {Array<{id: number, accept: boolean, replace?: string}>} decisions */
+  async review(kind, sourceId, decisions) {
+    return request(`/archivist/${kind}/${sourceId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ decisions }),
+    });
+  },
+};

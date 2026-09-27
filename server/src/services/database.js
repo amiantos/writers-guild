@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 
 /**
  * Initialize the SQLite database with schema
@@ -88,7 +88,8 @@ function createAllTables(db) {
       onboarding_completed INTEGER DEFAULT 0,
       experimental_chats INTEGER DEFAULT 0,
       experimental_bureaus INTEGER DEFAULT 0,
-      experimental_enhanced_story INTEGER DEFAULT 0
+      experimental_enhanced_story INTEGER DEFAULT 0,
+      experimental_archivist INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -241,6 +242,7 @@ function createAllTables(db) {
 
   createChatTables(db);
   createCharacterVersionTables(db);
+  createCardSuggestionTables(db);
 
   console.log('Database schema created successfully');
 }
@@ -315,7 +317,8 @@ function createCharacterVersionTables(db) {
       image_changed INTEGER NOT NULL DEFAULT 0,
       -- CHARACTER_VERSION_SOURCES in sqliteStorage.js
       source TEXT NOT NULL,
-      -- The version restored, or the Bureau the card was saved from.
+      -- The version restored, the Bureau the card was saved from, or the story or chat
+      -- (story:<id> or chat:<id>) whose Archivist suggestions were accepted.
       source_id TEXT,
       created TEXT NOT NULL,
       FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
@@ -323,6 +326,49 @@ function createCharacterVersionTables(db) {
 
     CREATE INDEX IF NOT EXISTS idx_character_versions_character
       ON character_versions(character_id, id);
+  `);
+}
+
+/**
+ * Create the table of the Archivist's suggested card edits. A story or chat's
+ * suggestions wait for review, and the ones turned down are kept so the
+ * Archivist doesn't propose them again.
+ */
+function createCardSuggestionTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS card_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id TEXT NOT NULL,
+      -- 'story' or 'chat'
+      source_kind TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      -- CARD_SUGGESTION_FIELDS in card-archivist.js
+      field TEXT NOT NULL,
+      -- The text to replace, or empty to add a sentence at the end.
+      find TEXT NOT NULL DEFAULT '',
+      replace TEXT NOT NULL,
+      rationale TEXT NOT NULL DEFAULT '',
+      quote TEXT NOT NULL DEFAULT '',
+      -- 'proposed', 'accepted' or 'rejected'
+      status TEXT NOT NULL DEFAULT 'proposed',
+      created TEXT NOT NULL,
+      FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_card_suggestions_source
+      ON card_suggestions(source_kind, source_id);
+    CREATE INDEX IF NOT EXISTS idx_card_suggestions_character
+      ON card_suggestions(character_id, status);
+
+    -- A story or chat's suggestions go with it.
+    CREATE TRIGGER IF NOT EXISTS card_suggestions_story_deleted AFTER DELETE ON stories
+    BEGIN
+      DELETE FROM card_suggestions WHERE source_kind = 'story' AND source_id = OLD.id;
+    END;
+    CREATE TRIGGER IF NOT EXISTS card_suggestions_chat_deleted AFTER DELETE ON chats
+    BEGIN
+      DELETE FROM card_suggestions WHERE source_kind = 'chat' AND source_id = OLD.id;
+    END;
   `);
 }
 
@@ -541,6 +587,15 @@ function migrateSchema(db, fromVersion, dataRoot) {
     // Migration to version 13: Keep a version of a character's card each time it changes
     if (fromVersion < 13) {
       createCharacterVersionTables(db);
+    }
+
+    // Migration to version 14: The Archivist's toggle and its suggested card edits
+    if (fromVersion < 14) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_archivist')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_archivist INTEGER DEFAULT 0');
+      }
+      createCardSuggestionTables(db);
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

@@ -18,6 +18,15 @@
           <i class="fas fa-user"></i>
         </button>
         <button
+          v-if="archivistEnabled"
+          class="icon-btn"
+          :disabled="!chat || sending"
+          title="Review Cards with the Archivist"
+          @click="showArchivist = true"
+        >
+          <i class="fas fa-scroll"></i>
+        </button>
+        <button
           class="icon-btn"
           :disabled="!chat || sending"
           title="Manage Lorebooks"
@@ -258,6 +267,14 @@
       @close="showManageLorebooks = false"
     />
 
+    <ArchivistModal
+      v-if="showArchivist"
+      kind="chat"
+      :source-id="chatId"
+      @close="showArchivist = false"
+      @applied="loadCharacters"
+    />
+
     <EditChatModal
       v-if="showEditChat"
       :chat="chat"
@@ -297,6 +314,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { chatsAPI } from '../services/chatsApi';
+import { settingsAPI } from '../services/api';
 import { useDataCache } from '../composables/useDataCache';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
@@ -310,6 +328,7 @@ import ManageLorebooksModal from '../components/ManageLorebooksModal.vue';
 import StoryPresetModal from '../components/StoryPresetModal.vue';
 import CharacterResponseModal from '../components/CharacterResponseModal.vue';
 import ViewPromptModal from '../components/ViewPromptModal.vue';
+import ArchivistModal from '../components/ArchivistModal.vue';
 
 const props = defineProps({
   chatId: { type: String, required: true },
@@ -327,6 +346,8 @@ const loadError = ref('');
 
 const text = ref('');
 const sending = ref(false);
+const archivistEnabled = ref(false);
+const showArchivist = ref(false);
 const pending = ref(null);
 const lastPrompt = ref(null);
 let abortController = null;
@@ -709,7 +730,19 @@ function goToSettings() {
   router.push('/settings');
 }
 
-onMounted(load);
+async function loadSettings() {
+  try {
+    const { settings } = await settingsAPI.get();
+    archivistEnabled.value = settings?.experimentalArchivist ?? false;
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+  }
+}
+
+onMounted(() => {
+  load();
+  loadSettings();
+});
 
 // The router reuses this view when only the chat changes, as when going back and forward
 // between two chats, so everything from the previous chat is dropped first.
@@ -726,6 +759,7 @@ watch(
     showPresetSelector.value = false;
     showCharacterSelector.value = false;
     showViewPromptModal.value = false;
+    showArchivist.value = false;
     load();
   },
 );

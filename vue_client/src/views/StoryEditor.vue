@@ -22,6 +22,15 @@
         <button class="icon-btn" @click="showManageCharacters = true" title="Manage Characters">
           <i class="fas fa-user"></i>
         </button>
+        <button
+          v-if="archivistEnabled"
+          class="icon-btn"
+          :disabled="generating"
+          @click="openArchivist"
+          title="Review Cards with the Archivist"
+        >
+          <i class="fas fa-scroll"></i>
+        </button>
         <button class="icon-btn" @click="showManageLorebooks = true" title="Manage Lorebooks">
           <i class="fas fa-book"></i>
         </button>
@@ -291,6 +300,14 @@
       @updated="handleStoryUpdated"
     />
 
+    <ArchivistModal
+      v-if="showArchivist"
+      kind="story"
+      :source-id="storyId"
+      @close="showArchivist = false"
+      @applied="loadCharacters"
+    />
+
     <ManageLorebooksModal
       v-if="showManageLorebooks"
       :story="story"
@@ -365,6 +382,7 @@ import ViewPromptModal from '../components/ViewPromptModal.vue';
 import CustomPromptModal from '../components/CustomPromptModal.vue';
 import ManageCharactersModal from '../components/ManageCharactersModal.vue';
 import ManageLorebooksModal from '../components/ManageLorebooksModal.vue';
+import ArchivistModal from '../components/ArchivistModal.vue';
 import RenameStoryModal from '../components/RenameStoryModal.vue';
 import StoryPresetModal from '../components/StoryPresetModal.vue';
 import IdeateModal from '../components/IdeateModal.vue';
@@ -431,6 +449,8 @@ const bottomInputRef = ref(null);
 // with how each was written between them. It changes how the story is shown and edited, never
 // what's sent to the model.
 const enhancedEnabled = ref(false);
+const archivistEnabled = ref(false);
+const showArchivist = ref(false);
 // The story and settings have loaded, so it's known which view to show.
 const viewReady = ref(false);
 // The story's characters have loaded, so the composer's Send knows whether to write for one.
@@ -756,11 +776,18 @@ async function loadSettings() {
     const serverSettings = response.settings || response;
     shouldShowReasoning.value = serverSettings.showReasoning ?? false;
     enhancedEnabled.value = serverSettings.experimentalEnhancedStory ?? false;
+    archivistEnabled.value = serverSettings.experimentalArchivist ?? false;
   } catch (error) {
     console.error('Failed to load settings:', error);
     // Default to false if settings can't be loaded
     shouldShowReasoning.value = false;
   }
+}
+
+// The Archivist reads the saved story, so save first.
+async function openArchivist() {
+  await saveStory(true);
+  showArchivist.value = true;
 }
 
 async function saveStory(silent = false) {

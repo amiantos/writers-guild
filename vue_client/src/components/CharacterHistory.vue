@@ -16,7 +16,7 @@
         <li v-for="(version, index) in newestFirst" :key="version.id" class="version">
           <div class="version-header">
             <div class="version-summary">
-              <span class="version-label">{{ SOURCE_LABELS[version.source] }}</span>
+              <span class="version-label">{{ sourceLabel(version) }}</span>
               <span class="version-date">{{ formatWhen(version.created) }}</span>
               <span v-if="index === 0" class="meta-tag">Current</span>
             </div>
@@ -58,7 +58,15 @@ const SOURCE_LABELS = {
   baseline: 'When history started',
   edit: 'Edited',
   restore: 'Restored an earlier version',
+  archivist: 'Archivist suggestions',
 };
+
+function sourceLabel(version) {
+  const label = SOURCE_LABELS[version.source] ?? 'Changed';
+  return version.source === 'archivist' && version.sourceTitle
+    ? `${label} from ${version.sourceTitle}`
+    : label;
+}
 
 const FIELDS = [
   { key: 'name', label: 'Name' },

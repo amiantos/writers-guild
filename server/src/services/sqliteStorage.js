@@ -11,9 +11,10 @@ import sharp from 'sharp';
 /**
  * Where a character version came from. original: the card as it was imported or created, kept
  * before its first change. baseline: the card as it was when its history started, for a card
- * already edited before versions were kept.
+ * already edited before versions were kept. archivist: suggested edits accepted from a story or
+ * chat, whose `source_id` is `story:<id>` or `chat:<id>`.
  */
-export const CHARACTER_VERSION_SOURCES = ['original', 'baseline', 'edit', 'restore'];
+export const CHARACTER_VERSION_SOURCES = ['original', 'baseline', 'edit', 'restore', 'archivist'];
 
 /** The card fields a version lists as changed, besides the portrait and everything else. */
 const CHARACTER_VERSION_FIELDS = [
@@ -104,7 +105,8 @@ export class SqliteStorageService {
           onboarding_completed = @onboardingCompleted,
           experimental_chats = @experimentalChats,
           experimental_bureaus = @experimentalBureaus,
-          experimental_enhanced_story = @experimentalEnhancedStory
+          experimental_enhanced_story = @experimentalEnhancedStory,
+          experimental_archivist = @experimentalArchivist
         WHERE id = 1
       `),
 
@@ -194,6 +196,8 @@ export class SqliteStorageService {
       listCharacterVersions: this.db.prepare(
         'SELECT * FROM character_versions WHERE character_id = ? ORDER BY id',
       ),
+      getStoryTitle: this.db.prepare('SELECT title FROM stories WHERE id = ?'),
+      getChatTitle: this.db.prepare('SELECT title FROM chats WHERE id = ?'),
       getCharacterVersion: this.db.prepare(
         'SELECT * FROM character_versions WHERE character_id = ? AND id = ?',
       ),
@@ -469,6 +473,7 @@ export class SqliteStorageService {
       experimentalChats: !!row.experimental_chats,
       experimentalBureaus: !!row.experimental_bureaus,
       experimentalEnhancedStory: !!row.experimental_enhanced_story,
+      experimentalArchivist: !!row.experimental_archivist,
     };
   }
 
@@ -490,6 +495,7 @@ export class SqliteStorageService {
       experimentalChats: settings.experimentalChats ? 1 : 0,
       experimentalBureaus: settings.experimentalBureaus ? 1 : 0,
       experimentalEnhancedStory: settings.experimentalEnhancedStory ? 1 : 0,
+      experimentalArchivist: settings.experimentalArchivist ? 1 : 0,
     });
     return settings;
   }
@@ -839,9 +845,10 @@ export class SqliteStorageService {
    * @param {string|null} [options.originChecksum] - Checksum of the source content
    *   before local image URLs were rewritten. Only meaningful on import; ignored
    *   when updating an existing character.
-   * @param {'edit'|'restore'} [options.source] - Why an existing character changed. Each change
-   *   is kept as a version, and the first also keeps the card as it was.
-   * @param {string|null} [options.sourceId] - The version restored.
+   * @param {'edit'|'restore'|'archivist'} [options.source] - Why an existing character changed.
+   *   Each change is kept as a version, and the first also keeps the card as it was.
+   * @param {string|null} [options.sourceId] - The version restored, or the story or chat the
+   *   Archivist read.
    */
   async saveCharacter(characterId, characterData, imageBuffer = null, options = {}) {
     const existing = this.stmts.characterExists.get(characterId);
@@ -958,16 +965,27 @@ export class SqliteStorageService {
   /**
    * A character's versions, oldest first, each with the fields it changed from the one before
    * (see changedCharacterFields). The first is the card as it was before anything changed, and
-   * there are none until something does.
+   * there are none until something does. An Archivist version also carries the title of the
+   * story or chat it came from as `sourceTitle`.
    */
   listCharacterVersions(characterId) {
     let previous = null;
     return this.stmts.listCharacterVersions.all(characterId).map((row) => {
       const version = characterVersionFromRow(row);
       version.changed = previous ? changedCharacterFields(previous, row) : [];
+      if (version.source === 'archivist') {
+        version.sourceTitle = this.archivistSourceTitle(version.sourceId);
+      }
       previous = row;
       return version;
     });
+  }
+
+  /** The title of the story or chat an Archivist version came from, or null once it's deleted. */
+  archivistSourceTitle(sourceId) {
+    const [kind, id] = String(sourceId ?? '').split(/:(.*)/s);
+    const statement = { story: this.stmts.getStoryTitle, chat: this.stmts.getChatTitle }[kind];
+    return statement?.get(id)?.title ?? null;
   }
 
   /**
