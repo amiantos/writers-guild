@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   applyEdit,
   buildArchivistPrompt,
+  castLabels,
   chatTranscript,
   chunkText,
   parseSuggestions,
@@ -141,6 +142,10 @@ describe('applyEdit', () => {
   it('is null when the text is gone', () => {
     expect(applyEdit('a b', 'c', 'd')).toBeNull();
   });
+
+  it('is null when the text it adds is already there', () => {
+    expect(applyEdit('One. She has a  cat.', '', 'she has a cat.')).toBeNull();
+  });
 });
 
 describe('runArchivist', () => {
@@ -185,5 +190,63 @@ describe('runArchivist', () => {
       runArchivist({ provider, cast: [LAYLA], text: 'x', kind: 'chat' }),
     ).rejects.toThrow(/JSON/);
     expect(provider.generate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('characters who share a name', () => {
+  const twins = [
+    { ...LAYLA, id: 'a' },
+    { ...LAYLA, id: 'b' },
+    { id: 'sam', name: 'Sam', description: 'Sam is single.', personality: '' },
+  ];
+
+  it('are told apart by a number in the prompt', () => {
+    expect([...castLabels(twins).values()]).toEqual(['Layla (1)', 'Layla (2)', 'Sam']);
+    const { user } = buildArchivistPrompt({ cast: twins, text: 'x', kind: 'story' });
+    expect(user).toContain('## Layla (1)');
+    expect(user).toContain('## Layla (2)');
+  });
+
+  it('get only the edits that name one of them exactly', () => {
+    const edit = { field: 'description', find: 'She is single', replace: 'She is with Sam' };
+    const found = validateSuggestions(
+      [
+        { ...edit, character: 'Layla' },
+        { ...edit, character: 'Layla (2)' },
+      ],
+      twins,
+    );
+    expect(found.map((s) => s.characterId)).toEqual(['b']);
+  });
+});
+
+describe('the context a run fits in', () => {
+  const empty = JSON.stringify({ suggestions: [] });
+
+  it('reads a long story in passes small enough for the preset', async () => {
+    const provider = {
+      resolveContextTokens: () => 4096,
+      generate: vi.fn(async () => ({ content: empty })),
+    };
+    const text = Array.from({ length: 20 }, (_, i) => `${i} ${'word '.repeat(200)}`).join('\n\n');
+    await runArchivist({ provider, cast: [LAYLA], text, kind: 'story' });
+
+    expect(provider.generate.mock.calls.length).toBeGreaterThan(1);
+    for (const [system, user, options] of provider.generate.mock.calls) {
+      expect(options.maxTokens).toBe(1024);
+      expect(options.maxContextTokens).toBe(4096);
+      expect((system.length + user.length) / 3 + options.maxTokens).toBeLessThan(4096);
+    }
+  });
+
+  it("refuses when the cards alone don't leave room for the story", async () => {
+    const provider = {
+      resolveContextTokens: () => 1024,
+      generate: vi.fn(),
+    };
+    await expect(
+      runArchivist({ provider, cast: [LAYLA], text: 'x', kind: 'story' }),
+    ).rejects.toThrow(/too small/);
+    expect(provider.generate).not.toHaveBeenCalled();
   });
 });

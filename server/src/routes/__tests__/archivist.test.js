@@ -225,6 +225,30 @@ describe('Archivist routes', () => {
     expect(left.count).toBe(0);
   });
 
+  it('read a source once at a time', async () => {
+    await setArchivist(true);
+    const app = createApp();
+    const layla = await character('Layla', { description: 'She is single.' });
+    const storyId = await story('Layla met Sam.', [layla]);
+    let finish;
+    vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ content: '{"suggestions": []}' });
+        }),
+    );
+
+    const first = request(app)
+      .post(`/api/archivist/story/${storyId}/run`)
+      .then((r) => r);
+    const second = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    expect(second.status).toBe(409);
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    finish();
+    expect((await first).status).toBe(200);
+    expect((await request(app).get(`/api/archivist/story/${storyId}`)).body.running).toBe(false);
+  });
+
   it('reject malformed review decisions', async () => {
     await setArchivist(true);
     const layla = await character('Layla');

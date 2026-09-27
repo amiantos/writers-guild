@@ -784,12 +784,16 @@ async function loadSettings() {
   }
 }
 
-// The Archivist reads the saved story, so save first.
+// The Archivist reads the saved story, so it opens only once the story is saved.
 async function openArchivist() {
-  await saveStory(true);
+  if (!(await saveStory(true))) {
+    toast.error("Couldn't save the story, so the Archivist can't read it yet");
+    return;
+  }
   showArchivist.value = true;
 }
 
+/** @returns {Promise<boolean>} Whether the story is saved, having had nothing to save or not. */
 async function saveStory(silent = false) {
   const normalizedContent = normalizeMarkdownImageSpacing(content.value);
   const normalizedOriginal = normalizeMarkdownImageSpacing(originalContent.value);
@@ -804,7 +808,7 @@ async function saveStory(silent = false) {
 
   // Only skip save if there are no semantic changes AND no formatting normalization
   if (!wasNormalized && normalizedContent === normalizedOriginal && !passagesDirty) {
-    return; // No changes
+    return true; // No changes
   }
 
   // The record of passages goes along only when it changed, since it carries their reasoning.
@@ -833,12 +837,14 @@ async function saveStory(silent = false) {
     if (!silent) {
       toast.success('Story saved');
     }
+    return true;
   } catch (error) {
     console.error('Failed to save story:', error);
     if (sendPassages) passagesDirty = true;
     if (!silent) {
       toast.error('Failed to save story: ' + error.message);
     }
+    return false;
   }
 }
 

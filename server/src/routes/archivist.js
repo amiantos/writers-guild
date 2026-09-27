@@ -198,45 +198,48 @@ router.post(
   '/:kind/:sourceId/run',
   asyncHandler(async (req, res) => {
     const { kind, sourceId } = req.params;
-    const source = await loadSource(kind, sourceId);
+    // Claimed before anything is awaited, so two requests can't both start reading.
     const key = `${kind}:${sourceId}`;
     if (running.has(key)) {
       throw new AppError('The Archivist is already reading this', 409);
     }
-    if (!source.text.trim()) {
-      throw new AppError(`There's nothing in this ${kind} to read yet`, 400);
-    }
-    const cast = await loadCast(source);
-    if (cast.length === 0) {
-      throw new AppError(`This ${kind} has no library characters to review`, 400);
-    }
-    const { preset, provider } = await providerFor(source);
-
-    const controller = new AbortController();
-    res.on('close', () => {
-      if (!res.writableFinished) controller.abort();
-    });
-
     running.add(key);
-    let found;
     try {
-      found = await runArchivist({
-        provider,
-        preset,
-        cast,
-        text: source.text,
-        kind,
-        existing: suggestions.listForSource(kind, sourceId),
-        signal: controller.signal,
+      const source = await loadSource(kind, sourceId);
+      if (!source.text.trim()) {
+        throw new AppError(`There's nothing in this ${kind} to read yet`, 400);
+      }
+      const cast = await loadCast(source);
+      if (cast.length === 0) {
+        throw new AppError(`This ${kind} has no library characters to review`, 400);
+      }
+      const { preset, provider } = await providerFor(source);
+
+      const controller = new AbortController();
+      res.on('close', () => {
+        if (!res.writableFinished) controller.abort();
       });
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      throw new AppError(error.message || 'The Archivist failed', 502);
+
+      let found;
+      try {
+        found = await runArchivist({
+          provider,
+          preset,
+          cast,
+          text: source.text,
+          kind,
+          existing: suggestions.listForSource(kind, sourceId),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        throw new AppError(error.message || 'The Archivist failed', 502);
+      }
+      suggestions.addAll(kind, sourceId, found);
+      res.json({ added: found.length, suggestions: await pendingFor(kind, sourceId) });
     } finally {
       running.delete(key);
     }
-    suggestions.addAll(kind, sourceId, found);
-    res.json({ added: found.length, suggestions: await pendingFor(kind, sourceId) });
   }),
 );
 

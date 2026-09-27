@@ -94,4 +94,23 @@ describe('ArchivistModal', () => {
     expect(buttonsOf(wrapper, 'Accept')[0].attributes('disabled')).toBeDefined();
     expect(buttonsOf(wrapper, 'Reject')[0].attributes('disabled')).toBeUndefined();
   });
+
+  it('checks back while a read started elsewhere is running', async () => {
+    vi.useFakeTimers();
+    try {
+      mockArchivistAPI.list
+        .mockResolvedValueOnce({ suggestions: [], running: true })
+        .mockResolvedValueOnce({ suggestions: [suggestion(1)], running: false });
+      const wrapper = await mountModal();
+      expect(wrapper.text()).toContain('is reading this story');
+
+      await vi.advanceTimersByTimeAsync(3000);
+      await flushPromises();
+
+      expect(mockArchivistAPI.list).toHaveBeenCalledTimes(2);
+      expect(wrapper.find('ins').text()).toBe('She is with Sam.');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

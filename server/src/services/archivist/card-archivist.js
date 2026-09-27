@@ -16,8 +16,15 @@
 
 // The card fields the Archivist may suggest changes to.
 export const CARD_SUGGESTION_FIELDS = ['description', 'personality'];
-// Story or chat text per pass; longer stories are read in several passes.
+// Story or chat text per pass at most; longer stories are read in several passes, and a preset
+// with a small context reads smaller ones.
 export const ARCHIVE_CHUNK_CHARACTERS = 60_000;
+// The least story text worth a pass.
+export const MIN_CHUNK_CHARACTERS = 1_000;
+// A cautious estimate, so a pass fits the context even for text that tokenizes poorly.
+const CHARACTERS_PER_TOKEN = 3;
+// Context kept free for suggestions found earlier in the same run, and tokenizer slack.
+const CONTEXT_MARGIN_TOKENS = 512;
 // Suggestions the reader turned down, shown per character so they aren't proposed again.
 const REJECTED_SHOWN = 30;
 // Room for the answer, and for a reasoning model's thinking before it.
@@ -55,6 +62,31 @@ export function chunkText(text, budget = ARCHIVE_CHUNK_CHARACTERS) {
 
 // ==================== The prompt ====================
 
+/**
+ * The name each cast member goes by in the prompt, by id. Characters who share a name are told
+ * apart by a number, so the model's answer can only mean one card.
+ */
+export function castLabels(cast) {
+  const counts = new Map();
+  for (const member of cast) {
+    const key = normalized(member.name);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const seen = new Map();
+  const labels = new Map();
+  for (const member of cast) {
+    const key = normalized(member.name);
+    if (counts.get(key) === 1) {
+      labels.set(member.id, member.name);
+      continue;
+    }
+    const number = (seen.get(key) ?? 0) + 1;
+    seen.set(key, number);
+    labels.set(member.id, `${member.name} (${number})`);
+  }
+  return labels;
+}
+
 function describeEdit(suggestion) {
   return suggestion.find
     ? `${suggestion.field}: "${suggestion.find}" -> "${suggestion.replace}"`
@@ -80,13 +112,14 @@ export function buildArchivistPrompt({ cast, text, kind, part, pending = [], rej
     'Each edit changes as little as it can and matches the card\'s voice, tense and person. To change something the card says, set "find" to the exact text to replace, copied character for character from the card (a phrase or sentence, not the whole field), and "replace" to the new text. To add something the card doesn\'t cover, leave "find" empty and set "replace" to one or two sentences to add at the end. Keep placeholders such as {{char}} and {{user}} as they are.',
     `Most ${source}s call for no edits, and a few at most. Don't repeat an edit that is waiting for review or that the reader turned down.`,
     'Answer with JSON only, no other text, in this shape:',
-    '{"suggestions": [{"character": "name", "field": "description" or "personality", "find": "exact text from the card, or empty", "replace": "new text", "rationale": "what in the ' +
+    '{"suggestions": [{"character": "the name as its card\'s heading gives it", "field": "description" or "personality", "find": "exact text from the card, or empty", "replace": "new text", "rationale": "what in the ' +
       `${source} shows it, in one sentence", "quote": "a short quote from the ${source} that shows it"}]}`,
     'Answer {"suggestions": []} when nothing lasting changed.',
   ].join('\n\n');
 
+  const labels = castLabels(cast);
   const cards = cast.map((member) => {
-    const lines = [`## ${member.name}`];
+    const lines = [`## ${labels.get(member.id)}`];
     for (const field of CARD_SUGGESTION_FIELDS) {
       lines.push(`### ${field}`, member[field]?.trim() || '(empty)');
     }
@@ -163,7 +196,8 @@ export function suggestionKey(suggestion) {
  * @param {Array<Object>} [existing] - Suggestions already kept for this source, in any status.
  */
 export function validateSuggestions(raw, cast, existing = []) {
-  const byName = new Map(cast.map((member) => [normalized(member.name), member]));
+  const labels = castLabels(cast);
+  const byName = new Map(cast.map((member) => [normalized(labels.get(member.id)), member]));
   const seen = new Set(existing.map(suggestionKey));
   const valid = [];
   for (const item of raw) {
@@ -194,13 +228,15 @@ export function validateSuggestions(raw, cast, existing = []) {
 // ==================== Applying an edit ====================
 
 /**
- * A field with one suggested edit made, or null when the text it replaces is no longer there.
- * An addition goes on the end, after a blank line when the field has paragraphs.
+ * A field with one suggested edit made, or null when it no longer applies: the text it replaces
+ * is gone, or the text it adds is already there. An addition goes on the end, after a blank line
+ * when the field has paragraphs.
  */
 export function applyEdit(text, find, replace) {
   const current = text ?? '';
   if (!find) {
     if (!current.trim()) return replace;
+    if (normalized(current).includes(normalized(replace))) return null;
     const separator = current.includes('\n\n') ? '\n\n' : ' ';
     return `${current.trimEnd()}${separator}${replace}`;
   }
@@ -223,16 +259,48 @@ export function applyEdit(text, find, replace) {
  * @param {AbortSignal} [params.signal]
  */
 export async function runArchivist({ provider, preset, cast, text, kind, existing = [], signal }) {
-  const chunks = chunkText(text);
   const settings = preset?.generationSettings ?? {};
+  const contextTokens =
+    provider.resolveContextTokens?.(preset ?? {}) ?? settings.maxContextTokens ?? 128_000;
+  const answerTokens = Math.min(
+    Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS),
+    Math.floor(contextTokens / 4),
+  );
   const options = {
     ...settings,
-    maxTokens: Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS),
+    maxTokens: answerTokens,
     temperature: Math.min(settings.temperature ?? 0.5, 0.5),
+    // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+    maxContextTokens: contextTokens,
+    maxContextLength: contextTokens,
     signal,
   };
   const rejected = existing.filter((s) => s.status === 'rejected');
   const found = [];
+
+  // Each pass repeats the cards, so the story text gets what the context has left after them and
+  // the answer.
+  const overhead = buildArchivistPrompt({
+    cast,
+    text: '',
+    kind,
+    part: { index: 0, count: 2 },
+    pending: existing.filter((s) => s.status === 'proposed'),
+    rejected,
+  });
+  const overheadTokens = Math.ceil(
+    (overhead.system.length + overhead.user.length) / CHARACTERS_PER_TOKEN,
+  );
+  const budget = Math.min(
+    ARCHIVE_CHUNK_CHARACTERS,
+    (contextTokens - answerTokens - overheadTokens - CONTEXT_MARGIN_TOKENS) * CHARACTERS_PER_TOKEN,
+  );
+  if (budget < MIN_CHUNK_CHARACTERS) {
+    throw new Error(
+      "This preset's context is too small for the Archivist to read the cards and the story together. Try a preset with a larger context.",
+    );
+  }
+  const chunks = chunkText(text, budget);
 
   for (const [index, chunk] of chunks.entries()) {
     const pending = [...existing.filter((s) => s.status === 'proposed'), ...found];

@@ -133,6 +133,7 @@ const decisions = reactive({});
 const editing = reactive({});
 const edited = reactive({});
 let controller = null;
+let closed = false;
 
 const busy = computed(() => running.value || applying.value);
 
@@ -192,11 +193,18 @@ function toggleEdit(suggestion) {
   }
 }
 
+// While a read started elsewhere (another tab) is running, check back until it's done.
+const POLL_MS = 3000;
+let pollTimer = null;
+
 async function load() {
+  pollTimer = null;
   try {
     const response = await archivistAPI.list(props.kind, props.sourceId);
     show(response.suggestions);
+    if (running.value && !response.running) hasRun.value = true;
     running.value = response.running;
+    if (response.running && !closed) pollTimer = setTimeout(load, POLL_MS);
   } catch (error) {
     toast.error('Failed to load suggestions: ' + error.message);
   } finally {
@@ -264,7 +272,11 @@ function close() {
 }
 
 onMounted(load);
-onBeforeUnmount(() => controller?.abort());
+onBeforeUnmount(() => {
+  closed = true;
+  controller?.abort();
+  clearTimeout(pollTimer);
+});
 </script>
 
 <style scoped>
