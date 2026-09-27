@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest
 import express from 'express';
 import request from 'supertest';
 import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import os from 'os';
 import { SqliteStorageService } from '../../services/sqliteStorage.js';
@@ -291,13 +292,99 @@ describe('Archivist routes', () => {
     expect(card.data.personality).toBe('Warm. Hopeful.');
   });
 
-  it('reject malformed review decisions', async () => {
+  it('reject malformed review decisions, and a suggestion decided twice', async () => {
     await setArchivist(true);
     const layla = await character('Layla');
     const storyId = await story('Layla met Sam.', [layla]);
-    const res = await request(createApp())
-      .post(`/api/archivist/story/${storyId}/review`)
-      .send({ decisions: [{ id: 'x', accept: true }] });
-    expect(res.status).toBe(400);
+    const review = (decisions) =>
+      request(createApp()).post(`/api/archivist/story/${storyId}/review`).send({ decisions });
+    expect((await review([{ id: 'x', accept: true }])).status).toBe(400);
+    expect(
+      (
+        await review([
+          { id: 1, accept: true },
+          { id: 1, accept: false },
+        ])
+      ).status,
+    ).toBe(400);
+  });
+
+  it("keep nothing from a read whose story, or a character's card, was deleted meanwhile", async () => {
+    await setArchivist(true);
+    const app = createApp();
+    const layla = await character('Layla', { description: 'She is single.' });
+    const sam = await character('Sam', { description: 'He is single.' });
+    const storyId = await story('Layla met Sam.', [layla, sam]);
+    const edits = [
+      { character: 'Layla', field: 'description', find: '', replace: 'She met Sam.' },
+      { character: 'Sam', field: 'description', find: '', replace: 'He met Layla.' },
+    ];
+
+    vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(async () => {
+      await storage.deleteCharacter(sam);
+      return { content: JSON.stringify({ suggestions: edits }) };
+    });
+    const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    expect(run.status).toBe(200);
+    expect(run.body.added).toBe(1);
+    expect(run.body.suggestions.map((s) => s.characterName)).toEqual(['Layla']);
+
+    const other = await story('Layla left.', [layla]);
+    vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(async () => {
+      await storage.deleteStory(other);
+      return { content: JSON.stringify({ suggestions: edits }) };
+    });
+    await request(app).post(`/api/archivist/story/${other}/run`);
+    const left = storage.db
+      .prepare('SELECT COUNT(*) AS count FROM card_suggestions WHERE source_id = ?')
+      .get(other);
+    expect(left.count).toBe(0);
+  });
+
+  it('keep nothing from a read the reader cancelled', async () => {
+    await setArchivist(true);
+    const layla = await character('Layla', { description: 'She is single.' });
+    const storyId = await story('Layla met Sam.', [layla]);
+    let finish;
+    vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({
+              content: JSON.stringify({
+                suggestions: [
+                  { character: 'Layla', field: 'description', find: '', replace: 'She met Sam.' },
+                ],
+              }),
+            });
+        }),
+    );
+    const app = createApp();
+    const server = app.listen(0);
+    try {
+      const call = http.request({
+        host: '127.0.0.1',
+        port: server.address().port,
+        method: 'POST',
+        path: `/api/archivist/story/${storyId}/run`,
+      });
+      call.on('error', () => {});
+      call.end();
+      await vi.waitFor(() => expect(finish).toBeDefined());
+      call.destroy();
+      // Give the server a moment to see the request close before the model answers.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      finish();
+      await vi.waitFor(async () =>
+        expect((await request(app).get(`/api/archivist/story/${storyId}`)).body.running).toBe(
+          false,
+        ),
+      );
+      expect((await request(app).get(`/api/archivist/story/${storyId}`)).body.suggestions).toEqual(
+        [],
+      );
+    } finally {
+      server.close();
+    }
   });
 });

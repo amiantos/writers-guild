@@ -23,8 +23,14 @@ export const ARCHIVE_CHUNK_CHARACTERS = 60_000;
 export const MIN_CHUNK_CHARACTERS = 1_000;
 // A cautious estimate, so a pass fits the context even for text that tokenizes poorly.
 const CHARACTERS_PER_TOKEN = 3;
-// Context kept free for suggestions found earlier in the same run, and tokenizer slack.
+// Context kept free for tokenizer slack.
 const CONTEXT_MARGIN_TOKENS = 512;
+// Context kept for the suggestions found earlier in the same run, shown to later passes so they
+// aren't proposed again. The newest that fit are shown; the rest are still weeded out afterwards.
+const FOUND_SHOWN_TOKENS = 1024;
+// The longest replacement a suggestion may make, and the longest rationale or quote kept with it.
+export const MAX_REPLACE_CHARACTERS = 4000;
+const MAX_NOTE_CHARACTERS = 500;
 // Suggestions the reader turned down, shown per character so they aren't proposed again.
 const REJECTED_SHOWN = 30;
 // Room for the answer, and for a reasoning model's thinking before it.
@@ -178,6 +184,10 @@ function normalized(text) {
   return text.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
+function note(text) {
+  return typeof text === 'string' ? text.trim().slice(0, MAX_NOTE_CHARACTERS) : '';
+}
+
 /** The key two suggestions share when they make the same edit. */
 export function suggestionKey(suggestion) {
   return [
@@ -207,15 +217,15 @@ export function validateSuggestions(raw, cast, existing = []) {
     if (!member || !CARD_SUGGESTION_FIELDS.includes(field)) continue;
     const find = typeof item.find === 'string' ? item.find.trim() : '';
     const replace = typeof item.replace === 'string' ? item.replace.trim() : '';
-    if (!replace || find === replace) continue;
+    if (!replace || find === replace || replace.length > MAX_REPLACE_CHARACTERS) continue;
     if (find && !(member[field] ?? '').includes(find)) continue;
     const suggestion = {
       characterId: member.id,
       field,
       find,
       replace,
-      rationale: typeof item.rationale === 'string' ? item.rationale.trim() : '',
-      quote: typeof item.quote === 'string' ? item.quote.trim() : '',
+      rationale: note(item.rationale),
+      quote: note(item.quote),
     };
     const key = suggestionKey(suggestion);
     if (seen.has(key)) continue;
@@ -246,6 +256,19 @@ export function applyEdit(text, find, replace) {
 }
 
 // ==================== A run ====================
+
+/** The newest suggestions whose lines in the prompt fit the room kept for them, oldest first. */
+function newestThatFit(found) {
+  let room = FOUND_SHOWN_TOKENS * CHARACTERS_PER_TOKEN;
+  const shown = [];
+  for (const suggestion of found.toReversed()) {
+    // Its line, plus room for a "Waiting for review" heading it may bring.
+    room -= describeEdit(suggestion).length + 32;
+    if (room < 0) break;
+    shown.unshift(suggestion);
+  }
+  return shown;
+}
 
 /**
  * Read a story or chat and return the new suggestions for its cast.
@@ -294,7 +317,8 @@ export async function runArchivist({ provider, preset, cast, text, kind, existin
   );
   const budget = Math.min(
     ARCHIVE_CHUNK_CHARACTERS,
-    (contextTokens - answerTokens - overheadTokens - CONTEXT_MARGIN_TOKENS) * CHARACTERS_PER_TOKEN,
+    (contextTokens - answerTokens - overheadTokens - CONTEXT_MARGIN_TOKENS - FOUND_SHOWN_TOKENS) *
+      CHARACTERS_PER_TOKEN,
   );
   if (budget < MIN_CHUNK_CHARACTERS) {
     throw new Error(
@@ -304,7 +328,7 @@ export async function runArchivist({ provider, preset, cast, text, kind, existin
   const chunks = chunkText(text, budget);
 
   for (const [index, chunk] of chunks.entries()) {
-    const pending = [...existing.filter((s) => s.status === 'proposed'), ...found];
+    const pending = [...existing.filter((s) => s.status === 'proposed'), ...newestThatFit(found)];
     const { system, user } = buildArchivistPrompt({
       cast,
       text: chunk,

@@ -174,10 +174,15 @@ function reviewDecisions(body) {
   if (!Array.isArray(decisions)) {
     throw new AppError('decisions must be a list', 400);
   }
+  const ids = new Set();
   return decisions.map((decision) => {
     if (!Number.isInteger(decision?.id) || typeof decision.accept !== 'boolean') {
       throw new AppError('Each decision needs an id and accept', 400);
     }
+    if (ids.has(decision.id)) {
+      throw new AppError('Each suggestion can be decided once per review', 400);
+    }
+    ids.add(decision.id);
     if (decision.replace !== undefined) {
       const text = typeof decision.replace === 'string' ? decision.replace.trim() : '';
       if (!text || text.length > MAX_SUGGESTION_CHARACTERS) {
@@ -249,8 +254,10 @@ router.post(
         if (controller.signal.aborted) return;
         throw new AppError(error.message || 'The Archivist failed', 502);
       }
-      suggestions.addAll(kind, sourceId, found);
-      res.json({ added: found.length, suggestions: await pendingFor(kind, sourceId) });
+      // Nothing is kept from a read the reader cancelled.
+      if (controller.signal.aborted) return;
+      const added = suggestions.addAll(kind, sourceId, found);
+      res.json({ added: added.length, suggestions: await pendingFor(kind, sourceId) });
     } finally {
       running.delete(key);
     }

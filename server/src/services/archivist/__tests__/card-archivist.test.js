@@ -116,6 +116,12 @@ describe('validateSuggestions', () => {
     expect(validateSuggestions(raw, [LAYLA])).toEqual([]);
   });
 
+  it('drops an overlong replacement and shortens long notes', () => {
+    expect(validateSuggestions([{ ...single, replace: 'x'.repeat(4001) }], [LAYLA])).toEqual([]);
+    const [kept] = validateSuggestions([{ ...single, quote: 'q'.repeat(2000) }], [LAYLA]);
+    expect(kept.quote).toHaveLength(500);
+  });
+
   it('drops repeats, including ones already kept', () => {
     const kept = {
       characterId: 'layla',
@@ -249,6 +255,34 @@ describe('the context a run fits in', () => {
 
     expect(provider.generate.mock.calls.length).toBeGreaterThan(1);
     expect(provider.generate.mock.calls[0][2].maxContextTokens).toBe(4096);
+  });
+
+  it('keeps later passes within the context however many edits earlier ones found', async () => {
+    let pass = 0;
+    const provider = {
+      resolveContextTokens: () => 4096,
+      generate: vi.fn(async () => {
+        pass += 1;
+        const suggestions = Array.from({ length: 20 }, (_, i) => ({
+          character: 'Layla',
+          field: 'personality',
+          find: '',
+          replace: `Pass ${pass}, change ${i}: ${'detail '.repeat(20)}`,
+        }));
+        return { content: JSON.stringify({ suggestions }) };
+      }),
+    };
+    const text = Array.from({ length: 20 }, (_, i) => `${i} ${'word '.repeat(200)}`).join('\n\n');
+    const found = await runArchivist({ provider, cast: [LAYLA], text, kind: 'story' });
+
+    expect(provider.generate.mock.calls.length).toBeGreaterThan(2);
+    expect(found.length).toBe(20 * provider.generate.mock.calls.length);
+    for (const [system, user, options] of provider.generate.mock.calls) {
+      expect((system.length + user.length) / 3 + options.maxTokens).toBeLessThan(4096);
+    }
+    // The newest are the ones shown.
+    const last = provider.generate.mock.calls.at(-1)[1];
+    expect(last).toContain(`Pass ${pass - 1}, change 19`);
   });
 
   it("refuses when the cards alone don't leave room for the story", async () => {

@@ -343,42 +343,75 @@ export class AIHordeProvider extends LLMProvider {
     const timeout = options.timeout || 300000; // 5 minute default timeout
     const startTime = Date.now();
 
-    while (true) {
-      // Check timeout
-      if (Date.now() - startTime > timeout) {
-        throw new Error('AI Horde generation timed out');
+    try {
+      while (true) {
+        if (options.signal?.aborted) {
+          throw new Error('Generation cancelled');
+        }
+
+        // Check timeout
+        if (Date.now() - startTime > timeout) {
+          throw new Error('AI Horde generation timed out');
+        }
+
+        // Check status
+        const status = await this.checkStatus(requestId);
+
+        if (status.faulted) {
+          throw new Error('AI Horde generation failed');
+        }
+
+        if (status.finished && status.generations.length > 0) {
+          // Extract result
+          const generation = status.generations[0];
+          // Strip leading newlines from response
+          const cleanedText = (generation.text || '').replace(/^\n+/, '');
+          return {
+            content: cleanedText,
+            reasoning: null, // AI Horde doesn't provide reasoning
+            usage: {
+              totalTokens: generation.kudos || 0,
+            },
+            metadata: {
+              requestId,
+              model: generation.model,
+              worker: generation.worker_name,
+              workerI: generation.worker_id,
+            },
+          };
+        }
+
+        // Wait before next poll, or until the signal aborts
+        await this.pollWait(options.signal);
       }
-
-      // Check status
-      const status = await this.checkStatus(requestId);
-
-      if (status.faulted) {
-        throw new Error('AI Horde generation failed');
+    } catch (error) {
+      // Stop the Horde working on a request nobody will read, a cancelled one included.
+      try {
+        await this.cancelRequest(requestId);
+      } catch (cancelError) {
+        console.error(`[AI Horde] Failed to cleanup request: ${cancelError.message}`);
       }
-
-      if (status.finished && status.generations.length > 0) {
-        // Extract result
-        const generation = status.generations[0];
-        // Strip leading newlines from response
-        const cleanedText = (generation.text || '').replace(/^\n+/, '');
-        return {
-          content: cleanedText,
-          reasoning: null, // AI Horde doesn't provide reasoning
-          usage: {
-            totalTokens: generation.kudos || 0,
-          },
-          metadata: {
-            requestId,
-            model: generation.model,
-            worker: generation.worker_name,
-            workerI: generation.worker_id,
-          },
-        };
-      }
-
-      // Wait before next poll
-      await new Promise((resolve) => setTimeout(resolve, this.pollingInterval));
+      throw error;
     }
+  }
+
+  /** Wait one polling interval, rejecting early if `signal` aborts. */
+  pollWait(signal) {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Generation cancelled'));
+        return;
+      }
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(new Error('Generation cancelled'));
+      };
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, this.pollingInterval);
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /**

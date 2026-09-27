@@ -48,6 +48,9 @@ export class CardSuggestionStorage {
                 'proposed', @created)
       `),
       update: db.prepare('UPDATE card_suggestions SET status = ?, replace = ? WHERE id = ?'),
+      storyExists: db.prepare('SELECT 1 FROM stories WHERE id = ?'),
+      chatExists: db.prepare('SELECT 1 FROM chats WHERE id = ?'),
+      characterExists: db.prepare('SELECT 1 FROM characters WHERE id = ?'),
     };
   }
 
@@ -62,20 +65,28 @@ export class CardSuggestionStorage {
     return row ? suggestionFromRow(row) : null;
   }
 
-  /** Keep new suggestions for a story or chat, proposed. Returns them as kept. */
+  /**
+   * Keep new suggestions for a story or chat, proposed. Returns them as kept: none when the
+   * story or chat is gone, and none for a character whose card is gone, since either may be
+   * deleted while the Archivist reads.
+   */
   addAll(sourceKind, sourceId, suggestions) {
     const created = new Date().toISOString();
-    return this.db.transaction(() =>
-      suggestions.map((suggestion) => {
-        const { lastInsertRowid } = this.stmts.insert.run({
-          ...suggestion,
-          sourceKind,
-          sourceId,
-          created,
+    const sourceExists = sourceKind === 'chat' ? this.stmts.chatExists : this.stmts.storyExists;
+    return this.db.transaction(() => {
+      if (!sourceExists.get(sourceId)) return [];
+      return suggestions
+        .filter((suggestion) => this.stmts.characterExists.get(suggestion.characterId))
+        .map((suggestion) => {
+          const { lastInsertRowid } = this.stmts.insert.run({
+            ...suggestion,
+            sourceKind,
+            sourceId,
+            created,
+          });
+          return this.get(Number(lastInsertRowid));
         });
-        return this.get(Number(lastInsertRowid));
-      }),
-    )();
+    })();
   }
 
   /** Mark a suggestion accepted or rejected, keeping the text the reader settled on. */
