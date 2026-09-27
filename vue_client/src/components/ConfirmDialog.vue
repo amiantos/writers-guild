@@ -149,6 +149,9 @@ onMounted(() => {
   color: var(--text-primary);
   margin-bottom: 2rem;
   white-space: pre-wrap;
+  /* Long messages (e.g. a character in many stories) scroll, keeping the buttons in view */
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .confirm-actions {
