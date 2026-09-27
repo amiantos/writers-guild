@@ -203,28 +203,34 @@ async function cleanupFailedImport(storageInstance, dataRoot, characterId, creat
 }
 
 /**
- * The lorebook a character is about to strand, or null.
+ * The lorebook a character's card links, or null. Read before the character is
+ * deleted, since the link lives on the card.
+ */
+async function linkedLorebookIdOf(characterId) {
+  try {
+    const cardData = await storage.getCharacter(characterId);
+    return cardData.data?.extensions?.ursceal_lorebook_id || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The lorebook a deleted character left behind, or null. Checked after the
+ * delete, so stories deleted along with the character no longer count.
  *
  * Nothing is deleted here — the client asks the user, then calls
  * DELETE /api/lorebooks/:id if they say yes. Deleting it outright would take
  * the choice away, the same way stories are only deleted along with their
  * character once the user has agreed to it.
  */
-async function findLorebookLeftBehindBy(characterId, deletedStoryIds = []) {
-  let lorebookId;
-  try {
-    const cardData = await storage.getCharacter(characterId);
-    lorebookId = cardData.data?.extensions?.ursceal_lorebook_id;
-  } catch {
-    return null;
-  }
+async function findOrphanedLorebook(lorebookId) {
   if (!lorebookId) return null;
 
   // Characters link a lorebook through their card; stories attach lorebooks
   // directly. Either one still using it means it is not orphaned.
-  const refs = storage.getLorebookReferences(lorebookId, characterId);
-  const stories = refs.stories.filter((s) => !deletedStoryIds.includes(s.id));
-  if (refs.characters.length > 0 || stories.length > 0) return null;
+  const refs = storage.getLorebookReferences(lorebookId);
+  if (refs.characters.length > 0 || refs.stories.length > 0) return null;
 
   try {
     const lorebook = await storage.getLorebook(lorebookId);
@@ -973,10 +979,7 @@ router.delete(
       throw await refuse();
     }
 
-    // Work out whether this character's lorebook is about to be left behind,
-    // before the character row (and its link) is gone. Stories being deleted
-    // alongside it don't count as still using it.
-    const orphanedLorebook = await findLorebookLeftBehindBy(characterId, storyIds);
+    const lorebookId = await linkedLorebookIdOf(characterId);
 
     // The storage call re-checks the stories inside its transaction, in case
     // one was added since the check above.
@@ -987,6 +990,7 @@ router.delete(
     if (!deletedStoryIds) {
       throw await refuse();
     }
+    const orphanedLorebook = await findOrphanedLorebook(lorebookId);
 
     // Clean up cached asset files
     try {
