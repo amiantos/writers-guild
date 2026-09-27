@@ -210,7 +210,7 @@ async function cleanupFailedImport(storageInstance, dataRoot, characterId, creat
  * the choice away, the same way stories are only deleted along with their
  * character once the user has agreed to it.
  */
-async function findLorebookLeftBehindBy(characterId) {
+async function findLorebookLeftBehindBy(characterId, deletedStoryIds = []) {
   let lorebookId;
   try {
     const cardData = await storage.getCharacter(characterId);
@@ -223,7 +223,8 @@ async function findLorebookLeftBehindBy(characterId) {
   // Characters link a lorebook through their card; stories attach lorebooks
   // directly. Either one still using it means it is not orphaned.
   const refs = storage.getLorebookReferences(lorebookId, characterId);
-  if (refs.characters.length > 0 || refs.stories.length > 0) return null;
+  const stories = refs.stories.filter((s) => !deletedStoryIds.includes(s.id));
+  if (refs.characters.length > 0 || stories.length > 0) return null;
 
   try {
     const lorebook = await storage.getLorebook(lorebookId);
@@ -944,13 +945,15 @@ router.delete(
   '/:characterId',
   asyncHandler(async (req, res) => {
     const { characterId } = req.params;
-    const deleteStories = req.query.deleteStories === 'true';
+    const confirmedStoryIds = new Set(req.body?.deleteStoryIds || []);
 
-    // Stories using the character go with it, but only when the client says
-    // the user agreed to that. Otherwise refuse and say which ones.
+    // Stories using the character go with it, but only the ones the client
+    // says the user agreed to. If any story wasn't confirmed (including one
+    // added after the user was asked), refuse and say which ones.
     const storiesUsingChar = await findStoriesUsing(characterId);
+    const storyIds = storiesUsingChar.map((s) => s.id);
 
-    if (storiesUsingChar.length > 0 && !deleteStories) {
+    if (storyIds.some((id) => !confirmedStoryIds.has(id))) {
       const storyTitles = storiesUsingChar.map((s) => s.title).join(', ');
       throw new AppError(
         `Cannot delete character: Used in ${storiesUsingChar.length} story(ies): ${storyTitles}. Remove from stories first.`,
@@ -959,16 +962,12 @@ router.delete(
       );
     }
 
-    for (const story of storiesUsingChar) {
-      await storage.deleteStory(story.id);
-    }
-
     // Work out whether this character's lorebook is about to be left behind,
-    // before the character row (and its link) is gone. This runs after the
-    // stories are deleted, since one of them may have been the last to use it.
-    const orphanedLorebook = await findLorebookLeftBehindBy(characterId);
+    // before the character row (and its link) is gone. Stories being deleted
+    // alongside it don't count as still using it.
+    const orphanedLorebook = await findLorebookLeftBehindBy(characterId, storyIds);
 
-    await storage.deleteCharacter(characterId);
+    await storage.deleteCharacterWithStories(characterId, storyIds);
 
     // Clean up cached asset files
     try {
@@ -980,9 +979,7 @@ router.delete(
 
     res.json({
       success: true,
-      ...(storiesUsingChar.length > 0
-        ? { deletedStoryIds: storiesUsingChar.map((s) => s.id) }
-        : {}),
+      ...(storyIds.length > 0 ? { deletedStoryIds: storyIds } : {}),
       ...(orphanedLorebook ? { orphanedLorebook } : {}),
     });
   }),

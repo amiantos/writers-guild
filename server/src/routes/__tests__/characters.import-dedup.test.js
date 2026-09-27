@@ -212,6 +212,19 @@ describe('Character import deduplication', () => {
       expect(response.body.orphanedLorebook).toBeUndefined();
     });
 
+    it('reports the lorebook when only stories deleted with the character used it', async () => {
+      const { body } = await importJson(cardJson({ name: 'Alice', book: worldBook() }));
+      const story = await storage.createStory('A Tale');
+      await storage.addCharacterToStory(story.id, body.id);
+      await storage.addLorebookToStory(story.id, body.embeddedLorebook.id);
+
+      const response = await request(app)
+        .delete(`/api/characters/${body.id}`)
+        .send({ deleteStoryIds: [story.id] })
+        .expect(200);
+      expect(response.body.orphanedLorebook).toMatchObject({ id: body.embeddedLorebook.id });
+    });
+
     it('says nothing for a character with no lorebook', async () => {
       const { body } = await importJson(cardJson());
       const response = await request(app).delete(`/api/characters/${body.id}`).expect(200);

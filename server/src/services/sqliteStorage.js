@@ -1065,6 +1065,18 @@ export class SqliteStorageService {
     return { success: true };
   }
 
+  /**
+   * Delete a character and the stories it's in, all or nothing, so a failure
+   * part way through never leaves some stories gone and the character still there.
+   */
+  async deleteCharacterWithStories(characterId, storyIds) {
+    this.db.transaction(() => {
+      for (const storyId of storyIds) this.stmts.deleteStory.run(storyId);
+      this.stmts.deleteCharacter.run(characterId);
+    })();
+    return { success: true };
+  }
+
   async addCharacterToStory(storyId, characterId) {
     const storyExists = this.stmts.getStory.get(storyId);
     if (!storyExists) {

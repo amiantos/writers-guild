@@ -376,7 +376,7 @@ describe('Characters API Routes', () => {
       expect(byTitle['Solo Story'].otherCharacters).toEqual([]);
     });
 
-    it('should delete the character and its stories when deleteStories=true', async () => {
+    it('should delete the character and the stories the client confirmed', async () => {
       const target = await request(app)
         .post('/api/characters')
         .send({ name: 'Doomed', description: 'Being deleted' })
@@ -395,7 +395,8 @@ describe('Characters API Routes', () => {
       await storage.addCharacterToStory(unrelated.id, other.body.id);
 
       const response = await request(app)
-        .delete(`/api/characters/${target.body.id}?deleteStories=true`)
+        .delete(`/api/characters/${target.body.id}`)
+        .send({ deleteStoryIds: [asCast.id, asPersona.id] })
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -409,6 +410,30 @@ describe('Characters API Routes', () => {
       expect(remaining).not.toContain(asPersona.id);
       await request(app).get(`/api/characters/${target.body.id}/data`).expect(500);
       await request(app).get(`/api/characters/${other.body.id}/data`).expect(200);
+    });
+
+    it('should delete nothing when a story was not among those confirmed', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Raced', description: 'Gained a story after the prompt' })
+        .expect(201);
+
+      const shown = await storage.createStory('Shown Story', 'User saw this one');
+      await storage.addCharacterToStory(shown.id, target.body.id);
+      const added = await storage.createStory('Added Story', 'Added after the prompt');
+      await storage.addCharacterToStory(added.id, target.body.id);
+
+      const response = await request(app)
+        .delete(`/api/characters/${target.body.id}`)
+        .send({ deleteStoryIds: [shown.id] })
+        .expect(409);
+
+      expect(response.body.stories.map((s) => s.id).toSorted()).toEqual(
+        [shown.id, added.id].toSorted(),
+      );
+      const remaining = (await storage.listStories()).map((s) => s.id);
+      expect(remaining).toEqual(expect.arrayContaining([shown.id, added.id]));
+      await request(app).get(`/api/characters/${target.body.id}/data`).expect(200);
     });
   });
 

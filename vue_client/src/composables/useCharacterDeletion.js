@@ -56,12 +56,12 @@ export function useCharacterDeletion() {
       });
       if (!confirmed) return false;
 
-      // Only ask for stories to be deleted when the user was shown some, so a
-      // story added in the meantime still blocks the delete rather than going
-      // unannounced.
-      const { orphanedLorebook, deletedStoryIds = [] } = await charactersAPI.delete(character.id, {
-        deleteStories: stories.length > 0,
-      });
+      // Only the stories the user was shown are confirmed, so one added in the
+      // meantime makes the server refuse rather than deleting it unannounced.
+      const { orphanedLorebook, deletedStoryIds = [] } = await charactersAPI.delete(
+        character.id,
+        stories.map((s) => s.id),
+      );
       removeCharacterLocally(character.id);
       for (const storyId of deletedStoryIds) removeStoryLocally(storyId);
       toast.success(

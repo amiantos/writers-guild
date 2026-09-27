@@ -533,10 +533,14 @@ export const charactersAPI = {
     return request(`/characters/${characterId}/stories`);
   },
 
-  delete(characterId, { deleteStories = false } = {}) {
-    const query = deleteStories ? '?deleteStories=true' : '';
-    return request(`/characters/${characterId}${query}`, {
+  /**
+   * @param {string[]} [deleteStoryIds] - stories the user agreed to delete with
+   *   the character. The server refuses if the character is in any other story.
+   */
+  delete(characterId, deleteStoryIds = []) {
+    return request(`/characters/${characterId}`, {
       method: 'DELETE',
+      ...(deleteStoryIds.length > 0 ? { body: JSON.stringify({ deleteStoryIds }) } : {}),
     });
   },
 

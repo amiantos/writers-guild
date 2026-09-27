@@ -67,13 +67,13 @@ describe('useCharacterDeletion', () => {
     expect(deleteCharacterApi).not.toHaveBeenCalled();
   });
 
-  it('does not ask for stories to be deleted when none were shown', async () => {
+  it('confirms no stories when none were shown', async () => {
     getStories.mockResolvedValue({ stories: [] });
     confirm.mockResolvedValue(true);
     deleteCharacterApi.mockResolvedValue({ success: true, deletedStoryIds: [] });
 
     expect(await deleteCharacter(alice)).toBe(true);
-    expect(deleteCharacterApi).toHaveBeenCalledWith('c1', { deleteStories: false });
+    expect(deleteCharacterApi).toHaveBeenCalledWith('c1', []);
     expect(removeCharacterLocally).toHaveBeenCalledWith('c1');
   });
 
@@ -93,7 +93,7 @@ describe('useCharacterDeletion', () => {
     expect(confirm).toHaveBeenCalledWith(
       expect.objectContaining({ confirmText: 'Delete Character & Story' }),
     );
-    expect(deleteCharacterApi).toHaveBeenCalledWith('c1', { deleteStories: true });
+    expect(deleteCharacterApi).toHaveBeenCalledWith('c1', ['s1']);
     expect(removeStoryLocally).toHaveBeenCalledWith('s1');
     expect(offerToDeleteOrphanedLorebook).toHaveBeenCalledWith(orphanedLorebook);
   });
