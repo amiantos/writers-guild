@@ -84,6 +84,20 @@ describe('ArchivistModal', () => {
     expect(wrapper.emitted('applied')).toHaveLength(1);
   });
 
+  it('rejects a suggestion even after its text was edited', async () => {
+    mockArchivistAPI.list.mockResolvedValue({ suggestions: [suggestion(1)], running: false });
+    mockArchivistAPI.review.mockResolvedValue({ applied: 0, stale: [], suggestions: [] });
+    const wrapper = await mountModal();
+
+    await buttonsOf(wrapper, 'Edit')[0].trigger('click');
+    await wrapper.find('textarea').setValue('She is in love with Sam.');
+    await buttonsOf(wrapper, 'Reject')[0].trigger('click');
+    await buttonsOf(wrapper, 'Apply 1 Decision')[0].trigger('click');
+    await flushPromises();
+
+    expect(mockArchivistAPI.review).toHaveBeenCalledWith('story', 's1', [{ id: 1, accept: false }]);
+  });
+
   it("won't accept a suggestion that no longer fits its card", async () => {
     mockArchivistAPI.list.mockResolvedValue({
       suggestions: [suggestion(1, { stale: true })],

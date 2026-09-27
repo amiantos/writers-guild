@@ -249,6 +249,48 @@ describe('Archivist routes', () => {
     expect((await request(app).get(`/api/archivist/story/${storyId}`)).body.running).toBe(false);
   });
 
+  it('keep both edits when two reviews of the same card run at once', async () => {
+    await setArchivist(true);
+    const app = createApp();
+    const layla = await character('Layla', { description: 'She is single.', personality: 'Warm.' });
+    const storyId = await story('Layla met Sam.', [layla]);
+    answerWith([
+      {
+        character: 'Layla',
+        field: 'description',
+        find: 'She is single.',
+        replace: 'She is with Sam.',
+      },
+      { character: 'Layla', field: 'personality', find: '', replace: 'Hopeful.' },
+    ]);
+    const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    const [relationship, hope] = run.body.suggestions;
+
+    // Reading a card takes a moment, so without the lock each review would read the card before
+    // the other saved it.
+    const read = SqliteStorageService.prototype.getCharacter;
+    vi.spyOn(SqliteStorageService.prototype, 'getCharacter').mockImplementation(
+      async function (id) {
+        const card = await read.call(this, id);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return card;
+      },
+    );
+    const review = (decisions) =>
+      request(app).post(`/api/archivist/story/${storyId}/review`).send({ decisions });
+    const results = await Promise.all([
+      review([{ id: relationship.id, accept: true }]),
+      review([{ id: hope.id, accept: true }]),
+      review([{ id: hope.id, accept: true }]),
+    ]);
+
+    expect(results.map((r) => r.body.applied).toSorted()).toEqual([0, 1, 1]);
+    vi.restoreAllMocks();
+    const card = await storage.getCharacter(layla);
+    expect(card.data.description).toBe('She is with Sam.');
+    expect(card.data.personality).toBe('Warm. Hopeful.');
+  });
+
   it('reject malformed review decisions', async () => {
     await setArchivist(true);
     const layla = await character('Layla');

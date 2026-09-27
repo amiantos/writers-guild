@@ -31,6 +31,20 @@ let suggestions;
 
 // Sources the Archivist is reading now, so a second run waits for the first.
 const running = new Set();
+// The latest card save queued per character, so two reviews can't overwrite each other's edits.
+const cardLocks = new Map();
+
+/** Run `task` once every earlier task for the same character has finished. */
+function withCardLock(characterId, task) {
+  const previous = cardLocks.get(characterId) ?? Promise.resolve();
+  const next = previous.then(task, task);
+  const settled = next.catch(() => {});
+  cardLocks.set(characterId, settled);
+  settled.finally(() => {
+    if (cardLocks.get(characterId) === settled) cardLocks.delete(characterId);
+  });
+  return next;
+}
 
 router.use((req, res, next) => {
   if (!storage) {
@@ -274,28 +288,37 @@ router.post(
     const stale = [];
     let applied = 0;
     for (const [characterId, accepted] of acceptedByCharacter) {
-      const card = await storage.getCharacter(characterId).catch(() => null);
-      if (!card) continue;
-      const made = [];
-      for (const suggestion of accepted.toSorted((a, b) => a.id - b.id)) {
-        if (!CARD_SUGGESTION_FIELDS.includes(suggestion.field)) continue;
-        const edited = applyEdit(card.data[suggestion.field], suggestion.find, suggestion.replace);
-        if (edited === null) {
-          stale.push(suggestion.id);
-          continue;
+      // The card is read, edited and saved under its lock, and each suggestion is checked again
+      // there, so a review running at the same time can't apply it twice or lose an edit.
+      applied += await withCardLock(characterId, async () => {
+        const card = await storage.getCharacter(characterId).catch(() => null);
+        if (!card) return 0;
+        const made = [];
+        for (const suggestion of accepted.toSorted((a, b) => a.id - b.id)) {
+          if (suggestions.get(suggestion.id)?.status !== 'proposed') continue;
+          if (!CARD_SUGGESTION_FIELDS.includes(suggestion.field)) continue;
+          const edited = applyEdit(
+            card.data[suggestion.field],
+            suggestion.find,
+            suggestion.replace,
+          );
+          if (edited === null) {
+            stale.push(suggestion.id);
+            continue;
+          }
+          card.data[suggestion.field] = edited;
+          made.push(suggestion);
         }
-        card.data[suggestion.field] = edited;
-        made.push(suggestion);
-      }
-      if (made.length === 0) continue;
-      await storage.saveCharacter(characterId, card, null, {
-        source: 'archivist',
-        sourceId: `${kind}:${sourceId}`,
+        if (made.length === 0) return 0;
+        await storage.saveCharacter(characterId, card, null, {
+          source: 'archivist',
+          sourceId: `${kind}:${sourceId}`,
+        });
+        for (const suggestion of made) {
+          suggestions.setStatus(suggestion.id, 'accepted', suggestion.replace);
+        }
+        return made.length;
       });
-      for (const suggestion of made) {
-        suggestions.setStatus(suggestion.id, 'accepted', suggestion.replace);
-      }
-      applied += made.length;
     }
 
     res.json({ applied, stale, suggestions: await pendingFor(kind, sourceId) });

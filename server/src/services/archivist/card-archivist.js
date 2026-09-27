@@ -260,8 +260,9 @@ export function applyEdit(text, find, replace) {
  */
 export async function runArchivist({ provider, preset, cast, text, kind, existing = [], signal }) {
   const settings = preset?.generationSettings ?? {};
+  // AI Horde works out its context from its workers, so this may be a promise.
   const contextTokens =
-    provider.resolveContextTokens?.(preset ?? {}) ?? settings.maxContextTokens ?? 128_000;
+    (await provider.resolveContextTokens?.(preset ?? {})) ?? settings.maxContextTokens ?? 128_000;
   const answerTokens = Math.min(
     Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS),
     Math.floor(contextTokens / 4),

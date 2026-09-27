@@ -171,6 +171,11 @@ function show(list) {
 }
 
 function decide(suggestion, accept) {
+  // Rejecting drops any edit made to it, so the edit can't turn it back into an accept.
+  if (!accept) {
+    delete editing[suggestion.id];
+    delete edited[suggestion.id];
+  }
   if (decisions[suggestion.id] === accept) {
     delete decisions[suggestion.id];
   } else {
@@ -235,9 +240,11 @@ async function read() {
 }
 
 async function apply() {
-  // An edit still open counts as done.
+  // An edit still open counts as done, unless its suggestion is rejected.
   for (const suggestion of suggestions.value) {
-    if (editing[suggestion.id] !== undefined) toggleEdit(suggestion);
+    if (editing[suggestion.id] === undefined) continue;
+    if (decisions[suggestion.id] === false) delete editing[suggestion.id];
+    else toggleEdit(suggestion);
   }
   const list = suggestions.value
     .filter((suggestion) => decisions[suggestion.id] !== undefined)

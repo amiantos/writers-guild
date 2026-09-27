@@ -239,6 +239,18 @@ describe('the context a run fits in', () => {
     }
   });
 
+  it("waits for a provider that works out its context, like AI Horde's", async () => {
+    const provider = {
+      resolveContextTokens: async () => 4096,
+      generate: vi.fn(async () => ({ content: empty })),
+    };
+    const text = Array.from({ length: 20 }, (_, i) => `${i} ${'word '.repeat(200)}`).join('\n\n');
+    await runArchivist({ provider, cast: [LAYLA], text, kind: 'story' });
+
+    expect(provider.generate.mock.calls.length).toBeGreaterThan(1);
+    expect(provider.generate.mock.calls[0][2].maxContextTokens).toBe(4096);
+  });
+
   it("refuses when the cards alone don't leave room for the story", async () => {
     const provider = {
       resolveContextTokens: () => 1024,
