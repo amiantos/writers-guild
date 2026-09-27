@@ -88,11 +88,11 @@ async function loadSource(kind, sourceId) {
   throw new AppError('Unknown source: expected story or chat', 404);
 }
 
-/** The source's characters as the Archivist sees them; the persona is left out. */
+/** The source's characters as the Archivist sees them, the persona's card included. */
 async function loadCast(source) {
+  const ids = new Set([...source.characterIds, source.personaCharacterId].filter(Boolean));
   const cast = [];
-  for (const id of source.characterIds) {
-    if (id === source.personaCharacterId) continue;
+  for (const id of ids) {
     let card;
     try {
       card = await storage.getCharacter(id);

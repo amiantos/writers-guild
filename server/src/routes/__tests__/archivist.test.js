@@ -181,13 +181,13 @@ describe('Archivist routes', () => {
     expect(review.body.suggestions).toHaveLength(1);
   });
 
-  it('read a chat as a transcript, leaving out the persona', async () => {
+  it("read a chat as a transcript, with the persona's card in the cast", async () => {
     await setArchivist(true);
     const layla = await character('Layla', { description: 'She is single.' });
     const bradley = await character('Bradley', { description: 'The user.' });
     const chat = chats.createChat({
       title: 'Late night',
-      characterIds: [layla, bradley],
+      characterIds: [layla],
       personaCharacterId: bradley,
       configPresetId: await preset(),
     });
@@ -205,7 +205,7 @@ describe('Archivist routes', () => {
     const prompt = generate.mock.calls[0][1];
     expect(prompt).toContain('Bradley: you up?\nLayla: always');
     expect(prompt).toContain('## Layla');
-    expect(prompt).not.toContain('## Bradley');
+    expect(prompt).toContain('## Bradley');
   });
 
   it('refuse to read an empty story, and delete suggestions with their story', async () => {
