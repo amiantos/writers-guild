@@ -126,11 +126,11 @@ onBeforeUnmount(() => {
 
 .scroll-shadow-left {
   left: 0;
-  background: radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.2), transparent);
+  background: radial-gradient(farthest-side at 0 50%, var(--scroll-shadow-color), transparent);
 }
 
 .scroll-shadow-right {
   right: 0;
-  background: radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.2), transparent);
+  background: radial-gradient(farthest-side at 100% 50%, var(--scroll-shadow-color), transparent);
 }
 </style>

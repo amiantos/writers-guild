@@ -761,6 +761,9 @@ function goToSettings() {
 .quick-access-row {
   display: flex;
   gap: 1rem;
+  /* Size to the cards rather than the viewport, so ScrollShadows' resize
+     observer notices when cards are added or removed. */
+  width: max-content;
 }
 
 .quick-access-character {
