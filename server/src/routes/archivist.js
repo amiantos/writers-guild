@@ -136,11 +136,13 @@ async function continuityFor(source) {
 
 /**
  * The Continuity update waiting for review, with the Continuity's name and text as they now
- * stand. It's stale when the Continuity changed since it was written.
+ * stand, or null. Only an update to `active`, the Continuity the Archivist keeps for the source
+ * now, is shown: one to a Continuity the source has left, or while Continuities are turned off,
+ * waits unseen. It's stale when the Continuity changed since it was written.
  */
-function pendingContinuityFor(kind, sourceId) {
+function pendingContinuityFor(kind, sourceId, active) {
   const suggestion = continuitySuggestions.proposedFor(kind, sourceId);
-  if (!suggestion) return null;
+  if (!suggestion || !active || suggestion.continuityId !== active.id) return null;
   const continuity = continuities.get(suggestion.continuityId);
   if (!continuity) return null;
   return {
@@ -157,7 +159,7 @@ async function listFor(kind, sourceId, source) {
   return {
     suggestions: await pendingFor(kind, sourceId),
     continuity: continuity ? { id: continuity.id, name: continuity.name } : null,
-    continuitySuggestion: pendingContinuityFor(kind, sourceId),
+    continuitySuggestion: pendingContinuityFor(kind, sourceId, continuity),
   };
 }
 
@@ -403,15 +405,17 @@ function continuityDecision(body) {
  * Accept or reject a source's Continuity update. An accepted one becomes the Continuity's text,
  * kept in its History as the Archivist's version, unless the Continuity changed since it was
  * written: then it stays waiting and comes back as stale. It runs without awaiting anything, so
- * two reviews of one update can't both apply it.
+ * two reviews of one update can't both apply it. Only an update to `active`, the Continuity the
+ * Archivist keeps for the source now, can be decided.
  * @returns {{applied: boolean, stale: boolean}}
  */
-function reviewContinuity(kind, sourceId, decision) {
+function reviewContinuity(kind, sourceId, decision, active) {
   const suggestion = continuitySuggestions.get(decision.id);
   const own =
     suggestion?.status === 'proposed' &&
     suggestion.sourceKind === kind &&
-    suggestion.sourceId === sourceId;
+    suggestion.sourceId === sourceId &&
+    suggestion.continuityId === active?.id;
   if (!own) return { applied: false, stale: false };
   if (!decision.accept) {
     continuitySuggestions.setStatus(suggestion.id, 'rejected');
@@ -539,11 +543,11 @@ router.post(
   '/:kind/:sourceId/review',
   asyncHandler(async (req, res) => {
     const { kind, sourceId } = req.params;
-    await loadSource(kind, sourceId);
+    const source = await loadSource(kind, sourceId);
     const decisions = reviewDecisions(req.body);
     const continuity = continuityDecision(req.body);
     const continuityResult = continuity
-      ? reviewContinuity(kind, sourceId, continuity)
+      ? reviewContinuity(kind, sourceId, continuity, await continuityFor(source))
       : { applied: false, stale: false };
     const own = new Map(
       suggestions

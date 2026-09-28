@@ -50,6 +50,8 @@ export class ContinuitySuggestionStorage {
       `),
       update: db.prepare('UPDATE continuity_suggestions SET status = ?, replace = ? WHERE id = ?'),
       continuityExists: db.prepare('SELECT 1 FROM continuities WHERE id = ?'),
+      storyExists: db.prepare('SELECT 1 FROM stories WHERE id = ?'),
+      chatExists: db.prepare('SELECT 1 FROM chats WHERE id = ?'),
     };
   }
 
@@ -67,10 +69,13 @@ export class ContinuitySuggestionStorage {
 
   /**
    * Keep a new update for a story or chat, replacing any still waiting. Returns it as kept, or
-   * null when its Continuity is gone, since it may be deleted while the Archivist reads.
+   * null when the story, chat or Continuity is gone, since either may be deleted while the
+   * Archivist reads.
    */
   add(sourceKind, sourceId, { continuityId, base, replace, rationale = '' }) {
+    const sourceExists = sourceKind === 'chat' ? this.stmts.chatExists : this.stmts.storyExists;
     return this.db.transaction(() => {
+      if (!sourceExists.get(sourceId)) return null;
       if (!this.stmts.continuityExists.get(continuityId)) return null;
       this.stmts.clearProposed.run(sourceKind, sourceId);
       const { lastInsertRowid } = this.stmts.insert.run({

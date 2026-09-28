@@ -659,4 +659,45 @@ describe('Archivist routes for a source in a Continuity', () => {
       .send({ continuity: { id: 1, accept: true, replace: '  ' } })
       .expect(400);
   });
+
+  it('hide and refuse an update to a Continuity the story left, or while Continuities are off', async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const app = createApp();
+    const { storyId, continuity } = await storyInContinuity();
+    answerWithContinuity(UPDATED);
+    const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    const { id } = run.body.continuitySuggestion;
+
+    await setContinuity(false);
+    const off = await request(app)
+      .post(`/api/archivist/story/${storyId}/review`)
+      .send({ continuity: { id, accept: true } });
+    expect(off.body).toMatchObject({ continuityApplied: false, continuitySuggestion: null });
+
+    await setContinuity(true);
+    const other = continuities.create({ name: 'Elsewhere', content: 'Other.' });
+    await storage.updateStoryMetadata(storyId, { continuityId: other.id });
+    const moved = await request(app)
+      .post(`/api/archivist/story/${storyId}/review`)
+      .send({ continuity: { id, accept: true } });
+    expect(moved.body).toMatchObject({ continuityApplied: false, continuitySuggestion: null });
+    expect(continuities.get(continuity.id).content).toBe(START);
+    expect(continuities.get(other.id).content).toBe('Other.');
+  });
+
+  it('keep no update from a read whose story was deleted meanwhile', async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const { storyId, continuity } = await storyInContinuity();
+    vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(async () => {
+      await storage.deleteStory(storyId);
+      return { content: JSON.stringify({ continuity: UPDATED, rationale: '' }) };
+    });
+    await request(createApp()).post(`/api/archivist/story/${storyId}/run`);
+    const rows = storage.db
+      .prepare('SELECT COUNT(*) AS count FROM continuity_suggestions WHERE continuity_id = ?')
+      .get(continuity.id);
+    expect(rows.count).toBe(0);
+  });
 });
