@@ -26,8 +26,11 @@ const WORDS_PER_ANSWER_TOKEN = 0.5;
 const WORLD_ENTRIES = 12;
 // Characters of each lorebook entry's content shown in the prompt at most.
 const WORLD_ENTRY_CHARACTERS = 300;
-// The longest idea, name, or edited card field accepted.
+// The longest idea or name accepted.
 export const MAX_IDEA_CHARACTERS = 4000;
+// The longest card field a generated card may be saved with, and the most tags.
+export const MAX_CARD_FIELD_CHARACTERS = 20_000;
+const MAX_TAGS = 30;
 
 function text(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -176,12 +179,13 @@ export async function generateLibraryCharacter({
     answerTokens < MIN_ANSWER_TOKENS ? Math.floor(answerTokens * WORDS_PER_ANSWER_TOKEN) : 0;
   const { system, user } = buildGeneratorPrompt({ idea, name, world, wordLimit });
 
-  // One more try when the answer isn't JSON or leaves out the name.
+  // One more try when the answer isn't JSON or leaves out the name or description.
   let character = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = await provider.generate(system, user, options);
-    character = parseCharacter(result?.content);
-    if (character && (name || text(character.name))) break;
+    const parsed = parseCharacter(result?.content);
+    character = parsed && (name || text(parsed.name)) && text(parsed.description) ? parsed : null;
+    if (character) break;
   }
   if (!character) {
     throw new Error(
@@ -216,15 +220,25 @@ export function cardToSave(card) {
   if (!fields.name) {
     throw new Error('Character name is required');
   }
+  for (const [field, value] of Object.entries(fields)) {
+    if (value.length > MAX_CARD_FIELD_CHARACTERS) {
+      throw new Error(`${field} must be at most ${MAX_CARD_FIELD_CHARACTERS} characters`);
+    }
+  }
   const appearance = data.extensions?.bureau_appearance ?? {};
   return generatedCard(
     {
       ...fields,
       first_message: fields.first_mes,
       example_dialogue: fields.mes_example,
-      tags: Array.isArray(data.tags) ? data.tags.filter((tag) => typeof tag === 'string') : [],
+      tags: Array.isArray(data.tags)
+        ? data.tags
+            .filter((tag) => typeof tag === 'string')
+            .map((tag) => tag.slice(0, 100))
+            .slice(0, MAX_TAGS)
+        : [],
       appearance: Object.fromEntries(
-        APPEARANCE_FIELDS.map((field) => [field, text(appearance[field])]),
+        APPEARANCE_FIELDS.map((field) => [field, text(appearance[field]).slice(0, 500)]),
       ),
     },
     { creatorNotes: 'Generated in Writers Guild.' },

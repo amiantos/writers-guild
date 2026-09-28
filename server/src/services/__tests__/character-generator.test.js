@@ -125,6 +125,17 @@ describe('generateLibraryCharacter', () => {
     expect(card.data.name).toBe('Marta');
   });
 
+  it('tries once more when the answer has no description', async () => {
+    const provider = providerAnswering(
+      JSON.stringify({ name: 'Marta' }),
+      JSON.stringify({ name: 'Marta' }),
+    );
+    await expect(generateLibraryCharacter({ provider, preset: {}, idea: 'x' })).rejects.toThrow(
+      "wasn't the JSON",
+    );
+    expect(provider.generate).toHaveBeenCalledTimes(2);
+  });
+
   it('fails after two answers without a card', async () => {
     const provider = providerAnswering('Sure!', 'Still no.');
     await expect(generateLibraryCharacter({ provider, preset: {}, idea: 'x' })).rejects.toThrow(
@@ -162,6 +173,12 @@ describe('cardToSave', () => {
         distinguishing_marks: '',
       },
     });
+  });
+
+  it('rejects a field over the length limit', () => {
+    expect(() => cardToSave({ data: { name: 'Ines', description: 'x'.repeat(20_001) } })).toThrow(
+      'description must be at most',
+    );
   });
 
   it('needs a name', () => {

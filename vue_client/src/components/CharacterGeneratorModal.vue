@@ -3,7 +3,7 @@
     title="Generate a character"
     max-width="640px"
     :close-on-overlay-click="false"
-    @close="$emit('close')"
+    @close="!saving && $emit('close')"
   >
     <div class="form">
       <div class="form-group">
@@ -108,7 +108,7 @@
     </div>
 
     <template #footer>
-      <button class="btn btn-secondary" @click="$emit('close')">Cancel</button>
+      <button class="btn btn-secondary" :disabled="saving" @click="$emit('close')">Cancel</button>
       <button v-if="card" class="btn btn-primary" :disabled="!canSave" @click="save">
         <i class="fas fa-user-plus"></i> {{ saving ? 'Saving...' : 'Save to library' }}
       </button>
