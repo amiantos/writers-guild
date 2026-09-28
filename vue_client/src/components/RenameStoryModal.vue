@@ -67,8 +67,9 @@
       <p v-if="perspective === 'second'" class="form-help">The story's Persona is "you".</p>
       <p v-if="presetIgnoresPerspective" class="form-help perspective-warning">
         This story's preset has a custom system prompt without
-        <code v-text="'{{perspective}}'"></code>, so the perspective set here isn't sent to the AI.
-        Add <code v-text="'{{perspective}}'"></code> to it in the preset's prompt templates.
+        <code v-text="'{{perspective}}'"></code>, so the perspective set here is left out of the
+        system prompt. Add <code v-text="'{{perspective}}'"></code> to it in the preset's prompt
+        templates.
       </p>
     </div>
 
