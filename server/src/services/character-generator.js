@@ -44,18 +44,22 @@ function section(title, body) {
   return `=== ${title} ===\n${body}`;
 }
 
-/** Short notes about a lorebook's world: its name, and a line per enabled entry with keys. */
+/**
+ * Short notes about a lorebook's world: its description, and a line per enabled entry, headed by
+ * its first key or comment. Entries without keys, such as constant ones, count too.
+ */
 export function lorebookWorld(lorebook) {
   if (!lorebook) return [];
   const entries = (lorebook.entries ?? [])
-    .filter((entry) => entry.enabled !== false && entry.keys?.length > 0)
-    .slice(0, WORLD_ENTRIES)
+    .filter((entry) => entry.enabled !== false)
     .map((entry) => {
-      const content = text(entry.content);
-      return content
-        ? `${entry.keys[0]}: ${truncate(content.replace(/\s+/g, ' '), WORLD_ENTRY_CHARACTERS)}`
-        : entry.keys[0];
-    });
+      const label = text(entry.keys?.[0]) || text(entry.comment);
+      const content = truncate(text(entry.content).replace(/\s+/g, ' '), WORLD_ENTRY_CHARACTERS);
+      if (label && content) return `${label}: ${content}`;
+      return label || content;
+    })
+    .filter(Boolean)
+    .slice(0, WORLD_ENTRIES);
   const description = text(lorebook.description);
   return [
     description ? `${lorebook.name}: ${truncate(description, WORLD_ENTRY_CHARACTERS)}` : null,
@@ -162,7 +166,7 @@ export async function generateLibraryCharacter({
     Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS),
     Math.floor(contextTokens / 2),
   );
-  if (preset?.provider === 'aihorde') {
+  if (String(preset?.provider ?? '').toLowerCase() === 'aihorde') {
     answerTokens = Math.min(answerTokens, AI_HORDE_MAX_ANSWER_TOKENS);
   }
   const options = {

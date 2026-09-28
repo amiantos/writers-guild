@@ -54,11 +54,19 @@ describe('lorebookWorld', () => {
       entries: [
         { keys: ['The Gull'], content: 'The  harbor\npub.' },
         { keys: ['Hidden'], content: 'Off.', enabled: false },
-        { keys: [], content: 'No key.' },
+        { keys: [], content: 'Always foggy.', constant: true },
+        { keys: [], comment: 'Tides', content: 'Twice a day.' },
         { keys: ['Lighthouse'], content: '' },
+        { keys: [], content: '' },
       ],
     });
-    expect(world).toEqual(['Saltmere: A fishing town.', 'The Gull: The harbor pub.', 'Lighthouse']);
+    expect(world).toEqual([
+      'Saltmere: A fishing town.',
+      'The Gull: The harbor pub.',
+      'Always foggy.',
+      'Tides: Twice a day.',
+      'Lighthouse',
+    ]);
   });
 });
 
@@ -99,7 +107,7 @@ describe('generateLibraryCharacter', () => {
     const provider = providerAnswering(JSON.stringify(CHARACTER));
     await generateLibraryCharacter({
       provider,
-      preset: { provider: 'aihorde', generationSettings: { maxContextTokens: 32000 } },
+      preset: { provider: 'AIHorde', generationSettings: { maxContextTokens: 32000 } },
       idea: 'x',
     });
     const [system, , options] = provider.generate.mock.calls[0];
