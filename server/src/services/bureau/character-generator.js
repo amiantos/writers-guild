@@ -133,10 +133,11 @@ export function buildGeneratorMessages({ idea, name = '', role = '', cast, world
  * The V2 card for a generated character.
  * @param {Object} character - create_character's arguments.
  * @param {Object} options
- * @param {string} options.bureauName
+ * @param {string} options.creatorNotes
  * @param {string} [options.name] - Overrides the generated name.
+ * @param {string[]} [options.tags] - Tags added to the generated ones.
  */
-export function cardFromCharacter(character, { bureauName, name = '' }) {
+export function generatedCard(character, { creatorNotes, name = '', tags: extraTags = [] }) {
   const finalName = text(name) || text(character.name);
   if (!finalName) {
     throw new Error('The generated character has no name');
@@ -158,17 +159,32 @@ export function cardFromCharacter(character, { bureauName, name = '' }) {
       scenario: text(character.scenario),
       first_mes: text(character.first_message),
       mes_example: text(character.example_dialogue),
-      creator_notes: `Generated in the Bureau "${bureauName}".`,
+      creator_notes: creatorNotes,
       system_prompt: '',
       post_history_instructions: '',
       alternate_greetings: [],
       character_book: null,
-      tags: [...new Set([...tags, 'bureau'])],
+      tags: [...new Set([...tags, ...extraTags])],
       creator: '',
       character_version: '1.0',
       extensions: { bureau_appearance: appearance },
     },
   };
+}
+
+/**
+ * The V2 card for a character generated in a Bureau.
+ * @param {Object} character - create_character's arguments.
+ * @param {Object} options
+ * @param {string} options.bureauName
+ * @param {string} [options.name] - Overrides the generated name.
+ */
+export function cardFromCharacter(character, { bureauName, name = '' }) {
+  return generatedCard(character, {
+    creatorNotes: `Generated in the Bureau "${bureauName}".`,
+    name,
+    tags: ['bureau'],
+  });
 }
 
 /** Short notes about the Bureau's world: each attached lorebook and the topics of its entries. */

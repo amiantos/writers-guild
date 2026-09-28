@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 
 /**
  * Initialize the SQLite database with schema
@@ -89,7 +89,8 @@ function createAllTables(db) {
       experimental_chats INTEGER DEFAULT 0,
       experimental_bureaus INTEGER DEFAULT 0,
       experimental_enhanced_story INTEGER DEFAULT 0,
-      experimental_archivist INTEGER DEFAULT 0
+      experimental_archivist INTEGER DEFAULT 0,
+      experimental_character_generator INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -596,6 +597,16 @@ function migrateSchema(db, fromVersion, dataRoot) {
         db.exec('ALTER TABLE settings ADD COLUMN experimental_archivist INTEGER DEFAULT 0');
       }
       createCardSuggestionTables(db);
+    }
+
+    // Migration to version 15: The character generator's toggle
+    if (fromVersion < 15) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_character_generator')) {
+        db.exec(
+          'ALTER TABLE settings ADD COLUMN experimental_character_generator INTEGER DEFAULT 0',
+        );
+      }
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

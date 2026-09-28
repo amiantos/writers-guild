@@ -91,6 +91,13 @@
                 <button class="btn btn-primary" @click="showCreateCharacterModal = true">
                   <i class="fas fa-plus"></i> Create
                 </button>
+                <button
+                  v-if="characterGeneratorEnabled"
+                  class="btn btn-secondary"
+                  @click="showCharacterGeneratorModal = true"
+                >
+                  <i class="fas fa-wand-magic-sparkles"></i> Generate
+                </button>
                 <button class="btn btn-secondary" @click="showImportCharacterModal = true">
                   <i class="fas fa-download"></i> Import
                 </button>
@@ -122,6 +129,13 @@
               <div class="header-actions">
                 <button class="btn btn-primary" @click="showCreateLorebookModal = true">
                   <i class="fas fa-plus"></i> Create
+                </button>
+                <button
+                  v-if="characterGeneratorEnabled"
+                  class="btn btn-secondary"
+                  @click="showCharacterGeneratorModal = true"
+                >
+                  <i class="fas fa-wand-magic-sparkles"></i> Generate
                 </button>
                 <button class="btn btn-secondary" @click="showImportLorebookModal = true">
                   <i class="fas fa-download"></i> Import
@@ -197,6 +211,15 @@
       @created="handleCharacterCreated"
     />
 
+    <!-- Character Generator Modal (experimental) -->
+    <CharacterGeneratorModal
+      v-if="showCharacterGeneratorModal"
+      :presets="presets"
+      :lorebooks="lorebooks"
+      @close="showCharacterGeneratorModal = false"
+      @created="handleCharacterCreated"
+    />
+
     <!-- Import Character Modal -->
     <ImportCharacterModal
       v-if="showImportCharacterModal"
@@ -257,6 +280,7 @@ import PresetsTable from '../components/PresetsTable.vue';
 import CharacterStoriesModal from '../components/CharacterStoriesModal.vue';
 import CreateCharacterModal from '../components/CreateCharacterModal.vue';
 import ImportCharacterModal from '../components/ImportCharacterModal.vue';
+import CharacterGeneratorModal from '../components/CharacterGeneratorModal.vue';
 import CreateLorebookModal from '../components/CreateLorebookModal.vue';
 import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
@@ -300,6 +324,7 @@ const selectedCharacter = ref(null);
 // Create/Import Character Modals
 const showCreateCharacterModal = ref(false);
 const showImportCharacterModal = ref(false);
+const showCharacterGeneratorModal = ref(false);
 
 // Create/Import Lorebook Modals
 const showCreateLorebookModal = ref(false);
@@ -343,6 +368,8 @@ const recentCharacters = computed(() => {
 // Chats and Bureaus are experimental: their tabs show once they're turned on in Settings.
 const chatsEnabled = ref(false);
 const bureausEnabled = ref(false);
+// The character generator is experimental too: its Generate button shows once it's turned on.
+const characterGeneratorEnabled = ref(false);
 const EXPERIMENTAL_TABS = ['chats', 'bureaus'];
 
 // Tabs configuration
@@ -374,6 +401,7 @@ async function loadExperimentalFeatures() {
     const { settings } = await settingsAPI.get();
     chatsEnabled.value = Boolean(settings?.experimentalChats);
     bureausEnabled.value = Boolean(settings?.experimentalBureaus);
+    characterGeneratorEnabled.value = Boolean(settings?.experimentalCharacterGenerator);
   } catch (error) {
     console.error('Failed to load settings:', error);
   }

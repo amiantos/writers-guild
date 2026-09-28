@@ -121,6 +121,17 @@
                 chat's preset. Accepted edits show in each card's History and can be restored.
               </p>
             </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="settings.experimentalCharacterGenerator" />
+                <span>Character Generator</span>
+              </label>
+              <p class="help-text">
+                Adds a Generate button to the character library. Describe a character and the
+                generator writes a full card with your preset, optionally set in a lorebook's world,
+                for you to edit before saving it to the library.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -232,6 +243,7 @@ const settings = ref({
   experimentalBureaus: false,
   experimentalEnhancedStory: false,
   experimentalArchivist: false,
+  experimentalCharacterGenerator: false,
 });
 
 onMounted(async () => {
@@ -297,6 +309,7 @@ async function loadSettings() {
       experimentalBureaus: serverSettings.experimentalBureaus ?? false,
       experimentalEnhancedStory: serverSettings.experimentalEnhancedStory ?? false,
       experimentalArchivist: serverSettings.experimentalArchivist ?? false,
+      experimentalCharacterGenerator: serverSettings.experimentalCharacterGenerator ?? false,
     };
   } catch (error) {
     console.error('Failed to load settings:', error);
