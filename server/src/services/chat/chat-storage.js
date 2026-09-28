@@ -73,11 +73,13 @@ export class ChatStorage {
       `),
       getChat: this.db.prepare('SELECT * FROM chats WHERE id = ?'),
       insertChat: this.db.prepare(`
-        INSERT INTO chats (id, title, scenario, persona_character_id, config_preset_id, created, modified)
-        VALUES (@id, @title, @scenario, @personaCharacterId, @configPresetId, @created, @modified)
+        INSERT INTO chats (id, title, scenario, continuity_id, persona_character_id, config_preset_id,
+                           created, modified)
+        VALUES (@id, @title, @scenario, @continuityId, @personaCharacterId, @configPresetId,
+                @created, @modified)
       `),
       updateChat: this.db.prepare(`
-        UPDATE chats SET title = @title, scenario = @scenario,
+        UPDATE chats SET title = @title, scenario = @scenario, continuity_id = @continuityId,
                          persona_character_id = @personaCharacterId,
                          config_preset_id = @configPresetId, modified = @modified
         WHERE id = @id
@@ -132,6 +134,7 @@ export class ChatStorage {
       id: row.id,
       title: row.title,
       scenario: row.scenario || '',
+      continuityId: row.continuity_id ?? null,
       personaCharacterId: row.persona_character_id,
       configPresetId: row.config_preset_id,
       characterIds: this.stmts.getCharacterIds.all(row.id).map((r) => r.character_id),
@@ -167,6 +170,7 @@ export class ChatStorage {
    * @param {Object} fields
    * @param {string} fields.title
    * @param {string} [fields.scenario]
+   * @param {string|null} [fields.continuityId]
    * @param {string|null} [fields.personaCharacterId]
    * @param {string|null} [fields.configPresetId]
    * @param {string[]} [fields.characterIds]
@@ -180,6 +184,7 @@ export class ChatStorage {
         id,
         title: fields.title,
         scenario: fields.scenario ?? '',
+        continuityId: fields.continuityId ?? null,
         personaCharacterId: fields.personaCharacterId ?? null,
         configPresetId: fields.configPresetId ?? null,
         created: now,
@@ -204,6 +209,8 @@ export class ChatStorage {
         id: chatId,
         title: updates.title ?? existing.title,
         scenario: updates.scenario ?? existing.scenario,
+        continuityId:
+          updates.continuityId !== undefined ? updates.continuityId : existing.continuityId,
         personaCharacterId:
           updates.personaCharacterId !== undefined
             ? updates.personaCharacterId

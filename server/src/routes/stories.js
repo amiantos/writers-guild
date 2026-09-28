@@ -13,6 +13,10 @@ import { REWRITE_GENERATION_TYPES } from '../services/prompt-builder.js';
 import { getProvider } from '../services/provider-factory.js';
 import { createPresetFromSettings } from '../services/default-presets.js';
 import { MAX_STORY_PASSAGES } from '../../../shared/story-passages.js';
+import {
+  ContinuityStorage,
+  withContinuityScenario,
+} from '../services/continuity/continuity-storage.js';
 
 const router = express.Router();
 
@@ -92,10 +96,12 @@ async function getStoryCharacterNames(storageService, storyId) {
 
 // Initialize storage service (will be set in server.js)
 let storage;
+let continuities;
 
 router.use((req, res, next) => {
   if (!storage) {
     storage = new SqliteStorageService(req.app.locals.dataRoot);
+    continuities = new ContinuityStorage(storage.db);
   }
   next();
 });
@@ -238,13 +244,22 @@ router.put(
 router.put(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { title, description, configPresetId, scenario } = req.body;
+    const { title, description, configPresetId, scenario, continuityId } = req.body;
     const updates = {};
 
     if (title !== undefined) updates.title = title.trim();
     if (description !== undefined) updates.description = description.trim();
     if (configPresetId !== undefined) updates.configPresetId = configPresetId;
     if (scenario !== undefined) updates.scenario = scenario.trim();
+    if (continuityId !== undefined) {
+      if (continuityId !== null && typeof continuityId !== 'string') {
+        throw new AppError('continuityId must be an id or null', 400);
+      }
+      if (continuityId && !continuities.exists(continuityId)) {
+        throw new AppError('Continuity not found', 400);
+      }
+      updates.continuityId = continuityId || null;
+    }
 
     if (Object.keys(updates).length === 0) {
       throw new AppError('No updates provided', 400);
@@ -664,8 +679,13 @@ router.delete(
  * Helper function to load all context needed for generation
  */
 async function loadGenerationContext(storyId) {
-  // Load story
-  const story = await storage.getStory(storyId);
+  // Load story, with its Continuity ahead of its scenario when Continuities are on
+  const settings = await storage.getSettings();
+  const story = withContinuityScenario(
+    await storage.getStory(storyId),
+    continuities,
+    settings?.experimentalContinuity,
+  );
 
   // Load preset configuration (story-specific or default)
   let preset = null;

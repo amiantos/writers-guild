@@ -121,6 +121,18 @@
                 chat's preset. Accepted edits show in each card's History and can be restored.
               </p>
             </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" v-model="settings.experimentalContinuity" />
+                <span>Continuity</span>
+              </label>
+              <p class="help-text">
+                Lets stories and chats share a Continuity: text you write once about what's true
+                across them, such as who is together and what happened last time. Pick one when
+                editing a story or chat; its text goes ahead of that story or chat's own scenario.
+                Every change to it is kept, and an earlier version can be restored.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -232,6 +244,7 @@ const settings = ref({
   experimentalBureaus: false,
   experimentalEnhancedStory: false,
   experimentalArchivist: false,
+  experimentalContinuity: false,
 });
 
 onMounted(async () => {
@@ -297,6 +310,7 @@ async function loadSettings() {
       experimentalBureaus: serverSettings.experimentalBureaus ?? false,
       experimentalEnhancedStory: serverSettings.experimentalEnhancedStory ?? false,
       experimentalArchivist: serverSettings.experimentalArchivist ?? false,
+      experimentalContinuity: serverSettings.experimentalContinuity ?? false,
     };
   } catch (error) {
     console.error('Failed to load settings:', error);

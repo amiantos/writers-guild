@@ -17,6 +17,10 @@ import { generateChatReply, replyNames } from '../services/chat/chat-reply.js';
 import { joinNames, pickSpeaker } from '../services/chat/chat-prompt.js';
 import { getProvider } from '../services/provider-factory.js';
 import { sseChannel } from '../utils/sse.js';
+import {
+  ContinuityStorage,
+  withContinuityScenario,
+} from '../services/continuity/continuity-storage.js';
 
 const router = express.Router();
 
@@ -25,11 +29,13 @@ export const MAX_SCENARIO_CHARACTERS = 8000;
 
 let storage;
 let chats;
+let continuities;
 
 router.use((req, res, next) => {
   if (!storage) {
     storage = new SqliteStorageService(req.app.locals.dataRoot);
     chats = new ChatStorage(storage.db);
+    continuities = new ContinuityStorage(storage.db);
   }
   next();
 });
@@ -93,7 +99,7 @@ function chatFields(body) {
     characterIds: optionalIdList(body, 'characterIds'),
     lorebookIds: optionalIdList(body, 'lorebookIds'),
   };
-  for (const field of ['personaCharacterId', 'configPresetId']) {
+  for (const field of ['personaCharacterId', 'configPresetId', 'continuityId']) {
     const value = body[field];
     if (value === undefined) continue;
     if (value !== null && typeof value !== 'string') {
@@ -106,6 +112,9 @@ function chatFields(body) {
   }
   if (fields.configPresetId && !chats.presetExists(fields.configPresetId)) {
     throw new AppError('Preset not found', 400);
+  }
+  if (fields.continuityId && !continuities.exists(fields.continuityId)) {
+    throw new AppError('Continuity not found', 400);
   }
   if (fields.personaCharacterId && fields.characterIds?.includes(fields.personaCharacterId)) {
     throw new AppError("The persona can't also be a character in the chat", 400);
@@ -196,6 +205,9 @@ function findSpeaker(characters, characterId) {
  * otherwise as JSON once the reply is saved.
  */
 async function respondWithReply(req, res, { chat, context, speaker, userTurn, regenerate }) {
+  // The prompt reads the chat's Continuity ahead of its scenario when Continuities are on.
+  const settings = await storage.getSettings();
+  const promptChat = withContinuityScenario(chat, continuities, settings?.experimentalContinuity);
   const channel = sseChannel(req, res);
   const controller = new AbortController();
   res.on('close', () => {
@@ -213,7 +225,7 @@ async function respondWithReply(req, res, { chat, context, speaker, userTurn, re
   try {
     const turn = await generateChatReply({
       chats,
-      chat,
+      chat: promptChat,
       speaker,
       ...context,
       regenerate,

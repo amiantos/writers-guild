@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 
 /**
  * Initialize the SQLite database with schema
@@ -89,7 +89,8 @@ function createAllTables(db) {
       experimental_chats INTEGER DEFAULT 0,
       experimental_bureaus INTEGER DEFAULT 0,
       experimental_enhanced_story INTEGER DEFAULT 0,
-      experimental_archivist INTEGER DEFAULT 0
+      experimental_archivist INTEGER DEFAULT 0,
+      experimental_continuity INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -243,6 +244,7 @@ function createAllTables(db) {
   createChatTables(db);
   createCharacterVersionTables(db);
   createCardSuggestionTables(db);
+  createContinuityTables(db);
 
   console.log('Database schema created successfully');
 }
@@ -370,6 +372,47 @@ function createCardSuggestionTables(db) {
       DELETE FROM card_suggestions WHERE source_kind = 'chat' AND source_id = OLD.id;
     END;
   `);
+}
+
+/**
+ * Create the tables for Continuities: text the reader writes once and shares between stories
+ * and chats, put ahead of each one's own scenario. A Continuity keeps every version of its text,
+ * and a story or chat in one names it in continuity_id (cleared when the Continuity is deleted, by
+ * ContinuityStorage.delete). Safe to run again: the tables and
+ * columns are only added when missing.
+ */
+function createContinuityTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS continuities (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS continuity_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      continuity_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      -- CONTINUITY_VERSION_SOURCES in continuity-storage.js
+      source TEXT NOT NULL,
+      -- The version restored, for a restore.
+      source_id TEXT,
+      created TEXT NOT NULL,
+      FOREIGN KEY (continuity_id) REFERENCES continuities(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_continuity_versions_continuity
+      ON continuity_versions(continuity_id, id);
+  `);
+
+  for (const table of ['stories', 'chats']) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((column) => column.name === 'continuity_id')) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN continuity_id TEXT`);
+    }
+  }
 }
 
 /**
@@ -596,6 +639,15 @@ function migrateSchema(db, fromVersion, dataRoot) {
         db.exec('ALTER TABLE settings ADD COLUMN experimental_archivist INTEGER DEFAULT 0');
       }
       createCardSuggestionTables(db);
+    }
+
+    // Migration to version 15: Continuities, their toggle, and the stories and chats in them
+    if (fromVersion < 15) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_continuity')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_continuity INTEGER DEFAULT 0');
+      }
+      createContinuityTables(db);
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

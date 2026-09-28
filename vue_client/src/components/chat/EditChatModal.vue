@@ -15,6 +15,8 @@
         />
       </div>
 
+      <ContinuityPicker ref="continuityPicker" :continuity-id="chat.continuityId ?? null" />
+
       <div class="form-group">
         <label for="chatScenario">Describe this scenario</label>
         <textarea
@@ -46,6 +48,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import Modal from '../Modal.vue';
+import ContinuityPicker from '../ContinuityPicker.vue';
 import { chatsAPI } from '../../services/chatsApi';
 import { useToast } from '../../composables/useToast';
 
@@ -69,6 +72,7 @@ const chatScenario = ref(props.chat.scenario || '');
 const saving = ref(false);
 const titleInput = ref(null);
 const scenarioInput = ref(null);
+const continuityPicker = ref(null);
 
 onMounted(() => {
   if (props.focusScenario) {
@@ -84,10 +88,14 @@ async function saveChat() {
 
   try {
     saving.value = true;
-    const { chat } = await chatsAPI.update(props.chat.id, {
+    const updates = {
       title: chatTitle.value.trim(),
       scenario: chatScenario.value.trim(),
-    });
+    };
+    const continuityId = await continuityPicker.value?.save();
+    if (continuityId !== undefined) updates.continuityId = continuityId;
+
+    const { chat } = await chatsAPI.update(props.chat.id, updates);
     toast.success('Chat updated successfully');
     emit('updated', chat);
     emit('close');
