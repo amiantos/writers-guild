@@ -54,6 +54,7 @@ describe('lorebookWorld', () => {
       entries: [
         { keys: ['The Gull'], content: 'The  harbor\npub.' },
         { keys: ['Hidden'], content: 'Off.', enabled: false },
+        { keys: ['k'.repeat(200)], content: 'Long key.' },
         { keys: [], content: 'Always foggy.', constant: true },
         { keys: [], comment: 'Tides', content: 'Twice a day.' },
         { keys: ['Lighthouse'], content: '' },
@@ -63,6 +64,7 @@ describe('lorebookWorld', () => {
     expect(world).toEqual([
       'Saltmere: A fishing town.',
       'The Gull: The harbor pub.',
+      `${'k'.repeat(80)}…: Long key.`,
       'Always foggy.',
       'Tides: Twice a day.',
       'Lighthouse',
@@ -113,6 +115,20 @@ describe('generateLibraryCharacter', () => {
     const [system, , options] = provider.generate.mock.calls[0];
     expect(options.maxTokens).toBe(1024);
     expect(system).toContain('under 512 words');
+  });
+
+  it('leaves room in the context for the prompt, and refuses when there is too little', async () => {
+    const provider = providerAnswering(JSON.stringify(CHARACTER));
+    const preset = { generationSettings: { maxContextTokens: 4096 } };
+    await generateLibraryCharacter({ provider, preset, idea: 'x' });
+    const [system, user, options] = provider.generate.mock.calls[0];
+    const promptTokens = (system.length + user.length) / 3;
+    expect(options.maxTokens + promptTokens).toBeLessThanOrEqual(4096);
+    expect(system).toContain('words so it');
+
+    await expect(
+      generateLibraryCharacter({ provider, preset, idea: 'x'.repeat(12_000) }),
+    ).rejects.toThrow('context is too small');
   });
 
   it('asks for a full card when there is room', async () => {

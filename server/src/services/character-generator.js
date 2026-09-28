@@ -22,6 +22,14 @@ const MIN_ANSWER_TOKENS = 4000;
 const AI_HORDE_MAX_ANSWER_TOKENS = 1024;
 // Words that fit in a token of answer, cautiously, with room left for the JSON around them.
 const WORDS_PER_ANSWER_TOKEN = 0.5;
+// A cautious estimate, so the prompt and answer fit the context even for text that tokenizes poorly.
+const CHARACTERS_PER_TOKEN = 3;
+// Context kept free for tokenizer slack.
+const CONTEXT_MARGIN_TOKENS = 256;
+// The least room worth asking for a card in.
+const MIN_USABLE_ANSWER_TOKENS = 512;
+// The longest lorebook key, comment, or name shown in the prompt.
+const WORLD_LABEL_CHARACTERS = 80;
 // Lorebook entries named in the prompt at most.
 const WORLD_ENTRIES = 12;
 // Characters of each lorebook entry's content shown in the prompt at most.
@@ -53,7 +61,7 @@ export function lorebookWorld(lorebook) {
   const entries = (lorebook.entries ?? [])
     .filter((entry) => entry.enabled !== false)
     .map((entry) => {
-      const label = text(entry.keys?.[0]) || text(entry.comment);
+      const label = truncate(text(entry.keys?.[0]) || text(entry.comment), WORLD_LABEL_CHARACTERS);
       const content = truncate(text(entry.content).replace(/\s+/g, ' '), WORLD_ENTRY_CHARACTERS);
       if (label && content) return `${label}: ${content}`;
       return label || content;
@@ -62,7 +70,9 @@ export function lorebookWorld(lorebook) {
     .slice(0, WORLD_ENTRIES);
   const description = text(lorebook.description);
   return [
-    description ? `${lorebook.name}: ${truncate(description, WORLD_ENTRY_CHARACTERS)}` : null,
+    description
+      ? `${truncate(text(lorebook.name), WORLD_LABEL_CHARACTERS)}: ${truncate(description, WORLD_ENTRY_CHARACTERS)}`
+      : null,
     ...entries,
   ].filter(Boolean);
 }
@@ -162,12 +172,23 @@ export async function generateLibraryCharacter({
   // AI Horde works out its context from its workers, so this may be a promise.
   const contextTokens =
     (await provider.resolveContextTokens?.(preset ?? {})) ?? settings.maxContextTokens ?? 128_000;
+  // The answer gets what the context has left after the prompt, measured with room for the
+  // word limit it may carry.
+  const overhead = buildGeneratorPrompt({ idea, name, world, wordLimit: MIN_ANSWER_TOKENS });
+  const promptTokens = Math.ceil(
+    (overhead.system.length + overhead.user.length) / CHARACTERS_PER_TOKEN,
+  );
   let answerTokens = Math.min(
     Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS),
-    Math.floor(contextTokens / 2),
+    contextTokens - promptTokens - CONTEXT_MARGIN_TOKENS,
   );
   if (String(preset?.provider ?? '').toLowerCase() === 'aihorde') {
     answerTokens = Math.min(answerTokens, AI_HORDE_MAX_ANSWER_TOKENS);
+  }
+  if (answerTokens < MIN_USABLE_ANSWER_TOKENS) {
+    throw new Error(
+      "This preset's context is too small for the idea and world together. Shorten the idea, pick no lorebook, or use a preset with a larger context.",
+    );
   }
   const options = {
     ...settings,
