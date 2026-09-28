@@ -252,6 +252,11 @@ export function cardToSave(card) {
     APPEARANCE_FIELDS.map((field) => [field, text(source[field]).slice(0, 500)]),
   );
   const description = [fields.description, appearanceText(appearance)].filter(Boolean).join('\n\n');
+  if (description.length > MAX_CARD_FIELD_CHARACTERS) {
+    throw new Error(
+      `description with its appearance must be at most ${MAX_CARD_FIELD_CHARACTERS} characters`,
+    );
+  }
   return generatedCard(
     {
       ...fields,

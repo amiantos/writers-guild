@@ -207,6 +207,15 @@ describe('cardToSave', () => {
     expect(() => cardToSave({ data: { name: 'Ines', description: 'x'.repeat(20_001) } })).toThrow(
       'description must be at most',
     );
+    expect(() =>
+      cardToSave({
+        data: {
+          name: 'Ines',
+          description: 'x'.repeat(19_990),
+          extensions: { bureau_appearance: { hair: 'long grey braid' } },
+        },
+      }),
+    ).toThrow('description with its appearance must be at most');
   });
 
   it('needs a name', () => {
