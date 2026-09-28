@@ -46,7 +46,7 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue';
-import { renderProse } from '../../composables/bureau/renderProse';
+import { renderProse } from '../../composables/renderProse';
 import { displayText } from '../../composables/storyPassages';
 
 const props = defineProps({

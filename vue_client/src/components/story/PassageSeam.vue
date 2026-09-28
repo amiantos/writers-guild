@@ -31,7 +31,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
-import { formatDateTime } from '../../composables/bureau/format';
+import { formatDateTime } from '../../composables/formatDateTime';
 
 const props = defineProps({
   /** The record of the passage below; absent while it's being written. */

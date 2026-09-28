@@ -10,10 +10,6 @@ const ChatView = () => import('../views/ChatView.vue');
 const CharacterDetail = () => import('../views/CharacterDetail.vue');
 const LorebookDetail = () => import('../views/LorebookDetail.vue');
 const SettingsPage = () => import('../views/SettingsPage.vue');
-const BureauHome = () => import('../views/bureau/BureauHome.vue');
-const BureauStory = () => import('../views/bureau/BureauStory.vue');
-const BureauThread = () => import('../views/bureau/BureauThread.vue');
-const BureauInterview = () => import('../views/bureau/BureauInterview.vue');
 const OnboardingWizard = () => import('../views/OnboardingWizard.vue');
 
 const routes = [
@@ -56,34 +52,6 @@ const routes = [
     component: LorebookDetail,
     props: true,
     meta: { title: 'Lorebook - Writers Guild', dynamicTitle: true },
-  },
-  {
-    path: '/bureaus/:bureauId',
-    name: 'bureau',
-    component: BureauHome,
-    props: true,
-    meta: { title: 'Bureau - Writers Guild', dynamicTitle: true },
-  },
-  {
-    path: '/bureaus/:bureauId/stories/:storyId',
-    name: 'bureau-story',
-    component: BureauStory,
-    props: true,
-    meta: { title: 'Bureau Chapter - Writers Guild', dynamicTitle: true },
-  },
-  {
-    path: '/bureaus/:bureauId/messages/:castId',
-    name: 'bureau-thread',
-    component: BureauThread,
-    props: true,
-    meta: { title: 'Bureau Messages - Writers Guild', dynamicTitle: true },
-  },
-  {
-    path: '/bureaus/:bureauId/cast/:castId/interview',
-    name: 'bureau-interview',
-    component: BureauInterview,
-    props: true,
-    meta: { title: 'Bureau Interview - Writers Guild', dynamicTitle: true },
   },
   {
     path: '/settings',

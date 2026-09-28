@@ -6,7 +6,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
 const SCHEMA_VERSION = 17;
 
@@ -30,7 +29,7 @@ export function initializeDatabase(dataRoot) {
   db.pragma('journal_mode = WAL');
 
   // Create schema
-  createSchema(db, dataRoot);
+  createSchema(db);
 
   return db;
 }
@@ -38,7 +37,7 @@ export function initializeDatabase(dataRoot) {
 /**
  * Create database schema
  */
-function createSchema(db, dataRoot) {
+function createSchema(db) {
   // Check current schema version
   const versionRow = db
     .prepare(`
@@ -49,12 +48,11 @@ function createSchema(db, dataRoot) {
   if (!versionRow) {
     // Fresh database - create all tables
     createAllTables(db);
-    enableBureausIfInUse(db, dataRoot);
   } else {
     // Check if migration needed
     const currentVersion = db.prepare('SELECT version FROM schema_version').get();
     if (currentVersion && currentVersion.version < SCHEMA_VERSION) {
-      migrateSchema(db, currentVersion.version, dataRoot);
+      migrateSchema(db, currentVersion.version);
     }
   }
 }
@@ -87,7 +85,6 @@ function createAllTables(db) {
       default_preset_id TEXT,
       onboarding_completed INTEGER DEFAULT 0,
       experimental_chats INTEGER DEFAULT 0,
-      experimental_bureaus INTEGER DEFAULT 0,
       experimental_enhanced_story INTEGER DEFAULT 0,
       experimental_archivist INTEGER DEFAULT 0,
       experimental_continuity INTEGER DEFAULT 0
@@ -324,7 +321,7 @@ function createCharacterVersionTables(db) {
       image_changed INTEGER NOT NULL DEFAULT 0,
       -- CHARACTER_VERSION_SOURCES in sqliteStorage.js
       source TEXT NOT NULL,
-      -- The version restored, the Bureau the card was saved from, or the story or chat
+      -- The version restored, or the story or chat
       -- (story:<id> or chat:<id>) whose Archivist suggestions were accepted.
       source_id TEXT,
       created TEXT NOT NULL,
@@ -458,40 +455,6 @@ function createContinuitySuggestionTables(db) {
 }
 
 /**
- * Whether bureau.db in the data directory holds at least one Bureau. It's read
- * directly and read-only, so a check never creates or migrates the file.
- */
-function hasBureaus(dataRoot) {
-  const bureauDbPath = path.join(dataRoot, BUREAU_DB_FILENAME);
-  if (!fs.existsSync(bureauDbPath)) return false;
-  let bureauDb;
-  try {
-    bureauDb = new Database(bureauDbPath, { readonly: true, fileMustExist: true });
-    return Boolean(bureauDb.prepare('SELECT 1 FROM bureaus LIMIT 1').get());
-  } catch {
-    return false;
-  } finally {
-    bureauDb?.close();
-  }
-}
-
-/**
- * Bureaus are experimental and off by default, but anyone who already has one
- * keeps its tab.
- */
-function enableBureausIfInUse(db, dataRoot) {
-  if (dataRoot && hasBureaus(dataRoot)) {
-    // An upsert, since the migration runs once and an older database may not have a settings row
-    // yet for a plain UPDATE to change.
-    db.exec(`
-      INSERT INTO settings (id, experimental_bureaus) VALUES (1, 1)
-      ON CONFLICT(id) DO UPDATE SET experimental_bureaus = 1
-    `);
-    console.log('Found existing Bureaus: turned on the Bureaus experimental feature');
-  }
-}
-
-/**
  * Calculate word count from text content
  * Counts words including contractions (don't, it's) and hyphenated words (well-known)
  * as single words, matching typical word processor behavior.
@@ -508,7 +471,7 @@ function calculateWordCount(content) {
 /**
  * Migrate schema to latest version
  */
-function migrateSchema(db, fromVersion, dataRoot) {
+function migrateSchema(db, fromVersion) {
   console.log(`Migrating database from version ${fromVersion} to ${SCHEMA_VERSION}`);
 
   // Wrap all migrations in a transaction for atomicity
@@ -648,14 +611,8 @@ function migrateSchema(db, fromVersion, dataRoot) {
       console.log('Added chat tables');
     }
 
-    // Migration to version 11: Put Bureaus behind an experimental toggle, on for existing users
-    if (fromVersion < 11) {
-      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
-      if (!settingsColumns.some((column) => column.name === 'experimental_bureaus')) {
-        db.exec('ALTER TABLE settings ADD COLUMN experimental_bureaus INTEGER DEFAULT 0');
-      }
-      enableBureausIfInUse(db, dataRoot);
-    }
+    // Version 11 put Bureaus behind an experimental toggle. Bureaus have since been removed, so it
+    // has nothing left to do; older databases keep their unused experimental_bureaus column.
 
     // Migration to version 12: Enhanced Story Mode's toggle, and the record of each story's passages
     if (fromVersion < 12) {

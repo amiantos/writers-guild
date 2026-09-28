@@ -4,10 +4,9 @@
  * Reads a finished story or chat and suggests small edits to the library cards
  * of the characters in it, so a card keeps up with what happened: a new
  * relationship, a change in circumstances, a new goal, or a lasting shift in
- * who someone is. It's Bureau's Archivist (bureau/archivist.js) for regular
- * cards, which keep their format: a suggestion replaces one span of a card's
- * description or personality, or adds a sentence to the end, and waits for the
- * reader to accept, edit, or reject it.
+ * who someone is. Cards keep their format: a suggestion replaces one span of a
+ * card's description or personality, or adds a sentence to the end, and waits
+ * for the reader to accept, edit, or reject it.
  *
  * Regular-mode providers can't be forced to call a tool, so the model is asked
  * for JSON in plain text and its answer is read leniently. Anything that doesn't

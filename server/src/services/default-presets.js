@@ -127,8 +127,7 @@ Write only what they type: no narration, no descriptions of actions, no asterisk
 Match the character's voice and mood, and what the scenario says they're doing.
 Write in the same language as the conversation.`;
 
-// The sentence that carries a direction. The instruction template ends with it, and Bureau adds it
-// to other templates when a turn has a direction.
+// The sentence that carries a direction. The instruction template ends with it.
 export const DIRECTION_SENTENCE =
   'The user additionally sends along these instructions for what events they would like to see occur: {{instruction}}';
 

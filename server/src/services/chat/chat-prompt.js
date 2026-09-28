@@ -4,8 +4,7 @@
  * Builds chat mode's prompts from a preset's chatSystemPrompt and chatReply
  * templates (or the defaults), in the system + user shape every provider
  * takes. The conversation reaches the model as a labeled transcript in the
- * user prompt, as Bureau correspondence does, so text-completion backends work
- * the same as chat APIs.
+ * user prompt, so text-completion backends work the same as chat APIs.
  *
  * A reply is one or more text messages from one character, separated in the
  * model's output by a line holding only `---`.
@@ -18,7 +17,7 @@ import {
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
 import { TemplateEngine } from '../template-engine.js';
-import { labelImages } from '../bureau/images.js';
+import { labelImages } from '../image-labels.js';
 
 export {
   MAX_REPLY_MESSAGES,

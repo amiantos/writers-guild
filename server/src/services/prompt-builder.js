@@ -513,7 +513,7 @@ export class PromptBuilder {
       maxChars,
       userName,
       imagePreserver,
-      // Callers without a story (Bureaus) get the default perspective
+      // Callers without a perspective get the default one
       perspective = renderPerspective(),
     } = params;
 
