@@ -13,9 +13,9 @@
 
 import { v4 as uuidv4 } from 'uuid';
 
-// Where a version came from: the Continuity's first text, a later edit, or a restore of an
-// earlier version.
-export const CONTINUITY_VERSION_SOURCES = ['created', 'edit', 'restore'];
+// Where a version came from: the Continuity's first text, a later edit, a restore of an earlier
+// version, or an Archivist update accepted from a story or chat.
+export const CONTINUITY_VERSION_SOURCES = ['created', 'edit', 'restore', 'archivist'];
 
 /**
  * The scenario a story or chat's prompt uses: its Continuity's text, then its own scenario,
@@ -99,6 +99,8 @@ export class ContinuityStorage {
       listVersions: db.prepare(
         'SELECT * FROM continuity_versions WHERE continuity_id = ? ORDER BY id',
       ),
+      getStoryTitle: db.prepare('SELECT title FROM stories WHERE id = ?'),
+      getChatTitle: db.prepare('SELECT title FROM chats WHERE id = ?'),
       getVersion: db.prepare(
         'SELECT * FROM continuity_versions WHERE continuity_id = ? AND id = ?',
       ),
@@ -172,9 +174,20 @@ export class ContinuityStorage {
     })();
   }
 
-  /** A Continuity's versions, oldest first. */
+  /**
+   * A Continuity's versions, oldest first. An Archivist version also carries the title of the
+   * story or chat it came from as `sourceTitle`, or null once that's deleted.
+   */
   listVersions(id) {
-    return this.stmts.listVersions.all(id).map(versionFromRow);
+    return this.stmts.listVersions.all(id).map((row) => {
+      const version = versionFromRow(row);
+      if (version.source === 'archivist') {
+        const [kind, sourceId] = String(version.sourceId ?? '').split(/:(.*)/s);
+        const statement = { story: this.stmts.getStoryTitle, chat: this.stmts.getChatTitle }[kind];
+        version.sourceTitle = statement?.get(sourceId)?.title ?? null;
+      }
+      return version;
+    });
   }
 
   /**

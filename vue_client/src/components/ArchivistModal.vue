@@ -8,13 +8,71 @@
       <p v-else-if="failure" class="archivist-error" role="alert">
         <i class="fas fa-triangle-exclamation"></i> The last read failed: {{ failure }}
       </p>
-      <p v-if="!running && suggestions.length === 0 && !failure" class="archivist-hint">
-        {{
-          hasRun
-            ? `Nothing to change: the cards already match this ${kind}.`
-            : `The Archivist reads this ${kind} and suggests edits to its characters' descriptions and personalities, for lasting changes like a new relationship or goal. Nothing changes until you accept it, and accepted edits can be restored from each card's History.`
-        }}
+      <p v-if="!running && !hasSuggestions && !failure" class="archivist-hint">
+        {{ idleHint }}
       </p>
+
+      <section v-if="continuitySuggestion" class="character-group">
+        <h3>Continuity: {{ continuitySuggestion.continuityName }}</h3>
+        <article
+          class="suggestion"
+          :class="{
+            'is-accepted': continuityDecision === true,
+            'is-rejected': continuityDecision === false,
+          }"
+        >
+          <header v-if="continuitySuggestion.stale" class="suggestion-header">
+            <span class="stale-tag">
+              The Continuity changed since this was written. Read again for a new update.
+            </span>
+          </header>
+
+          <textarea
+            v-if="continuityEditing !== undefined"
+            v-model="continuityEditing"
+            class="edit-text"
+            rows="8"
+          ></textarea>
+          <div v-else class="suggestion-edit">
+            <template v-for="(piece, index) in continuityDiff" :key="index">
+              <del v-if="piece.removed">{{ piece.text }}</del>
+              <ins v-else-if="piece.added">{{ piece.text }}</ins>
+              <span v-else>{{ piece.text }}</span>
+            </template>
+          </div>
+
+          <p v-if="continuitySuggestion.rationale" class="suggestion-why">
+            {{ continuitySuggestion.rationale }}
+          </p>
+
+          <div class="suggestion-actions">
+            <button
+              class="btn btn-small"
+              :class="continuityDecision === true ? 'btn-primary' : 'btn-secondary'"
+              :disabled="busy || continuitySuggestion.stale"
+              @click="decideContinuity(true)"
+            >
+              <i class="fas fa-check"></i> Accept
+            </button>
+            <button
+              class="btn btn-secondary btn-small"
+              :disabled="busy || continuitySuggestion.stale"
+              @click="toggleContinuityEdit"
+            >
+              <i class="fas fa-pencil"></i>
+              {{ continuityEditing !== undefined ? 'Done' : 'Edit' }}
+            </button>
+            <button
+              class="btn btn-small"
+              :class="continuityDecision === false ? 'btn-primary' : 'btn-secondary'"
+              :disabled="busy"
+              @click="decideContinuity(false)"
+            >
+              <i class="fas fa-xmark"></i> Reject
+            </button>
+          </div>
+        </article>
+      </section>
 
       <section v-for="group in groups" :key="group.characterId" class="character-group">
         <h3>{{ group.name }}</h3>
@@ -90,10 +148,10 @@
       </button>
       <button v-else class="btn btn-secondary" :disabled="loading || busy" @click="read">
         <i class="fas fa-book-open"></i>
-        {{ suggestions.length > 0 || hasRun ? 'Read Again' : `Read ${KIND_LABELS[kind]}` }}
+        {{ hasSuggestions || hasRun ? 'Read Again' : `Read ${KIND_LABELS[kind]}` }}
       </button>
       <button
-        v-if="suggestions.length > 0"
+        v-if="hasSuggestions"
         class="btn btn-primary"
         :disabled="busy || decidedCount === 0"
         @click="apply"
@@ -138,6 +196,13 @@ const progress = ref(null);
 // Why the last read failed, until the next one starts.
 const failure = ref(null);
 const suggestions = ref([]);
+// The Continuity this source is in, as {id, name}, when the Archivist updates it instead of cards.
+const continuity = ref(null);
+// The Continuity update waiting for review, and the reader's decision and edits to it.
+const continuitySuggestion = ref(null);
+const continuityDecision = ref(undefined);
+const continuityEditing = ref(undefined);
+const continuityEdited = ref(undefined);
 // Suggestion id -> true to accept, false to reject; undecided ones stay waiting.
 const decisions = reactive({});
 // Suggestion id -> the replacement being edited, or the edited one once done.
@@ -152,6 +217,62 @@ let settledRun = null;
 let awaitingStart = false;
 
 const busy = computed(() => running.value || applying.value);
+
+const hasSuggestions = computed(
+  () => suggestions.value.length > 0 || continuitySuggestion.value !== null,
+);
+
+const idleHint = computed(() => {
+  const name = continuity.value?.name;
+  if (name) {
+    return hasRun.value
+      ? `Nothing in this ${props.kind} to carry forward into "${name}".`
+      : `This ${props.kind} is in the Continuity "${name}", so the Archivist reads it and suggests an update to the Continuity with what happened worked in. Nothing changes until you accept it, and accepted updates can be restored from the Continuity's History.`;
+  }
+  return hasRun.value
+    ? `Nothing to change: the cards already match this ${props.kind}.`
+    : `The Archivist reads this ${props.kind} and suggests edits to its characters' descriptions and personalities, for lasting changes like a new relationship or goal. Nothing changes until you accept it, and accepted edits can be restored from each card's History.`;
+});
+
+/** Whether a character is part of a word, so a change isn't cut between two of them. */
+function isWord(character) {
+  return character !== undefined && !/\s/.test(character);
+}
+
+/**
+ * The update against the Continuity as it stands: the text they share at the start and end, and
+ * what changed between, cut at word boundaries so a change reads as whole words.
+ */
+const continuityDiff = computed(() => {
+  const suggestion = continuitySuggestion.value;
+  if (!suggestion) return [];
+  const before = suggestion.current ?? '';
+  const after = continuityEdited.value ?? suggestion.replace;
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  while (isWord(after[start - 1]) && (isWord(after[start]) || isWord(before[start]))) start--;
+  let end = 0;
+  while (
+    end < before.length - start &&
+    end < after.length - start &&
+    before[before.length - 1 - end] === after[after.length - 1 - end]
+  ) {
+    end++;
+  }
+  while (
+    end > 0 &&
+    isWord(after[after.length - end]) &&
+    (isWord(after[after.length - end - 1]) || isWord(before[before.length - end - 1]))
+  ) {
+    end--;
+  }
+  return [
+    { text: after.slice(0, start) },
+    { text: before.slice(start, before.length - end), removed: true },
+    { text: after.slice(start, after.length - end), added: true },
+    { text: after.slice(after.length - end) },
+  ].filter((piece) => piece.text);
+});
 
 const readingLabel = computed(() => {
   const part = progress.value;
@@ -175,14 +296,26 @@ const groups = computed(() => {
 });
 
 const decidedCount = computed(
-  () => suggestions.value.filter((suggestion) => decisions[suggestion.id] !== undefined).length,
+  () =>
+    suggestions.value.filter((suggestion) => decisions[suggestion.id] !== undefined).length +
+    (continuityDecision.value !== undefined ? 1 : 0),
 );
 
 function replacementFor(suggestion) {
   return edited[suggestion.id] ?? suggestion.replace;
 }
 
-function show(list) {
+/** Show a list's suggestions, keeping the decisions made on the ones still there. */
+function show(response) {
+  const list = response.suggestions ?? [];
+  if (response.continuity !== undefined) continuity.value = response.continuity;
+  const next = response.continuitySuggestion ?? null;
+  if (next?.id !== continuitySuggestion.value?.id) {
+    continuityDecision.value = undefined;
+    continuityEditing.value = undefined;
+    continuityEdited.value = undefined;
+  }
+  continuitySuggestion.value = next;
   suggestions.value = list;
   const ids = new Set(list.map((suggestion) => suggestion.id));
   for (const store of [decisions, editing, edited]) {
@@ -202,6 +335,30 @@ function decide(suggestion, accept) {
     delete decisions[suggestion.id];
   } else {
     decisions[suggestion.id] = accept;
+  }
+}
+
+function decideContinuity(accept) {
+  if (!accept) {
+    continuityEditing.value = undefined;
+    continuityEdited.value = undefined;
+  }
+  continuityDecision.value = continuityDecision.value === accept ? undefined : accept;
+}
+
+function toggleContinuityEdit() {
+  const suggestion = continuitySuggestion.value;
+  if (continuityEditing.value === undefined) {
+    continuityEditing.value = continuityEdited.value ?? suggestion.replace;
+    return;
+  }
+  const text = continuityEditing.value.trim();
+  continuityEditing.value = undefined;
+  if (text && text !== suggestion.replace) {
+    continuityEdited.value = text;
+    continuityDecision.value = true;
+  } else {
+    continuityEdited.value = undefined;
   }
 }
 
@@ -241,15 +398,15 @@ async function load() {
       running.value = true;
       awaitingStart = false;
       progress.value = run?.part ?? null;
-      show(response.suggestions);
+      show(response);
       schedule();
     } else if (running.value && awaitingStart && id === settledRun) {
       // The read just asked for hasn't started on the server yet.
       schedule();
     } else if (running.value) {
-      finish(run, response.suggestions);
+      finish(run, response);
     } else {
-      show(response.suggestions);
+      show(response);
       // A read that failed while nobody was watching still says why.
       if (run?.error) failure.value = run.error;
     }
@@ -264,7 +421,10 @@ async function load() {
   }
 }
 
-/** Show how a read ended, once, whether its own answer or a later check brought the news. */
+/**
+ * Show how a read ended, once, whether its own answer or a later check brought the news, with the
+ * list that came with it, if any.
+ */
 function finish(run, list) {
   if (!running.value) return;
   running.value = false;
@@ -280,7 +440,11 @@ function finish(run, list) {
     failure.value = run.error;
     toast.error('The Archivist failed: ' + run.error);
   } else if (run?.added > 0) {
-    toast.success(`The Archivist suggested ${run.added} new edit(s)`);
+    toast.success(
+      continuity.value
+        ? `The Archivist suggested an update to "${continuity.value.name}"`
+        : `The Archivist suggested ${run.added} new edit(s)`,
+    );
   }
 }
 
@@ -293,11 +457,11 @@ async function read() {
   schedule();
   try {
     const response = await archivistAPI.run(props.kind, props.sourceId);
-    finish(response.run, response.suggestions);
+    finish(response.run, response);
   } catch (error) {
     // The server's own answer says how the read ended. Anything else (a proxy or the browser
     // giving up on a long wait, or another read already running) leaves the checks to find out.
-    if (error.run) finish(error.run, error.suggestions ?? null);
+    if (error.run) finish(error.run, error.suggestions ? error : null);
     else if (!error.status || error.status >= 500 || error.status === 409) return;
     else finish({ error: error.message }, null);
   }
@@ -330,17 +494,41 @@ async function apply() {
         ? { replace: edited[suggestion.id] }
         : {}),
     }));
+  if (continuityEditing.value !== undefined) {
+    if (continuityDecision.value === false) continuityEditing.value = undefined;
+    else toggleContinuityEdit();
+  }
+  const suggestion = continuitySuggestion.value;
+  const continuityReview =
+    suggestion && continuityDecision.value !== undefined
+      ? {
+          id: suggestion.id,
+          accept: continuityDecision.value,
+          ...(continuityDecision.value && continuityEdited.value !== undefined
+            ? { replace: continuityEdited.value }
+            : {}),
+        }
+      : undefined;
   applying.value = true;
   try {
-    const response = await archivistAPI.review(props.kind, props.sourceId, list);
-    show(response.suggestions);
+    const response = continuityReview
+      ? await archivistAPI.review(props.kind, props.sourceId, list, continuityReview)
+      : await archivistAPI.review(props.kind, props.sourceId, list);
+    show(response);
     for (const id of response.stale) delete decisions[id];
+    if (response.continuityStale) continuityDecision.value = undefined;
     if (response.applied > 0) {
       toast.success(`Updated the cards with ${response.applied} edit(s)`);
-      emit('applied');
     }
+    if (response.continuityApplied) {
+      toast.success(`Updated "${suggestion.continuityName}"`);
+    }
+    if (response.applied > 0 || response.continuityApplied) emit('applied');
     if (response.stale.length > 0) {
       toast.error(`${response.stale.length} edit(s) no longer fit their card and were left`);
+    }
+    if (response.continuityStale) {
+      toast.error('The Continuity changed since this update was written, so it was left');
     }
   } catch (error) {
     toast.error('Failed to apply: ' + error.message);

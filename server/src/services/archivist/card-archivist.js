@@ -324,23 +324,7 @@ export async function runArchivist({
   signal,
   onPart,
 }) {
-  const settings = preset?.generationSettings ?? {};
-  // AI Horde works out its context from its workers, so this may be a promise.
-  const contextTokens =
-    (await provider.resolveContextTokens?.(preset ?? {})) ?? settings.maxContextTokens ?? 128_000;
-  const answerTokens = Math.min(
-    Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS),
-    Math.floor(contextTokens / 4),
-  );
-  const options = {
-    ...settings,
-    maxTokens: answerTokens,
-    temperature: Math.min(settings.temperature ?? 0.5, 0.5),
-    // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
-    maxContextTokens: contextTokens,
-    maxContextLength: contextTokens,
-    signal,
-  };
+  const { options, contextTokens, answerTokens } = await archivistOptions(provider, preset, signal);
   const rejected = existing.filter((s) => s.status === 'rejected');
   const found = [];
 
@@ -383,35 +367,17 @@ export async function runArchivist({
 
     const part = { index, count: chunks.length, characters: chunk.length };
     onPart?.(part);
-    let parsed = null;
-    let answer = '';
-    try {
-      for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
-        const result = await provider.generate(system, user, options);
-        answer = String(result?.content ?? '');
-        parsed = parseSuggestions(answer);
-      }
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      // An answer that wasn't JSON before the retry failed is still worth logging.
-      throw new ArchivistRunError(inPart(part, describeError(error)), {
-        part,
-        found,
-        answer: answer ? answer.slice(0, 500) : undefined,
-        cause: error,
-      });
-    }
-    if (parsed === null) {
-      const problem = answer.trim()
-        ? "The Archivist's answer wasn't the JSON it was asked for."
-        : "The Archivist's answer was empty. A reasoning model may have used all " +
-          `${answerTokens} tokens it had for thinking.`;
-      throw new ArchivistRunError(inPart(part, problem), {
-        part,
-        found,
-        answer: answer.slice(0, 500),
-      });
-    }
+    const parsed = await askArchivist({
+      provider,
+      system,
+      user,
+      options,
+      signal,
+      part,
+      found,
+      answerTokens,
+      parse: parseSuggestions,
+    });
     found.push(...validateSuggestions(parsed, cast, [...existing, ...found]));
   }
   return found;
@@ -420,4 +386,77 @@ export async function runArchivist({
 /** A pass's failure, naming the pass when there's more than one. */
 function inPart(part, message) {
   return part.count > 1 ? `Part ${part.index + 1} of ${part.count}: ${message}` : message;
+}
+
+/**
+ * The generation options an Archivist pass uses: the preset's own, with room for the answer (at
+ * least `minAnswerTokens`, and no more than a quarter of the context) and a cool temperature.
+ */
+export async function archivistOptions(provider, preset, signal, minAnswerTokens = 0) {
+  const settings = preset?.generationSettings ?? {};
+  // AI Horde works out its context from its workers, so this may be a promise.
+  const contextTokens =
+    (await provider.resolveContextTokens?.(preset ?? {})) ?? settings.maxContextTokens ?? 128_000;
+  const answerTokens = Math.min(
+    Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS, minAnswerTokens),
+    Math.floor(contextTokens / 4),
+  );
+  const options = {
+    ...settings,
+    maxTokens: answerTokens,
+    temperature: Math.min(settings.temperature ?? 0.5, 0.5),
+    // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+    maxContextTokens: contextTokens,
+    maxContextLength: contextTokens,
+    signal,
+  };
+  return { options, contextTokens, answerTokens };
+}
+
+/**
+ * Ask for one pass's answer and read it with `parse`, asking once more when it isn't JSON.
+ * @returns {Promise<*>} What `parse` made of the answer.
+ * @throws {ArchivistRunError} When the pass fails, carrying `found` from the passes before it.
+ */
+export async function askArchivist({
+  provider,
+  system,
+  user,
+  options,
+  signal,
+  part,
+  found,
+  answerTokens,
+  parse,
+}) {
+  let parsed = null;
+  let answer = '';
+  try {
+    for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
+      const result = await provider.generate(system, user, options);
+      answer = String(result?.content ?? '');
+      parsed = parse(answer);
+    }
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    // An answer that wasn't JSON before the retry failed is still worth logging.
+    throw new ArchivistRunError(inPart(part, describeError(error)), {
+      part,
+      found,
+      answer: answer ? answer.slice(0, 500) : undefined,
+      cause: error,
+    });
+  }
+  if (parsed === null) {
+    const problem = answer.trim()
+      ? "The Archivist's answer wasn't the JSON it was asked for."
+      : "The Archivist's answer was empty. A reasoning model may have used all " +
+        `${answerTokens} tokens it had for thinking.`;
+    throw new ArchivistRunError(inPart(part, problem), {
+      part,
+      found,
+      answer: answer.slice(0, 500),
+    });
+  }
+  return parsed;
 }

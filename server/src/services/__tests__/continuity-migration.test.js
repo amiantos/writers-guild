@@ -52,6 +52,36 @@ describe('the Continuity migration', () => {
   });
 });
 
+describe("the Continuity Archivist's migration", () => {
+  it('adds the table of suggested Continuity updates', () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'continuity-suggestions-migration-'));
+    try {
+      new SqliteStorageService(dataRoot).close();
+      const db = new Database(path.join(dataRoot, 'writers-guild.db'));
+      db.exec('DROP TRIGGER continuity_suggestions_story_deleted');
+      db.exec('DROP TRIGGER continuity_suggestions_chat_deleted');
+      db.exec('DROP TABLE continuity_suggestions');
+      db.prepare('UPDATE schema_version SET version = 15').run();
+      db.close();
+
+      const storage = new SqliteStorageService(dataRoot);
+      try {
+        const count = storage.db
+          .prepare('SELECT COUNT(*) AS count FROM continuity_suggestions')
+          .get().count;
+        expect(count).toBe(0);
+        expect(storage.db.prepare('SELECT version FROM schema_version').get().version).toBe(
+          SCHEMA_VERSION,
+        );
+      } finally {
+        storage.close();
+      }
+    } finally {
+      fs.rmSync(dataRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('scenarioWithContinuity', () => {
   it('puts the Continuity first, with a blank line, and skips what is empty', () => {
     expect(scenarioWithContinuity(' World. ', ' Scene. ')).toBe('World.\n\nScene.');

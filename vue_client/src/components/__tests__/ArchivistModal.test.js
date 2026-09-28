@@ -274,4 +274,96 @@ describe('ArchivistModal', () => {
       vi.useRealTimers();
     }
   });
+
+  describe('for a story in a Continuity', () => {
+    const START = 'Bradley asked Amanda out.';
+    const UPDATED = `${START} The date went well.`;
+    const CONTINUITY = { id: 'k1', name: 'Bradley and Amanda' };
+
+    function update(fields = {}) {
+      return {
+        id: 7,
+        continuityId: 'k1',
+        continuityName: 'Bradley and Amanda',
+        current: START,
+        replace: UPDATED,
+        rationale: 'Added the date.',
+        stale: false,
+        ...fields,
+      };
+    }
+
+    it('says it updates the Continuity, and shows what the update adds', async () => {
+      mockArchivistAPI.list.mockResolvedValue({
+        suggestions: [],
+        continuity: CONTINUITY,
+        continuitySuggestion: null,
+        running: false,
+      });
+      mockArchivistAPI.run.mockResolvedValue({
+        added: 1,
+        suggestions: [],
+        continuity: CONTINUITY,
+        continuitySuggestion: update(),
+        run: { id: 1, added: 1 },
+      });
+      const wrapper = await mountModal();
+      expect(wrapper.text()).toContain('is in the Continuity "Bradley and Amanda"');
+
+      await buttonsOf(wrapper, 'Read Story')[0].trigger('click');
+      await flushPromises();
+
+      expect(wrapper.text()).toContain('Continuity: Bradley and Amanda');
+      expect(wrapper.find('ins').text()).toBe('The date went well.');
+      expect(wrapper.find('del').exists()).toBe(false);
+      expect(mockToast.success).toHaveBeenCalledWith(
+        'The Archivist suggested an update to "Bradley and Amanda"',
+      );
+    });
+
+    it('sends an edited update', async () => {
+      mockArchivistAPI.list.mockResolvedValue({
+        suggestions: [],
+        continuity: CONTINUITY,
+        continuitySuggestion: update(),
+        running: false,
+      });
+      mockArchivistAPI.review.mockResolvedValue({
+        applied: 0,
+        stale: [],
+        continuityApplied: true,
+        continuityStale: false,
+        suggestions: [],
+        continuitySuggestion: null,
+      });
+      const wrapper = await mountModal();
+
+      await buttonsOf(wrapper, 'Edit')[0].trigger('click');
+      await wrapper.find('textarea').setValue(`${UPDATED} They kissed.`);
+      await buttonsOf(wrapper, 'Done')[0].trigger('click');
+      expect(wrapper.find('ins').text()).toBe('The date went well. They kissed.');
+      await buttonsOf(wrapper, 'Apply 1 Decision')[0].trigger('click');
+      await flushPromises();
+
+      expect(mockArchivistAPI.review).toHaveBeenCalledWith('story', 's1', [], {
+        id: 7,
+        accept: true,
+        replace: `${UPDATED} They kissed.`,
+      });
+      expect(wrapper.emitted('applied')).toBeTruthy();
+    });
+
+    it("won't accept a stale update", async () => {
+      mockArchivistAPI.list.mockResolvedValue({
+        suggestions: [],
+        continuity: CONTINUITY,
+        continuitySuggestion: update({ stale: true, current: `${START} Edited.` }),
+        running: false,
+      });
+      const wrapper = await mountModal();
+      expect(wrapper.text()).toContain('The Continuity changed since this was written');
+      expect(buttonsOf(wrapper, 'Accept')[0].attributes('disabled')).toBeDefined();
+      expect(buttonsOf(wrapper, 'Reject')[0].attributes('disabled')).toBeUndefined();
+    });
+  });
 });

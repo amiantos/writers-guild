@@ -8,6 +8,7 @@ import os from 'os';
 import { SqliteStorageService } from '../../services/sqliteStorage.js';
 import { ChatStorage } from '../../services/chat/chat-storage.js';
 import { CardSuggestionStorage } from '../../services/archivist/card-suggestion-storage.js';
+import { ContinuityStorage } from '../../services/continuity/continuity-storage.js';
 import { DeepSeekProvider } from '../../services/providers/deepseek-provider.js';
 import archivistRouter from '../archivist.js';
 
@@ -515,5 +516,147 @@ describe('Archivist routes', () => {
     const listed = await request(app).get(`/api/archivist/story/${storyId}`);
     expect(listed.body.run).toMatchObject({ added: 1, part: { index: 1 } });
     expect(listed.body.suggestions.map((s) => s.replace)).toEqual(['She walks a lot.']);
+  });
+});
+
+function answerWithContinuity(continuity) {
+  return vi
+    .spyOn(DeepSeekProvider.prototype, 'generate')
+    .mockResolvedValue({ content: JSON.stringify({ continuity, rationale: 'Added the date.' }) });
+}
+
+describe('Archivist routes for a source in a Continuity', () => {
+  const START = 'Bradley helped Amanda find her dog. He asked her out on a date.';
+  const UPDATED = `${START} The date went well, and Amanda will call about a second one.`;
+  let continuities;
+
+  beforeAll(() => {
+    continuities = new ContinuityStorage(storage.db);
+  });
+
+  async function setContinuity(on) {
+    const settings = await storage.getSettings();
+    await storage.saveSettings({ ...settings, experimentalContinuity: on });
+  }
+
+  async function storyInContinuity(characterIds = []) {
+    const continuity = continuities.create({ name: 'Bradley and Amanda', content: START });
+    const storyId = await story('They went out to dinner and hit it off.', characterIds);
+    await storage.updateStoryMetadata(storyId, { continuityId: continuity.id });
+    return { storyId, continuity };
+  }
+
+  it('suggest an updated Continuity instead of card edits, and apply an edited one', async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const app = createApp();
+    const bradley = await character('Bradley', { description: 'Bradley is single.' });
+    const { storyId, continuity } = await storyInContinuity([bradley]);
+    const generate = answerWithContinuity(UPDATED);
+
+    const listed = await request(app).get(`/api/archivist/story/${storyId}`);
+    expect(listed.body.continuity).toEqual({ id: continuity.id, name: 'Bradley and Amanda' });
+
+    const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    expect(run.status).toBe(200);
+    expect(run.body.added).toBe(1);
+    expect(run.body.suggestions).toEqual([]);
+    expect(generate.mock.calls[0][1]).toContain(START);
+    expect(generate.mock.calls[0][1]).toContain('They went out to dinner');
+    const suggestion = run.body.continuitySuggestion;
+    expect(suggestion).toMatchObject({
+      continuityName: 'Bradley and Amanda',
+      current: START,
+      replace: UPDATED,
+      rationale: 'Added the date.',
+      stale: false,
+    });
+
+    const edited = `${UPDATED} He can't stop smiling.`;
+    const review = await request(app)
+      .post(`/api/archivist/story/${storyId}/review`)
+      .send({ continuity: { id: suggestion.id, accept: true, replace: edited } });
+    expect(review.status).toBe(200);
+    expect(review.body).toMatchObject({ continuityApplied: true, continuitySuggestion: null });
+    expect(continuities.get(continuity.id).content).toBe(edited);
+    expect(continuities.listVersions(continuity.id).at(-1)).toMatchObject({
+      source: 'archivist',
+      sourceId: `story:${storyId}`,
+      sourceTitle: 'Summer',
+    });
+    expect((await storage.getCharacter(bradley)).data.description).toBe('Bradley is single.');
+  });
+
+  it("read a story with no characters, and replace an update that's still waiting", async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const app = createApp();
+    const { storyId } = await storyInContinuity();
+    answerWithContinuity(UPDATED);
+    const first = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    expect(first.status).toBe(200);
+
+    vi.restoreAllMocks();
+    answerWithContinuity(`${UPDATED} Again.`);
+    const second = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    expect(second.body.continuitySuggestion.replace).toBe(`${UPDATED} Again.`);
+    expect(second.body.continuitySuggestion.id).not.toBe(first.body.continuitySuggestion.id);
+  });
+
+  it('leave an update waiting when the Continuity changed underneath it, and reject it', async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const app = createApp();
+    const { storyId, continuity } = await storyInContinuity();
+    answerWithContinuity(UPDATED);
+    const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    const { id } = run.body.continuitySuggestion;
+
+    continuities.update(continuity.id, { content: `${START} Edited by hand.` });
+    const accept = await request(app)
+      .post(`/api/archivist/story/${storyId}/review`)
+      .send({ continuity: { id, accept: true } });
+    expect(accept.body).toMatchObject({ continuityApplied: false, continuityStale: true });
+    expect(accept.body.continuitySuggestion).toMatchObject({ id, stale: true });
+    expect(continuities.get(continuity.id).content).toBe(`${START} Edited by hand.`);
+
+    const reject = await request(app)
+      .post(`/api/archivist/story/${storyId}/review`)
+      .send({ continuity: { id, accept: false } });
+    expect(reject.body.continuitySuggestion).toBeNull();
+  });
+
+  it('say so when nothing is worth carrying forward', async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const { storyId } = await storyInContinuity();
+    answerWithContinuity(null);
+    const run = await request(createApp()).post(`/api/archivist/story/${storyId}/run`);
+    expect(run.body).toMatchObject({ added: 0, continuitySuggestion: null });
+  });
+
+  it('review the cards while Continuities are turned off', async () => {
+    await setArchivist(true);
+    await setContinuity(false);
+    const layla = await character('Layla', { description: 'She is single.' });
+    const { storyId } = await storyInContinuity([layla]);
+    answerWith([{ character: 'Layla', field: 'description', find: '', replace: 'She dates.' }]);
+    const run = await request(createApp()).post(`/api/archivist/story/${storyId}/run`);
+    expect(run.body).toMatchObject({ added: 1, continuity: null, continuitySuggestion: null });
+  });
+
+  it('reject a malformed Continuity decision', async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const { storyId } = await storyInContinuity();
+    const app = createApp();
+    await request(app)
+      .post(`/api/archivist/story/${storyId}/review`)
+      .send({ continuity: { id: 'x', accept: true } })
+      .expect(400);
+    await request(app)
+      .post(`/api/archivist/story/${storyId}/review`)
+      .send({ continuity: { id: 1, accept: true, replace: '  ' } })
+      .expect(400);
   });
 });
