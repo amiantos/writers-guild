@@ -9,7 +9,7 @@
  */
 
 export const PERSPECTIVE_MODES = [
-  { value: 'third', label: 'Third person' },
+  { value: 'third', label: 'Third person (Original Default)', short: 'third person' },
   { value: 'third_limited', label: 'Third person limited', character: 'Viewpoint character' },
   { value: 'third_omniscient', label: 'Third person omniscient' },
   { value: 'third_objective', label: 'Third person objective' },
@@ -45,8 +45,8 @@ export function modeTakesCharacter(mode) {
 export function describePerspective({ mode, tense, characterName } = {}) {
   const resolvedMode = isPerspectiveMode(mode) ? mode : DEFAULT_PERSPECTIVE_MODE;
   const resolvedTense = isPerspectiveTense(tense) ? tense : DEFAULT_PERSPECTIVE_TENSE;
-  const label = PERSPECTIVE_MODES.find((entry) => entry.value === resolvedMode).label;
-  let description = `${label.toLowerCase()}, ${resolvedTense} tense`;
+  const entry = PERSPECTIVE_MODES.find((mode) => mode.value === resolvedMode);
+  let description = `${entry.short ?? entry.label.toLowerCase()}, ${resolvedTense} tense`;
   if (characterName && resolvedMode === 'first') description += `, narrated by ${characterName}`;
   if (characterName && resolvedMode === 'third_limited') {
     description += `, following ${characterName}`;
