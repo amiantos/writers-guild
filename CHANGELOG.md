@@ -11,7 +11,7 @@ All notable changes to Writers Guild are recorded here. Versions follow
   third person limited, omniscient or objective, first person, or second person, in past or present
   tense. First person and third person limited take a narrator or viewpoint character from the
   story's characters or its Persona; second person addresses the Persona as "you". Rewrite to Third
-  Person follows the story's perspective too.
+  Person is now Rewrite to Story Perspective and follows the story's perspective.
 - The default system prompt's perspective section is now a `{{perspective}}` template tag, which
   renders the old text for stories that haven't set a perspective. **Custom system prompts need
   `{{perspective}}` added to use the new setting**; the Edit Story modal warns when the story's
