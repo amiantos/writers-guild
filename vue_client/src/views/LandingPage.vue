@@ -247,7 +247,7 @@ import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI, settingsAPI } from
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 import { useDataCache } from '../composables/useDataCache';
-import { useOrphanedLorebook } from '../composables/useOrphanedLorebook';
+import { useCharacterDeletion } from '../composables/useCharacterDeletion';
 import Tabs from '../components/Tabs.vue';
 import StoriesTable from '../components/StoriesTable.vue';
 import CharactersTable from '../components/CharactersTable.vue';
@@ -268,7 +268,7 @@ import { chatsAPI } from '../services/chatsApi';
 const router = useRouter();
 const toast = useToast();
 const { confirm } = useConfirm();
-const { offerToDeleteOrphanedLorebook } = useOrphanedLorebook();
+const { deleteCharacter } = useCharacterDeletion();
 
 // Use centralized data cache for better performance
 const {
@@ -281,7 +281,6 @@ const {
   loadingCharacters,
   loadingLorebooks,
   loadingPresets,
-  getStoryCount,
   loadStories,
   loadCharacters,
   loadLorebooks,
@@ -289,7 +288,6 @@ const {
   loadAll,
   invalidateCache,
   removeStoryLocally,
-  removeCharacterLocally,
   removeLorebookLocally,
   removePresetLocally,
   setDefaultPresetIdLocally,
@@ -521,34 +519,6 @@ async function deleteStory(story) {
   } catch (error) {
     console.error('Error deleting story:', error);
     toast.error('Failed to delete story');
-  }
-}
-
-async function deleteCharacter(character) {
-  const storyCount = getStoryCount(character.id);
-
-  let msg = `Delete character "${character.name}"?`;
-  if (storyCount > 0) {
-    msg += `\n\nWarning: This character appears in ${storyCount} story(ies).`;
-  }
-  msg += '\n\nThis cannot be undone.';
-
-  const confirmed = await confirm({
-    message: msg,
-    confirmText: 'Delete Character',
-    variant: 'danger',
-  });
-
-  if (!confirmed) return;
-
-  try {
-    const { orphanedLorebook } = await charactersAPI.delete(character.id);
-    removeCharacterLocally(character.id);
-    toast.success('Character deleted successfully');
-    await offerToDeleteOrphanedLorebook(orphanedLorebook);
-  } catch (error) {
-    console.error('Error deleting character:', error);
-    toast.error('Failed to delete character: ' + error.message);
   }
 }
 

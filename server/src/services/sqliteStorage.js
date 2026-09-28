@@ -225,6 +225,10 @@ export class SqliteStorageService {
         JOIN story_characters sc ON s.id = sc.story_id
         WHERE sc.character_id = ?
       `),
+      getStoryIdsUsingCharacter: this.db.prepare(`
+        SELECT story_id AS id FROM story_characters WHERE character_id = ?
+        UNION SELECT id FROM stories WHERE persona_character_id = ?
+      `),
       updateStoryModified: this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?'),
       clearStoryPersona: this.db.prepare(
         'UPDATE stories SET persona_character_id = NULL WHERE id = ?',
@@ -1063,6 +1067,29 @@ export class SqliteStorageService {
   async deleteCharacter(characterId) {
     this.stmts.deleteCharacter.run(characterId);
     return { success: true };
+  }
+
+  /**
+   * Delete a character and the stories it's in, all or nothing, so a failure
+   * part way through never leaves some stories gone and the character still there.
+   *
+   * The stories are re-read inside the transaction: if the character is now in
+   * one that isn't in `confirmedStoryIds`, nothing is deleted.
+   *
+   * @returns {string[]|null} the deleted story ids, or null if refused
+   */
+  async deleteCharacterWithStories(characterId, confirmedStoryIds) {
+    const confirmed = new Set(confirmedStoryIds);
+    return this.db.transaction(() => {
+      const storyIds = this.stmts.getStoryIdsUsingCharacter
+        .all(characterId, characterId)
+        .map((r) => r.id);
+      if (storyIds.some((id) => !confirmed.has(id))) return null;
+
+      for (const storyId of storyIds) this.stmts.deleteStory.run(storyId);
+      this.stmts.deleteCharacter.run(characterId);
+      return storyIds;
+    })();
   }
 
   async addCharacterToStory(storyId, characterId) {

@@ -45,6 +45,7 @@ describe('Characters API Routes', () => {
     app.use((err, req, res, _next) => {
       res.status(err.statusCode || 500).json({
         error: err.message || 'Internal server error',
+        ...err.details,
       });
     });
   });
@@ -347,6 +348,125 @@ describe('Characters API Routes', () => {
 
       expect(response.body.error).toContain('Cannot delete character');
       expect(response.body.error).toContain('Used in 1 story');
+      expect(response.body.stories.map((s) => s.id)).toEqual([story.id]);
+    });
+
+    it('should list the other characters each blocking story involves', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Target', description: 'Being deleted' })
+        .expect(201);
+      const castmate = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Castmate', description: 'Shares a story' })
+        .expect(201);
+
+      const shared = await storage.createStory('Shared Story', 'Two characters');
+      await storage.addCharacterToStory(shared.id, target.body.id);
+      await storage.setStoryPersona(shared.id, castmate.body.id);
+      const solo = await storage.createStory('Solo Story', 'Just the target');
+      await storage.addCharacterToStory(solo.id, target.body.id);
+
+      const response = await request(app).delete(`/api/characters/${target.body.id}`).expect(409);
+
+      const byTitle = Object.fromEntries(response.body.stories.map((s) => [s.title, s]));
+      expect(byTitle['Shared Story'].otherCharacters).toEqual([
+        { id: castmate.body.id, name: 'Castmate' },
+      ]);
+      expect(byTitle['Solo Story'].otherCharacters).toEqual([]);
+    });
+
+    it('should delete the character and the stories the client confirmed', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Doomed', description: 'Being deleted' })
+        .expect(201);
+      const other = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Survivor', description: 'Stays' })
+        .expect(201);
+
+      const asCast = await storage.createStory('Cast Story', 'Target in cast');
+      await storage.addCharacterToStory(asCast.id, target.body.id);
+      await storage.addCharacterToStory(asCast.id, other.body.id);
+      const asPersona = await storage.createStory('Persona Story', 'Target as persona');
+      await storage.setStoryPersona(asPersona.id, target.body.id);
+      const unrelated = await storage.createStory('Unrelated Story', 'Target not in it');
+      await storage.addCharacterToStory(unrelated.id, other.body.id);
+
+      const response = await request(app)
+        .delete(`/api/characters/${target.body.id}`)
+        .send({ deleteStoryIds: [asCast.id, asPersona.id] })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.deletedStoryIds.toSorted()).toEqual(
+        [asCast.id, asPersona.id].toSorted(),
+      );
+
+      const remaining = (await storage.listStories()).map((s) => s.id);
+      expect(remaining).toContain(unrelated.id);
+      expect(remaining).not.toContain(asCast.id);
+      expect(remaining).not.toContain(asPersona.id);
+      await request(app).get(`/api/characters/${target.body.id}/data`).expect(500);
+      await request(app).get(`/api/characters/${other.body.id}/data`).expect(200);
+    });
+
+    it('should reject a malformed deleteStoryIds with 400', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Malformed', description: 'Bad payload' })
+        .expect(201);
+
+      for (const deleteStoryIds of [123, {}, 'abc', [1]]) {
+        await request(app)
+          .delete(`/api/characters/${target.body.id}`)
+          .send({ deleteStoryIds })
+          .expect(400);
+      }
+      await request(app).get(`/api/characters/${target.body.id}/data`).expect(200);
+    });
+
+    it('should re-check stories inside the delete transaction', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Late', description: 'Joins a story mid-delete' })
+        .expect(201);
+      const shown = await storage.createStory('Shown', 'Confirmed');
+      await storage.addCharacterToStory(shown.id, target.body.id);
+      const late = await storage.createStory('Late', 'Not confirmed');
+      await storage.setStoryPersona(late.id, target.body.id);
+
+      expect(await storage.deleteCharacterWithStories(target.body.id, [shown.id])).toBeNull();
+      const remaining = (await storage.listStories()).map((s) => s.id);
+      expect(remaining).toEqual(expect.arrayContaining([shown.id, late.id]));
+
+      const deleted = await storage.deleteCharacterWithStories(target.body.id, [shown.id, late.id]);
+      expect(deleted.toSorted()).toEqual([shown.id, late.id].toSorted());
+    });
+
+    it('should delete nothing when a story was not among those confirmed', async () => {
+      const target = await request(app)
+        .post('/api/characters')
+        .send({ name: 'Raced', description: 'Gained a story after the prompt' })
+        .expect(201);
+
+      const shown = await storage.createStory('Shown Story', 'User saw this one');
+      await storage.addCharacterToStory(shown.id, target.body.id);
+      const added = await storage.createStory('Added Story', 'Added after the prompt');
+      await storage.addCharacterToStory(added.id, target.body.id);
+
+      const response = await request(app)
+        .delete(`/api/characters/${target.body.id}`)
+        .send({ deleteStoryIds: [shown.id] })
+        .expect(409);
+
+      expect(response.body.stories.map((s) => s.id).toSorted()).toEqual(
+        [shown.id, added.id].toSorted(),
+      );
+      const remaining = (await storage.listStories()).map((s) => s.id);
+      expect(remaining).toEqual(expect.arrayContaining([shown.id, added.id]));
+      await request(app).get(`/api/characters/${target.body.id}/data`).expect(200);
     });
   });
 
