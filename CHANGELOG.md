@@ -3,6 +3,26 @@
 All notable changes to Writers Guild are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-09-28
+
+### Library
+
+- Character generator: a Generate button in the Characters tab writes a new character card from a
+  short idea, using the default preset or one you pick, with an optional lorebook as world context.
+  The card can be edited before saving, and its appearance details are added to the description.
+- Deleting a character now lists the stories it appears in, flagging any that include other
+  characters, and one confirmation deletes the character and those stories together.
+
+### Experimental features
+
+- **Archivist**: adds a Review Cards button to stories and chats. The Archivist reads what happened
+  and suggests small edits to the cast's descriptions and personalities for you to accept, edit, or
+  reject. Accepted edits show in each card's History and can be restored.
+
+### Fixes
+
+- Long confirmation dialog messages now scroll instead of overflowing the screen.
+
 ## [1.1.0] - 2026-09-26
 
 ### Library
