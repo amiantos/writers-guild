@@ -95,6 +95,24 @@ describe('generateLibraryCharacter', () => {
     expect(card.data.extensions.bureau_appearance).toMatchObject({ hair: 'grey braid', eyes: '' });
   });
 
+  it('asks for a shorter card when the answer has little room, as on AI Horde', async () => {
+    const provider = providerAnswering(JSON.stringify(CHARACTER));
+    await generateLibraryCharacter({
+      provider,
+      preset: { provider: 'aihorde', generationSettings: { maxContextTokens: 32000 } },
+      idea: 'x',
+    });
+    const [system, , options] = provider.generate.mock.calls[0];
+    expect(options.maxTokens).toBe(1024);
+    expect(system).toContain('under 512 words');
+  });
+
+  it('asks for a full card when there is room', async () => {
+    const provider = providerAnswering(JSON.stringify(CHARACTER));
+    await generateLibraryCharacter({ provider, preset: {}, idea: 'x' });
+    expect(provider.generate.mock.calls[0][0]).not.toContain('words so it');
+  });
+
   it('tries once more when the answer is not JSON, and keeps a name it was given', async () => {
     const provider = providerAnswering('Sure!', JSON.stringify({ ...CHARACTER, name: '' }));
     const card = await generateLibraryCharacter({

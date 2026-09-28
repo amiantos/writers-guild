@@ -18,6 +18,10 @@ import {
 
 // Room for the answer, and for a reasoning model's thinking before it.
 const MIN_ANSWER_TOKENS = 4000;
+// AI Horde's workers write at most this many tokens, whatever is asked for.
+const AI_HORDE_MAX_ANSWER_TOKENS = 1024;
+// Words that fit in a token of answer, cautiously, with room left for the JSON around them.
+const WORDS_PER_ANSWER_TOKEN = 0.5;
 // Lorebook entries named in the prompt at most.
 const WORLD_ENTRIES = 12;
 // Characters of each lorebook entry's content shown in the prompt at most.
@@ -79,8 +83,10 @@ function answerShape() {
  * @param {string} params.idea - What the reader wants.
  * @param {string} [params.name] - A name the character must have.
  * @param {string[]} [params.world] - Notes about the world, from a lorebook.
+ * @param {number} [params.wordLimit] - The most words the whole card may use, when the answer
+ *   has little room.
  */
-export function buildGeneratorPrompt({ idea, name = '', world = [] }) {
+export function buildGeneratorPrompt({ idea, name = '', world = [], wordLimit = 0 }) {
   const shape = answerShape();
   const system = [
     'You create characters for stories. Write one complete character card for the character described.',
@@ -88,7 +94,12 @@ export function buildGeneratorPrompt({ idea, name = '', world = [] }) {
     'Answer with JSON only, no other text, in this shape:',
     shape.json,
     `What each field holds:\n${shape.notes}`,
-  ].join('\n\n');
+    wordLimit
+      ? `Keep the whole card under ${wordLimit} words so it isn't cut off: shorten the description, first message, and example dialogue to fit.`
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   const user = [section('IDEA', idea)];
   if (name) user.push(section('NAME', `The character is named ${name}.`));
@@ -144,18 +155,26 @@ export async function generateLibraryCharacter({
   // AI Horde works out its context from its workers, so this may be a promise.
   const contextTokens =
     (await provider.resolveContextTokens?.(preset ?? {})) ?? settings.maxContextTokens ?? 128_000;
+  let answerTokens = Math.min(
+    Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS),
+    Math.floor(contextTokens / 2),
+  );
+  if (preset?.provider === 'aihorde') {
+    answerTokens = Math.min(answerTokens, AI_HORDE_MAX_ANSWER_TOKENS);
+  }
   const options = {
     ...settings,
-    maxTokens: Math.min(
-      Math.max(settings.maxTokens ?? 0, MIN_ANSWER_TOKENS),
-      Math.floor(contextTokens / 2),
-    ),
+    maxTokens: answerTokens,
     // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
     maxContextTokens: contextTokens,
     maxContextLength: contextTokens,
     signal,
   };
-  const { system, user } = buildGeneratorPrompt({ idea, name, world });
+  // A small context or AI Horde leaves less room than a full card takes, so the card is asked to
+  // be shorter rather than cut off.
+  const wordLimit =
+    answerTokens < MIN_ANSWER_TOKENS ? Math.floor(answerTokens * WORDS_PER_ANSWER_TOKEN) : 0;
+  const { system, user } = buildGeneratorPrompt({ idea, name, world, wordLimit });
 
   // One more try when the answer isn't JSON or leaves out the name.
   let character = null;
@@ -165,7 +184,11 @@ export async function generateLibraryCharacter({
     if (character && (name || text(character.name))) break;
   }
   if (!character) {
-    throw new Error("The generator's answer wasn't the JSON it was asked for. Try again.");
+    throw new Error(
+      wordLimit
+        ? "The generator's answer wasn't the JSON it was asked for, or was cut off. Try again, or use a preset with a larger context."
+        : "The generator's answer wasn't the JSON it was asked for. Try again.",
+    );
   }
   return generatedCard(character, { creatorNotes: 'Generated in Writers Guild.', name });
 }

@@ -130,13 +130,6 @@
                 <button class="btn btn-primary" @click="showCreateLorebookModal = true">
                   <i class="fas fa-plus"></i> Create
                 </button>
-                <button
-                  v-if="characterGeneratorEnabled"
-                  class="btn btn-secondary"
-                  @click="showCharacterGeneratorModal = true"
-                >
-                  <i class="fas fa-wand-magic-sparkles"></i> Generate
-                </button>
                 <button class="btn btn-secondary" @click="showImportLorebookModal = true">
                   <i class="fas fa-download"></i> Import
                 </button>
