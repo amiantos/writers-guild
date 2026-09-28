@@ -81,12 +81,14 @@
             v-model="card.data[field.key]"
             type="text"
             class="text-input"
+            :disabled="busy"
           />
           <textarea
             v-else
             :id="`generated-${field.key}`"
             v-model="card.data[field.key]"
             class="textarea-input"
+            :disabled="busy"
             :rows="field.rows"
           ></textarea>
         </div>
@@ -103,6 +105,7 @@
                 v-model="card.data.extensions.bureau_appearance[field.key]"
                 type="text"
                 class="text-input"
+                :disabled="busy"
               />
             </div>
           </div>
@@ -160,9 +163,9 @@ const generating = ref(false);
 const saving = ref(false);
 let controller = null;
 
-const canSave = computed(
-  () => Boolean(card.value?.data.name?.trim()) && !generating.value && !saving.value,
-);
+// Editing waits while a card is generated or saved, so a new card can't overwrite edits.
+const busy = computed(() => generating.value || saving.value);
+const canSave = computed(() => Boolean(card.value?.data.name?.trim()) && !busy.value);
 
 async function generate() {
   generating.value = true;

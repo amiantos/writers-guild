@@ -87,6 +87,23 @@ describe('CharacterGeneratorModal', () => {
     });
   });
 
+  it("locks the card's fields while it generates again", async () => {
+    let finish;
+    mockGeneratorAPI.generate.mockResolvedValueOnce({ card: structuredClone(CARD) });
+    mockGeneratorAPI.generate.mockImplementationOnce(() => new Promise((r) => (finish = r)));
+    const wrapper = mountModal();
+    await wrapper.find('#generator-idea').setValue('Someone');
+    await button(wrapper, 'Generate').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('#generated-description').attributes('disabled')).toBeUndefined();
+
+    await button(wrapper, 'Generate again').trigger('click');
+    expect(wrapper.find('#generated-description').attributes('disabled')).toBeDefined();
+    finish({ card: structuredClone(CARD) });
+    await flushPromises();
+    expect(wrapper.find('#generated-description').attributes('disabled')).toBeUndefined();
+  });
+
   it('stops a generation still running when it closes', async () => {
     let signal;
     mockGeneratorAPI.generate.mockImplementation((_params, options) => {
