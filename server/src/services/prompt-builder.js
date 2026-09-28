@@ -300,7 +300,7 @@ export class PromptBuilder {
    * characters, or its Persona); otherwise the mode is rendered without one.
    */
   resolvePerspective(context = {}) {
-    const { story, characterCards, persona } = context;
+    const { story, characterCards, storyCharacterCards, persona } = context;
     const mode = isPerspectiveMode(story?.perspective)
       ? story.perspective
       : DEFAULT_PERSPECTIVE_MODE;
@@ -314,7 +314,8 @@ export class PromptBuilder {
       if (characterId === story.personaCharacterId && persona?.name) {
         characterName = persona.name;
       } else {
-        const card = (characterCards || []).find((c) => c.id === characterId);
+        const cast = storyCharacterCards ?? characterCards ?? [];
+        const card = cast.find((c) => c.id === characterId);
         characterName = card?.data?.name || '';
       }
     }

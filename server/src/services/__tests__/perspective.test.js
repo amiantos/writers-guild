@@ -101,6 +101,16 @@ describe('PromptBuilder perspective', () => {
     expect(prompt).toContain('first-person present tense perspective, narrated by Brad.');
   });
 
+  it('names the narrator when writing for a different character', () => {
+    const prompt = builder.buildSystemPrompt({
+      story: { perspective: 'first', perspectiveCharacterId: 'char-layla' },
+      characterCards: [sam],
+      storyCharacterCards: [layla, sam],
+      persona,
+    });
+    expect(prompt).toContain('narrated by Layla.');
+  });
+
   it("drops a narrator who's no longer in the story", () => {
     const prompt = systemFor({ perspective: 'first', perspectiveCharacterId: 'char-gone' });
     expect(prompt).toContain("narrated by the story's main character");

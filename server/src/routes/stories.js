@@ -871,6 +871,8 @@ async function streamGeneration(
     {
       persona: context.persona,
       characterCards: params.characterCards || [],
+      // The whole cast, so a narrator is named even when writing for one other character
+      storyCharacterCards: context.characterCards || [],
       activatedLorebooks: context.activatedLorebooks || [],
       story: context.story,
       settings: preset.generationSettings,
