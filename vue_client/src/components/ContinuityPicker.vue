@@ -69,7 +69,7 @@
         <ul v-else class="version-list">
           <li v-for="(version, index) in newestFirst" :key="version.id" class="version">
             <div class="version-header">
-              <span class="version-label">{{ SOURCE_LABELS[version.source] ?? 'Changed' }}</span>
+              <span class="version-label">{{ sourceLabel(version) }}</span>
               <span class="version-date">{{ formatWhen(version.created) }}</span>
               <span v-if="index === 0" class="meta-tag">Current</span>
               <button
@@ -106,7 +106,15 @@ const SOURCE_LABELS = {
   created: 'Created',
   edit: 'Edited',
   restore: 'Restored an earlier version',
+  archivist: 'Archivist update',
 };
+
+function sourceLabel(version) {
+  const label = SOURCE_LABELS[version.source] ?? 'Changed';
+  return version.source === 'archivist' && version.sourceTitle
+    ? `${label} from ${version.sourceTitle}`
+    : label;
+}
 
 const props = defineProps({
   /** The Continuity the story or chat is in now, if any. */

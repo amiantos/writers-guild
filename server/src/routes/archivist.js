@@ -4,7 +4,9 @@
  * The experimental Archivist for library character cards: it reads a story or
  * chat, suggests edits to its characters' descriptions and personalities, and
  * applies the ones the reader accepts as new card versions (see
- * services/archivist/card-archivist.js). Every route answers 404 while the
+ * services/archivist/card-archivist.js). A story or chat in a Continuity gets
+ * an updated Continuity instead (see services/archivist/continuity-archivist.js),
+ * while Continuities are turned on. Every route answers 404 while the
  * Archivist's experimental toggle is off.
  */
 
@@ -22,6 +24,12 @@ import {
   runArchivist,
 } from '../services/archivist/card-archivist.js';
 import { getProvider } from '../services/provider-factory.js';
+import { ContinuityStorage } from '../services/continuity/continuity-storage.js';
+import { ContinuitySuggestionStorage } from '../services/archivist/continuity-suggestion-storage.js';
+import {
+  MAX_CONTINUITY_SUGGESTION_CHARACTERS,
+  runContinuityArchivist,
+} from '../services/archivist/continuity-archivist.js';
 
 const router = express.Router();
 
@@ -30,6 +38,8 @@ export const MAX_SUGGESTION_CHARACTERS = 4000;
 let storage;
 let chats;
 let suggestions;
+let continuities;
+let continuitySuggestions;
 
 // The latest read of each source, by `kind:sourceId`: the one running now, so a second waits for
 // it, or how the last one ended. A read goes on when its request drops (a proxy or browser giving
@@ -58,6 +68,8 @@ router.use((req, res, next) => {
     storage = new SqliteStorageService(req.app.locals.dataRoot);
     chats = new ChatStorage(storage.db);
     suggestions = new CardSuggestionStorage(storage.db);
+    continuities = new ContinuityStorage(storage.db);
+    continuitySuggestions = new ContinuitySuggestionStorage(storage.db);
   }
   next();
 });
@@ -93,6 +105,7 @@ async function loadSource(kind, sourceId) {
       characterIds: story.characterIds ?? [],
       personaCharacterId: story.personaCharacterId,
       configPresetId: story.configPresetId,
+      continuityId: story.continuityId ?? null,
     };
   }
   if (kind === 'chat') {
@@ -104,9 +117,50 @@ async function loadSource(kind, sourceId) {
       characterIds: chat.characterIds,
       personaCharacterId: chat.personaCharacterId,
       configPresetId: chat.configPresetId,
+      continuityId: chat.continuityId ?? null,
     };
   }
   throw new AppError('Unknown source: expected story or chat', 404);
+}
+
+/**
+ * The Continuity the Archivist keeps up to date for a source, in place of its cast's cards, or
+ * null: the source isn't in one, or Continuities are turned off.
+ */
+async function continuityFor(source) {
+  if (!source.continuityId) return null;
+  const settings = await storage.getSettings();
+  if (!settings?.experimentalContinuity) return null;
+  return continuities.get(source.continuityId);
+}
+
+/**
+ * The Continuity update waiting for review, with the Continuity's name and text as they now
+ * stand, or null. Only an update to `active`, the Continuity the Archivist keeps for the source
+ * now, is shown: one to a Continuity the source has left, or while Continuities are turned off,
+ * waits unseen. It's stale when the Continuity changed since it was written.
+ */
+function pendingContinuityFor(kind, sourceId, active) {
+  const suggestion = continuitySuggestions.proposedFor(kind, sourceId);
+  if (!suggestion || !active || suggestion.continuityId !== active.id) return null;
+  const continuity = continuities.get(suggestion.continuityId);
+  if (!continuity) return null;
+  return {
+    ...suggestion,
+    continuityName: continuity.name,
+    current: continuity.content,
+    stale: continuity.content !== suggestion.base,
+  };
+}
+
+/** What a list of a source's suggestions says, the Continuity it would update included. */
+async function listFor(kind, sourceId, source) {
+  const continuity = await continuityFor(source ?? (await loadSource(kind, sourceId)));
+  return {
+    suggestions: await pendingFor(kind, sourceId),
+    continuity: continuity ? { id: continuity.id, name: continuity.name } : null,
+    continuitySuggestion: pendingContinuityFor(kind, sourceId, continuity),
+  };
 }
 
 /** The source's characters as the Archivist sees them, the persona's card included. */
@@ -203,6 +257,11 @@ async function read(kind, sourceId, run) {
     if (!source.text.trim()) {
       throw new AppError(`There's nothing in this ${kind} to read yet`, 400);
     }
+    const continuity = await continuityFor(source);
+    if (continuity) {
+      await readForContinuity(kind, sourceId, source, continuity, run);
+      return;
+    }
     const cast = await loadCast(source);
     if (cast.length === 0) {
       throw new AppError(`This ${kind} has no library characters to review`, 400);
@@ -243,14 +302,19 @@ async function read(kind, sourceId, run) {
       return;
     }
     logFailure(key, error);
-    const kept =
-      error instanceof ArchivistRunError && error.found.length > 0
-        ? suggestions.addAll(kind, sourceId, error.found).length
-        : 0;
+    // What the passes before a failing one found is kept, as the kind of read it was keeps it.
+    let kept = 0;
+    if (error instanceof ArchivistRunError && error.found.length > 0) {
+      kept = error.keep ? error.keep() : suggestions.addAll(kind, sourceId, error.found).length;
+    }
     run.added = kept;
-    run.error =
-      (error.message || 'The Archivist failed') +
-      (kept > 0 ? ` The ${kept} suggestion(s) from the parts before it are kept.` : '');
+    let keptNote = '';
+    if (kept > 0) {
+      keptNote = error.keep
+        ? ' The update from the parts before it is kept.'
+        : ` The ${kept} suggestion(s) from the parts before it are kept.`;
+    }
+    run.error = (error.message || 'The Archivist failed') + keptNote;
     run.status = 502;
   } finally {
     run.running = false;
@@ -258,6 +322,54 @@ async function read(kind, sourceId, run) {
     delete run.controller;
     forgetOldRuns();
   }
+}
+
+/**
+ * Read a source that's in a Continuity, keeping the updated Continuity it suggests. A failing pass's
+ * error gets a `keep` that keeps what the passes before it wrote.
+ */
+async function readForContinuity(kind, sourceId, source, continuity, run) {
+  const key = `${kind}:${sourceId}`;
+  const { preset, provider } = await providerFor(source);
+  console.log(
+    `[Archivist] ${key}: reading ${source.text.length} characters for the Continuity "${continuity.name}"`,
+  );
+  const keep = (found) =>
+    continuitySuggestions.add(kind, sourceId, {
+      continuityId: continuity.id,
+      base: continuity.content,
+      replace: found.replace,
+      rationale: found.rationale,
+    })
+      ? 1
+      : 0;
+  let found;
+  try {
+    found = await runContinuityArchivist({
+      provider,
+      preset,
+      name: continuity.name,
+      continuity: continuity.content,
+      text: source.text,
+      kind,
+      signal: run.controller.signal,
+      onPart: (part) => {
+        run.part = { index: part.index, count: part.count };
+        console.log(
+          `[Archivist] ${key}: part ${part.index + 1} of ${part.count} (${part.characters} characters)`,
+        );
+      },
+    });
+  } catch (error) {
+    if (error instanceof ArchivistRunError) error.keep = () => keep(error.found[0]);
+    throw error;
+  }
+  if (run.controller.signal.aborted) {
+    run.cancelled = true;
+    return;
+  }
+  run.added = found ? keep(found) : 0;
+  console.log(`[Archivist] ${key}: done, ${run.added ? 'an update' : 'no update'} suggested`);
 }
 
 /** Forget the oldest finished reads past the most kept. The map keeps the order reads started. */
@@ -271,8 +383,60 @@ function forgetOldRuns() {
   }
 }
 
+/** The decision on a source's Continuity update, checked, or null when there's none. */
+function continuityDecision(body) {
+  const decision = body?.continuity;
+  if (decision === undefined || decision === null) return null;
+  if (!Number.isInteger(decision?.id) || typeof decision.accept !== 'boolean') {
+    throw new AppError('A Continuity decision needs an id and accept', 400);
+  }
+  if (decision.replace === undefined) return decision;
+  const text = typeof decision.replace === 'string' ? decision.replace.trim() : '';
+  if (!text || text.length > MAX_CONTINUITY_SUGGESTION_CHARACTERS) {
+    throw new AppError(
+      `An edited Continuity must be 1 to ${MAX_CONTINUITY_SUGGESTION_CHARACTERS} characters`,
+      400,
+    );
+  }
+  return { ...decision, replace: text };
+}
+
+/**
+ * Accept or reject a source's Continuity update. An accepted one becomes the Continuity's text,
+ * kept in its History as the Archivist's version, unless the Continuity changed since it was
+ * written: then it stays waiting and comes back as stale. It runs without awaiting anything, so
+ * two reviews of one update can't both apply it. Only an update to `active`, the Continuity the
+ * Archivist keeps for the source now, can be decided.
+ * @returns {{applied: boolean, stale: boolean}}
+ */
+function reviewContinuity(kind, sourceId, decision, active) {
+  const suggestion = continuitySuggestions.get(decision.id);
+  const own =
+    suggestion?.status === 'proposed' &&
+    suggestion.sourceKind === kind &&
+    suggestion.sourceId === sourceId &&
+    suggestion.continuityId === active?.id;
+  if (!own) return { applied: false, stale: false };
+  if (!decision.accept) {
+    continuitySuggestions.setStatus(suggestion.id, 'rejected');
+    return { applied: false, stale: false };
+  }
+  const continuity = continuities.get(suggestion.continuityId);
+  if (!continuity) return { applied: false, stale: false };
+  if (continuity.content !== suggestion.base) return { applied: false, stale: true };
+  const replace = decision.replace ?? suggestion.replace;
+  continuities.update(
+    continuity.id,
+    { content: replace },
+    { source: 'archivist', sourceId: `${kind}:${sourceId}` },
+  );
+  continuitySuggestions.setStatus(suggestion.id, 'accepted', replace);
+  return { applied: true, stale: false };
+}
+
 function reviewDecisions(body) {
-  const decisions = body?.decisions;
+  // A review of only a Continuity update needn't list card decisions.
+  const decisions = body?.decisions ?? (body?.continuity ? [] : undefined);
   if (!Array.isArray(decisions)) {
     throw new AppError('decisions must be a list', 400);
   }
@@ -306,10 +470,10 @@ router.get(
   '/:kind/:sourceId',
   asyncHandler(async (req, res) => {
     const { kind, sourceId } = req.params;
-    await loadSource(kind, sourceId);
+    const source = await loadSource(kind, sourceId);
     const run = runs.get(`${kind}:${sourceId}`);
     res.json({
-      suggestions: await pendingFor(kind, sourceId),
+      ...(await listFor(kind, sourceId, source)),
       running: run?.running ?? false,
       run: runView(run),
     });
@@ -350,12 +514,12 @@ router.post(
       // What earlier parts found is kept, so the list comes too.
       throw new AppError(run.error, run.status ?? 500, {
         run: runView(run),
-        suggestions: await pendingFor(kind, sourceId),
+        ...(await listFor(kind, sourceId).catch(() => ({}))),
       });
     }
     res.json({
       added: run.added,
-      suggestions: await pendingFor(kind, sourceId),
+      ...(await listFor(kind, sourceId)),
       run: runView(run),
     });
   }),
@@ -379,8 +543,12 @@ router.post(
   '/:kind/:sourceId/review',
   asyncHandler(async (req, res) => {
     const { kind, sourceId } = req.params;
-    await loadSource(kind, sourceId);
+    const source = await loadSource(kind, sourceId);
     const decisions = reviewDecisions(req.body);
+    const continuity = continuityDecision(req.body);
+    const continuityResult = continuity
+      ? reviewContinuity(kind, sourceId, continuity, await continuityFor(source))
+      : { applied: false, stale: false };
     const own = new Map(
       suggestions
         .listForSource(kind, sourceId)
@@ -445,7 +613,13 @@ router.post(
       });
     }
 
-    res.json({ applied, stale, suggestions: await pendingFor(kind, sourceId) });
+    res.json({
+      applied,
+      stale,
+      continuityApplied: continuityResult.applied,
+      continuityStale: continuityResult.stale,
+      ...(await listFor(kind, sourceId)),
+    });
   }),
 );
 

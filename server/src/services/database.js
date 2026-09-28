@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
-const SCHEMA_VERSION = 15;
+const SCHEMA_VERSION = 16;
 
 /**
  * Initialize the SQLite database with schema
@@ -245,6 +245,7 @@ function createAllTables(db) {
   createCharacterVersionTables(db);
   createCardSuggestionTables(db);
   createContinuityTables(db);
+  createContinuitySuggestionTables(db);
 
   console.log('Database schema created successfully');
 }
@@ -397,7 +398,8 @@ function createContinuityTables(db) {
       content TEXT NOT NULL,
       -- CONTINUITY_VERSION_SOURCES in continuity-storage.js
       source TEXT NOT NULL,
-      -- The version restored, for a restore.
+      -- The version restored, or the story or chat (story:<id> or chat:<id>) whose Archivist
+      -- update was accepted.
       source_id TEXT,
       created TEXT NOT NULL,
       FOREIGN KEY (continuity_id) REFERENCES continuities(id) ON DELETE CASCADE
@@ -413,6 +415,42 @@ function createContinuityTables(db) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN continuity_id TEXT`);
     }
   }
+}
+
+/**
+ * Create the table of the Archivist's suggested Continuity updates. A story or chat in a
+ * Continuity gets the Continuity's whole text back with what happened worked in; `base` is the
+ * text it was written from, so a Continuity changed since can be told apart.
+ */
+function createContinuitySuggestionTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS continuity_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      continuity_id TEXT NOT NULL,
+      -- 'story' or 'chat'
+      source_kind TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      base TEXT NOT NULL,
+      replace TEXT NOT NULL,
+      rationale TEXT NOT NULL DEFAULT '',
+      -- 'proposed', 'accepted' or 'rejected'
+      status TEXT NOT NULL DEFAULT 'proposed',
+      created TEXT NOT NULL,
+      FOREIGN KEY (continuity_id) REFERENCES continuities(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_continuity_suggestions_source
+      ON continuity_suggestions(source_kind, source_id);
+
+    CREATE TRIGGER IF NOT EXISTS continuity_suggestions_story_deleted AFTER DELETE ON stories
+    BEGIN
+      DELETE FROM continuity_suggestions WHERE source_kind = 'story' AND source_id = OLD.id;
+    END;
+    CREATE TRIGGER IF NOT EXISTS continuity_suggestions_chat_deleted AFTER DELETE ON chats
+    BEGIN
+      DELETE FROM continuity_suggestions WHERE source_kind = 'chat' AND source_id = OLD.id;
+    END;
+  `);
 }
 
 /**
@@ -648,6 +686,11 @@ function migrateSchema(db, fromVersion, dataRoot) {
         db.exec('ALTER TABLE settings ADD COLUMN experimental_continuity INTEGER DEFAULT 0');
       }
       createContinuityTables(db);
+    }
+
+    // Migration to version 16: The Archivist's suggested Continuity updates
+    if (fromVersion < 16) {
+      createContinuitySuggestionTables(db);
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

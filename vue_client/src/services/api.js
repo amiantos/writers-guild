@@ -871,11 +871,15 @@ export const archivistAPI = {
     return request(`/archivist/${kind}/${sourceId}/cancel`, { method: 'POST' });
   },
 
-  /** @param {Array<{id: number, accept: boolean, replace?: string}>} decisions */
-  async review(kind, sourceId, decisions) {
+  /**
+   * @param {Array<{id: number, accept: boolean, replace?: string}>} decisions
+   * @param {{id: number, accept: boolean, replace?: string}} [continuity] - The decision on the
+   *   Continuity update, when there is one.
+   */
+  async review(kind, sourceId, decisions, continuity) {
     return request(`/archivist/${kind}/${sourceId}/review`, {
       method: 'POST',
-      body: JSON.stringify({ decisions }),
+      body: JSON.stringify({ decisions, ...(continuity ? { continuity } : {}) }),
     });
   },
 };
