@@ -49,7 +49,7 @@ const ACTION_LABELS = {
   continue: 'Continued the story',
   character: 'Continued for a character',
   instruction: 'Followed your instruction',
-  rewrite: 'Rewrote the story in third person',
+  rewrite: 'Rewrote the story in its perspective',
   greeting: 'A greeting',
   write: 'Written by you',
 };

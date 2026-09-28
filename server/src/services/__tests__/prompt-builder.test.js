@@ -741,7 +741,7 @@ describe('PromptBuilder', () => {
       });
 
       expect(result).toContain('Alice');
-      expect(result).toContain('Focus on their thoughts');
+      expect(result).toContain('their actions and dialogue');
     });
 
     it('should use instruction template', () => {
@@ -785,7 +785,7 @@ describe('PromptBuilder', () => {
       });
 
       expect(result).toContain('Rewrite the following text');
-      expect(result).toContain('third person narrative');
+      expect(result).toContain('Write only in third-person past tense perspective.');
     });
 
     it('should use ideate template', () => {
@@ -1170,7 +1170,7 @@ describe('PromptBuilder', () => {
       });
 
       expect(result.user).toContain('Bob');
-      expect(result.user).toContain('Focus on their thoughts');
+      expect(result.user).toContain('their actions and dialogue');
     });
 
     it('should handle image preserver in prompts', () => {

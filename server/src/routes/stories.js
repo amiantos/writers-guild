@@ -13,6 +13,7 @@ import { REWRITE_GENERATION_TYPES } from '../services/prompt-builder.js';
 import { getProvider } from '../services/provider-factory.js';
 import { createPresetFromSettings } from '../services/default-presets.js';
 import { MAX_STORY_PASSAGES } from '../../../shared/story-passages.js';
+import { isPerspectiveMode, isPerspectiveTense } from '../../../shared/perspective.js';
 import {
   ContinuityStorage,
   withContinuityScenario,
@@ -244,7 +245,16 @@ router.put(
 router.put(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { title, description, configPresetId, scenario, continuityId } = req.body;
+    const {
+      title,
+      description,
+      configPresetId,
+      scenario,
+      continuityId,
+      perspective,
+      perspectiveTense,
+      perspectiveCharacterId,
+    } = req.body;
     const updates = {};
 
     if (title !== undefined) updates.title = title.trim();
@@ -259,6 +269,24 @@ router.put(
         throw new AppError('Continuity not found', 400);
       }
       updates.continuityId = continuityId || null;
+    }
+    if (perspective !== undefined) {
+      if (perspective !== null && !isPerspectiveMode(perspective)) {
+        throw new AppError('perspective must be a perspective mode or null', 400);
+      }
+      updates.perspective = perspective;
+    }
+    if (perspectiveTense !== undefined) {
+      if (perspectiveTense !== null && !isPerspectiveTense(perspectiveTense)) {
+        throw new AppError('perspectiveTense must be "past", "present" or null', 400);
+      }
+      updates.perspectiveTense = perspectiveTense;
+    }
+    if (perspectiveCharacterId !== undefined) {
+      if (perspectiveCharacterId !== null && typeof perspectiveCharacterId !== 'string') {
+        throw new AppError('perspectiveCharacterId must be an id or null', 400);
+      }
+      updates.perspectiveCharacterId = perspectiveCharacterId || null;
     }
 
     if (Object.keys(updates).length === 0) {

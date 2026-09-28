@@ -625,7 +625,7 @@ describe('Bureau story routes', () => {
       expect(body.userTurn).toBeNull();
       expect(body.turn).toMatchObject({ source: 'generated', content: 'Mara opened the door.' });
       expect(client.calls[0].messages[1].content).toContain(
-        "Write the next part of the story from Mara's perspective.",
+        'Write the next part of the story focusing on Mara:',
       );
 
       client = fakeClient('Mara let him in.');
@@ -634,7 +634,7 @@ describe('Bureau story routes', () => {
         .send({})
         .expect(200);
       expect(client.calls[0].messages[1].content).toContain(
-        "Write the next part of the story from Mara's perspective.",
+        'Write the next part of the story focusing on Mara:',
       );
     });
 
@@ -694,7 +694,7 @@ describe('Bureau story routes', () => {
         authorCastId: null,
       });
       expect(client.calls[0].messages[1].content).toMatch(
-        /^Rewrite the following text to be in third person narrative perspective/,
+        /^Rewrite the following text to follow these perspective rules:\n\nWrite only in third-person past tense perspective\./,
       );
 
       client = fakeClient('The lamp guttered out.');

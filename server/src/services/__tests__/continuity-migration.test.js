@@ -90,3 +90,36 @@ describe('scenarioWithContinuity', () => {
     expect(scenarioWithContinuity(null, undefined)).toBe('');
   });
 });
+
+describe('the perspective migration', () => {
+  it('adds the perspective columns to stories, which read as the default', async () => {
+    const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'perspective-migration-'));
+    try {
+      const before = new SqliteStorageService(dataRoot);
+      const story = await before.createStory('Kept');
+      before.close();
+
+      const db = new Database(path.join(dataRoot, 'writers-guild.db'));
+      for (const column of ['perspective', 'perspective_tense', 'perspective_character_id']) {
+        db.exec(`ALTER TABLE stories DROP COLUMN ${column}`);
+      }
+      db.prepare('UPDATE schema_version SET version = 16').run();
+      db.close();
+
+      const storage = new SqliteStorageService(dataRoot);
+      try {
+        const migrated = await storage.getStory(story.id);
+        expect(migrated.perspective).toBeNull();
+        expect(migrated.perspectiveTense).toBeNull();
+        expect(migrated.perspectiveCharacterId).toBeNull();
+        expect(storage.db.prepare('SELECT version FROM schema_version').get().version).toBe(
+          SCHEMA_VERSION,
+        );
+      } finally {
+        storage.close();
+      }
+    } finally {
+      fs.rmSync(dataRoot, { recursive: true, force: true });
+    }
+  });
+});

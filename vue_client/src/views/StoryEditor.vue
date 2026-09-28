@@ -318,6 +318,8 @@
     <RenameStoryModal
       v-if="showRenameStory"
       :story="story"
+      :characters="storyCharacters"
+      :persona="storyPersona"
       @close="showRenameStory = false"
       @updated="handleStoryUpdated"
     />
@@ -354,6 +356,7 @@
     <!-- Third Person Prompt Modal -->
     <ThirdPersonPromptModal
       v-if="showThirdPersonPrompt"
+      :perspective="perspectiveDescription"
       @close="showThirdPersonPrompt = false"
       @rewrite="handleThirdPersonRewrite"
       @skip="showThirdPersonPrompt = false"
@@ -392,6 +395,7 @@ import EnhancedStoryView from '../components/story/EnhancedStoryView.vue';
 import StoryModeComposer from '../components/story/StoryModeComposer.vue';
 import StoryOverflowMenu from '../components/story/StoryOverflowMenu.vue';
 import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys';
+import { describePerspective } from '../../../shared/perspective.js';
 import {
   appendText,
   newPassageId,
@@ -477,6 +481,20 @@ const hasImages = computed(() => {
 const avatarWindows = ref([]);
 
 const storyCharacters = ref([]);
+// The story's Persona ({ id, name }), or null
+const storyPersona = ref(null);
+// How the story is told, for the rewrite prompts
+const perspectiveDescription = computed(() => {
+  const characterId = story.value?.perspectiveCharacterId;
+  const narrator =
+    storyCharacters.value.find((c) => c.id === characterId) ||
+    (storyPersona.value?.id === characterId ? storyPersona.value : null);
+  return describePerspective({
+    mode: story.value?.perspective,
+    tense: story.value?.perspectiveTense,
+    characterName: narrator?.name,
+  });
+});
 const shouldShowReasoning = ref(false); // Setting from server
 
 // Computed: is story content empty?
@@ -757,14 +775,18 @@ async function loadStory() {
 
 async function loadCharacters() {
   try {
-    if (!story.value || !story.value.characterIds || story.value.characterIds.length === 0) {
+    const characterIds = story.value?.characterIds || [];
+    const personaId = story.value?.personaCharacterId;
+    if (characterIds.length === 0 && !personaId) {
       storyCharacters.value = [];
+      storyPersona.value = null;
       return;
     }
 
     // Load all characters and filter to story's characters
     const { characters: allChars } = await charactersAPI.list();
-    storyCharacters.value = allChars.filter((c) => story.value.characterIds.includes(c.id));
+    storyCharacters.value = allChars.filter((c) => characterIds.includes(c.id));
+    storyPersona.value = allChars.find((c) => c.id === personaId) || null;
   } catch (error) {
     console.error('Failed to load characters:', error);
   }
@@ -1449,8 +1471,7 @@ function handleThirdPersonRewrite() {
 async function rewriteToThirdPerson(skipConfirm = false) {
   if (!skipConfirm) {
     const confirmed = await confirm({
-      message:
-        'This will replace the entire document with a rewritten version in third-person past tense. Continue?',
+      message: `This will replace the entire document with a rewritten version in ${perspectiveDescription.value}. Continue?`,
       confirmText: 'Rewrite',
       variant: 'warning',
     });

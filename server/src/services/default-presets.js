@@ -14,6 +14,9 @@
  * - lorebook_entries (array) - each has: content, comment
  * - persona.name, persona.description, persona.writing_style
  * - include_dialogue_examples (boolean from settings)
+ * - perspective - the story's narrative perspective instructions (see shared/perspective.js);
+ *   also perspective_mode, perspective_tense, and perspective_character (narrator or viewpoint
+ *   character's name, or empty)
  *
  * Template syntax:
  * - {{variable}} or {{object.property}} - substitute value
@@ -71,11 +74,7 @@ Focus on showing rather than telling, with vivid descriptions and natural dialog
 LANGUAGE REQUIREMENT: You MUST write in the exact same language as the existing story content. Do NOT switch to English. If the story is in Spanish, write in Spanish. If in French, write in French. Match the language of the provided text exactly.
 
 === PERSPECTIVE ===
-Write only in third-person past tense perspective.
-Use he/she/they pronouns and past tense verbs (said, walked, thought, etc.).
-Do NOT use first-person (I, me, my, we) or present tense.
-All narrative and dialogue tags should be in past tense.
-Aspects of character information, such as their profile or dialog style examples, may be in the incorrect tense. Ignore the tense, focus on the context.
+{{perspective}}
 
 Do not use asterisks (*) for actions. Write everything as prose.`;
 
@@ -152,12 +151,12 @@ export const DEFAULT_PROMPT_TEMPLATES = {
     "Continue the story naturally from where it left off. Write the next 3 paragraphs, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters. Don't write actions or dialog for the user's Persona.",
 
   character:
-    'Write the next part of the story from {{char}}\'s perspective. Focus on their thoughts, actions, and dialogue. Write 2-3 paragraphs maximum, less if it makes sense stylistically or sets up a good response opportunity for other characters. (There is a chance that "{{char}}\'s" is multiple characters, at which point you may respond as any of them as is relevant to the story.)',
+    'Write the next part of the story focusing on {{char}}: their actions and dialogue, and their thoughts where the story\'s perspective allows. Write 2-3 paragraphs maximum, less if it makes sense stylistically or sets up a good response opportunity for other characters. (There is a chance that "{{char}}" is multiple characters, at which point you may respond as any of them as is relevant to the story.)',
 
   instruction: `Continue the story naturally from where it left off. Write the next 3 paragraphs, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters. ${DIRECTION_SENTENCE}`,
 
   rewriteThirdPerson:
-    'Rewrite the following text to be in third person narrative perspective, using past tense. Assume reference to "you" in the original text are meant to reference the user\'s Persona, if one is provided. Change all verbs to past tense. Maintain the same events, dialogue, and meaning, but from a third-person narrator\'s viewpoint. Feel free to correct errors in grammar, punctuation, and paragraph formatting. Only return the rewritten text by itself in your response.\n\nText to rewrite:\n\n{{storyContent}}',
+    'Rewrite the following text to follow these perspective rules:\n\n{{perspective}}\n\nUnless the rules above are for second person, assume references to "you" in the original text are meant to reference the user\'s Persona, if one is provided. Maintain the same events, dialogue, and meaning, but from the narrator\'s viewpoint the rules describe. Feel free to correct errors in grammar, punctuation, and paragraph formatting. Only return the rewritten text by itself in your response.\n\nText to rewrite:\n\n{{storyContent}}',
 
   ideate:
     'Instead of continuing the story, please provide 3-5 creative suggestions for what {{user}} could do next to move this story forward. Consider the characters, setting, and current situation. Format your response as a numbered list of actionable ideas.',

@@ -114,7 +114,7 @@ export class SqliteStorageService {
       // Stories
       listStories: this.db.prepare(`
         SELECT id, title, description, scenario, created, modified, persona_character_id, config_preset_id, word_count,
-               continuity_id
+               continuity_id, perspective, perspective_tense, perspective_character_id
         FROM stories
         ORDER BY modified DESC
       `),
@@ -136,6 +136,8 @@ export class SqliteStorageService {
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, scenario = @scenario,
                           continuity_id = @continuityId,
+                          perspective = @perspective, perspective_tense = @perspectiveTense,
+                          perspective_character_id = @perspectiveCharacterId,
                           persona_character_id = @personaCharacterId,
                           config_preset_id = @configPresetId, modified = @modified
         WHERE id = @id
@@ -524,6 +526,9 @@ export class SqliteStorageService {
         description: row.description,
         scenario: row.scenario || '',
         continuityId: row.continuity_id ?? null,
+        perspective: row.perspective ?? null,
+        perspectiveTense: row.perspective_tense ?? null,
+        perspectiveCharacterId: row.perspective_character_id ?? null,
         created: row.created,
         modified: row.modified,
         characterIds,
@@ -557,6 +562,9 @@ export class SqliteStorageService {
       description: row.description,
       scenario: row.scenario || '',
       continuityId: row.continuity_id ?? null,
+      perspective: row.perspective ?? null,
+      perspectiveTense: row.perspective_tense ?? null,
+      perspectiveCharacterId: row.perspective_character_id ?? null,
       content: row.content || '',
       created: row.created,
       modified: row.modified,
@@ -637,6 +645,15 @@ export class SqliteStorageService {
       scenario: updates.scenario !== undefined ? updates.scenario : existing.scenario || '',
       continuityId:
         updates.continuityId !== undefined ? updates.continuityId : existing.continuity_id,
+      perspective: updates.perspective !== undefined ? updates.perspective : existing.perspective,
+      perspectiveTense:
+        updates.perspectiveTense !== undefined
+          ? updates.perspectiveTense
+          : existing.perspective_tense,
+      perspectiveCharacterId:
+        updates.perspectiveCharacterId !== undefined
+          ? updates.perspectiveCharacterId
+          : existing.perspective_character_id,
       personaCharacterId:
         updates.personaCharacterId !== undefined
           ? updates.personaCharacterId
@@ -740,6 +757,18 @@ export class SqliteStorageService {
           .prepare('UPDATE stories SET scenario = ?, continuity_id = ? WHERE id = ?')
           .run(existing.scenario || '', existing.continuity_id ?? null, newId);
       }
+
+      // Copy the narrative perspective
+      this.db
+        .prepare(
+          'UPDATE stories SET perspective = ?, perspective_tense = ?, perspective_character_id = ? WHERE id = ?',
+        )
+        .run(
+          existing.perspective ?? null,
+          existing.perspective_tense ?? null,
+          existing.perspective_character_id ?? null,
+          newId,
+        );
 
       // Copy avatar windows if present
       if (existing.avatar_windows) {
