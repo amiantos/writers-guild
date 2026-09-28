@@ -92,6 +92,9 @@
         </div>
         <details class="appearance">
           <summary>Appearance</summary>
+          <p class="help-text appearance-help">
+            Added to the end of the description when the character is saved.
+          </p>
           <div class="appearance-grid">
             <div v-for="field in APPEARANCE" :key="field.key" class="form-group">
               <label :for="`appearance-${field.key}`">{{ field.label }}</label>
@@ -223,6 +226,10 @@ onBeforeUnmount(() => controller?.abort());
   cursor: pointer;
   font-weight: 600;
   font-size: 0.875rem;
+}
+
+.appearance-help {
+  margin-top: 0.5rem;
 }
 
 .appearance-grid {

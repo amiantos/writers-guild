@@ -211,9 +211,27 @@ export const EDITABLE_FIELDS = [
   'mes_example',
 ];
 
+const APPEARANCE_LABELS = {
+  age_range: 'Age',
+  build: 'Build',
+  hair: 'Hair',
+  eyes: 'Eyes',
+  clothing: 'Clothing',
+  distinguishing_marks: 'Distinguishing marks',
+};
+
+/** A card's appearance details as a paragraph for its description, or empty when it has none. */
+export function appearanceText(appearance) {
+  const lines = APPEARANCE_FIELDS.filter((field) => text(appearance?.[field])).map(
+    (field) => `${APPEARANCE_LABELS[field]}: ${text(appearance[field])}`,
+  );
+  return lines.length > 0 ? ['Appearance:', ...lines].join('\n') : '';
+}
+
 /**
  * A generated card as the reader left it, rebuilt from its known fields so nothing else a
- * request carries is saved.
+ * request carries is saved. Its appearance details are added to the end of the description too, so
+ * stories and chats, which read the description, know what the character looks like.
  */
 export function cardToSave(card) {
   const data = card?.data;
@@ -229,10 +247,15 @@ export function cardToSave(card) {
       throw new Error(`${field} must be at most ${MAX_CARD_FIELD_CHARACTERS} characters`);
     }
   }
-  const appearance = data.extensions?.bureau_appearance ?? {};
+  const source = data.extensions?.bureau_appearance ?? {};
+  const appearance = Object.fromEntries(
+    APPEARANCE_FIELDS.map((field) => [field, text(source[field]).slice(0, 500)]),
+  );
+  const description = [fields.description, appearanceText(appearance)].filter(Boolean).join('\n\n');
   return generatedCard(
     {
       ...fields,
+      description,
       first_message: fields.first_mes,
       example_dialogue: fields.mes_example,
       tags: Array.isArray(data.tags)
@@ -241,9 +264,7 @@ export function cardToSave(card) {
             .map((tag) => tag.slice(0, 100))
             .slice(0, MAX_TAGS)
         : [],
-      appearance: Object.fromEntries(
-        APPEARANCE_FIELDS.map((field) => [field, text(appearance[field]).slice(0, 500)]),
-      ),
+      appearance,
     },
     { creatorNotes: 'Generated in Writers Guild.' },
   );

@@ -166,7 +166,7 @@ describe('cardToSave', () => {
     });
     expect(card.data).toMatchObject({
       name: 'Ines',
-      description: 'Runs the pub.',
+      description: 'Runs the pub.\n\nAppearance:\nHair: grey',
       mes_example: 'Hi.',
       system_prompt: '',
       tags: ['pub'],
@@ -181,6 +181,26 @@ describe('cardToSave', () => {
         distinguishing_marks: '',
       },
     });
+  });
+
+  it('adds the appearance to the description, or leaves it alone without one', () => {
+    const card = cardToSave({
+      data: {
+        name: 'Ines',
+        description: 'Runs the pub.',
+        extensions: {
+          bureau_appearance: { age_range: 'fifties', eyes: ' brown ', distinguishing_marks: '' },
+        },
+      },
+    });
+    expect(card.data.description).toBe('Runs the pub.\n\nAppearance:\nAge: fifties\nEyes: brown');
+    expect(cardToSave({ data: { name: 'Ines', description: 'Runs.' } }).data.description).toBe(
+      'Runs.',
+    );
+    expect(
+      cardToSave({ data: { name: 'Ines', extensions: { bureau_appearance: { hair: 'red' } } } })
+        .data.description,
+    ).toBe('Appearance:\nHair: red');
   });
 
   it('rejects a field over the length limit', () => {
