@@ -350,7 +350,6 @@ const recentCharacters = computed(() => {
 
 // Chats are experimental: their tab shows once they're turned on in Settings.
 const chatsEnabled = ref(false);
-const EXPERIMENTAL_TABS = ['chats'];
 
 // Tabs configuration
 const tabs = computed(() => [
@@ -364,8 +363,9 @@ const tabs = computed(() => [
 // Active tab with localStorage persistence
 const STORAGE_KEY = 'writers-guild-active-tab';
 const savedTab = localStorage.getItem(STORAGE_KEY) || 'stories';
-// Experimental tabs wait for settings to load before they can be shown.
-const activeTab = ref(EXPERIMENTAL_TABS.includes(savedTab) ? 'stories' : savedTab);
+// Experimental tabs wait for settings to load before they can be shown, and a tab that no longer
+// exists, such as Bureaus, falls back to Stories.
+const activeTab = ref(tabs.value.some((tab) => tab.key === savedTab) ? savedTab : 'stories');
 
 // Save active tab to localStorage when it changes
 watch(activeTab, (newTab) => {
