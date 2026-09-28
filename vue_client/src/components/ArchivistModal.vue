@@ -3,9 +3,12 @@
     <p v-if="loading" class="archivist-hint">Loading suggestions...</p>
     <template v-else>
       <p v-if="running" class="archivist-hint">
-        <i class="fas fa-spinner fa-spin"></i> The Archivist is reading this {{ kind }}...
+        <i class="fas fa-spinner fa-spin"></i> {{ readingLabel }}
       </p>
-      <p v-else-if="suggestions.length === 0" class="archivist-hint">
+      <p v-else-if="failure" class="archivist-error" role="alert">
+        <i class="fas fa-triangle-exclamation"></i> The last read failed: {{ failure }}
+      </p>
+      <p v-if="!running && suggestions.length === 0 && !failure" class="archivist-hint">
         {{
           hasRun
             ? `Nothing to change: the cards already match this ${kind}.`
@@ -82,7 +85,10 @@
     </template>
 
     <template #footer>
-      <button class="btn btn-secondary" :disabled="loading || busy" @click="read">
+      <button v-if="running" class="btn btn-secondary" :disabled="stopping" @click="stop">
+        <i class="fas fa-stop"></i> Stop
+      </button>
+      <button v-else class="btn btn-secondary" :disabled="loading || busy" @click="read">
         <i class="fas fa-book-open"></i>
         {{ suggestions.length > 0 || hasRun ? 'Read Again' : `Read ${KIND_LABELS[kind]}` }}
       </button>
@@ -126,16 +132,28 @@ const loading = ref(true);
 const running = ref(false);
 const applying = ref(false);
 const hasRun = ref(false);
+const stopping = ref(false);
+// The pass being read, as {index, count}, while a long source is read in several.
+const progress = ref(null);
+// Why the last read failed, until the next one starts.
+const failure = ref(null);
 const suggestions = ref([]);
 // Suggestion id -> true to accept, false to reject; undecided ones stay waiting.
 const decisions = reactive({});
 // Suggestion id -> the replacement being edited, or the edited one once done.
 const editing = reactive({});
 const edited = reactive({});
-let controller = null;
 let closed = false;
+// When the last read whose ending was already shown started, so it isn't shown again.
+let settledRun = null;
 
 const busy = computed(() => running.value || applying.value);
+
+const readingLabel = computed(() => {
+  const part = progress.value;
+  const where = part && part.count > 1 ? `, part ${part.index + 1} of ${part.count}` : '';
+  return `The Archivist is reading this ${props.kind}${where}...`;
+});
 
 const groups = computed(() => {
   const byCharacter = new Map();
@@ -198,44 +216,85 @@ function toggleEdit(suggestion) {
   }
 }
 
-// While a read started elsewhere (another tab) is running, check back until it's done.
+// While a read is running, here or elsewhere (another tab), check back until it's done. A read
+// outlives its request, so checking is how a read whose request dropped still reports back.
 const POLL_MS = 3000;
 let pollTimer = null;
+
+function schedule() {
+  clearTimeout(pollTimer);
+  pollTimer = closed ? null : setTimeout(load, POLL_MS);
+}
 
 async function load() {
   pollTimer = null;
   try {
     const response = await archivistAPI.list(props.kind, props.sourceId);
-    show(response.suggestions);
-    if (running.value && !response.running) hasRun.value = true;
-    running.value = response.running;
-    if (response.running && !closed) pollTimer = setTimeout(load, POLL_MS);
+    const run = response.run;
+    if (response.running && run?.startedAt !== settledRun) {
+      running.value = true;
+      progress.value = run?.part ?? null;
+      show(response.suggestions);
+      schedule();
+    } else if (running.value) {
+      finish(run, response.suggestions);
+    } else {
+      show(response.suggestions);
+      // A read that failed while nobody was watching still says why.
+      if (run?.error) failure.value = run.error;
+    }
   } catch (error) {
-    toast.error('Failed to load suggestions: ' + error.message);
+    if (running.value) finish({ error: error.message }, null);
+    else toast.error('Failed to load suggestions: ' + error.message);
   } finally {
     loading.value = false;
   }
 }
 
+/** Show how a read ended, once, whether its own answer or a later check brought the news. */
+function finish(run, list) {
+  if (!running.value) return;
+  running.value = false;
+  progress.value = null;
+  clearTimeout(pollTimer);
+  pollTimer = null;
+  settledRun = run?.startedAt ?? null;
+  if (list) show(list);
+  if (run?.cancelled) return;
+  hasRun.value = true;
+  if (run?.error) {
+    failure.value = run.error;
+    toast.error('The Archivist failed: ' + run.error);
+  } else if (run?.added > 0) {
+    toast.success(`The Archivist suggested ${run.added} new edit(s)`);
+  }
+}
+
 async function read() {
   running.value = true;
-  controller = new AbortController();
+  progress.value = null;
+  failure.value = null;
+  schedule();
   try {
-    const response = await archivistAPI.run(props.kind, props.sourceId, {
-      signal: controller.signal,
-    });
-    hasRun.value = true;
-    show(response.suggestions);
-    if (response.added > 0) {
-      toast.success(`The Archivist suggested ${response.added} new edit(s)`);
-    }
+    const response = await archivistAPI.run(props.kind, props.sourceId);
+    finish(response.run, response.suggestions);
   } catch (error) {
-    if (error.name !== 'AbortError') {
-      toast.error('The Archivist failed: ' + error.message);
-    }
+    // The server's own answer says how the read ended. Anything else (a proxy or the browser
+    // giving up on a long wait, or another read already running) leaves the checks to find out.
+    if (error.run) finish(error.run, null);
+    else if (!error.status || error.status >= 500 || error.status === 409) return;
+    else finish({ error: error.message }, null);
+  }
+}
+
+async function stop() {
+  stopping.value = true;
+  try {
+    await archivistAPI.cancel(props.kind, props.sourceId);
+  } catch (error) {
+    toast.error('Failed to stop the Archivist: ' + error.message);
   } finally {
-    running.value = false;
-    controller = null;
+    stopping.value = false;
   }
 }
 
@@ -279,9 +338,9 @@ function close() {
 }
 
 onMounted(load);
+// Closing doesn't stop a read: it goes on, and opening this again shows how far it got.
 onBeforeUnmount(() => {
   closed = true;
-  controller?.abort();
   clearTimeout(pollTimer);
 });
 </script>
@@ -289,6 +348,12 @@ onBeforeUnmount(() => {
 <style scoped>
 .archivist-hint {
   color: var(--text-secondary);
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+.archivist-error {
+  color: var(--danger);
   margin: 0 0 1rem;
   line-height: 1.5;
 }

@@ -14,9 +14,11 @@ import { SqliteStorageService } from '../services/sqliteStorage.js';
 import { ChatStorage } from '../services/chat/chat-storage.js';
 import { CardSuggestionStorage } from '../services/archivist/card-suggestion-storage.js';
 import {
+  ArchivistRunError,
   CARD_SUGGESTION_FIELDS,
   applyEdit,
   chatTranscript,
+  describeError,
   runArchivist,
 } from '../services/archivist/card-archivist.js';
 import { getProvider } from '../services/provider-factory.js';
@@ -29,8 +31,10 @@ let storage;
 let chats;
 let suggestions;
 
-// Sources the Archivist is reading now, so a second run waits for the first.
-const running = new Set();
+// The latest read of each source, by `kind:sourceId`: the one running now, so a second waits for
+// it, or how the last one ended. A read goes on when its request drops (a proxy or browser giving
+// up on a long wait), so the reader can still learn how it ended by asking again.
+const runs = new Map();
 // The latest card save queued per character, so two reviews can't overwrite each other's edits.
 const cardLocks = new Map();
 
@@ -169,6 +173,88 @@ async function pendingFor(kind, sourceId) {
   return pending;
 }
 
+/** A read as the client sees it. */
+function runView(run) {
+  if (!run) return null;
+  const { running, part, added, error, cancelled, startedAt, finishedAt } = run;
+  return { running, part, added, error, cancelled, startedAt, finishedAt };
+}
+
+/** Log a failed read with everything the reader's message leaves out. */
+function logFailure(key, error) {
+  console.error(`[Archivist] ${key}: the read failed: ${describeError(error)}`);
+  if (error.answer !== undefined) {
+    console.error(`[Archivist] ${key}: the answer began: ${JSON.stringify(error.answer)}`);
+  }
+  console.error(error);
+}
+
+/**
+ * Read a source to the end, keeping what it suggests and recording how it ended in `run`. A read
+ * that fails partway keeps what the passes before it found; a cancelled one keeps nothing.
+ */
+async function read(kind, sourceId, run) {
+  const key = `${kind}:${sourceId}`;
+  try {
+    const source = await loadSource(kind, sourceId);
+    if (!source.text.trim()) {
+      throw new AppError(`There's nothing in this ${kind} to read yet`, 400);
+    }
+    const cast = await loadCast(source);
+    if (cast.length === 0) {
+      throw new AppError(`This ${kind} has no library characters to review`, 400);
+    }
+    const { preset, provider } = await providerFor(source);
+    console.log(`[Archivist] ${key}: reading ${source.text.length} characters`);
+    const found = await runArchivist({
+      provider,
+      preset,
+      cast,
+      text: source.text,
+      kind,
+      existing: suggestions.listForSource(kind, sourceId),
+      signal: run.controller.signal,
+      onPart: (part) => {
+        run.part = { index: part.index, count: part.count };
+        console.log(
+          `[Archivist] ${key}: part ${part.index + 1} of ${part.count} (${part.characters} characters)`,
+        );
+      },
+    });
+    // Nothing is kept from a read the reader cancelled.
+    if (run.controller.signal.aborted) {
+      run.cancelled = true;
+      return;
+    }
+    run.added = suggestions.addAll(kind, sourceId, found).length;
+    console.log(`[Archivist] ${key}: done, ${run.added} new suggestion(s)`);
+  } catch (error) {
+    if (run.controller.signal.aborted) {
+      run.cancelled = true;
+      console.log(`[Archivist] ${key}: cancelled`);
+      return;
+    }
+    if (error instanceof AppError) {
+      run.error = error.message;
+      run.status = error.statusCode;
+      return;
+    }
+    logFailure(key, error);
+    const kept =
+      error instanceof ArchivistRunError && error.found.length > 0
+        ? suggestions.addAll(kind, sourceId, error.found).length
+        : 0;
+    run.added = kept;
+    run.error =
+      (error.message || 'The Archivist failed') +
+      (kept > 0 ? ` The ${kept} suggestion(s) from the parts before it are kept.` : '');
+    run.status = 502;
+  } finally {
+    run.running = false;
+    run.finishedAt = new Date().toISOString();
+  }
+}
+
 function reviewDecisions(body) {
   const decisions = body?.decisions;
   if (!Array.isArray(decisions)) {
@@ -199,68 +285,68 @@ function reviewDecisions(body) {
 
 // ==================== Routes ====================
 
-// The suggestions for a story or chat that are waiting for review
+// The suggestions for a story or chat that are waiting for review, and its latest read
 router.get(
   '/:kind/:sourceId',
   asyncHandler(async (req, res) => {
     const { kind, sourceId } = req.params;
     await loadSource(kind, sourceId);
+    const run = runs.get(`${kind}:${sourceId}`);
     res.json({
       suggestions: await pendingFor(kind, sourceId),
-      running: running.has(`${kind}:${sourceId}`),
+      running: run?.running ?? false,
+      run: runView(run),
     });
   }),
 );
 
-// Read the story or chat and suggest edits to its characters' cards
+// Read the story or chat and suggest edits to its characters' cards. The answer waits for the
+// read, but the read doesn't wait on the answer: if the request drops, it goes on, and the list
+// above says how it ended.
 router.post(
   '/:kind/:sourceId/run',
   asyncHandler(async (req, res) => {
     const { kind, sourceId } = req.params;
     // Claimed before anything is awaited, so two requests can't both start reading.
     const key = `${kind}:${sourceId}`;
-    if (running.has(key)) {
+    if (runs.get(key)?.running) {
       throw new AppError('The Archivist is already reading this', 409);
     }
-    running.add(key);
-    try {
-      const source = await loadSource(kind, sourceId);
-      if (!source.text.trim()) {
-        throw new AppError(`There's nothing in this ${kind} to read yet`, 400);
-      }
-      const cast = await loadCast(source);
-      if (cast.length === 0) {
-        throw new AppError(`This ${kind} has no library characters to review`, 400);
-      }
-      const { preset, provider } = await providerFor(source);
-
-      const controller = new AbortController();
-      res.on('close', () => {
-        if (!res.writableFinished) controller.abort();
-      });
-
-      let found;
-      try {
-        found = await runArchivist({
-          provider,
-          preset,
-          cast,
-          text: source.text,
-          kind,
-          existing: suggestions.listForSource(kind, sourceId),
-          signal: controller.signal,
-        });
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        throw new AppError(error.message || 'The Archivist failed', 502);
-      }
-      // Nothing is kept from a read the reader cancelled.
-      if (controller.signal.aborted) return;
-      const added = suggestions.addAll(kind, sourceId, found);
-      res.json({ added: added.length, suggestions: await pendingFor(kind, sourceId) });
-    } finally {
-      running.delete(key);
+    const run = {
+      running: true,
+      part: null,
+      added: 0,
+      error: null,
+      cancelled: false,
+      startedAt: new Date().toISOString(),
+      finishedAt: null,
+      controller: new AbortController(),
+    };
+    runs.set(key, run);
+    await read(kind, sourceId, run);
+    // A source that isn't there has no read to remember.
+    if (run.status === 404) runs.delete(key);
+    if (res.destroyed) return;
+    if (run.error) {
+      throw new AppError(run.error, run.status ?? 500, { run: runView(run) });
     }
+    res.json({
+      added: run.added,
+      suggestions: await pendingFor(kind, sourceId),
+      run: runView(run),
+    });
+  }),
+);
+
+// Stop the read in progress; nothing it found is kept
+router.post(
+  '/:kind/:sourceId/cancel',
+  asyncHandler(async (req, res) => {
+    const { kind, sourceId } = req.params;
+    const run = runs.get(`${kind}:${sourceId}`);
+    const cancelled = Boolean(run?.running);
+    if (cancelled) run.controller.abort();
+    res.json({ cancelled });
   }),
 );
 

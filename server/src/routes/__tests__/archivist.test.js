@@ -383,7 +383,7 @@ describe('Archivist routes', () => {
     expect(left.count).toBe(0);
   });
 
-  it('keep nothing from a read the reader cancelled', async () => {
+  it('keep reading when the request drops, and report how the read ended', async () => {
     await setArchivist(true);
     const layla = await character('Layla', { description: 'She is single.' });
     const storyId = await story('Layla met Sam.', [layla]);
@@ -416,17 +416,104 @@ describe('Archivist routes', () => {
       call.destroy();
       // Give the server a moment to see the request close before the model answers.
       await new Promise((resolve) => setTimeout(resolve, 50));
+      const during = await request(app).get(`/api/archivist/story/${storyId}`);
+      expect(during.body).toMatchObject({ running: true, run: { running: true } });
       finish();
       await vi.waitFor(async () =>
         expect((await request(app).get(`/api/archivist/story/${storyId}`)).body.running).toBe(
           false,
         ),
       );
-      expect((await request(app).get(`/api/archivist/story/${storyId}`)).body.suggestions).toEqual(
-        [],
-      );
+      const after = await request(app).get(`/api/archivist/story/${storyId}`);
+      expect(after.body.run).toMatchObject({ added: 1, error: null, cancelled: false });
+      expect(after.body.suggestions.map((s) => s.replace)).toEqual(['She met Sam.']);
     } finally {
       server.close();
     }
+  });
+
+  it('keep nothing from a read the reader stopped', async () => {
+    await setArchivist(true);
+    const app = createApp();
+    const layla = await character('Layla', { description: 'She is single.' });
+    const storyId = await story('Layla met Sam.', [layla]);
+    let finish;
+    vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({
+              content: JSON.stringify({
+                suggestions: [
+                  { character: 'Layla', field: 'description', find: '', replace: 'She met Sam.' },
+                ],
+              }),
+            });
+        }),
+    );
+
+    const run = request(app)
+      .post(`/api/archivist/story/${storyId}/run`)
+      .then((r) => r);
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    const cancel = await request(app).post(`/api/archivist/story/${storyId}/cancel`);
+    expect(cancel.body).toEqual({ cancelled: true });
+    finish();
+
+    const done = await run;
+    expect(done.status).toBe(200);
+    expect(done.body).toMatchObject({ added: 0, suggestions: [], run: { cancelled: true } });
+    const nothing = await request(app).post(`/api/archivist/story/${storyId}/cancel`);
+    expect(nothing.body).toEqual({ cancelled: false });
+  });
+
+  it('say why a read failed, in its answer, the log, and later lists', async () => {
+    await setArchivist(true);
+    const app = createApp();
+    const layla = await character('Layla', { description: 'She is single.' });
+    const storyId = await story('Layla met Sam.', [layla]);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(DeepSeekProvider.prototype, 'generate').mockRejectedValue(
+      new TypeError('fetch failed', { cause: new Error('Headers Timeout Error') }),
+    );
+
+    const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    expect(run.status).toBe(502);
+    expect(run.body.error).toBe('fetch failed (Headers Timeout Error)');
+    expect(log.mock.calls.flat().join(' ')).toContain('Headers Timeout Error');
+
+    const listed = await request(app).get(`/api/archivist/story/${storyId}`);
+    expect(listed.body.running).toBe(false);
+    expect(listed.body.run.error).toBe('fetch failed (Headers Timeout Error)');
+  });
+
+  it('keep what earlier parts found when a later part fails', async () => {
+    await setArchivist(true);
+    const app = createApp();
+    const layla = await character('Layla', { description: 'She is single.' });
+    const long = Array.from({ length: 40 }, (_, i) => `${i} ${'Layla walked. '.repeat(200)}`).join(
+      '\n\n',
+    );
+    const storyId = await story(long, [layla]);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(DeepSeekProvider.prototype, 'generate')
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          suggestions: [
+            { character: 'Layla', field: 'description', find: '', replace: 'She walks a lot.' },
+          ],
+        }),
+      })
+      .mockRejectedValue(new Error('Context length exceeded'));
+
+    const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
+    expect(run.status).toBe(502);
+    expect(run.body.error).toMatch(/^Part 2 of \d+: Context length exceeded/);
+    expect(run.body.error).toContain('The 1 suggestion(s) from the parts before it are kept.');
+
+    const listed = await request(app).get(`/api/archivist/story/${storyId}`);
+    expect(listed.body.run).toMatchObject({ added: 1, part: { index: 1 } });
+    expect(listed.body.suggestions.map((s) => s.replace)).toEqual(['She walks a lot.']);
   });
 });
