@@ -77,15 +77,13 @@ export class AIHordeProvider extends LLMProvider {
   }
 
   /**
-   * Build both system and user prompts with context management
-   * OVERRIDES base implementation for AI Horde-specific dynamic context calculation
-   * @param {Object} context - Generation context
-   * @param {string} generationType - Type of generation (continue, character, custom)
-   * @param {Object} customParams - Custom parameters (characterName, customInstruction, etc.)
+   * The context window for this request: the preset's, narrowed to what the
+   * workers serving its models can take. With no models configured, suitable
+   * ones are auto-selected and kept on this instance for generate().
    * @param {Object} preset - Preset configuration
-   * @returns {Promise<Object>} { system: string, user: string }
+   * @returns {Promise<number>} Tokens
    */
-  async buildPrompts(context, generationType, customParams, preset) {
+  async resolveContextTokens(preset) {
     const maxGenerationTokens = preset.generationSettings?.maxTokens || 512;
     let maxContextTokens = preset.generationSettings?.maxContextTokens || 8192;
 
@@ -121,6 +119,24 @@ export class AIHordeProvider extends LLMProvider {
         console.warn('Failed to calculate dynamic context, using preset value:', error);
       }
     }
+
+    return maxContextTokens;
+  }
+
+  /**
+   * Build both system and user prompts with context management
+   * OVERRIDES base implementation for AI Horde-specific dynamic context calculation
+   * @param {Object} context - Generation context
+   * @param {string} generationType - Type of generation (continue, character, custom)
+   * @param {Object} customParams - Custom parameters (characterName, customInstruction, etc.)
+   * @param {Object} preset - Preset configuration
+   * @returns {Promise<Object>} { system: string, user: string }
+   */
+  async buildPrompts(context, generationType, customParams, preset) {
+    const maxGenerationTokens = preset.generationSettings?.maxTokens || 512;
+    // A caller that already resolved the context passes it, so the workers aren't fetched twice.
+    const maxContextTokens =
+      customParams.maxContextTokens ?? (await this.resolveContextTokens(preset));
 
     return this.promptBuilder.buildPrompts(context, {
       maxContextTokens,
@@ -327,42 +343,75 @@ export class AIHordeProvider extends LLMProvider {
     const timeout = options.timeout || 300000; // 5 minute default timeout
     const startTime = Date.now();
 
-    while (true) {
-      // Check timeout
-      if (Date.now() - startTime > timeout) {
-        throw new Error('AI Horde generation timed out');
+    try {
+      while (true) {
+        if (options.signal?.aborted) {
+          throw new Error('Generation cancelled');
+        }
+
+        // Check timeout
+        if (Date.now() - startTime > timeout) {
+          throw new Error('AI Horde generation timed out');
+        }
+
+        // Check status
+        const status = await this.checkStatus(requestId);
+
+        if (status.faulted) {
+          throw new Error('AI Horde generation failed');
+        }
+
+        if (status.finished && status.generations.length > 0) {
+          // Extract result
+          const generation = status.generations[0];
+          // Strip leading newlines from response
+          const cleanedText = (generation.text || '').replace(/^\n+/, '');
+          return {
+            content: cleanedText,
+            reasoning: null, // AI Horde doesn't provide reasoning
+            usage: {
+              totalTokens: generation.kudos || 0,
+            },
+            metadata: {
+              requestId,
+              model: generation.model,
+              worker: generation.worker_name,
+              workerI: generation.worker_id,
+            },
+          };
+        }
+
+        // Wait before next poll, or until the signal aborts
+        await this.pollWait(options.signal);
       }
-
-      // Check status
-      const status = await this.checkStatus(requestId);
-
-      if (status.faulted) {
-        throw new Error('AI Horde generation failed');
+    } catch (error) {
+      // Stop the Horde working on a request nobody will read, a cancelled one included.
+      try {
+        await this.cancelRequest(requestId);
+      } catch (cancelError) {
+        console.error(`[AI Horde] Failed to cleanup request: ${cancelError.message}`);
       }
-
-      if (status.finished && status.generations.length > 0) {
-        // Extract result
-        const generation = status.generations[0];
-        // Strip leading newlines from response
-        const cleanedText = (generation.text || '').replace(/^\n+/, '');
-        return {
-          content: cleanedText,
-          reasoning: null, // AI Horde doesn't provide reasoning
-          usage: {
-            totalTokens: generation.kudos || 0,
-          },
-          metadata: {
-            requestId,
-            model: generation.model,
-            worker: generation.worker_name,
-            workerI: generation.worker_id,
-          },
-        };
-      }
-
-      // Wait before next poll
-      await new Promise((resolve) => setTimeout(resolve, this.pollingInterval));
+      throw error;
     }
+  }
+
+  /** Wait one polling interval, rejecting early if `signal` aborts. */
+  pollWait(signal) {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error('Generation cancelled'));
+        return;
+      }
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(new Error('Generation cancelled'));
+      };
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, this.pollingInterval);
+      signal?.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   /**
@@ -385,7 +434,6 @@ export class AIHordeProvider extends LLMProvider {
         // Check if aborted
         if (options.signal?.aborted) {
           console.log(`[AI Horde] Abort signal detected for request ${requestId}`);
-          await this.cancelRequest(requestId);
           throw new Error('Generation cancelled');
         }
 
@@ -454,14 +502,13 @@ export class AIHordeProvider extends LLMProvider {
         });
       }
     } catch (error) {
-      // Clean up request on error
-      if (error.message !== 'Generation cancelled') {
-        console.log(`[AI Horde] Error during generation, cleaning up request ${requestId}`);
-        try {
-          await this.cancelRequest(requestId);
-        } catch (cancelError) {
-          console.error(`[AI Horde] Failed to cleanup request: ${cancelError.message}`);
-        }
+      // Clean up the request on any error, a cancellation included, so the Horde stops working
+      // on it whether the abort came before a poll or during the wait between polls.
+      console.log(`[AI Horde] Cleaning up request ${requestId}: ${error.message}`);
+      try {
+        await this.cancelRequest(requestId);
+      } catch (cancelError) {
+        console.error(`[AI Horde] Failed to cleanup request: ${cancelError.message}`);
       }
       throw error;
     }

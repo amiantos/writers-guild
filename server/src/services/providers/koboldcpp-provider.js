@@ -37,6 +37,11 @@ export class KoboldCppProvider extends LLMProvider {
     this.password = config.password || '';
   }
 
+  /** The preset's context, or the one Kobold is sent when the preset has none. */
+  resolveContextTokens(preset) {
+    return preset.generationSettings?.maxContextTokens ?? DEFAULT_MAX_CONTEXT;
+  }
+
   getCapabilities() {
     return {
       streaming: true,

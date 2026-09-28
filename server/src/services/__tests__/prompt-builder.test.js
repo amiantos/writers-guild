@@ -741,7 +741,7 @@ describe('PromptBuilder', () => {
       });
 
       expect(result).toContain('Alice');
-      expect(result).toContain('Focus on their thoughts');
+      expect(result).toContain('their actions and dialogue');
     });
 
     it('should use instruction template', () => {
@@ -757,6 +757,23 @@ describe('PromptBuilder', () => {
       expect(result).toContain('Make it spooky');
     });
 
+    it('keeps $ patterns in an instruction or the text to rewrite as written', () => {
+      const params = { characterName: '', maxChars: 1000, userName: 'User' };
+
+      const instruction = builder.buildGenerationPrompt('instruction', {
+        ...params,
+        storyContent: '',
+        customInstruction: "He owes her $$50, and $& and $' stay put",
+      });
+      const rewrite = builder.buildGenerationPrompt('rewriteThirdPerson', {
+        ...params,
+        storyContent: "You pay $$5, then $' and $& too.",
+      });
+
+      expect(instruction).toMatch(/occur: He owes her \$\$50, and \$& and \$' stay put$/);
+      expect(rewrite).toMatch(/Text to rewrite:\n\nYou pay \$\$5, then \$' and \$& too\.$/);
+    });
+
     it('should use rewriteThirdPerson template', () => {
       const result = builder.buildGenerationPrompt('rewriteThirdPerson', {
         storyContent: '',
@@ -768,7 +785,7 @@ describe('PromptBuilder', () => {
       });
 
       expect(result).toContain('Rewrite the following text');
-      expect(result).toContain('third person narrative');
+      expect(result).toContain('Write only in third-person past tense perspective.');
     });
 
     it('should use ideate template', () => {
@@ -1153,7 +1170,7 @@ describe('PromptBuilder', () => {
       });
 
       expect(result.user).toContain('Bob');
-      expect(result.user).toContain('Focus on their thoughts');
+      expect(result.user).toContain('their actions and dialogue');
     });
 
     it('should handle image preserver in prompts', () => {

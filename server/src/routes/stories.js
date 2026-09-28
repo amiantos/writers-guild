@@ -12,6 +12,12 @@ import { ImagePreserver } from '../services/image-preserver.js';
 import { REWRITE_GENERATION_TYPES } from '../services/prompt-builder.js';
 import { getProvider } from '../services/provider-factory.js';
 import { createPresetFromSettings } from '../services/default-presets.js';
+import { MAX_STORY_PASSAGES } from '../../../shared/story-passages.js';
+import { isPerspectiveMode, isPerspectiveTense } from '../../../shared/perspective.js';
+import {
+  ContinuityStorage,
+  withContinuityScenario,
+} from '../services/continuity/continuity-storage.js';
 
 const router = express.Router();
 
@@ -91,10 +97,12 @@ async function getStoryCharacterNames(storageService, storyId) {
 
 // Initialize storage service (will be set in server.js)
 let storage;
+let continuities;
 
 router.use((req, res, next) => {
   if (!storage) {
     storage = new SqliteStorageService(req.app.locals.dataRoot);
+    continuities = new ContinuityStorage(storage.db);
   }
   next();
 });
@@ -237,13 +245,49 @@ router.put(
 router.put(
   '/:id',
   asyncHandler(async (req, res) => {
-    const { title, description, configPresetId, scenario } = req.body;
+    const {
+      title,
+      description,
+      configPresetId,
+      scenario,
+      continuityId,
+      perspective,
+      perspectiveTense,
+      perspectiveCharacterId,
+    } = req.body;
     const updates = {};
 
     if (title !== undefined) updates.title = title.trim();
     if (description !== undefined) updates.description = description.trim();
     if (configPresetId !== undefined) updates.configPresetId = configPresetId;
     if (scenario !== undefined) updates.scenario = scenario.trim();
+    if (continuityId !== undefined) {
+      if (continuityId !== null && typeof continuityId !== 'string') {
+        throw new AppError('continuityId must be an id or null', 400);
+      }
+      if (continuityId && !continuities.exists(continuityId)) {
+        throw new AppError('Continuity not found', 400);
+      }
+      updates.continuityId = continuityId || null;
+    }
+    if (perspective !== undefined) {
+      if (perspective !== null && !isPerspectiveMode(perspective)) {
+        throw new AppError('perspective must be a perspective mode or null', 400);
+      }
+      updates.perspective = perspective;
+    }
+    if (perspectiveTense !== undefined) {
+      if (perspectiveTense !== null && !isPerspectiveTense(perspectiveTense)) {
+        throw new AppError('perspectiveTense must be "past", "present" or null', 400);
+      }
+      updates.perspectiveTense = perspectiveTense;
+    }
+    if (perspectiveCharacterId !== undefined) {
+      if (perspectiveCharacterId !== null && typeof perspectiveCharacterId !== 'string') {
+        throw new AppError('perspectiveCharacterId must be an id or null', 400);
+      }
+      updates.perspectiveCharacterId = perspectiveCharacterId || null;
+    }
 
     if (Object.keys(updates).length === 0) {
       throw new AppError('No updates provided', 400);
@@ -254,17 +298,67 @@ router.put(
   }),
 );
 
-// Update story content
+const PASSAGE_SOURCES = new Set(['generated', 'user']);
+const PASSAGE_STRING_FIELDS = [
+  'action',
+  'characterId',
+  'characterName',
+  'instruction',
+  'reasoning',
+  'created',
+];
+
+/**
+ * Check Enhanced Story Mode's record of a story's passages and keep only the fields it uses.
+ * Throws an AppError naming the first bad entry.
+ */
+function sanitizePassages(passages) {
+  if (!Array.isArray(passages)) {
+    throw new AppError('passages must be an array', 400);
+  }
+  if (passages.length > MAX_STORY_PASSAGES) {
+    throw new AppError(`A story can record at most ${MAX_STORY_PASSAGES} passages`, 400);
+  }
+  return passages.map((passage, index) => {
+    if (!passage || typeof passage !== 'object' || Array.isArray(passage)) {
+      throw new AppError(`passages[${index}] must be an object`, 400);
+    }
+    if (typeof passage.id !== 'string' || !passage.id) {
+      throw new AppError(`passages[${index}].id must be a non-empty string`, 400);
+    }
+    if (typeof passage.text !== 'string') {
+      throw new AppError(`passages[${index}].text must be a string`, 400);
+    }
+    if (!PASSAGE_SOURCES.has(passage.source)) {
+      throw new AppError(`passages[${index}].source must be "generated" or "user"`, 400);
+    }
+    const clean = { id: passage.id, text: passage.text, source: passage.source };
+    for (const field of PASSAGE_STRING_FIELDS) {
+      if (passage[field] === undefined || passage[field] === null) continue;
+      if (typeof passage[field] !== 'string') {
+        throw new AppError(`passages[${index}].${field} must be a string`, 400);
+      }
+      clean[field] = passage[field];
+    }
+    if (passage.edited) clean.edited = true;
+    return clean;
+  });
+}
+
+// Update story content, and optionally the record of its passages
 router.put(
   '/:id/content',
   asyncHandler(async (req, res) => {
-    const { content } = req.body;
+    const { content, passages } = req.body;
 
     if (content === undefined) {
       throw new AppError('Content is required', 400);
     }
+    const cleanPassages = passages === undefined ? null : sanitizePassages(passages);
 
-    const result = await storage.updateStoryContent(req.params.id, content);
+    const result = await storage.updateStoryContent(req.params.id, content, {
+      ...(cleanPassages && { passages: cleanPassages }),
+    });
 
     // Include history status in response
     const historyStatus = await storage.getHistoryStatus(req.params.id);
@@ -613,8 +707,13 @@ router.delete(
  * Helper function to load all context needed for generation
  */
 async function loadGenerationContext(storyId) {
-  // Load story
-  const story = await storage.getStory(storyId);
+  // Load story, with its Continuity ahead of its scenario when Continuities are on
+  const settings = await storage.getSettings();
+  const story = withContinuityScenario(
+    await storage.getStory(storyId),
+    continuities,
+    settings?.experimentalContinuity,
+  );
 
   // Load preset configuration (story-specific or default)
   let preset = null;
@@ -763,11 +862,17 @@ async function streamGeneration(
   // the story's images appended to them.
   const appendMissingImages = REWRITE_GENERATION_TYPES.has(generationType);
 
+  // The context the prompt is budgeted for, which AI Horde narrows to what its workers take. It
+  // goes to the provider as well, so the backend is asked for the same size.
+  const maxContextTokens = await provider.resolveContextTokens(preset);
+
   // Build both system and user prompts with proper context management
   const prompts = await provider.buildPrompts(
     {
       persona: context.persona,
       characterCards: params.characterCards || [],
+      // The whole cast, so a narrator is named even when writing for one other character
+      storyCharacterCards: context.characterCards || [],
       activatedLorebooks: context.activatedLorebooks || [],
       story: context.story,
       settings: preset.generationSettings,
@@ -778,6 +883,7 @@ async function streamGeneration(
       customInstruction: params.customInstruction,
       templateText: preset.promptTemplates?.[generationType],
       imagePreserver,
+      maxContextTokens,
     },
     preset,
   );
@@ -805,7 +911,9 @@ async function streamGeneration(
     const { stream } = await provider.generateStreaming(systemPrompt, userPrompt, {
       // Pass all advanced sampling parameters
       ...preset.generationSettings,
-      maxContextLength: preset.generationSettings.maxContextTokens,
+      // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+      maxContextTokens,
+      maxContextLength: maxContextTokens,
       signal: abortSignal,
     });
 
@@ -853,7 +961,9 @@ async function streamGeneration(
     const streamWithStatus = provider.generateStreamingWithStatus(systemPrompt, userPrompt, {
       // Pass all advanced sampling parameters
       ...preset.generationSettings,
-      maxContextLength: preset.generationSettings.maxContextTokens,
+      // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+      maxContextTokens,
+      maxContextLength: maxContextTokens,
       timeout: preset.generationSettings.timeout || 300000,
       signal: abortSignal,
     });
@@ -895,7 +1005,9 @@ async function streamGeneration(
     const result = await provider.generate(systemPrompt, userPrompt, {
       // Pass all advanced sampling parameters
       ...preset.generationSettings,
-      maxContextLength: preset.generationSettings.maxContextTokens,
+      // AI Horde reads maxContextLength; KoboldCpp and Ollama read maxContextTokens.
+      maxContextTokens,
+      maxContextLength: maxContextTokens,
     });
 
     // NOTE: this read `update.content` before, but `update` is out of scope in

@@ -47,6 +47,10 @@ router.put(
       lorebookEnableRecursion,
       defaultPersonaId,
       onboardingCompleted,
+      experimentalChats,
+      experimentalEnhancedStory,
+      experimentalArchivist,
+      experimentalContinuity,
     } = req.body;
 
     // Get current settings
@@ -81,6 +85,16 @@ router.put(
       ...(defaultPersonaId !== undefined && { defaultPersonaId: defaultPersonaId || null }),
       ...(onboardingCompleted !== undefined && {
         onboardingCompleted: Boolean(onboardingCompleted),
+      }),
+      ...(experimentalChats !== undefined && { experimentalChats: Boolean(experimentalChats) }),
+      ...(experimentalEnhancedStory !== undefined && {
+        experimentalEnhancedStory: Boolean(experimentalEnhancedStory),
+      }),
+      ...(experimentalArchivist !== undefined && {
+        experimentalArchivist: Boolean(experimentalArchivist),
+      }),
+      ...(experimentalContinuity !== undefined && {
+        experimentalContinuity: Boolean(experimentalContinuity),
       }),
     };
 

@@ -93,7 +93,8 @@ export class LLMProvider {
    * @returns {Object|Promise<Object>} { system: string, user: string }
    */
   buildPrompts(context, generationType, customParams, preset) {
-    const maxContextTokens = preset.generationSettings?.maxContextTokens || 128000;
+    // A caller that already resolved the context passes it, so it isn't resolved twice.
+    const maxContextTokens = customParams.maxContextTokens ?? this.resolveContextTokens(preset);
     const maxGenerationTokens = preset.generationSettings?.maxTokens || 4000;
 
     // Get custom system prompt template from preset (null = use default)
@@ -108,6 +109,16 @@ export class LLMProvider {
       imagePreserver: customParams.imagePreserver || null,
       ...customParams,
     });
+  }
+
+  /**
+   * The context window to budget prompts for. Providers that learn it at request
+   * time (AI Horde, from its workers) override this.
+   * @param {Object} preset - Preset configuration
+   * @returns {number|Promise<number>} Tokens
+   */
+  resolveContextTokens(preset) {
+    return preset.generationSettings?.maxContextTokens || 128000;
   }
 
   /**

@@ -203,26 +203,33 @@ async function cleanupFailedImport(storageInstance, dataRoot, characterId, creat
 }
 
 /**
- * The lorebook a character is about to strand, or null.
- *
- * Nothing is deleted here — the client asks the user, then calls
- * DELETE /api/lorebooks/:id if they say yes. Deleting it outright would be
- * inconsistent with this route refusing to delete a character that is still
- * used by a story.
+ * The lorebook a character's card links, or null. Read before the character is
+ * deleted, since the link lives on the card.
  */
-async function findLorebookLeftBehindBy(characterId) {
-  let lorebookId;
+async function linkedLorebookIdOf(characterId) {
   try {
     const cardData = await storage.getCharacter(characterId);
-    lorebookId = cardData.data?.extensions?.ursceal_lorebook_id;
+    return cardData.data?.extensions?.ursceal_lorebook_id || null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The lorebook a deleted character left behind, or null. Checked after the
+ * delete, so stories deleted along with the character no longer count.
+ *
+ * Nothing is deleted here — the client asks the user, then calls
+ * DELETE /api/lorebooks/:id if they say yes. Deleting it outright would take
+ * the choice away, the same way stories are only deleted along with their
+ * character once the user has agreed to it.
+ */
+async function findOrphanedLorebook(lorebookId) {
   if (!lorebookId) return null;
 
   // Characters link a lorebook through their card; stories attach lorebooks
   // directly. Either one still using it means it is not orphaned.
-  const refs = storage.getLorebookReferences(lorebookId, characterId);
+  const refs = storage.getLorebookReferences(lorebookId);
   if (refs.characters.length > 0 || refs.stories.length > 0) return null;
 
   try {
@@ -232,6 +239,28 @@ async function findLorebookLeftBehindBy(characterId) {
     // Already gone.
     return null;
   }
+}
+
+/**
+ * Stories a character is in, as cast or persona, each with the other
+ * characters it involves so the client can warn about them before deleting.
+ */
+async function findStoriesUsing(characterId) {
+  const stories = (await storage.listStories()).filter(
+    (story) =>
+      story.characterIds?.includes(characterId) || story.personaCharacterId === characterId,
+  );
+  if (stories.length === 0) return [];
+
+  const names = new Map((await storage.listAllCharacters()).map((c) => [c.id, c.name]));
+  return stories.map((story) => {
+    const otherIds = new Set([...(story.characterIds || []), story.personaCharacterId]);
+    otherIds.delete(characterId);
+    const otherCharacters = [...otherIds]
+      .filter((id) => names.has(id))
+      .map((id) => ({ id, name: names.get(id) }));
+    return { ...story, otherCharacters };
+  });
 }
 
 // ==================== Global Character Library ====================
@@ -884,16 +913,36 @@ router.put(
 router.get(
   '/:characterId/stories',
   asyncHandler(async (req, res) => {
+    res.json({ stories: await findStoriesUsing(req.params.characterId) });
+  }),
+);
+
+// A character's versions, oldest first: every change to its card is kept
+router.get(
+  '/:characterId/versions',
+  asyncHandler(async (req, res) => {
     const { characterId } = req.params;
+    const editedSinceImport = storage.characterEditedSinceImport(characterId);
+    if (editedSinceImport === undefined) {
+      throw new AppError('Character not found', 404);
+    }
+    res.json({ versions: storage.listCharacterVersions(characterId), editedSinceImport });
+  }),
+);
 
-    // Get all stories and filter for ones that include this character
-    const allStories = await storage.listStories();
-    const characterStories = allStories.filter(
-      (story) =>
-        story.characterIds?.includes(characterId) || story.personaCharacterId === characterId,
-    );
-
-    res.json({ stories: characterStories });
+// Put a character's card back as it was at an earlier version, saved as a new version
+router.post(
+  '/:characterId/versions/:versionId/restore',
+  asyncHandler(async (req, res) => {
+    const { characterId } = req.params;
+    const versionId = Number(req.params.versionId);
+    const character = Number.isInteger(versionId)
+      ? await storage.restoreCharacterVersion(characterId, versionId)
+      : null;
+    if (!character) {
+      throw new AppError('Version not found', 404);
+    }
+    res.json({ character });
   }),
 );
 
@@ -902,27 +951,46 @@ router.delete(
   '/:characterId',
   asyncHandler(async (req, res) => {
     const { characterId } = req.params;
-
-    // Check if character is used in any stories
-    const allStories = await storage.listStories();
-    const storiesUsingChar = allStories.filter(
-      (story) =>
-        story.characterIds?.includes(characterId) || story.personaCharacterId === characterId,
-    );
-
-    if (storiesUsingChar.length > 0) {
-      const storyTitles = storiesUsingChar.map((s) => s.title).join(', ');
-      throw new AppError(
-        `Cannot delete character: Used in ${storiesUsingChar.length} story(ies): ${storyTitles}. Remove from stories first.`,
-        409,
-      );
+    const confirmedStoryIds = req.body?.deleteStoryIds ?? [];
+    if (
+      !Array.isArray(confirmedStoryIds) ||
+      confirmedStoryIds.some((id) => typeof id !== 'string')
+    ) {
+      throw new AppError('deleteStoryIds must be an array of story ids', 400);
     }
 
-    // Work out whether this character's lorebook is about to be left behind,
-    // before the character row (and its link) is gone.
-    const orphanedLorebook = await findLorebookLeftBehindBy(characterId);
+    // Stories using the character go with it, but only the ones the client
+    // says the user agreed to. If any story wasn't confirmed (including one
+    // added after the user was asked), refuse and say which ones.
+    const refuse = async () => {
+      const stories = await findStoriesUsing(characterId);
+      const storyTitles = stories.map((s) => s.title).join(', ');
+      return new AppError(
+        `Cannot delete character: Used in ${stories.length} story(ies): ${storyTitles}. ` +
+          'Those stories must be confirmed for deletion along with the character.',
+        409,
+        { stories },
+      );
+    };
 
-    await storage.deleteCharacter(characterId);
+    const storiesUsingChar = await findStoriesUsing(characterId);
+    const storyIds = storiesUsingChar.map((s) => s.id);
+    if (storyIds.some((id) => !confirmedStoryIds.includes(id))) {
+      throw await refuse();
+    }
+
+    const lorebookId = await linkedLorebookIdOf(characterId);
+
+    // The storage call re-checks the stories inside its transaction, in case
+    // one was added since the check above.
+    const deletedStoryIds = await storage.deleteCharacterWithStories(
+      characterId,
+      confirmedStoryIds,
+    );
+    if (!deletedStoryIds) {
+      throw await refuse();
+    }
+    const orphanedLorebook = await findOrphanedLorebook(lorebookId);
 
     // Clean up cached asset files
     try {
@@ -934,6 +1002,7 @@ router.delete(
 
     res.json({
       success: true,
+      ...(deletedStoryIds.length > 0 ? { deletedStoryIds } : {}),
       ...(orphanedLorebook ? { orphanedLorebook } : {}),
     });
   }),

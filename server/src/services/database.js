@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 17;
 
 /**
  * Initialize the SQLite database with schema
@@ -83,7 +83,11 @@ function createAllTables(db) {
       lorebook_enable_recursion INTEGER DEFAULT 1,
       default_persona_id TEXT,
       default_preset_id TEXT,
-      onboarding_completed INTEGER DEFAULT 0
+      onboarding_completed INTEGER DEFAULT 0,
+      experimental_chats INTEGER DEFAULT 0,
+      experimental_enhanced_story INTEGER DEFAULT 0,
+      experimental_archivist INTEGER DEFAULT 0,
+      experimental_continuity INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -99,8 +103,13 @@ function createAllTables(db) {
       word_count INTEGER DEFAULT 0,
       needs_rewrite_prompt INTEGER DEFAULT 0,
       avatar_windows TEXT DEFAULT '[]',
+      passages TEXT DEFAULT '[]',
       persona_character_id TEXT,
       config_preset_id TEXT,
+      -- Narrative perspective (shared/perspective.js); null is the default, third person past
+      perspective TEXT,
+      perspective_tense TEXT,
+      perspective_character_id TEXT,
       created TEXT NOT NULL,
       modified TEXT NOT NULL
     );
@@ -233,7 +242,216 @@ function createAllTables(db) {
     );
   `);
 
+  createChatTables(db);
+  createCharacterVersionTables(db);
+  createCardSuggestionTables(db);
+  createContinuityTables(db);
+  createContinuitySuggestionTables(db);
+
   console.log('Database schema created successfully');
+}
+
+/**
+ * Create the tables for chat mode: text message conversations between the
+ * user's persona and one or more characters. Each turn is one message from the
+ * user or one reply from a character; a reply's versions (swipes) are kept in
+ * its swipes column as JSON, each holding the reply's messages in order.
+ */
+function createChatTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS chats (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      scenario TEXT DEFAULT '',
+      persona_character_id TEXT,
+      config_preset_id TEXT,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_characters (
+      chat_id TEXT NOT NULL,
+      character_id TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (chat_id, character_id),
+      FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+      FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_lorebooks (
+      chat_id TEXT NOT NULL,
+      lorebook_id TEXT NOT NULL,
+      PRIMARY KEY (chat_id, lorebook_id),
+      FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+      FOREIGN KEY (lorebook_id) REFERENCES lorebooks(id) ON DELETE CASCADE
+    );
+
+    -- sender_name keeps a turn readable after its character is deleted.
+    CREATE TABLE IF NOT EXISTS chat_turns (
+      id TEXT PRIMARY KEY,
+      chat_id TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      source TEXT NOT NULL,
+      character_id TEXT,
+      sender_name TEXT NOT NULL DEFAULT '',
+      swipes TEXT NOT NULL DEFAULT '[]',
+      active_swipe INTEGER NOT NULL DEFAULT 0,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL,
+      FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_turns_chat ON chat_turns(chat_id, position);
+  `);
+}
+
+/**
+ * Create the table of character card versions. A library character keeps a
+ * full copy of its card each time it changes, and the first change also keeps
+ * the card as it was, so every version can be seen and restored.
+ */
+function createCharacterVersionTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS character_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id TEXT NOT NULL,
+      -- The whole V2 card at this version; portraits aren't kept.
+      data TEXT NOT NULL,
+      checksum TEXT NOT NULL,
+      image_changed INTEGER NOT NULL DEFAULT 0,
+      -- CHARACTER_VERSION_SOURCES in sqliteStorage.js
+      source TEXT NOT NULL,
+      -- The version restored, or the story or chat
+      -- (story:<id> or chat:<id>) whose Archivist suggestions were accepted.
+      source_id TEXT,
+      created TEXT NOT NULL,
+      FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_character_versions_character
+      ON character_versions(character_id, id);
+  `);
+}
+
+/**
+ * Create the table of the Archivist's suggested card edits. A story or chat's
+ * suggestions wait for review, and the ones turned down are kept so the
+ * Archivist doesn't propose them again.
+ */
+function createCardSuggestionTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS card_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      character_id TEXT NOT NULL,
+      -- 'story' or 'chat'
+      source_kind TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      -- CARD_SUGGESTION_FIELDS in card-archivist.js
+      field TEXT NOT NULL,
+      -- The text to replace, or empty to add a sentence at the end.
+      find TEXT NOT NULL DEFAULT '',
+      replace TEXT NOT NULL,
+      rationale TEXT NOT NULL DEFAULT '',
+      quote TEXT NOT NULL DEFAULT '',
+      -- 'proposed', 'accepted' or 'rejected'
+      status TEXT NOT NULL DEFAULT 'proposed',
+      created TEXT NOT NULL,
+      FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_card_suggestions_source
+      ON card_suggestions(source_kind, source_id);
+    CREATE INDEX IF NOT EXISTS idx_card_suggestions_character
+      ON card_suggestions(character_id, status);
+
+    -- A story or chat's suggestions go with it.
+    CREATE TRIGGER IF NOT EXISTS card_suggestions_story_deleted AFTER DELETE ON stories
+    BEGIN
+      DELETE FROM card_suggestions WHERE source_kind = 'story' AND source_id = OLD.id;
+    END;
+    CREATE TRIGGER IF NOT EXISTS card_suggestions_chat_deleted AFTER DELETE ON chats
+    BEGIN
+      DELETE FROM card_suggestions WHERE source_kind = 'chat' AND source_id = OLD.id;
+    END;
+  `);
+}
+
+/**
+ * Create the tables for Continuities: text the reader writes once and shares between stories
+ * and chats, put ahead of each one's own scenario. A Continuity keeps every version of its text,
+ * and a story or chat in one names it in continuity_id (cleared when the Continuity is deleted, by
+ * ContinuityStorage.delete). Safe to run again: the tables and
+ * columns are only added when missing.
+ */
+function createContinuityTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS continuities (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS continuity_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      continuity_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      -- CONTINUITY_VERSION_SOURCES in continuity-storage.js
+      source TEXT NOT NULL,
+      -- The version restored, or the story or chat (story:<id> or chat:<id>) whose Archivist
+      -- update was accepted.
+      source_id TEXT,
+      created TEXT NOT NULL,
+      FOREIGN KEY (continuity_id) REFERENCES continuities(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_continuity_versions_continuity
+      ON continuity_versions(continuity_id, id);
+  `);
+
+  for (const table of ['stories', 'chats']) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((column) => column.name === 'continuity_id')) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN continuity_id TEXT`);
+    }
+  }
+}
+
+/**
+ * Create the table of the Archivist's suggested Continuity updates. A story or chat in a
+ * Continuity gets the Continuity's whole text back with what happened worked in; `base` is the
+ * text it was written from, so a Continuity changed since can be told apart.
+ */
+function createContinuitySuggestionTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS continuity_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      continuity_id TEXT NOT NULL,
+      -- 'story' or 'chat'
+      source_kind TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      base TEXT NOT NULL,
+      replace TEXT NOT NULL,
+      rationale TEXT NOT NULL DEFAULT '',
+      -- 'proposed', 'accepted' or 'rejected'
+      status TEXT NOT NULL DEFAULT 'proposed',
+      created TEXT NOT NULL,
+      FOREIGN KEY (continuity_id) REFERENCES continuities(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_continuity_suggestions_source
+      ON continuity_suggestions(source_kind, source_id);
+
+    CREATE TRIGGER IF NOT EXISTS continuity_suggestions_story_deleted AFTER DELETE ON stories
+    BEGIN
+      DELETE FROM continuity_suggestions WHERE source_kind = 'story' AND source_id = OLD.id;
+    END;
+    CREATE TRIGGER IF NOT EXISTS continuity_suggestions_chat_deleted AFTER DELETE ON chats
+    BEGIN
+      DELETE FROM continuity_suggestions WHERE source_kind = 'chat' AND source_id = OLD.id;
+    END;
+  `);
 }
 
 /**
@@ -378,6 +596,72 @@ function migrateSchema(db, fromVersion) {
       );
 
       console.log('Added checksum columns (backfill runs on startup)');
+    }
+
+    // Migration to version 10: Add chat mode tables and its experimental toggle
+    if (fromVersion < 10) {
+      console.log('Adding chat tables...');
+
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_chats')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_chats INTEGER DEFAULT 0');
+      }
+      createChatTables(db);
+
+      console.log('Added chat tables');
+    }
+
+    // Version 11 put Bureaus behind an experimental toggle. Bureaus have since been removed, so it
+    // has nothing left to do; older databases keep their unused experimental_bureaus column.
+
+    // Migration to version 12: Enhanced Story Mode's toggle, and the record of each story's passages
+    if (fromVersion < 12) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_enhanced_story')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_enhanced_story INTEGER DEFAULT 0');
+      }
+      const storyColumns = db.prepare('PRAGMA table_info(stories)').all();
+      if (!storyColumns.some((column) => column.name === 'passages')) {
+        db.exec("ALTER TABLE stories ADD COLUMN passages TEXT DEFAULT '[]'");
+      }
+    }
+
+    // Migration to version 13: Keep a version of a character's card each time it changes
+    if (fromVersion < 13) {
+      createCharacterVersionTables(db);
+    }
+
+    // Migration to version 14: The Archivist's toggle and its suggested card edits
+    if (fromVersion < 14) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_archivist')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_archivist INTEGER DEFAULT 0');
+      }
+      createCardSuggestionTables(db);
+    }
+
+    // Migration to version 15: Continuities, their toggle, and the stories and chats in them
+    if (fromVersion < 15) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_continuity')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_continuity INTEGER DEFAULT 0');
+      }
+      createContinuityTables(db);
+    }
+
+    // Migration to version 16: The Archivist's suggested Continuity updates
+    if (fromVersion < 16) {
+      createContinuitySuggestionTables(db);
+    }
+
+    // Migration to version 17: Each story's narrative perspective
+    if (fromVersion < 17) {
+      const storyColumns = db.prepare('PRAGMA table_info(stories)').all();
+      for (const column of ['perspective', 'perspective_tense', 'perspective_character_id']) {
+        if (!storyColumns.some((existing) => existing.name === column)) {
+          db.exec(`ALTER TABLE stories ADD COLUMN ${column} TEXT`);
+        }
+      }
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

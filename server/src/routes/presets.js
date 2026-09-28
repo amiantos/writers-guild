@@ -9,6 +9,7 @@ import { SqliteStorageService } from '../services/sqliteStorage.js';
 import {
   getDefaultPresets,
   DEFAULT_SYSTEM_PROMPT_TEMPLATE,
+  DEFAULT_CHAT_SYSTEM_PROMPT_TEMPLATE,
   DEFAULT_PROMPT_TEMPLATES,
 } from '../services/default-presets.js';
 import { AIHordeProvider } from '../services/providers/aihorde-provider.js';
@@ -195,6 +196,7 @@ router.get(
   asyncHandler(async (req, res) => {
     res.json({
       systemPrompt: DEFAULT_SYSTEM_PROMPT_TEMPLATE,
+      chatSystemPrompt: DEFAULT_CHAT_SYSTEM_PROMPT_TEMPLATE,
       ...DEFAULT_PROMPT_TEMPLATES,
     });
   }),

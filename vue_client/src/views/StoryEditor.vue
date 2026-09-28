@@ -9,7 +9,9 @@
         <h1 class="story-title">{{ story?.title || 'Loading...' }}</h1>
       </div>
       <div class="header-right">
+        <!-- Enhanced Story Mode is its own view, with nothing to switch to -->
         <button
+          v-if="!enhancedEnabled"
           class="icon-btn"
           :class="{ 'icon-btn-active': showPreview }"
           @click="showPreview = !showPreview"
@@ -19,6 +21,15 @@
         </button>
         <button class="icon-btn" @click="showManageCharacters = true" title="Manage Characters">
           <i class="fas fa-user"></i>
+        </button>
+        <button
+          v-if="archivistEnabled"
+          class="icon-btn"
+          :disabled="generating"
+          @click="openArchivist"
+          title="Review Cards with the Archivist"
+        >
+          <i class="fas fa-scroll"></i>
         </button>
         <button class="icon-btn" @click="showManageLorebooks = true" title="Manage Lorebooks">
           <i class="fas fa-book"></i>
@@ -41,16 +52,30 @@
     <!-- Main Content -->
     <div class="editor-content">
       <!-- Reasoning Panel -->
+      <!-- Enhanced Story Mode shows reasoning in the seam above each passage instead -->
       <ReasoningPanel
-        v-if="showReasoningPanel"
+        v-if="showReasoningPanel && !enhancedEnabled"
         :reasoning="reasoning"
         @close="showReasoningPanel = false"
       />
 
       <!-- Text Editor / Preview -->
-      <div class="editor-container">
+      <div v-if="viewReady" class="editor-container">
+        <EnhancedStoryView
+          v-if="enhancedEnabled"
+          ref="enhancedRef"
+          :content="content"
+          :passages="passages"
+          :pending="livePassage"
+          :reasoning="reasoning"
+          :show-reasoning="shouldShowReasoning"
+          :busy="generating || undoRedoInProgress"
+          @save="handlePassageSave"
+          @delete="handlePassageDelete"
+          @regenerate="handlePassageRegenerate"
+        />
         <textarea
-          v-if="!showPreview"
+          v-else-if="!showPreview"
           ref="editorRef"
           v-model="content"
           class="story-editor"
@@ -61,7 +86,7 @@
         <div v-else ref="previewRef" class="story-preview" v-html="renderedContent"></div>
 
         <!-- Bottom input bar for preview mode -->
-        <div v-if="showPreview" class="preview-input-bar">
+        <div v-if="showPreview && !enhancedEnabled" class="preview-input-bar">
           <input
             ref="bottomInputRef"
             v-model="bottomInput"
@@ -80,8 +105,71 @@
         </div>
       </div>
 
+      <!-- Enhanced Story Mode's composer, in place of the toolbar -->
+      <StoryModeComposer
+        v-if="viewReady && enhancedEnabled"
+        ref="composerRef"
+        :generating="generating"
+        :status="generationStatus"
+        :ready="Boolean(story) && charactersLoaded"
+        :empty="isStoryEmpty"
+        :can-continue-for-character="storyCharacters.length > 0"
+        @send="handleComposerSend"
+        @add="handleComposerAdd"
+        @instruct="handleComposerInstruct"
+        @continue="handleContinue"
+        @character="handleCharacterResponse"
+        @start="handleStoryStarter"
+        @greeting="showGreetingSelector = true"
+        @stop="cancelGeneration"
+      >
+        <template #tools>
+          <div class="toolbar-icon-group">
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="handleUndo"
+              :disabled="!canUndo"
+              title="Undo (Ctrl/Cmd+Z)"
+              aria-label="Undo"
+            >
+              <i class="fas fa-rotate-left" aria-hidden="true"></i>
+            </button>
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="handleRedo"
+              :disabled="!canRedo"
+              title="Redo (Ctrl/Cmd+Shift+Z)"
+              aria-label="Redo"
+            >
+              <i class="fas fa-rotate-right" aria-hidden="true"></i>
+            </button>
+            <button
+              class="btn btn-secondary icon-btn"
+              @click="showOverflowMenu = !showOverflowMenu"
+              aria-label="More options"
+            >
+              <i class="fas fa-ellipsis-vertical" aria-hidden="true"></i>
+            </button>
+          </div>
+          <StoryOverflowMenu
+            v-if="showOverflowMenu"
+            align="left"
+            :can-add-avatar="storyCharacters.length > 0"
+            :can-view-prompt="Boolean(lastPrompts.system || lastPrompts.user)"
+            @close="showOverflowMenu = false"
+            @greeting="showGreetingSelector = true"
+            @avatar="handleAddAvatarWindow"
+            @ideate="handleIdeate"
+            @rewrite="rewriteToThirdPerson()"
+            @clear="clearStory"
+            @export="exportStory"
+            @view-prompt="showViewPromptModal = true"
+          />
+        </template>
+      </StoryModeComposer>
+
       <!-- Bottom Toolbar -->
-      <div class="bottom-toolbar">
+      <div v-else-if="viewReady" class="bottom-toolbar">
         <!-- Generation Status Overlay -->
         <div v-if="generating" class="generating-status">
           <div class="spinner"></div>
@@ -160,44 +248,19 @@
           </div>
 
           <!-- Overflow Menu -->
-          <div v-if="showOverflowMenu" class="overflow-menu" @click="showOverflowMenu = false">
-            <button class="overflow-menu-item" @click="showGreetingSelector = true">
-              <i class="fas fa-message"></i>
-              <span>Select Greeting</span>
-            </button>
-            <button
-              class="overflow-menu-item"
-              :disabled="storyCharacters.length === 0"
-              @click="handleAddAvatarWindow"
-            >
-              <i class="fas fa-image"></i>
-              <span>Add Character Avatar</span>
-            </button>
-            <button class="overflow-menu-item" @click="handleIdeate">
-              <i class="fas fa-lightbulb"></i>
-              <span>Ideate</span>
-            </button>
-            <button class="overflow-menu-item" @click="rewriteToThirdPerson">
-              <i class="fas fa-repeat"></i>
-              <span>Rewrite to Third Person</span>
-            </button>
-            <button class="overflow-menu-item" @click="clearStory">
-              <i class="fas fa-eraser"></i>
-              <span>Clear Story</span>
-            </button>
-            <button class="overflow-menu-item" @click="exportStory">
-              <i class="fas fa-download"></i>
-              <span>Export TXT</span>
-            </button>
-            <button
-              v-if="lastPrompts.system || lastPrompts.user"
-              class="overflow-menu-item"
-              @click="showViewPromptModal = true"
-            >
-              <i class="fas fa-eye"></i>
-              <span>View Last Prompt</span>
-            </button>
-          </div>
+          <StoryOverflowMenu
+            v-if="showOverflowMenu"
+            :can-add-avatar="storyCharacters.length > 0"
+            :can-view-prompt="Boolean(lastPrompts.system || lastPrompts.user)"
+            @close="showOverflowMenu = false"
+            @greeting="showGreetingSelector = true"
+            @avatar="handleAddAvatarWindow"
+            @ideate="handleIdeate"
+            @rewrite="rewriteToThirdPerson()"
+            @clear="clearStory"
+            @export="exportStory"
+            @view-prompt="showViewPromptModal = true"
+          />
         </div>
       </div>
     </div>
@@ -237,6 +300,14 @@
       @updated="handleStoryUpdated"
     />
 
+    <ArchivistModal
+      v-if="showArchivist"
+      kind="story"
+      :source-id="storyId"
+      @close="showArchivist = false"
+      @applied="loadCharacters"
+    />
+
     <ManageLorebooksModal
       v-if="showManageLorebooks"
       :story="story"
@@ -247,6 +318,8 @@
     <RenameStoryModal
       v-if="showRenameStory"
       :story="story"
+      :characters="storyCharacters"
+      :persona="storyPersona"
       @close="showRenameStory = false"
       @updated="handleStoryUpdated"
     />
@@ -283,6 +356,7 @@
     <!-- Third Person Prompt Modal -->
     <ThirdPersonPromptModal
       v-if="showThirdPersonPrompt"
+      :perspective="perspectiveDescription"
       @close="showThirdPersonPrompt = false"
       @rewrite="handleThirdPersonRewrite"
       @skip="showThirdPersonPrompt = false"
@@ -311,12 +385,24 @@ import ViewPromptModal from '../components/ViewPromptModal.vue';
 import CustomPromptModal from '../components/CustomPromptModal.vue';
 import ManageCharactersModal from '../components/ManageCharactersModal.vue';
 import ManageLorebooksModal from '../components/ManageLorebooksModal.vue';
+import ArchivistModal from '../components/ArchivistModal.vue';
 import RenameStoryModal from '../components/RenameStoryModal.vue';
 import StoryPresetModal from '../components/StoryPresetModal.vue';
 import IdeateModal from '../components/IdeateModal.vue';
 import FloatingAvatarWindow from '../components/FloatingAvatarWindow.vue';
 import ThirdPersonPromptModal from '../components/ThirdPersonPromptModal.vue';
+import EnhancedStoryView from '../components/story/EnhancedStoryView.vue';
+import StoryModeComposer from '../components/story/StoryModeComposer.vue';
+import StoryOverflowMenu from '../components/story/StoryOverflowMenu.vue';
 import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys';
+import { describePerspective } from '../../../shared/perspective.js';
+import {
+  appendText,
+  newPassageId,
+  pruneRecords,
+  removeBlock,
+  replaceBlock,
+} from '../composables/storyPassages';
 
 const props = defineProps({
   storyId: {
@@ -363,6 +449,28 @@ let abortController = null;
 const bottomInput = ref('');
 const bottomInputRef = ref(null);
 
+// Enhanced Story Mode (experimental): in place of the editor and preview, the story as passages,
+// with how each was written between them. It changes how the story is shown and edited, never
+// what's sent to the model.
+const enhancedEnabled = ref(false);
+const archivistEnabled = ref(false);
+const showArchivist = ref(false);
+// The story and settings have loaded, so it's known which view to show.
+const viewReady = ref(false);
+// The story's characters have loaded, so the composer's Send knows whether to write for one.
+const charactersLoaded = ref(false);
+const enhancedRef = ref(null);
+const composerRef = ref(null);
+// The record of the story's passages (see storyPassages.js), kept while Enhanced Story Mode is on.
+const passages = ref([]);
+// The record changed since it was last saved.
+let passagesDirty = false;
+// The passage being written: where it starts in the content, what it is, and its text so far.
+const pending = ref(null);
+const livePassage = computed(() =>
+  pending.value ? { ...pending.value, status: generationStatus.value } : null,
+);
+
 // Check if story has images
 const hasImages = computed(() => {
   if (!content.value) return false;
@@ -373,6 +481,20 @@ const hasImages = computed(() => {
 const avatarWindows = ref([]);
 
 const storyCharacters = ref([]);
+// The story's Persona ({ id, name }), or null
+const storyPersona = ref(null);
+// How the story is told, for the rewrite prompts
+const perspectiveDescription = computed(() => {
+  const characterId = story.value?.perspectiveCharacterId;
+  const narrator =
+    storyCharacters.value.find((c) => c.id === characterId) ||
+    (storyPersona.value?.id === characterId ? storyPersona.value : null);
+  return describePerspective({
+    mode: story.value?.perspective,
+    tense: story.value?.perspectiveTense,
+    characterName: narrator?.name,
+  });
+});
 const shouldShowReasoning = ref(false); // Setting from server
 
 // Computed: is story content empty?
@@ -472,6 +594,16 @@ function handleKeyboardShortcut(event) {
 
   if (!modifierKey) return;
 
+  // In Enhanced Story Mode, text boxes keep their own shortcuts: the composer sends with
+  // Cmd/Ctrl+Enter, and undo stays inside the box being typed in.
+  if (
+    enhancedEnabled.value &&
+    event.target instanceof Element &&
+    event.target.closest('textarea')
+  ) {
+    return;
+  }
+
   // Cmd/Ctrl+Enter opens the Continue with Instruction modal
   if (event.key === 'Enter' && !event.shiftKey) {
     // Don't trigger if a modal is already open or if generating
@@ -505,8 +637,10 @@ function shouldShowThirdPersonPrompt() {
 }
 
 onMounted(async () => {
-  await loadStory();
-  await Promise.all([loadCharacters(), loadSettings()]);
+  await Promise.all([loadStory(), loadSettings()]);
+  viewReady.value = true;
+  await loadCharacters();
+  charactersLoaded.value = true;
   startAutoSave();
 
   // Load avatar windows from story
@@ -620,6 +754,8 @@ async function loadStory() {
     story.value = loadedStory;
     content.value = loadedStory.content || '';
     originalContent.value = content.value;
+    passages.value = loadedStory.passages ?? [];
+    passagesDirty = false;
     // Update page title with story name
     setPageTitle(loadedStory.title || 'Untitled Story');
 
@@ -639,14 +775,18 @@ async function loadStory() {
 
 async function loadCharacters() {
   try {
-    if (!story.value || !story.value.characterIds || story.value.characterIds.length === 0) {
+    const characterIds = story.value?.characterIds || [];
+    const personaId = story.value?.personaCharacterId;
+    if (characterIds.length === 0 && !personaId) {
       storyCharacters.value = [];
+      storyPersona.value = null;
       return;
     }
 
     // Load all characters and filter to story's characters
     const { characters: allChars } = await charactersAPI.list();
-    storyCharacters.value = allChars.filter((c) => story.value.characterIds.includes(c.id));
+    storyCharacters.value = allChars.filter((c) => characterIds.includes(c.id));
+    storyPersona.value = allChars.find((c) => c.id === personaId) || null;
   } catch (error) {
     console.error('Failed to load characters:', error);
   }
@@ -657,6 +797,8 @@ async function loadSettings() {
     const response = await settingsAPI.get();
     const serverSettings = response.settings || response;
     shouldShowReasoning.value = serverSettings.showReasoning ?? false;
+    enhancedEnabled.value = serverSettings.experimentalEnhancedStory ?? false;
+    archivistEnabled.value = serverSettings.experimentalArchivist ?? false;
   } catch (error) {
     console.error('Failed to load settings:', error);
     // Default to false if settings can't be loaded
@@ -664,6 +806,16 @@ async function loadSettings() {
   }
 }
 
+// The Archivist reads the saved story, so it opens only once the story is saved.
+async function openArchivist() {
+  if (!(await saveStory(true))) {
+    toast.error("Couldn't save the story, so the Archivist can't read it yet");
+    return;
+  }
+  showArchivist.value = true;
+}
+
+/** @returns {Promise<boolean>} Whether the story is saved, having had nothing to save or not. */
 async function saveStory(silent = false) {
   const normalizedContent = normalizeMarkdownImageSpacing(content.value);
   const normalizedOriginal = normalizeMarkdownImageSpacing(originalContent.value);
@@ -677,12 +829,23 @@ async function saveStory(silent = false) {
   }
 
   // Only skip save if there are no semantic changes AND no formatting normalization
-  if (!wasNormalized && normalizedContent === normalizedOriginal) {
-    return; // No changes
+  if (!wasNormalized && normalizedContent === normalizedOriginal && !passagesDirty) {
+    return true; // No changes
+  }
+
+  // The record of passages goes along only when it changed, since it carries their reasoning.
+  const sendPassages = passagesDirty;
+  if (sendPassages) {
+    passages.value = pruneRecords(passages.value, normalizedContent);
+    passagesDirty = false;
   }
 
   try {
-    const result = await storiesAPI.updateContent(props.storyId, normalizedContent);
+    const result = await storiesAPI.updateContent(
+      props.storyId,
+      normalizedContent,
+      sendPassages ? passages.value : undefined,
+    );
     originalContent.value = normalizedContent;
 
     // Update history status from response
@@ -696,11 +859,14 @@ async function saveStory(silent = false) {
     if (!silent) {
       toast.success('Story saved');
     }
+    return true;
   } catch (error) {
     console.error('Failed to save story:', error);
+    if (sendPassages) passagesDirty = true;
     if (!silent) {
       toast.error('Failed to save story: ' + error.message);
     }
+    return false;
   }
 }
 
@@ -842,14 +1008,16 @@ async function handleStoryStarter() {
   // Create abort controller for cancellation
   abortController = new AbortController();
 
+  let generatedContent = '';
+  let reasoningText = '';
+  const passage = { source: 'generated', action: 'starter' };
+
   try {
     generating.value = true;
     generationStatus.value = 'Thinking...';
     reasoning.value = '';
     showReasoningPanel.value = false;
-
-    let generatedContent = '';
-    let reasoningText = '';
+    pending.value = { start: 0, text: '', ...passage };
 
     // Stream generation with abort signal
     const stream = storiesAPI.storyStarter(props.storyId, abortController.signal);
@@ -898,6 +1066,7 @@ async function handleStoryStarter() {
 
         generatedContent += chunk.content;
         content.value = generatedContent;
+        if (pending.value) pending.value.text = generatedContent;
 
         // Auto-scroll editor
         await nextTick();
@@ -911,6 +1080,7 @@ async function handleStoryStarter() {
       if (chunk.imagesRestored && chunk.finalContent !== undefined) {
         generatedContent = chunk.finalContent;
         content.value = generatedContent;
+        if (pending.value) pending.value.text = generatedContent;
         await nextTick();
         if (editorRef.value) {
           editorRef.value.scrollTop = editorRef.value.scrollHeight;
@@ -924,6 +1094,7 @@ async function handleStoryStarter() {
 
     // Add two line breaks
     if (generatedContent) {
+      recordPassage(generatedContent, passage, reasoningText);
       generatedContent += '\n\n';
       content.value = generatedContent;
       normalizeTrailingLineBreaks();
@@ -941,6 +1112,9 @@ async function handleStoryStarter() {
     await saveStory(true);
     toast.success('Story started!');
   } catch (error) {
+    if (recordPassage(generatedContent, passage, reasoningText)) {
+      await saveStory(true);
+    }
     if (error.name === 'AbortError' || error.message === 'Generation cancelled') {
       console.log('Story starter was cancelled by user');
       toast.info('Generation cancelled');
@@ -956,10 +1130,15 @@ async function handleStoryStarter() {
     }
   } finally {
     generating.value = false;
+    pending.value = null;
     abortController = null;
   }
+  return Boolean(generatedContent.trim());
 }
 
+/**
+ * Generate at the cursor, or at the end outside the editor. Returns whether anything was written.
+ */
 async function generate(isCustom, instruction, characterId) {
   if (generating.value) return;
 
@@ -968,6 +1147,18 @@ async function generate(isCustom, instruction, characterId) {
 
   // Create abort controller for cancellation
   abortController = new AbortController();
+
+  let generatedContent = '';
+  let reasoningText = '';
+  const passage = {
+    source: 'generated',
+    action: isCustom ? 'instruction' : characterId ? 'character' : 'continue',
+    ...(isCustom && { instruction }),
+    ...(characterId && {
+      characterId,
+      characterName: storyCharacters.value.find((c) => c.id === characterId)?.name,
+    }),
+  };
 
   try {
     generating.value = true;
@@ -979,9 +1170,7 @@ async function generate(isCustom, instruction, characterId) {
     const cursorPos = editorRef.value ? editorRef.value.selectionStart : content.value.length;
     const textBefore = content.value.substring(0, cursorPos);
     const textAfter = content.value.substring(cursorPos);
-
-    let generatedContent = '';
-    let reasoningText = '';
+    pending.value = { start: textBefore.length, text: '', ...passage };
 
     // Stream generation with abort signal
     const stream = isCustom
@@ -1033,6 +1222,7 @@ async function generate(isCustom, instruction, characterId) {
 
         generatedContent += chunk.content;
         content.value = textBefore + generatedContent + textAfter;
+        if (pending.value) pending.value.text = generatedContent;
 
         // Auto-scroll editor
         await nextTick();
@@ -1046,6 +1236,7 @@ async function generate(isCustom, instruction, characterId) {
       if (chunk.imagesRestored && chunk.finalContent !== undefined) {
         generatedContent = chunk.finalContent;
         content.value = textBefore + generatedContent + textAfter;
+        if (pending.value) pending.value.text = generatedContent;
         await nextTick();
         if (editorRef.value) {
           editorRef.value.scrollTop = editorRef.value.scrollHeight;
@@ -1059,6 +1250,7 @@ async function generate(isCustom, instruction, characterId) {
 
     // Add two line breaks and position cursor
     if (generatedContent) {
+      recordPassage(generatedContent, passage, reasoningText);
       generatedContent += '\n\n';
       content.value = textBefore + generatedContent + textAfter;
 
@@ -1080,6 +1272,9 @@ async function generate(isCustom, instruction, characterId) {
     await saveStory(true);
     toast.success('Generation complete');
   } catch (error) {
+    if (recordPassage(generatedContent, passage, reasoningText)) {
+      await saveStory(true);
+    }
     // Check if it was a cancellation
     if (error.name === 'AbortError' || error.message === 'Generation cancelled') {
       console.log('Generation was cancelled by user');
@@ -1098,8 +1293,10 @@ async function generate(isCustom, instruction, characterId) {
     }
   } finally {
     generating.value = false;
+    pending.value = null;
     abortController = null;
   }
+  return Boolean(generatedContent.trim());
 }
 
 function cancelGeneration() {
@@ -1109,8 +1306,134 @@ function cancelGeneration() {
   }
 }
 
+// ==================== Enhanced Story Mode ====================
+
+// What's been recorded, so a failure after recording a passage doesn't record it twice.
+const recordedPassages = new WeakSet();
+
+/**
+ * Add a passage to the record, while Enhanced Story Mode is on. Returns whether it was added, so
+ * the caller knows to save it.
+ */
+function recordPassage(text, passage, reasoningText = '') {
+  const trimmed = normalizeMarkdownImageSpacing(text.trim());
+  if (!enhancedEnabled.value || !trimmed || recordedPassages.has(passage)) return false;
+  recordedPassages.add(passage);
+  passages.value = [
+    ...passages.value,
+    {
+      id: newPassageId(),
+      text: trimmed,
+      ...passage,
+      ...(reasoningText && { reasoning: reasoningText }),
+      created: new Date().toISOString(),
+    },
+  ];
+  passagesDirty = true;
+  return true;
+}
+
+async function handlePassageSave(block, text) {
+  const trimmed = normalizeMarkdownImageSpacing(text.trim());
+  content.value = replaceBlock(content.value, block, trimmed);
+  if (block.record) {
+    passages.value = [
+      ...passages.value.map((record) =>
+        record.id === block.record.id ? { ...record, text: trimmed, edited: true } : record,
+      ),
+      // The version before the edit, so Undo brings it back with how it was written.
+      { ...block.record, id: newPassageId() },
+    ];
+    passagesDirty = true;
+  }
+  await saveStory(true);
+}
+
+// No confirmation, since Undo brings a deleted passage back, along with how it was written.
+async function handlePassageDelete(block) {
+  content.value = removeBlock(content.value, block);
+  if (block.record) {
+    // Last in the record, so pruning keeps it as the newest stale record for Undo to find.
+    passages.value = [
+      ...passages.value.filter((record) => record.id !== block.record.id),
+      block.record,
+    ];
+    passagesDirty = true;
+  }
+  await saveStory(true);
+}
+
+/**
+ * Write the last passage again: remove it, then send what wrote it once more. Its record stays, for
+ * Undo, and the new version's record, being newer, wins if the text comes back the same.
+ */
+async function handlePassageRegenerate(block) {
+  const record = block.record;
+  if (generating.value || !record) return;
+  if (
+    record.action === 'character' &&
+    !storyCharacters.value.some((character) => character.id === record.characterId)
+  ) {
+    toast.info(`${record.characterName ?? 'That character'} is no longer in this story`);
+    return;
+  }
+
+  const before = content.value;
+  const without = removeBlock(before, block);
+  content.value = without;
+
+  let written;
+  if (record.action === 'starter') {
+    await saveStory(true);
+    written = await handleStoryStarter();
+  } else if (record.action === 'instruction') {
+    written = await generate(true, record.instruction, null);
+  } else if (record.action === 'character') {
+    written = await generate(false, null, record.characterId);
+  } else {
+    written = await generate(false, null, null);
+  }
+
+  // Nothing came back, so the passage it was to replace goes back where it was.
+  if (!written && content.value === without) {
+    content.value = before;
+    await saveStory(true);
+  }
+}
+
+/** Add the reader's text as a passage of its own, at the end. */
+async function addWrittenPassage(text) {
+  content.value = appendText(content.value, text);
+  recordPassage(text, { source: 'user', action: 'write' });
+  await saveStory(true);
+  enhancedRef.value?.scrollToEnd();
+}
+
+async function handleComposerAdd(text) {
+  await addWrittenPassage(text);
+}
+
+// As the preview's input bar: add the text, then continue for a character, or just continue in a
+// story without characters.
+async function handleComposerSend(text) {
+  await addWrittenPassage(text);
+  if (storyCharacters.value.length > 0) {
+    handleCharacterResponse();
+  } else {
+    await handleContinue();
+  }
+}
+
+async function handleComposerInstruct(instruction) {
+  // Nothing was written, so give the instruction back.
+  if (!(await generate(true, instruction, null))) {
+    composerRef.value?.restore(instruction);
+  }
+}
+
 async function selectGreeting(greeting) {
   content.value = greeting + '\n\n';
+  recordPassage(greeting, { source: 'user', action: 'greeting' });
   // Switch to preview mode if the greeting contains images
   if (hasImages.value) {
     showPreview.value = true;
@@ -1148,8 +1471,7 @@ function handleThirdPersonRewrite() {
 async function rewriteToThirdPerson(skipConfirm = false) {
   if (!skipConfirm) {
     const confirmed = await confirm({
-      message:
-        'This will replace the entire document with a rewritten version in third-person past tense. Continue?',
+      message: `This will replace the entire document with a rewritten version in ${perspectiveDescription.value}. Continue?`,
       confirmText: 'Rewrite',
       variant: 'warning',
     });
@@ -1164,6 +1486,10 @@ async function rewriteToThirdPerson(skipConfirm = false) {
   // Create abort controller for cancellation
   abortController = new AbortController();
 
+  let rewrittenContent = '';
+  let reasoningText = '';
+  const passage = { source: 'generated', action: 'rewrite' };
+
   try {
     generating.value = true;
     generationStatus.value = 'Thinking...';
@@ -1172,9 +1498,7 @@ async function rewriteToThirdPerson(skipConfirm = false) {
 
     // Clear editor for rewrite
     content.value = '';
-
-    let rewrittenContent = '';
-    let reasoningText = '';
+    pending.value = { start: 0, text: '', ...passage };
 
     // Stream rewrite with abort signal
     const stream = storiesAPI.rewriteThirdPerson(props.storyId, abortController.signal);
@@ -1224,6 +1548,7 @@ async function rewriteToThirdPerson(skipConfirm = false) {
 
         rewrittenContent += chunk.content;
         content.value = rewrittenContent;
+        if (pending.value) pending.value.text = rewrittenContent;
 
         // Auto-scroll editor
         await nextTick();
@@ -1237,6 +1562,7 @@ async function rewriteToThirdPerson(skipConfirm = false) {
         // Server already restored images; use its final content directly
         rewrittenContent = chunk.finalContent;
         content.value = rewrittenContent;
+        if (pending.value) pending.value.text = rewrittenContent;
         await nextTick();
         if (editorRef.value) {
           editorRef.value.scrollTop = editorRef.value.scrollHeight;
@@ -1250,6 +1576,7 @@ async function rewriteToThirdPerson(skipConfirm = false) {
 
     // Add two line breaks and position cursor at end
     if (rewrittenContent) {
+      recordPassage(rewrittenContent, passage, reasoningText);
       rewrittenContent += '\n\n';
       content.value = rewrittenContent;
 
@@ -1278,6 +1605,9 @@ async function rewriteToThirdPerson(skipConfirm = false) {
       previewRef.value.scrollTop = previewRef.value.scrollHeight;
     }
   } catch (error) {
+    if (recordPassage(rewrittenContent, passage, reasoningText)) {
+      await saveStory(true);
+    }
     // Check if it was a cancellation
     if (error.name === 'AbortError' || error.message === 'Generation cancelled') {
       console.log('Rewrite was cancelled by user');
@@ -1296,6 +1626,7 @@ async function rewriteToThirdPerson(skipConfirm = false) {
     }
   } finally {
     generating.value = false;
+    pending.value = null;
     abortController = null;
   }
 }
@@ -1638,42 +1969,6 @@ function saveAvatarWindows() {
   display: flex;
   gap: 0.25rem;
   align-items: center;
-}
-
-.overflow-menu {
-  position: absolute;
-  bottom: 100%;
-  right: 0;
-  margin-bottom: 0.5rem;
-  background-color: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-  min-width: 200px;
-}
-
-.overflow-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.75rem 1rem;
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.overflow-menu-item:hover {
-  background-color: var(--bg-secondary);
-}
-
-.overflow-menu-item i {
-  width: 1.25rem;
-  text-align: center;
 }
 
 .generating-status {

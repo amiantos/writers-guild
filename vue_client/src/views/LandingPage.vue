@@ -60,6 +60,31 @@
             />
           </template>
 
+          <!-- Chats Tab (experimental, turned on in Settings) -->
+          <template #tab-chats>
+            <div class="section-header">
+              <h2><i class="fas fa-comments"></i> All Chats</h2>
+              <button class="btn btn-primary" @click="createNewChat">
+                <i class="fas fa-plus"></i> New Chat
+              </button>
+            </div>
+
+            <div v-if="loadingChats" class="loading">Loading chats...</div>
+
+            <div v-else-if="chats.length === 0" class="empty-state">
+              <i class="fas fa-comments"></i>
+              <p>No chats yet. Start a chat to text with your characters!</p>
+            </div>
+
+            <ChatsTable
+              v-else
+              :chats="chats"
+              :characters="characters"
+              @open="openChat"
+              @delete="deleteChat"
+            />
+          </template>
+
           <!-- Characters Tab -->
           <template #tab-characters>
             <div class="section-header">
@@ -67,6 +92,9 @@
               <div class="header-actions">
                 <button class="btn btn-primary" @click="showCreateCharacterModal = true">
                   <i class="fas fa-plus"></i> Create
+                </button>
+                <button class="btn btn-secondary" @click="showCharacterGeneratorModal = true">
+                  <i class="fas fa-wand-magic-sparkles"></i> Generate
                 </button>
                 <button class="btn btn-secondary" @click="showImportCharacterModal = true">
                   <i class="fas fa-download"></i> Import
@@ -147,11 +175,6 @@
               @set-default="setDefaultPreset"
             />
           </template>
-
-          <!-- Bureaus Tab (experimental) -->
-          <template #tab-bureaus>
-            <BureausTab />
-          </template>
         </Tabs>
       </div>
     </main>
@@ -171,6 +194,15 @@
     <CreateCharacterModal
       v-if="showCreateCharacterModal"
       @close="showCreateCharacterModal = false"
+      @created="handleCharacterCreated"
+    />
+
+    <!-- Character Generator Modal -->
+    <CharacterGeneratorModal
+      v-if="showCharacterGeneratorModal"
+      :presets="presets"
+      :lorebooks="lorebooks"
+      @close="showCharacterGeneratorModal = false"
       @created="handleCharacterCreated"
     />
 
@@ -220,11 +252,11 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI } from '../services/api';
+import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI, settingsAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 import { useDataCache } from '../composables/useDataCache';
-import { useOrphanedLorebook } from '../composables/useOrphanedLorebook';
+import { useCharacterDeletion } from '../composables/useCharacterDeletion';
 import Tabs from '../components/Tabs.vue';
 import StoriesTable from '../components/StoriesTable.vue';
 import CharactersTable from '../components/CharactersTable.vue';
@@ -235,16 +267,18 @@ import CharacterStoriesModal from '../components/CharacterStoriesModal.vue';
 import ScrollShadows from '../components/ScrollShadows.vue';
 import CreateCharacterModal from '../components/CreateCharacterModal.vue';
 import ImportCharacterModal from '../components/ImportCharacterModal.vue';
+import CharacterGeneratorModal from '../components/CharacterGeneratorModal.vue';
 import CreateLorebookModal from '../components/CreateLorebookModal.vue';
 import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
 import ProviderSelectionModal from '../components/ProviderSelectionModal.vue';
-import BureausTab from '../components/bureau/BureausTab.vue';
+import ChatsTable from '../components/chat/ChatsTable.vue';
+import { chatsAPI } from '../services/chatsApi';
 
 const router = useRouter();
 const toast = useToast();
 const { confirm } = useConfirm();
-const { offerToDeleteOrphanedLorebook } = useOrphanedLorebook();
+const { deleteCharacter } = useCharacterDeletion();
 
 // Use centralized data cache for better performance
 const {
@@ -257,7 +291,6 @@ const {
   loadingCharacters,
   loadingLorebooks,
   loadingPresets,
-  getStoryCount,
   loadStories,
   loadCharacters,
   loadLorebooks,
@@ -265,7 +298,6 @@ const {
   loadAll,
   invalidateCache,
   removeStoryLocally,
-  removeCharacterLocally,
   removeLorebookLocally,
   removePresetLocally,
   setDefaultPresetIdLocally,
@@ -278,6 +310,7 @@ const selectedCharacter = ref(null);
 // Create/Import Character Modals
 const showCreateCharacterModal = ref(false);
 const showImportCharacterModal = ref(false);
+const showCharacterGeneratorModal = ref(false);
 
 // Create/Import Lorebook Modals
 const showCreateLorebookModal = ref(false);
@@ -318,27 +351,96 @@ const recentCharacters = computed(() => {
     .filter((char) => char != null);
 });
 
+// Chats are experimental: their tab shows once they're turned on in Settings.
+const chatsEnabled = ref(false);
+
 // Tabs configuration
-const tabs = [
+const tabs = computed(() => [
   { key: 'stories', label: 'Stories', icon: 'fas fa-book' },
+  ...(chatsEnabled.value ? [{ key: 'chats', label: 'Chats', icon: 'fas fa-comments' }] : []),
   { key: 'characters', label: 'Characters', icon: 'fas fa-users' },
   { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' },
   { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' },
-  { key: 'bureaus', label: 'Bureaus', icon: 'fas fa-landmark' },
-];
+]);
 
 // Active tab with localStorage persistence
 const STORAGE_KEY = 'writers-guild-active-tab';
-const activeTab = ref(localStorage.getItem(STORAGE_KEY) || 'stories');
+const savedTab = localStorage.getItem(STORAGE_KEY) || 'stories';
+// Experimental tabs wait for settings to load before they can be shown, and a tab that no longer
+// exists, such as Bureaus, falls back to Stories.
+const activeTab = ref(tabs.value.some((tab) => tab.key === savedTab) ? savedTab : 'stories');
 
 // Save active tab to localStorage when it changes
 watch(activeTab, (newTab) => {
   localStorage.setItem(STORAGE_KEY, newTab);
 });
 
+const chats = ref([]);
+const loadingChats = ref(false);
+
+async function loadExperimentalFeatures() {
+  try {
+    const { settings } = await settingsAPI.get();
+    chatsEnabled.value = Boolean(settings?.experimentalChats);
+  } catch (error) {
+    console.error('Failed to load settings:', error);
+  }
+  const savedTabEnabled = savedTab === 'chats' && chatsEnabled.value;
+  if (savedTabEnabled && activeTab.value === 'stories') {
+    activeTab.value = savedTab;
+  }
+  if (chatsEnabled.value) await loadChats();
+}
+
+async function loadChats() {
+  loadingChats.value = true;
+  try {
+    const { chats: list } = await chatsAPI.list();
+    chats.value = list;
+  } catch (error) {
+    console.error('Error loading chats:', error);
+    toast.error('Failed to load chats');
+  } finally {
+    loadingChats.value = false;
+  }
+}
+
+async function createNewChat() {
+  try {
+    const { chat } = await chatsAPI.create({});
+    openChat(chat.id);
+  } catch (error) {
+    console.error('Error creating chat:', error);
+    toast.error('Failed to create chat');
+  }
+}
+
+function openChat(chatId) {
+  router.push({ name: 'chat', params: { chatId } });
+}
+
+async function deleteChat(chat) {
+  const confirmed = await confirm({
+    message: `Delete chat "${chat.title}"? This cannot be undone.`,
+    confirmText: 'Delete Chat',
+    variant: 'danger',
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await chatsAPI.delete(chat.id);
+    chats.value = chats.value.filter((item) => item.id !== chat.id);
+    toast.success('Chat deleted successfully');
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    toast.error('Failed to delete chat');
+  }
+}
+
 onMounted(async () => {
   // Load all data using cache - will skip API calls if data is fresh
-  await loadAll();
+  await Promise.all([loadAll(), loadExperimentalFeatures()]);
 });
 
 async function createNewStory() {
@@ -423,34 +525,6 @@ async function deleteStory(story) {
   } catch (error) {
     console.error('Error deleting story:', error);
     toast.error('Failed to delete story');
-  }
-}
-
-async function deleteCharacter(character) {
-  const storyCount = getStoryCount(character.id);
-
-  let msg = `Delete character "${character.name}"?`;
-  if (storyCount > 0) {
-    msg += `\n\nWarning: This character appears in ${storyCount} story(ies).`;
-  }
-  msg += '\n\nThis cannot be undone.';
-
-  const confirmed = await confirm({
-    message: msg,
-    confirmText: 'Delete Character',
-    variant: 'danger',
-  });
-
-  if (!confirmed) return;
-
-  try {
-    const { orphanedLorebook } = await charactersAPI.delete(character.id);
-    removeCharacterLocally(character.id);
-    toast.success('Character deleted successfully');
-    await offerToDeleteOrphanedLorebook(orphanedLorebook);
-  } catch (error) {
-    console.error('Error deleting character:', error);
-    toast.error('Failed to delete character: ' + error.message);
   }
 }
 

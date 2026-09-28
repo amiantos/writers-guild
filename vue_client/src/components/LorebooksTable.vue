@@ -1,5 +1,12 @@
 <template>
-  <DataTable :columns="columns" :data="lorebooks" default-sort="name" row-key="id">
+  <DataTable
+    :columns="columns"
+    :data="lorebooks"
+    default-sort="name"
+    row-key="id"
+    row-clickable
+    @row-click="$emit('edit', $event.id)"
+  >
     <!-- Character avatars column -->
     <template #cell-characters="{ row }">
       <CharacterAvatar
@@ -67,6 +74,7 @@ const columns = [
     label: 'Actions',
     sortable: false,
     headerClass: 'actions-col',
+    noRowClick: true,
   },
 ];
 </script>

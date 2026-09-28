@@ -20,8 +20,9 @@
         <p class="field-description">
           Granular template with full control. Variables:
           <code v-text="'{{character.name}}'"></code>,
-          <code v-text="'{{persona.description}}'"></code>, etc. Conditionals:
-          <code v-text="'{{#if variable}}...{{/if}}'"></code>. Loops:
+          <code v-text="'{{persona.description}}'"></code>,
+          <code v-text="'{{perspective}}'"></code> (the story's narrative perspective), etc.
+          Conditionals: <code v-text="'{{#if variable}}...{{/if}}'"></code>. Loops:
           <code v-text="'{{#each array}}...{{/each}}'"></code>. See default for complete reference.
         </p>
         <textarea
@@ -107,7 +108,7 @@
       <!-- Rewrite Template -->
       <div class="form-group">
         <div class="label-row">
-          <label for="templateRewrite">Rewrite to Third Person Template</label>
+          <label for="templateRewrite">Rewrite to Story Perspective Template</label>
           <button
             type="button"
             class="btn-toggle"
@@ -116,6 +117,9 @@
             {{ isCustomized('rewriteThirdPerson') ? 'Use Default' : 'Customize' }}
           </button>
         </div>
+        <p class="field-description">
+          <code v-text="'{{perspective}}'"></code> is the story's perspective, set in Edit Story.
+        </p>
         <textarea
           v-if="isCustomized('rewriteThirdPerson')"
           id="templateRewrite"
@@ -178,6 +182,76 @@
         </div>
       </div>
     </section>
+
+    <section class="form-section">
+      <h3 class="section-title">Chat Templates</h3>
+      <p class="section-description">
+        Used by Chats (an experimental feature, turned on in Settings). The conversation reaches the
+        model as a transcript, one <code v-text="'Name: message'"></code> line per text, and a reply
+        is split into separate texts at lines holding only <code>---</code>.
+      </p>
+
+      <!-- Chat System Prompt -->
+      <div class="form-group">
+        <div class="label-row">
+          <label for="templateChatSystemPrompt">Chat System Prompt Template</label>
+          <button type="button" class="btn-toggle" @click="toggleCustomization('chatSystemPrompt')">
+            {{ isCustomized('chatSystemPrompt') ? 'Use Default' : 'Customize' }}
+          </button>
+        </div>
+        <p class="field-description">
+          Same syntax as the system prompt. Variables: <code v-text="'{{user}}'"></code>,
+          <code v-text="'{{char}}'"></code> (who's replying),
+          <code v-text="'{{participant_names}}'"></code>, <code v-text="'{{is_group}}'"></code>,
+          <code v-text="'{{chat_scenario}}'"></code>, <code v-text="'{{#each characters}}'"></code>
+          (name, description, personality, scenario, mes_example),
+          <code v-text="'{{persona.description}}'"></code>,
+          <code v-text="'{{#each lorebook_entries}}'"></code>.
+        </p>
+        <textarea
+          v-if="isCustomized('chatSystemPrompt')"
+          id="templateChatSystemPrompt"
+          v-model="localTemplates.chatSystemPrompt"
+          class="textarea-input"
+          rows="8"
+          placeholder="Enter custom chat system prompt template..."
+        ></textarea>
+        <div v-else class="default-display">
+          <div class="default-label">Using System Default:</div>
+          <pre class="default-content">{{ DEFAULT_TEMPLATES.chatSystemPrompt }}</pre>
+        </div>
+      </div>
+
+      <!-- Chat Reply -->
+      <div class="form-group">
+        <div class="label-row">
+          <label for="templateChatReply">Chat Reply Template</label>
+          <button type="button" class="btn-toggle" @click="toggleCustomization('chatReply')">
+            {{ isCustomized('chatReply') ? 'Use Default' : 'Customize' }}
+          </button>
+        </div>
+        <p class="field-description">
+          The instruction for the next reply. Variables: <code v-text="'{{char}}'"></code>,
+          <code v-text="'{{user}}'"></code>, <code v-text="'{{is_group}}'"></code>,
+          <code v-text="'{{is_first_message}}'"></code>, <code v-text="'{{is_reply}}'"></code>,
+          <code v-text="'{{is_follow_up}}'"></code>. Place
+          <code v-text="'{{conversation}}'"></code> to put the transcript somewhere; otherwise it
+          comes before the instruction.
+        </p>
+        <textarea
+          v-if="isCustomized('chatReply')"
+          id="templateChatReply"
+          v-model="localTemplates.chatReply"
+          class="textarea-input"
+          rows="5"
+          placeholder="Enter custom chat reply template..."
+        ></textarea>
+        <div v-else class="default-display">
+          <div class="default-label">Using System Default:</div>
+          <pre class="default-content">{{ DEFAULT_TEMPLATES.chatReply }}</pre>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -195,6 +269,8 @@ const DEFAULT_TEMPLATES = ref({
   rewriteThirdPerson: '',
   ideate: '',
   storyStarter: '',
+  chatSystemPrompt: '',
+  chatReply: '',
 });
 
 const isLoading = ref(true);
@@ -235,6 +311,8 @@ const getTemplates = () => {
     rewriteThirdPerson: templates.rewriteThirdPerson ?? null,
     ideate: templates.ideate ?? null,
     storyStarter: templates.storyStarter ?? null,
+    chatSystemPrompt: templates.chatSystemPrompt ?? null,
+    chatReply: templates.chatReply ?? null,
   };
 };
 
@@ -276,6 +354,14 @@ const localTemplates = reactive({
   storyStarter: computed({
     get: () => getTemplates().storyStarter,
     set: (value) => updateTemplate('storyStarter', value),
+  }),
+  chatSystemPrompt: computed({
+    get: () => getTemplates().chatSystemPrompt,
+    set: (value) => updateTemplate('chatSystemPrompt', value),
+  }),
+  chatReply: computed({
+    get: () => getTemplates().chatReply,
+    set: (value) => updateTemplate('chatReply', value),
   }),
 });
 

@@ -396,6 +396,19 @@
               </div>
             </div>
           </section>
+
+          <!-- History Section -->
+          <section class="edit-section">
+            <div class="section-header">
+              <h2>History</h2>
+            </div>
+            <CharacterHistory
+              :character-id="characterId"
+              :character="character"
+              :lorebooks="availableLorebooks"
+              @restored="loadCharacter"
+            />
+          </section>
         </div>
       </div>
     </div>
@@ -423,10 +436,11 @@ import { charactersAPI, lorebooksAPI, storiesAPI, settingsAPI } from '../service
 import { useToast } from '../composables/useToast';
 import { useNavigation } from '../composables/useNavigation';
 import { useConfirm } from '../composables/useConfirm';
-import { useOrphanedLorebook } from '../composables/useOrphanedLorebook';
+import { useCharacterDeletion } from '../composables/useCharacterDeletion';
 import { setPageTitle } from '../router';
 import CharacterCard from '../components/CharacterCard.vue';
 import GreetingSelectorModal from '../components/GreetingSelectorModal.vue';
+import CharacterHistory from '../components/CharacterHistory.vue';
 
 const props = defineProps({
   characterId: {
@@ -439,7 +453,7 @@ const router = useRouter();
 const toast = useToast();
 const { goBack } = useNavigation();
 const { confirm } = useConfirm();
-const { offerToDeleteOrphanedLorebook } = useOrphanedLorebook();
+const { deleteCharacter: deleteCharacterWithStories } = useCharacterDeletion();
 
 // State
 const loading = ref(true);
@@ -754,22 +768,8 @@ function cancelImageEdit() {
 }
 
 async function deleteCharacter() {
-  const confirmed = await confirm({
-    message: `Are you sure you want to delete "${character.value.name}"? This cannot be undone.`,
-    confirmText: 'Delete Character',
-    variant: 'danger',
-  });
-
-  if (!confirmed) return;
-
-  try {
-    const { orphanedLorebook } = await charactersAPI.delete(props.characterId);
-    toast.success('Character deleted successfully');
-    await offerToDeleteOrphanedLorebook(orphanedLorebook);
+  if (await deleteCharacterWithStories({ id: props.characterId, name: character.value.name })) {
     router.push('/');
-  } catch (error) {
-    console.error('Failed to delete character:', error);
-    toast.error('Failed to delete character: ' + error.message);
   }
 }
 

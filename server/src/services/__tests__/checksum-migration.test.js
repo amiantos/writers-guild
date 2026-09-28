@@ -7,6 +7,7 @@ import path from 'path';
 import Database from 'better-sqlite3';
 
 import { SqliteStorageService } from '../sqliteStorage.js';
+import { SCHEMA_VERSION } from '../database.js';
 import { computeLorebookChecksum } from '../checksum-service.js';
 import { LorebookParser } from '../lorebook-parser.js';
 import { errorHandler } from '../../middleware/error-handler.js';
@@ -95,7 +96,9 @@ describe('schema v8 to v9 upgrade', () => {
     await seedV8Install();
 
     const storage = new SqliteStorageService(tempDir);
-    expect(storage.db.prepare('SELECT version FROM schema_version').get().version).toBe(9);
+    expect(storage.db.prepare('SELECT version FROM schema_version').get().version).toBe(
+      SCHEMA_VERSION,
+    );
 
     const columns = storage.db
       .prepare('PRAGMA table_info(lorebooks)')

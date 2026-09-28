@@ -6,6 +6,14 @@
 import { MacroProcessor } from './macro-processor.js';
 import { TemplateEngine } from './template-engine.js';
 import { DEFAULT_SYSTEM_PROMPT_TEMPLATE, DEFAULT_PROMPT_TEMPLATES } from './default-presets.js';
+import {
+  DEFAULT_PERSPECTIVE_MODE,
+  DEFAULT_PERSPECTIVE_TENSE,
+  isPerspectiveMode,
+  isPerspectiveTense,
+  modeTakesCharacter,
+  renderPerspective,
+} from '../../../shared/perspective.js';
 
 /**
  * Generation types where the model is handed existing text and expected to
@@ -287,6 +295,40 @@ export class PromptBuilder {
   }
 
   /**
+   * The story's narrative perspective, for {{perspective}} and its companion variables. The
+   * narrator or viewpoint character is named only while they're still in the story (one of its
+   * characters, or its Persona); otherwise the mode is rendered without one.
+   */
+  resolvePerspective(context = {}) {
+    const { story, characterCards, storyCharacterCards, persona } = context;
+    const mode = isPerspectiveMode(story?.perspective)
+      ? story.perspective
+      : DEFAULT_PERSPECTIVE_MODE;
+    const tense = isPerspectiveTense(story?.perspectiveTense)
+      ? story.perspectiveTense
+      : DEFAULT_PERSPECTIVE_TENSE;
+
+    let characterName = '';
+    const characterId = story?.perspectiveCharacterId;
+    if (characterId && modeTakesCharacter(mode)) {
+      if (characterId === story.personaCharacterId && persona?.name) {
+        characterName = persona.name;
+      } else {
+        const cast = storyCharacterCards ?? characterCards ?? [];
+        const card = cast.find((c) => c.id === characterId);
+        characterName = card?.data?.name || '';
+      }
+    }
+
+    return {
+      mode,
+      tense,
+      characterName,
+      text: renderPerspective({ mode, tense, characterName, personaName: persona?.name }),
+    };
+  }
+
+  /**
    * Build complete system prompt from context
    * @param {Object} context - Generation context (persona, characterCards, activatedLorebooks, etc.)
    * @param {string} [customTemplate] - Optional custom system prompt template with placeholders
@@ -306,6 +348,8 @@ export class PromptBuilder {
           ? allCharacterCards[0].data?.name
           : 'Character'),
     });
+
+    const perspective = this.resolvePerspective(context);
 
     // Prepare granular template data
     const templateData = {
@@ -386,6 +430,12 @@ export class PromptBuilder {
 
       // Settings
       include_dialogue_examples: settings.includeDialogueExamples !== false,
+
+      // The story's narrative perspective
+      perspective: perspective.text,
+      perspective_mode: perspective.mode,
+      perspective_tense: perspective.tense,
+      perspective_character: perspective.characterName,
     };
 
     // Use custom template if provided, otherwise use default template
@@ -435,7 +485,8 @@ export class PromptBuilder {
         ? imagePreserver.preserve(storyContent, 'story')
         : storyContent;
       return {
-        instruction: instruction.replace(/\{\{storyContent\}\}/g, preserved),
+        // A function, so `$` patterns in the story ("$&", "$'") stay as written.
+        instruction: instruction.replace(/\{\{storyContent\}\}/g, () => preserved),
         storyContext: '',
       };
     }
@@ -462,6 +513,8 @@ export class PromptBuilder {
       maxChars,
       userName,
       imagePreserver,
+      // Callers without a perspective get the default one
+      perspective = renderPerspective(),
     } = params;
 
     let storyContext = '';
@@ -480,8 +533,10 @@ export class PromptBuilder {
         instruction = instruction.replace(/\{\{charName\}\}/g, characterName);
         instruction = instruction.replace(/\{\{char\}\}/g, characterName);
       }
+      // Before the story and the reader's instruction go in, so text in them is left as written.
+      instruction = instruction.replace(/\{\{perspective\}\}/g, () => perspective);
       if (customInstruction) {
-        instruction = instruction.replace(/\{\{instruction\}\}/g, customInstruction);
+        instruction = instruction.replace(/\{\{instruction\}\}/g, () => customInstruction);
       }
       if (storyContent) {
         const applied = this.applyStoryContent(
@@ -534,8 +589,10 @@ export class PromptBuilder {
         instruction = instruction.replace(/\{\{charName\}\}/g, characterName);
         instruction = instruction.replace(/\{\{char\}\}/g, characterName);
       }
+      // Before the story and the reader's instruction go in, so text in them is left as written.
+      instruction = instruction.replace(/\{\{perspective\}\}/g, () => perspective);
       if (customInstruction) {
-        instruction = instruction.replace(/\{\{instruction\}\}/g, customInstruction);
+        instruction = instruction.replace(/\{\{instruction\}\}/g, () => customInstruction);
       }
       if (storyContent) {
         const applied = this.applyStoryContent(
@@ -634,6 +691,7 @@ export class PromptBuilder {
       maxChars: availableChars,
       userName,
       imagePreserver,
+      perspective: this.resolvePerspective(context).text,
     });
 
     return {

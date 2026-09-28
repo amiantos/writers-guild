@@ -138,6 +138,47 @@ describe('Stories API Routes - CRUD Operations', () => {
   });
 
   describe('PUT /:id - Update Story Metadata', () => {
+    it('saves, clears and validates the narrative perspective', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Told by Layla' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({ perspective: 'first', perspectiveTense: 'present', perspectiveCharacterId: 'c1' })
+        .expect(200);
+      let story = (await request(app).get(`/api/stories/${storyId}`).expect(200)).body.story;
+      expect(story.perspective).toBe('first');
+      expect(story.perspectiveTense).toBe('present');
+      expect(story.perspectiveCharacterId).toBe('c1');
+
+      // A title-only update leaves the perspective alone
+      await request(app).put(`/api/stories/${storyId}`).send({ title: 'Renamed' }).expect(200);
+      story = (await request(app).get(`/api/stories/${storyId}`).expect(200)).body.story;
+      expect(story.perspective).toBe('first');
+
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({ perspective: null, perspectiveTense: null, perspectiveCharacterId: null })
+        .expect(200);
+      story = (await request(app).get(`/api/stories/${storyId}`).expect(200)).body.story;
+      expect(story.perspective).toBeNull();
+      expect(story.perspectiveTense).toBeNull();
+      expect(story.perspectiveCharacterId).toBeNull();
+
+      await request(app).put(`/api/stories/${storyId}`).send({ perspective: 'fourth' }).expect(400);
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({ perspectiveTense: 'future' })
+        .expect(400);
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({ perspectiveCharacterId: 7 })
+        .expect(400);
+    });
+
     it('should update story title', async () => {
       // Create story via API
       const createResponse = await request(app)
@@ -307,6 +348,110 @@ describe('Stories API Routes - CRUD Operations', () => {
 
       expect(response.body).toHaveProperty('canUndo');
       expect(response.body).toHaveProperty('canRedo');
+    });
+
+    it('saves the record of passages with the content, keeping only the fields it uses', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Title', description: 'Desc' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+
+      const initial = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(initial.body.story.passages).toEqual([]);
+
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({
+          content: 'The rain came down.\n\n',
+          passages: [
+            {
+              id: 'p1',
+              text: 'The rain came down.',
+              source: 'generated',
+              action: 'character',
+              characterId: 'c1',
+              characterName: 'Mara',
+              reasoning: 'Set the mood.',
+              created: '2026-01-01T00:00:00.000Z',
+              edited: true,
+              extra: 'dropped',
+            },
+          ],
+        })
+        .expect(200);
+
+      const saved = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(saved.body.story.passages).toEqual([
+        {
+          id: 'p1',
+          text: 'The rain came down.',
+          source: 'generated',
+          action: 'character',
+          characterId: 'c1',
+          characterName: 'Mara',
+          reasoning: 'Set the mood.',
+          created: '2026-01-01T00:00:00.000Z',
+          edited: true,
+        },
+      ]);
+
+      // Saving content alone leaves the record as it was.
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content: 'The rain came down. It kept on.\n\n' })
+        .expect(200);
+      const after = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(after.body.story.passages).toHaveLength(1);
+
+      const duplicate = await request(app).post(`/api/stories/${storyId}/duplicate`).expect(201);
+      expect(duplicate.body.story.passages).toEqual(saved.body.story.passages);
+    });
+
+    it('saves a changed record of passages even when the content is unchanged', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Title', description: 'Desc' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+      const content = 'Rain.\n\n';
+      await request(app).put(`/api/stories/${storyId}/content`).send({ content }).expect(200);
+
+      const response = await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content, passages: [{ id: 'p1', text: 'Rain.', source: 'user' }] })
+        .expect(200);
+
+      expect(response.body.changed).toBe(false);
+      const story = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(story.body.story.passages).toEqual([{ id: 'p1', text: 'Rain.', source: 'user' }]);
+    });
+
+    it('rejects a malformed record of passages without saving the content', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Title', description: 'Desc' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+
+      const cases = [
+        [{ passages: 'nope' }, 'passages must be an array'],
+        [{ passages: [null] }, 'passages[0] must be an object'],
+        [{ passages: [{ text: 'x', source: 'user' }] }, 'passages[0].id'],
+        [{ passages: [{ id: 'a', source: 'user' }] }, 'passages[0].text'],
+        [{ passages: [{ id: 'a', text: 'x', source: 'model' }] }, 'passages[0].source'],
+        [{ passages: [{ id: 'a', text: 'x', source: 'user', reasoning: 5 }] }, 'reasoning'],
+      ];
+      for (const [body, message] of cases) {
+        const response = await request(app)
+          .put(`/api/stories/${storyId}/content`)
+          .send({ content: 'Changed', ...body })
+          .expect(400);
+        expect(response.body.error).toContain(message);
+      }
+
+      const story = await request(app).get(`/api/stories/${storyId}`).expect(200);
+      expect(story.body.story.content).toBe('');
     });
   });
 
@@ -1171,7 +1316,9 @@ describe('Stories API Routes - Generation Endpoints', () => {
       apiConfig: { apiKey: '0000000000', models: ['test-model'] },
     });
 
-    vi.spyOn(AIHordeProvider.prototype, 'buildPrompts').mockResolvedValue({
+    // The workers take less context than the preset's, and the request must ask for that.
+    vi.spyOn(AIHordeProvider.prototype, 'resolveContextTokens').mockResolvedValue(2048);
+    const buildPrompts = vi.spyOn(AIHordeProvider.prototype, 'buildPrompts').mockResolvedValue({
       system: 'system prompt',
       user: 'user prompt',
     });
@@ -1182,14 +1329,19 @@ describe('Stories API Routes - Generation Endpoints', () => {
       visionAPI: false,
       maxContextWindow: 8192,
     });
-    vi.spyOn(AIHordeProvider.prototype, 'generateStreamingWithStatus').mockImplementation(() =>
-      (async function* () {
-        yield { type: 'status', queuePosition: 2, waitTime: 5, finished: false, faulted: false };
-        yield { type: 'complete', content: '*done*' };
-      })(),
-    );
+    const generate = vi
+      .spyOn(AIHordeProvider.prototype, 'generateStreamingWithStatus')
+      .mockImplementation(() =>
+        (async function* () {
+          yield { type: 'status', queuePosition: 2, waitTime: 5, finished: false, faulted: false };
+          yield { type: 'complete', content: '*done*' };
+        })(),
+      );
 
     const response = await request(app).post(`/api/stories/${storyId}/ideate`).expect(200);
+
+    expect(buildPrompts.mock.calls[0][2].maxContextTokens).toBe(2048);
+    expect(generate.mock.calls[0][2].maxContextLength).toBe(2048);
 
     expect(response.text).toContain('"queueStatus"');
     expect(response.text).toContain('"content":"done"');

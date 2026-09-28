@@ -1,6 +1,50 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DeepSeekProvider } from '../deepseek-provider.js';
 
+/** A request that never gets a response, failing only when aborted, as real fetch does. */
+function silentFetch(_url, { signal }) {
+  return new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+  });
+}
+
+/**
+ * A request whose streamed body sends `next()` every `every` ms, closing when it
+ * returns null. Aborting fails the body, as real fetch does.
+ */
+function streamingFetch(next, every) {
+  return async (_url, { signal }) => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        signal.addEventListener('abort', () => controller.error(signal.reason), { once: true });
+      },
+      async pull(controller) {
+        await new Promise((resolve) => setTimeout(resolve, every));
+        if (signal.aborted) return;
+        const piece = next();
+        if (piece === null) controller.close();
+        else controller.enqueue(encoder.encode(piece));
+      },
+    });
+    return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } });
+  };
+}
+
+/** A request whose response sends keep-alive comments and never any data. */
+const keepAliveFetch = streamingFetch(() => ': keep-alive\n\n', 5);
+
+/** One SSE event carrying `delta`. */
+function sseEvent(delta) {
+  return `data: ${JSON.stringify({ choices: [{ delta, finish_reason: null }] })}\n\n`;
+}
+
+async function drain(stream) {
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  return chunks;
+}
+
 describe('DeepSeekProvider', () => {
   let provider;
   let mockFetch;
@@ -263,7 +307,76 @@ describe('DeepSeekProvider', () => {
       const controller = new AbortController();
       await provider.generate('System', 'User', { signal: controller.signal });
 
-      expect(mockFetch.mock.calls[0][1].signal).toBe(controller.signal);
+      const { signal } = mockFetch.mock.calls[0][1];
+      expect(signal.aborted).toBe(false);
+      controller.abort();
+      expect(signal.aborted).toBe(true);
+    });
+  });
+
+  describe('Timeouts', () => {
+    it('fails a request that gets no response in time', async () => {
+      mockFetch.mockImplementation(silentFetch);
+      provider = new DeepSeekProvider({ apiKey: 'test-api-key', responseTimeoutMs: 20 });
+
+      await expect(provider.generate('System', 'User')).rejects.toThrow(
+        /^DeepSeek did not respond within/,
+      );
+    });
+
+    it('fails a stream that never starts', async () => {
+      mockFetch.mockImplementation(silentFetch);
+      provider = new DeepSeekProvider({ apiKey: 'test-api-key', idleTimeoutMs: 20 });
+
+      await expect(provider.generateStreaming('System', 'User')).rejects.toThrow(
+        /^DeepSeek stopped responding/,
+      );
+    });
+
+    it('fails a stream that sends only keep-alive comments', async () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      mockFetch.mockImplementation(keepAliveFetch);
+      provider = new DeepSeekProvider({ apiKey: 'test-api-key', idleTimeoutMs: 50 });
+
+      const { stream } = await provider.generateStreaming('System', 'User');
+
+      await expect(drain(stream)).rejects.toThrow(/^DeepSeek stopped responding: nothing arrived/);
+      // A timeout isn't logged as the reader cancelling.
+      expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining('aborted by client'));
+      logSpy.mockRestore();
+    });
+
+    it('keeps a slow stream going as long as text keeps arriving', async () => {
+      const pieces = [...'ABCDEFGHIJ'].map((text) => sseEvent({ content: text }));
+      mockFetch.mockImplementation(streamingFetch(() => pieces.shift() ?? null, 20));
+      provider = new DeepSeekProvider({ apiKey: 'test-api-key', idleTimeoutMs: 150 });
+
+      const { stream } = await provider.generateStreaming('System', 'User');
+      const chunks = await drain(stream);
+
+      expect(chunks.map((chunk) => chunk.content).join('')).toBe('ABCDEFGHIJ');
+    });
+
+    it('fails a stream whose events carry no text or reasoning', async () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      mockFetch.mockImplementation(streamingFetch(() => sseEvent({}), 5));
+      provider = new DeepSeekProvider({ apiKey: 'test-api-key', idleTimeoutMs: 50 });
+
+      const { stream } = await provider.generateStreaming('System', 'User');
+
+      await expect(drain(stream)).rejects.toThrow(/^DeepSeek stopped responding/);
+      logSpy.mockRestore();
+    });
+
+    it('leaves a cancellation as an AbortError', async () => {
+      mockFetch.mockImplementation(silentFetch);
+      provider = new DeepSeekProvider({ apiKey: 'test-api-key', idleTimeoutMs: 5000 });
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 20);
+
+      await expect(
+        provider.generateStreaming('System', 'User', { signal: controller.signal }),
+      ).rejects.toMatchObject({ name: 'AbortError' });
     });
   });
 
@@ -292,6 +405,19 @@ describe('DeepSeekProvider', () => {
       expect(result).toHaveProperty('abort');
       expect(result).toHaveProperty('metadata');
       expect(typeof result.abort).toBe('function');
+    });
+
+    it('cancels the request with abort(), even when the caller passed a signal', async () => {
+      mockFetch.mockImplementation(keepAliveFetch);
+      const caller = new AbortController();
+
+      const { abort } = await provider.generateStreaming('System', 'User', {
+        signal: caller.signal,
+      });
+      abort();
+
+      expect(mockFetch.mock.calls[0][1].signal.aborted).toBe(true);
+      expect(caller.signal.aborted).toBe(false);
     });
 
     it('should handle API errors', async () => {

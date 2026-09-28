@@ -7,7 +7,15 @@
       <p>No stories yet with this character.</p>
     </div>
 
-    <DataTable v-else :columns="columns" :data="stories" default-sort="modified" row-key="id">
+    <DataTable
+      v-else
+      :columns="columns"
+      :data="stories"
+      default-sort="modified"
+      row-key="id"
+      row-clickable
+      @row-click="openStory($event.id)"
+    >
       <!-- Avatar column -->
       <template #cell-avatar="{ row }">
         <CharacterAvatar :characters="getStoryCharacters(row)" />
@@ -98,6 +106,7 @@ const columns = [
     label: 'Actions',
     sortable: false,
     headerClass: 'actions-col',
+    noRowClick: true,
   },
 ];
 

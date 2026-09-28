@@ -8,6 +8,71 @@ import { computeCharacterChecksum, computeLorebookChecksum } from './checksum-se
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 
+/**
+ * Where a character version came from. original: the card as it was imported or created, kept
+ * before its first change. baseline: the card as it was when its history started, for a card
+ * already edited before versions were kept. archivist: suggested edits accepted from a story or
+ * chat, whose `source_id` is `story:<id>` or `chat:<id>`.
+ */
+export const CHARACTER_VERSION_SOURCES = ['original', 'baseline', 'edit', 'restore', 'archivist'];
+
+/** The card fields a version lists as changed, besides the portrait and everything else. */
+const CHARACTER_VERSION_FIELDS = [
+  'name',
+  'description',
+  'personality',
+  'scenario',
+  'first_mes',
+  'mes_example',
+  'system_prompt',
+  'alternate_greetings',
+];
+
+/** The library lorebook linked to a card. The checksum leaves it out, but versions keep it. */
+function linkedLorebookOf(card) {
+  return card?.data?.extensions?.ursceal_lorebook_id ?? null;
+}
+
+function characterVersionFromRow(row) {
+  return {
+    id: row.id,
+    characterId: row.character_id,
+    data: JSON.parse(row.data),
+    imageChanged: !!row.image_changed,
+    source: row.source,
+    sourceId: row.source_id,
+    created: row.created,
+  };
+}
+
+/** The checksum of everything in a card besides CHARACTER_VERSION_FIELDS. */
+function checksumOfOtherFields(card) {
+  const data = { ...card.data };
+  for (const field of CHARACTER_VERSION_FIELDS) delete data[field];
+  return computeCharacterChecksum({ data });
+}
+
+/**
+ * The fields that differ between two versions of a card: any of CHARACTER_VERSION_FIELDS,
+ * 'lorebook' for its linked lorebook, 'other' when something else in the card changed, and
+ * 'portrait' when the portrait was replaced.
+ */
+function changedCharacterFields(previousRow, row) {
+  const previousCard = JSON.parse(previousRow.data);
+  const card = JSON.parse(row.data);
+  const before = previousCard.data ?? {};
+  const after = card.data ?? {};
+  const changed = CHARACTER_VERSION_FIELDS.filter(
+    (field) => JSON.stringify(before[field] ?? '') !== JSON.stringify(after[field] ?? ''),
+  );
+  if (linkedLorebookOf(previousCard) !== linkedLorebookOf(card)) {
+    changed.push('lorebook');
+  }
+  if (checksumOfOtherFields(previousCard) !== checksumOfOtherFields(card)) changed.push('other');
+  if (row.image_changed) changed.push('portrait');
+  return changed;
+}
+
 export class SqliteStorageService {
   constructor(dataRoot) {
     this.dataRoot = dataRoot;
@@ -37,13 +102,18 @@ export class SqliteStorageService {
           lorebook_enable_recursion = @lorebookEnableRecursion,
           default_persona_id = @defaultPersonaId,
           default_preset_id = @defaultPresetId,
-          onboarding_completed = @onboardingCompleted
+          onboarding_completed = @onboardingCompleted,
+          experimental_chats = @experimentalChats,
+          experimental_enhanced_story = @experimentalEnhancedStory,
+          experimental_archivist = @experimentalArchivist,
+          experimental_continuity = @experimentalContinuity
         WHERE id = 1
       `),
 
       // Stories
       listStories: this.db.prepare(`
-        SELECT id, title, description, scenario, created, modified, persona_character_id, config_preset_id, word_count
+        SELECT id, title, description, scenario, created, modified, persona_character_id, config_preset_id, word_count,
+               continuity_id, perspective, perspective_tense, perspective_character_id
         FROM stories
         ORDER BY modified DESC
       `),
@@ -58,8 +128,15 @@ export class SqliteStorageService {
       updateStoryAvatarWindows: this.db.prepare(
         'UPDATE stories SET avatar_windows = ? WHERE id = ?',
       ),
+      updateStoryPassages: this.db.prepare('UPDATE stories SET passages = ? WHERE id = ?'),
+      updateStoryContentAndPassages: this.db.prepare(
+        'UPDATE stories SET content = ?, word_count = ?, modified = ?, passages = ? WHERE id = ?',
+      ),
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, scenario = @scenario,
+                          continuity_id = @continuityId,
+                          perspective = @perspective, perspective_tense = @perspectiveTense,
+                          perspective_character_id = @perspectiveCharacterId,
                           persona_character_id = @personaCharacterId,
                           config_preset_id = @configPresetId, modified = @modified
         WHERE id = @id
@@ -115,6 +192,26 @@ export class SqliteStorageService {
         ORDER BY name
       `),
       deleteCharacter: this.db.prepare('DELETE FROM characters WHERE id = ?'),
+      getCharacterVersionBase: this.db.prepare(
+        'SELECT data, created, current_checksum, import_internal_checksum FROM characters WHERE id = ?',
+      ),
+
+      // Character versions
+      listCharacterVersions: this.db.prepare(
+        'SELECT * FROM character_versions WHERE character_id = ? ORDER BY id',
+      ),
+      getStoryTitle: this.db.prepare('SELECT title FROM stories WHERE id = ?'),
+      getChatTitle: this.db.prepare('SELECT title FROM chats WHERE id = ?'),
+      getCharacterVersion: this.db.prepare(
+        'SELECT * FROM character_versions WHERE character_id = ? AND id = ?',
+      ),
+      hasCharacterVersions: this.db.prepare(
+        'SELECT 1 FROM character_versions WHERE character_id = ? LIMIT 1',
+      ),
+      insertCharacterVersion: this.db.prepare(`
+        INSERT INTO character_versions (character_id, data, checksum, image_changed, source, source_id, created)
+        VALUES (@characterId, @data, @checksum, @imageChanged, @source, @sourceId, @created)
+      `),
       characterExists: this.db.prepare('SELECT 1 FROM characters WHERE id = ?'),
 
       // Story-Character relationships
@@ -131,6 +228,10 @@ export class SqliteStorageService {
         SELECT s.id, s.title FROM stories s
         JOIN story_characters sc ON s.id = sc.story_id
         WHERE sc.character_id = ?
+      `),
+      getStoryIdsUsingCharacter: this.db.prepare(`
+        SELECT story_id AS id FROM story_characters WHERE character_id = ?
+        UNION SELECT id FROM stories WHERE persona_character_id = ?
       `),
       updateStoryModified: this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?'),
       clearStoryPersona: this.db.prepare(
@@ -377,6 +478,10 @@ export class SqliteStorageService {
       defaultPersonaId: row.default_persona_id,
       defaultPresetId: row.default_preset_id,
       onboardingCompleted: !!row.onboarding_completed,
+      experimentalChats: !!row.experimental_chats,
+      experimentalEnhancedStory: !!row.experimental_enhanced_story,
+      experimentalArchivist: !!row.experimental_archivist,
+      experimentalContinuity: !!row.experimental_continuity,
     };
   }
 
@@ -395,6 +500,10 @@ export class SqliteStorageService {
       defaultPersonaId: settings.defaultPersonaId || null,
       defaultPresetId: settings.defaultPresetId || null,
       onboardingCompleted: settings.onboardingCompleted ? 1 : 0,
+      experimentalChats: settings.experimentalChats ? 1 : 0,
+      experimentalEnhancedStory: settings.experimentalEnhancedStory ? 1 : 0,
+      experimentalArchivist: settings.experimentalArchivist ? 1 : 0,
+      experimentalContinuity: settings.experimentalContinuity ? 1 : 0,
     });
     return settings;
   }
@@ -413,6 +522,10 @@ export class SqliteStorageService {
         title: row.title,
         description: row.description,
         scenario: row.scenario || '',
+        continuityId: row.continuity_id ?? null,
+        perspective: row.perspective ?? null,
+        perspectiveTense: row.perspective_tense ?? null,
+        perspectiveCharacterId: row.perspective_character_id ?? null,
         created: row.created,
         modified: row.modified,
         characterIds,
@@ -445,6 +558,10 @@ export class SqliteStorageService {
       title: row.title,
       description: row.description,
       scenario: row.scenario || '',
+      continuityId: row.continuity_id ?? null,
+      perspective: row.perspective ?? null,
+      perspectiveTense: row.perspective_tense ?? null,
+      perspectiveCharacterId: row.perspective_character_id ?? null,
       content: row.content || '',
       created: row.created,
       modified: row.modified,
@@ -455,6 +572,7 @@ export class SqliteStorageService {
       characters,
       needsRewritePrompt: !!row.needs_rewrite_prompt,
       avatarWindows: JSON.parse(row.avatar_windows || '[]'),
+      passages: JSON.parse(row.passages || '[]'),
     };
   }
 
@@ -522,6 +640,17 @@ export class SqliteStorageService {
       title: updates.title ?? existing.title,
       description: updates.description ?? existing.description,
       scenario: updates.scenario !== undefined ? updates.scenario : existing.scenario || '',
+      continuityId:
+        updates.continuityId !== undefined ? updates.continuityId : existing.continuity_id,
+      perspective: updates.perspective !== undefined ? updates.perspective : existing.perspective,
+      perspectiveTense:
+        updates.perspectiveTense !== undefined
+          ? updates.perspectiveTense
+          : existing.perspective_tense,
+      perspectiveCharacterId:
+        updates.perspectiveCharacterId !== undefined
+          ? updates.perspectiveCharacterId
+          : existing.perspective_character_id,
       personaCharacterId:
         updates.personaCharacterId !== undefined
           ? updates.personaCharacterId
@@ -538,6 +667,11 @@ export class SqliteStorageService {
     };
   }
 
+  /**
+   * Save a story's content. `options.passages`, when given, is Enhanced Story Mode's record of the
+   * story's passages (where each came from, and the reasoning behind it), saved in the same write
+   * so the two never disagree.
+   */
   async updateStoryContent(storyId, content, options = {}) {
     const existing = this.stmts.getStory.get(storyId);
     if (!existing) {
@@ -545,6 +679,7 @@ export class SqliteStorageService {
     }
 
     const changed = existing.content !== content;
+    const passages = options.passages ? JSON.stringify(options.passages) : null;
 
     if (changed) {
       const modified = new Date().toISOString();
@@ -555,10 +690,23 @@ export class SqliteStorageService {
         await this.saveToHistory(storyId, content, wordCount);
       }
 
-      this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
+      if (passages) {
+        this.stmts.updateStoryContentAndPassages.run(
+          content,
+          wordCount,
+          modified,
+          passages,
+          storyId,
+        );
+      } else {
+        this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
+      }
       return { success: true, modified, changed };
     }
 
+    if (passages) {
+      this.stmts.updateStoryPassages.run(passages, storyId);
+    }
     return { success: true, modified: existing.modified, changed };
   }
 
@@ -600,16 +748,33 @@ export class SqliteStorageService {
         modified: now,
       });
 
-      // Copy scenario if present
-      if (existing.scenario) {
+      // Copy scenario and Continuity if present
+      if (existing.scenario || existing.continuity_id) {
         this.db
-          .prepare('UPDATE stories SET scenario = ? WHERE id = ?')
-          .run(existing.scenario, newId);
+          .prepare('UPDATE stories SET scenario = ?, continuity_id = ? WHERE id = ?')
+          .run(existing.scenario || '', existing.continuity_id ?? null, newId);
       }
+
+      // Copy the narrative perspective
+      this.db
+        .prepare(
+          'UPDATE stories SET perspective = ?, perspective_tense = ?, perspective_character_id = ? WHERE id = ?',
+        )
+        .run(
+          existing.perspective ?? null,
+          existing.perspective_tense ?? null,
+          existing.perspective_character_id ?? null,
+          newId,
+        );
 
       // Copy avatar windows if present
       if (existing.avatar_windows) {
         this.stmts.updateStoryAvatarWindows.run(existing.avatar_windows, newId);
+      }
+
+      // Copy the record of how each passage was written
+      if (existing.passages) {
+        this.stmts.updateStoryPassages.run(existing.passages, newId);
       }
 
       // Copy character associations
@@ -719,6 +884,10 @@ export class SqliteStorageService {
    * @param {string|null} [options.originChecksum] - Checksum of the source content
    *   before local image URLs were rewritten. Only meaningful on import; ignored
    *   when updating an existing character.
+   * @param {'edit'|'restore'|'archivist'} [options.source] - Why an existing character changed.
+   *   Each change is kept as a version, and the first also keeps the card as it was.
+   * @param {string|null} [options.sourceId] - The version restored, or the story or chat the
+   *   Archivist read.
    */
   async saveCharacter(characterId, characterData, imageBuffer = null, options = {}) {
     const existing = this.stmts.characterExists.get(characterId);
@@ -735,32 +904,74 @@ export class SqliteStorageService {
 
     if (existing) {
       // Update existing character
+      let thumbnail = null;
+      let thumbnailMedium = null;
       if (imageBuffer) {
-        const [thumbnail, thumbnailMedium] = await Promise.all([
+        [thumbnail, thumbnailMedium] = await Promise.all([
           this.generateThumbnail(imageBuffer),
           this.generateMediumThumbnail(imageBuffer),
         ]);
-        this.stmts.updateCharacterWithImage.run({
-          id: characterId,
-          name,
-          data: dataJson,
-          image: imageBuffer,
-          thumbnail,
-          thumbnailMedium,
-          modified: now,
-        });
-      } else {
-        this.stmts.updateCharacter.run({
-          id: characterId,
-          name,
-          data: dataJson,
-          modified: now,
-        });
       }
-      // `import_origin_checksum` and `import_internal_checksum` are import-time
-      // baselines: leaving them alone is what makes "edited since import"
-      // (current !== internal) mean anything.
-      this.stmts.updateCharacterCurrentChecksum.run(currentChecksum, characterId);
+
+      this.db.transaction(() => {
+        const previous = this.stmts.getCharacterVersionBase.get(characterId);
+        if (!previous) return;
+        const previousCard = JSON.parse(previous.data);
+        const previousChecksum = computeCharacterChecksum(previousCard);
+        const changed =
+          imageBuffer !== null ||
+          previousChecksum !== currentChecksum ||
+          linkedLorebookOf(previousCard) !== linkedLorebookOf(characterData);
+
+        // The first change also keeps the card as it was, so it can be restored.
+        if (changed && !this.stmts.hasCharacterVersions.get(characterId)) {
+          const untouched = previousChecksum === previous.import_internal_checksum;
+          this.stmts.insertCharacterVersion.run({
+            characterId,
+            data: previous.data,
+            checksum: previousChecksum,
+            imageChanged: 0,
+            source: untouched ? 'original' : 'baseline',
+            sourceId: null,
+            created: untouched ? previous.created : now,
+          });
+        }
+
+        if (imageBuffer) {
+          this.stmts.updateCharacterWithImage.run({
+            id: characterId,
+            name,
+            data: dataJson,
+            image: imageBuffer,
+            thumbnail,
+            thumbnailMedium,
+            modified: now,
+          });
+        } else {
+          this.stmts.updateCharacter.run({
+            id: characterId,
+            name,
+            data: dataJson,
+            modified: now,
+          });
+        }
+        // `import_origin_checksum` and `import_internal_checksum` are import-time
+        // baselines: leaving them alone is what makes "edited since import"
+        // (current !== internal) mean anything.
+        this.stmts.updateCharacterCurrentChecksum.run(currentChecksum, characterId);
+
+        if (changed) {
+          this.stmts.insertCharacterVersion.run({
+            characterId,
+            data: dataJson,
+            checksum: currentChecksum,
+            imageChanged: imageBuffer ? 1 : 0,
+            source: options.source ?? 'edit',
+            sourceId: options.sourceId ?? null,
+            created: now,
+          });
+        }
+      })();
     } else {
       // Insert new character
       let thumbnail = null;
@@ -788,6 +999,66 @@ export class SqliteStorageService {
     }
 
     return { id: characterId };
+  }
+
+  /**
+   * A character's versions, oldest first, each with the fields it changed from the one before
+   * (see changedCharacterFields). The first is the card as it was before anything changed, and
+   * there are none until something does. An Archivist version also carries the title of the
+   * story or chat it came from as `sourceTitle`.
+   */
+  listCharacterVersions(characterId) {
+    let previous = null;
+    return this.stmts.listCharacterVersions.all(characterId).map((row) => {
+      const version = characterVersionFromRow(row);
+      version.changed = previous ? changedCharacterFields(previous, row) : [];
+      if (version.source === 'archivist') {
+        version.sourceTitle = this.archivistSourceTitle(version.sourceId);
+      }
+      previous = row;
+      return version;
+    });
+  }
+
+  /** The title of the story or chat an Archivist version came from, or null once it's deleted. */
+  archivistSourceTitle(sourceId) {
+    const [kind, id] = String(sourceId ?? '').split(/:(.*)/s);
+    const statement = { story: this.stmts.getStoryTitle, chat: this.stmts.getChatTitle }[kind];
+    return statement?.get(id)?.title ?? null;
+  }
+
+  /**
+   * Whether a character's card has changed since it was imported or created. The portrait
+   * doesn't count.
+   * @returns {boolean|null|undefined} null when it can't be told, for a character imported
+   *   before checksums were kept; undefined when the character doesn't exist.
+   */
+  characterEditedSinceImport(characterId) {
+    const row = this.stmts.getCharacterVersionBase.get(characterId);
+    if (!row) return undefined;
+    if (!row.import_internal_checksum) return null;
+    return row.current_checksum !== row.import_internal_checksum;
+  }
+
+  /** One version of a character, or null if it doesn't exist. */
+  getCharacterVersion(characterId, versionId) {
+    const row = this.stmts.getCharacterVersion.get(characterId, versionId);
+    return row ? characterVersionFromRow(row) : null;
+  }
+
+  /**
+   * Put a character's card back as it was at an earlier version, kept as a new version. The
+   * portrait stays as it is.
+   * @returns {Promise<Object|null>} The restored card, or null if the version doesn't exist.
+   */
+  async restoreCharacterVersion(characterId, versionId) {
+    const version = this.getCharacterVersion(characterId, versionId);
+    if (!version) return null;
+    await this.saveCharacter(characterId, version.data, null, {
+      source: 'restore',
+      sourceId: String(versionId),
+    });
+    return this.getCharacter(characterId);
   }
 
   async getCharacterImage(characterId) {
@@ -831,6 +1102,29 @@ export class SqliteStorageService {
   async deleteCharacter(characterId) {
     this.stmts.deleteCharacter.run(characterId);
     return { success: true };
+  }
+
+  /**
+   * Delete a character and the stories it's in, all or nothing, so a failure
+   * part way through never leaves some stories gone and the character still there.
+   *
+   * The stories are re-read inside the transaction: if the character is now in
+   * one that isn't in `confirmedStoryIds`, nothing is deleted.
+   *
+   * @returns {string[]|null} the deleted story ids, or null if refused
+   */
+  async deleteCharacterWithStories(characterId, confirmedStoryIds) {
+    const confirmed = new Set(confirmedStoryIds);
+    return this.db.transaction(() => {
+      const storyIds = this.stmts.getStoryIdsUsingCharacter
+        .all(characterId, characterId)
+        .map((r) => r.id);
+      if (storyIds.some((id) => !confirmed.has(id))) return null;
+
+      for (const storyId of storyIds) this.stmts.deleteStory.run(storyId);
+      this.stmts.deleteCharacter.run(characterId);
+      return storyIds;
+    })();
   }
 
   async addCharacterToStory(storyId, characterId) {

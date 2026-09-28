@@ -171,10 +171,11 @@ export const storiesAPI = {
     });
   },
 
-  updateContent(storyId, content) {
+  /** Save the content, and the record of its passages when given (see storyPassages.js). */
+  updateContent(storyId, content, passages) {
     return request(`/stories/${storyId}/content`, {
       method: 'PUT',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(passages ? { content, passages } : { content }),
     });
   },
 
@@ -532,9 +533,14 @@ export const charactersAPI = {
     return request(`/characters/${characterId}/stories`);
   },
 
-  delete(characterId) {
+  /**
+   * @param {string[]} [deleteStoryIds] - stories the user agreed to delete with
+   *   the character. The server refuses if the character is in any other story.
+   */
+  delete(characterId, deleteStoryIds = []) {
     return request(`/characters/${characterId}`, {
       method: 'DELETE',
+      ...(deleteStoryIds.length > 0 ? { body: JSON.stringify({ deleteStoryIds }) } : {}),
     });
   },
 
@@ -542,6 +548,16 @@ export const charactersAPI = {
     return request(`/stories/${storyId}/characters`, {
       method: 'POST',
       body: JSON.stringify({ characterId }),
+    });
+  },
+
+  listVersions(characterId) {
+    return request(`/characters/${characterId}/versions`);
+  },
+
+  restoreVersion(characterId, versionId) {
+    return request(`/characters/${characterId}/versions/${versionId}/restore`, {
+      method: 'POST',
     });
   },
 
@@ -838,4 +854,83 @@ export default {
   settings: settingsAPI,
   presets: presetsAPI,
   onboarding: onboardingAPI,
+};
+
+// The experimental Archivist: suggested edits to a story or chat's character cards.
+// `kind` is 'story' or 'chat'.
+export const archivistAPI = {
+  async list(kind, sourceId) {
+    return request(`/archivist/${kind}/${sourceId}`);
+  },
+
+  async run(kind, sourceId) {
+    return request(`/archivist/${kind}/${sourceId}/run`, { method: 'POST' });
+  },
+
+  async cancel(kind, sourceId) {
+    return request(`/archivist/${kind}/${sourceId}/cancel`, { method: 'POST' });
+  },
+
+  /**
+   * @param {Array<{id: number, accept: boolean, replace?: string}>} decisions
+   * @param {{id: number, accept: boolean, replace?: string}} [continuity] - The decision on the
+   *   Continuity update, when there is one.
+   */
+  async review(kind, sourceId, decisions, continuity) {
+    return request(`/archivist/${kind}/${sourceId}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ decisions, ...(continuity ? { continuity } : {}) }),
+    });
+  },
+};
+
+// The experimental Continuities: text shared by stories and chats, ahead of each one's scenario.
+export const continuitiesAPI = {
+  async list() {
+    return request('/continuities');
+  },
+
+  /** @param {{name: string, content?: string}} fields */
+  async create(fields) {
+    return request('/continuities', { method: 'POST', body: JSON.stringify(fields) });
+  },
+
+  /** @param {{name?: string, content?: string}} fields */
+  async update(id, fields) {
+    return request(`/continuities/${id}`, { method: 'PUT', body: JSON.stringify(fields) });
+  },
+
+  async delete(id) {
+    return request(`/continuities/${id}`, { method: 'DELETE' });
+  },
+
+  async listVersions(id) {
+    return request(`/continuities/${id}/versions`);
+  },
+
+  async restoreVersion(id, versionId) {
+    return request(`/continuities/${id}/versions/${versionId}/restore`, { method: 'POST' });
+  },
+};
+
+// The experimental character generator: a library card written from an idea.
+export const characterGeneratorAPI = {
+  /**
+   * @param {{idea: string, name?: string, presetId?: string, lorebookId?: string}} params
+   * @returns {Promise<{card: Object}>} The card, not yet saved.
+   */
+  async generate(params, { signal } = {}) {
+    return request('/character-generator/generate', {
+      method: 'POST',
+      body: JSON.stringify(params),
+      signal,
+    });
+  },
+
+  async save(card) {
+    return request('/character-generator/save', {
+      method: 'POST',
+      body: JSON.stringify({ card }),
+    });
+  },
 };

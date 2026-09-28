@@ -1,10 +1,10 @@
 <template>
   <Modal title="Select Character" @close="$emit('close')">
-    <p class="instruction-text">Which character should respond?</p>
+    <p class="instruction-text">{{ prompt }}</p>
 
     <div v-if="characters.length === 0" class="empty-state">
       <i class="fas fa-user"></i>
-      <p>No characters in this story</p>
+      <p>No characters in this {{ noun }}</p>
     </div>
 
     <div v-else class="character-grid">
@@ -27,6 +27,14 @@ defineProps({
   characters: {
     type: Array,
     default: () => [],
+  },
+  prompt: {
+    type: String,
+    default: 'Which character should respond?',
+  },
+  noun: {
+    type: String,
+    default: 'story',
   },
 });
 

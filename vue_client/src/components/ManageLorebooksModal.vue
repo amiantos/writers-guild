@@ -9,10 +9,17 @@
     <!-- Lorebooks Table -->
     <div v-else-if="lorebooks.length > 0">
       <p class="instruction-text">
-        Select lorebooks to include in this story. Lorebook entries will be automatically injected
-        when their keywords are detected.
+        Select lorebooks to include in this {{ noun }}. Lorebook entries will be automatically
+        injected when their keywords are detected.
       </p>
-      <DataTable :columns="columns" :data="lorebooks" default-sort="name" row-key="id">
+      <DataTable
+        :columns="columns"
+        :data="lorebooks"
+        default-sort="name"
+        row-key="id"
+        row-clickable
+        @row-click="toggleLorebook($event.id)"
+      >
         <!-- Checkbox column -->
         <template #cell-selected="{ row }">
           <div class="checkbox-cell">
@@ -43,9 +50,20 @@ import { lorebooksAPI, storiesAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 
 const props = defineProps({
+  // Anything with id and lorebookIds: a story, or a chat with `adapter`.
   story: {
     type: Object,
     required: true,
+  },
+  // What the changes are made to, for messages: 'story' or 'chat'.
+  noun: {
+    type: String,
+    default: 'story',
+  },
+  // Overrides how lorebooks are added and removed: addLorebook(id) and removeLorebook(id).
+  adapter: {
+    type: Object,
+    default: null,
   },
 });
 
@@ -63,6 +81,7 @@ const columns = [
     sortable: false,
     cellClass: 'checkbox-cell',
     headerClass: 'checkbox-col',
+    noRowClick: true,
   },
   {
     key: 'name',
@@ -115,12 +134,16 @@ async function toggleLorebook(lorebookId) {
 
     if (isLorebookSelected(lorebookId)) {
       // Remove lorebook
-      await storiesAPI.removeLorebookFromStory(props.story.id, lorebookId);
-      toast.success('Lorebook removed from story');
+      await (props.adapter
+        ? props.adapter.removeLorebook(lorebookId)
+        : storiesAPI.removeLorebookFromStory(props.story.id, lorebookId));
+      toast.success(`Lorebook removed from ${props.noun}`);
     } else {
       // Add lorebook
-      await storiesAPI.addLorebookToStory(props.story.id, lorebookId);
-      toast.success('Lorebook added to story');
+      await (props.adapter
+        ? props.adapter.addLorebook(lorebookId)
+        : storiesAPI.addLorebookToStory(props.story.id, lorebookId));
+      toast.success(`Lorebook added to ${props.noun}`);
     }
 
     emit('updated');

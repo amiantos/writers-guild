@@ -1,6 +1,12 @@
 <template>
-  <div class="modal-overlay" @click.self="handleOverlayClick">
-    <div class="modal-content" :style="contentStyle">
+  <div class="modal-overlay" @mousedown="handleOverlayPress" @click.self="handleOverlayClick">
+    <div
+      ref="contentRef"
+      class="modal-content"
+      :style="contentStyle"
+      @focusin="rememberValue"
+      @input="noteEdit"
+    >
       <div v-if="!hideHeader" class="modal-header">
         <slot name="header">
           <h2>{{ title }}</h2>
@@ -22,7 +28,7 @@
 </template>
 
 <script setup>
-import { computed, useSlots } from 'vue';
+import { computed, ref, useSlots } from 'vue';
 
 const props = defineProps({
   title: {
@@ -55,6 +61,31 @@ const emit = defineEmits(['close']);
 
 const slots = useSlots();
 
+// Input types that don't hold text someone typed. A search box only holds a query.
+const NON_TEXT_INPUTS = new Set([
+  'button',
+  'checkbox',
+  'color',
+  'file',
+  'hidden',
+  'image',
+  'radio',
+  'range',
+  'reset',
+  'search',
+  'submit',
+]);
+
+const contentRef = ref(null);
+
+// Whether the latest press started on the overlay. Selecting text and letting go past the modal's
+// edge also clicks the overlay, and shouldn't close it.
+let pressedOverlay = false;
+
+// Text fields typed in, and what each held before the typing started.
+const editedFields = new Set();
+const valuesBefore = new WeakMap();
+
 const hasFooter = computed(() => {
   return !!slots.footer;
 });
@@ -66,12 +97,58 @@ const contentStyle = computed(() => {
   };
 });
 
+function isTextField(element) {
+  if (element?.tagName === 'TEXTAREA') return true;
+  if (element?.tagName === 'INPUT') return !NON_TEXT_INPUTS.has(element.type);
+  return Boolean(element?.isContentEditable);
+}
+
+function valueOf(field) {
+  return field.isContentEditable ? field.textContent : field.value;
+}
+
+function rememberValue(event) {
+  if (isTextField(event.target) && !valuesBefore.has(event.target)) {
+    valuesBefore.set(event.target, valueOf(event.target));
+  }
+}
+
+function noteEdit(event) {
+  if (isTextField(event.target)) {
+    editedFields.add(event.target);
+  }
+}
+
+/**
+ * Whether the modal holds typed text that isn't saved: a field still in it whose text differs from
+ * what it held before typing. A field that's gone, such as an editor closed after saving, doesn't
+ * count.
+ */
+function hasUnsavedText() {
+  for (const field of editedFields) {
+    if (!contentRef.value?.contains(field)) {
+      editedFields.delete(field);
+    } else if (valueOf(field) !== (valuesBefore.has(field) ? valuesBefore.get(field) : '')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function handleClose() {
   emit('close');
 }
 
+function handleOverlayPress(event) {
+  pressedOverlay = event.target === event.currentTarget;
+}
+
+// A click outside closes the modal only when the press started outside too, and never while it
+// holds unsaved text. The close button still closes it.
 function handleOverlayClick() {
-  if (props.closeOnOverlayClick) {
+  const startedOutside = pressedOverlay;
+  pressedOverlay = false;
+  if (props.closeOnOverlayClick && startedOutside && !hasUnsavedText()) {
     handleClose();
   }
 }

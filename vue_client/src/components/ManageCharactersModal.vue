@@ -65,9 +65,21 @@ import { useToast } from '../composables/useToast';
 import { useDataCache } from '../composables/useDataCache';
 
 const props = defineProps({
+  // Anything with id, characterIds, and personaCharacterId: a story, or a chat with `adapter`.
   story: {
     type: Object,
     required: true,
+  },
+  // What the changes are made to, for messages: 'story' or 'chat'.
+  noun: {
+    type: String,
+    default: 'story',
+  },
+  // Overrides how characters are added, removed, and made the persona. Each receives a
+  // character id (or null to clear the persona) and returns a promise.
+  adapter: {
+    type: Object,
+    default: null,
   },
 });
 
@@ -140,8 +152,12 @@ async function toggleCharacter(characterId) {
 
     if (isCharacterInStory(characterId)) {
       // Remove character
-      await storiesAPI.removeCharacterFromStory(props.story.id, characterId);
-      toast.success('Character removed from story');
+      if (props.adapter) {
+        await props.adapter.removeCharacter(characterId);
+      } else {
+        await storiesAPI.removeCharacterFromStory(props.story.id, characterId);
+      }
+      toast.success(`Character removed from ${props.noun}`);
 
       // If this was the persona, that will be automatically unset
       if (isPersona(characterId)) {
@@ -149,11 +165,13 @@ async function toggleCharacter(characterId) {
       }
     } else {
       // Add character
-      const response = await charactersAPI.addToStory(props.story.id, characterId);
-      toast.success('Character added to story');
+      const response = props.adapter
+        ? await props.adapter.addCharacter(characterId)
+        : await charactersAPI.addToStory(props.story.id, characterId);
+      toast.success(`Character added to ${props.noun}`);
 
       // Show info if lorebook was auto-added
-      if (response.addedLorebookId) {
+      if (response?.addedLorebookId) {
         toast.info("Character's lorebook was automatically added");
       }
     }
@@ -175,11 +193,15 @@ async function togglePersona(characterId) {
 
     if (isPersona(characterId)) {
       // Remove persona
-      await storiesAPI.setPersona(props.story.id, null);
+      await (props.adapter
+        ? props.adapter.setPersona(null)
+        : storiesAPI.setPersona(props.story.id, null));
       toast.success('Persona removed');
     } else {
       // Set persona
-      await storiesAPI.setPersona(props.story.id, characterId);
+      await (props.adapter
+        ? props.adapter.setPersona(characterId)
+        : storiesAPI.setPersona(props.story.id, characterId));
       toast.success('Persona set');
     }
 

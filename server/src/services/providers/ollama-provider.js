@@ -9,6 +9,8 @@
 import { LLMProvider } from './base-provider.js';
 
 const DEFAULT_BASE_URL = 'http://localhost:11434';
+// Ollama's own default num_ctx, sent when a preset sets no context size.
+const DEFAULT_CONTEXT_TOKENS = 4096;
 
 /**
  * Normalize a user-provided baseURL so it works with or without a trailing `/api`.
@@ -106,6 +108,11 @@ export class OllamaProvider extends LLMProvider {
     this.password = config.password || '';
   }
 
+  /** The preset's context, or the num_ctx Ollama is sent when the preset has none. */
+  resolveContextTokens(preset) {
+    return preset.generationSettings?.maxContextTokens ?? DEFAULT_CONTEXT_TOKENS;
+  }
+
   getCapabilities() {
     return {
       streaming: true,
@@ -141,7 +148,7 @@ export class OllamaProvider extends LLMProvider {
 
     const ollamaOptions = {
       num_predict: options.maxTokens ?? 200,
-      num_ctx: options.maxContextTokens ?? 4096,
+      num_ctx: options.maxContextTokens ?? DEFAULT_CONTEXT_TOKENS,
       temperature: options.temperature ?? 0.7,
     };
 
