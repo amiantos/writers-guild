@@ -393,9 +393,11 @@ export async function runArchivist({
       }
     } catch (error) {
       if (signal?.aborted) throw error;
+      // An answer that wasn't JSON before the retry failed is still worth logging.
       throw new ArchivistRunError(inPart(part, describeError(error)), {
         part,
         found,
+        answer: answer ? answer.slice(0, 500) : undefined,
         cause: error,
       });
     }

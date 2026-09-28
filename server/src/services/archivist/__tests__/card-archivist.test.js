@@ -200,6 +200,20 @@ describe('runArchivist', () => {
     expect(provider.generate).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps an answer that was not JSON when the retry then fails', async () => {
+    const provider = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({ content: 'Sure! Here you go.' })
+        .mockRejectedValueOnce(new Error('fetch failed')),
+    };
+    const failure = await runArchivist({ provider, cast: [LAYLA], text: 'x', kind: 'chat' }).catch(
+      (error) => error,
+    );
+    expect(failure.message).toBe('fetch failed');
+    expect(failure.answer).toBe('Sure! Here you go.');
+  });
+
   it('says when the answer was empty, rather than not JSON', async () => {
     const provider = { generate: vi.fn(async () => ({ content: '' })) };
     await expect(
