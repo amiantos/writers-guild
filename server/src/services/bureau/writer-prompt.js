@@ -15,7 +15,7 @@
  * does, so they're never part of the story text.
  */
 
-import { DEFAULT_PROMPT_TEMPLATES } from '../default-presets.js';
+import { DEFAULT_PROMPT_TEMPLATES, DIRECTION_SENTENCE } from '../default-presets.js';
 import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
 import { chapterTime, describeBureauTime, describeTimePassing } from './bureau-time.js';
@@ -26,12 +26,6 @@ const PROMPT_OVERHEAD_TOKENS = 100;
 const DEFAULT_MAX_TOKENS = 8000;
 
 const SCENE_BREAK = '---';
-
-// Story mode's instruction template is its continue template plus the sentence that carries the
-// direction. A direction that opens a chapter has that sentence follow Start Story's template.
-const DIRECTION_SENTENCE = DEFAULT_PROMPT_TEMPLATES.instruction
-  .replace(DEFAULT_PROMPT_TEMPLATES.continue, '')
-  .trim();
 
 // Turns that are part of the chapter's text. Directions are instructions, so they go in the request.
 const CHAPTER_TEXT_KINDS = ['prose', 'scene_break', 'time_passes'];
@@ -327,6 +321,7 @@ export function buildWriterMessages({
 
   // The text is already fitted and preserved, so story mode neither cuts it nor preserves it again.
   // Its preserver still goes in, so a rewrite is told to keep the greeting's image markers.
+  // A direction that opens a chapter has story mode's direction sentence follow Start Story's template.
   const directedOpening = generationType === 'storyStarter' && Boolean(request.direction);
   const user = builder.buildGenerationPrompt(generationType, {
     storyContent: storySection,

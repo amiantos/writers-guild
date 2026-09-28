@@ -141,7 +141,7 @@ describe('generateWriterTurn', () => {
     });
     // Writing a passage and generating is story mode's Continue.
     expect(run.steps[0].request.messages[1].content).toMatch(
-      /^Here is the current story so far:\n\nTheo knocked\.\n\n---\n\nContinue the story naturally from where it left off\. Write the next 7 paragraphs/,
+      /^Here is the current story so far:\n\nTheo knocked\.\n\n---\n\nContinue the story naturally from where it left off\. Write the next 3 paragraphs/,
     );
   });
 
