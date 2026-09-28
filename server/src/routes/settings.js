@@ -48,7 +48,6 @@ router.put(
       defaultPersonaId,
       onboardingCompleted,
       experimentalChats,
-      experimentalBureaus,
       experimentalEnhancedStory,
       experimentalArchivist,
       experimentalContinuity,
@@ -88,9 +87,6 @@ router.put(
         onboardingCompleted: Boolean(onboardingCompleted),
       }),
       ...(experimentalChats !== undefined && { experimentalChats: Boolean(experimentalChats) }),
-      ...(experimentalBureaus !== undefined && {
-        experimentalBureaus: Boolean(experimentalBureaus),
-      }),
       ...(experimentalEnhancedStory !== undefined && {
         experimentalEnhancedStory: Boolean(experimentalEnhancedStory),
       }),

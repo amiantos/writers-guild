@@ -1,5 +1,5 @@
 /**
- * Prose Rendering for Bureau Turns
+ * Prose Rendering for Passages
  *
  * Ported from StoryEditor.vue's preview renderer, so story mode stays
  * untouched: paragraphs, line breaks, and inline images, sanitized with
@@ -7,7 +7,7 @@
  */
 
 import DOMPurify from 'dompurify';
-import { HTML_IMAGE_RE, MARKDOWN_IMAGE_RE } from '../../../../shared/regex-patterns.js';
+import { HTML_IMAGE_RE, MARKDOWN_IMAGE_RE } from '../../../shared/regex-patterns.js';
 
 /**
  * A turn's prose as HTML, before sanitizing.

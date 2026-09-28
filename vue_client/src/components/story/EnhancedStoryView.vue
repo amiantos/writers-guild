@@ -41,8 +41,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { displayText, splitPassages } from '../../composables/storyPassages';
-import { renderProse } from '../../composables/bureau/renderProse';
-import { followScroll } from '../../composables/bureau/followScroll';
+import { renderProse } from '../../composables/renderProse';
+import { followScroll } from '../../composables/followScroll';
 import PassageSeam from './PassageSeam.vue';
 import PassageBlock from './PassageBlock.vue';
 

@@ -1,20 +1,14 @@
 /**
  * Character Generator
  *
- * Bureau's character generator (bureau/character-generator.js) for the
- * character library: it writes a new card from an idea with a regular-mode
- * preset, optionally set in the world of a library lorebook.
+ * Writes a new card for the character library from an idea with a regular-mode
+ * preset, optionally set in the world of a library lorebook. The card's
+ * appearance block gives a stable description of how they look.
  *
  * Regular-mode providers can't be forced to call a tool, so the model is asked
  * for create_character's arguments as JSON in plain text and its answer is read
  * leniently, the way the card Archivist reads its suggestions.
  */
-
-import {
-  APPEARANCE_FIELDS,
-  CREATE_CHARACTER_TOOL,
-  generatedCard,
-} from './bureau/character-generator.js';
 
 // Room for the answer, and for a reasoning model's thinking before it.
 const MIN_ANSWER_TOKENS = 4000;
@@ -39,6 +33,72 @@ export const MAX_IDEA_CHARACTERS = 4000;
 // The longest card field a generated card may be saved with, and the most tags.
 export const MAX_CARD_FIELD_CHARACTERS = 20_000;
 const MAX_TAGS = 30;
+
+export const APPEARANCE_FIELDS = [
+  'age_range',
+  'build',
+  'hair',
+  'eyes',
+  'clothing',
+  'distinguishing_marks',
+];
+
+export const CREATE_CHARACTER_TOOL = {
+  name: 'create_character',
+  description: 'Write the card for the new character.',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: "The character's full name." },
+      description: {
+        type: 'string',
+        description:
+          'Who they are: background, situation, relationships, and what they want, in the third person. Two to four paragraphs.',
+      },
+      personality: {
+        type: 'string',
+        description: 'Temperament, habits, contradictions, and how they talk, in a few sentences.',
+      },
+      scenario: {
+        type: 'string',
+        description: 'Where a story finds them, in one or two sentences. Empty if nothing fits.',
+      },
+      first_message: {
+        type: 'string',
+        description: 'A short opening passage introducing them, in the third person past tense.',
+      },
+      example_dialogue: {
+        type: 'string',
+        description: 'Three or four lines of their dialogue that show their voice.',
+      },
+      tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Three to six short lowercase tags.',
+      },
+      appearance: {
+        type: 'object',
+        description: 'Stable details for picturing them. Empty strings where nothing fits.',
+        properties: Object.fromEntries(
+          APPEARANCE_FIELDS.map((field) => [field, { type: 'string' }]),
+        ),
+        required: APPEARANCE_FIELDS,
+        additionalProperties: false,
+      },
+    },
+    required: [
+      'name',
+      'description',
+      'personality',
+      'scenario',
+      'first_message',
+      'example_dialogue',
+      'tags',
+      'appearance',
+    ],
+    additionalProperties: false,
+  },
+};
 
 function text(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -75,6 +135,49 @@ export function lorebookWorld(lorebook) {
       : null,
     ...entries,
   ].filter(Boolean);
+}
+
+/**
+ * The V2 card for a generated character.
+ * @param {Object} character - create_character's arguments.
+ * @param {Object} options
+ * @param {string} options.creatorNotes
+ * @param {string} [options.name] - Overrides the generated name.
+ * @param {string[]} [options.tags] - Tags added to the generated ones.
+ */
+export function generatedCard(character, { creatorNotes, name = '', tags: extraTags = [] }) {
+  const finalName = text(name) || text(character.name);
+  if (!finalName) {
+    throw new Error('The generated character has no name');
+  }
+  const appearance = Object.fromEntries(
+    APPEARANCE_FIELDS.map((field) => [field, text(character.appearance?.[field])]),
+  );
+  const tags = (Array.isArray(character.tags) ? character.tags : [])
+    .map((tag) => text(tag).toLowerCase())
+    .filter(Boolean);
+
+  return {
+    spec: 'chara_card_v2',
+    spec_version: '2.0',
+    data: {
+      name: finalName,
+      description: text(character.description),
+      personality: text(character.personality),
+      scenario: text(character.scenario),
+      first_mes: text(character.first_message),
+      mes_example: text(character.example_dialogue),
+      creator_notes: creatorNotes,
+      system_prompt: '',
+      post_history_instructions: '',
+      alternate_greetings: [],
+      character_book: null,
+      tags: [...new Set([...tags, ...extraTags])],
+      creator: '',
+      character_version: '1.0',
+      extensions: { bureau_appearance: appearance },
+    },
+  };
 }
 
 /** The JSON the model is asked for, one line per create_character field. */

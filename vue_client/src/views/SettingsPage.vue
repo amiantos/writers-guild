@@ -88,17 +88,6 @@
             </div>
             <div class="checkbox-group">
               <label class="checkbox-label">
-                <input type="checkbox" v-model="settings.experimentalBureaus" />
-                <span>Bureaus</span>
-              </label>
-              <p class="help-text">
-                Adds a Bureaus tab: ongoing stories written in chapters, with characters who
-                remember, change over time, and can be messaged between chapters. Uses DeepSeek.
-                Turning this off only hides the tab; your Bureaus are kept.
-              </p>
-            </div>
-            <div class="checkbox-group">
-              <label class="checkbox-label">
                 <input type="checkbox" v-model="settings.experimentalEnhancedStory" />
                 <span>Enhanced Story Mode</span>
               </label>
@@ -243,7 +232,6 @@ const settings = ref({
   lorebookRecursionDepth: 3,
   lorebookEnableRecursion: true,
   experimentalChats: false,
-  experimentalBureaus: false,
   experimentalEnhancedStory: false,
   experimentalArchivist: false,
   experimentalContinuity: false,
@@ -309,7 +297,6 @@ async function loadSettings() {
       lorebookRecursionDepth: serverSettings.lorebookRecursionDepth ?? 3,
       lorebookEnableRecursion: serverSettings.lorebookEnableRecursion ?? true,
       experimentalChats: serverSettings.experimentalChats ?? false,
-      experimentalBureaus: serverSettings.experimentalBureaus ?? false,
       experimentalEnhancedStory: serverSettings.experimentalEnhancedStory ?? false,
       experimentalArchivist: serverSettings.experimentalArchivist ?? false,
       experimentalContinuity: serverSettings.experimentalContinuity ?? false,

@@ -211,9 +211,61 @@ async function save() {
 onBeforeUnmount(() => controller?.abort());
 </script>
 
-<style scoped src="./bureau/bureau-ui.css"></style>
-
 <style scoped>
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group > label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.text-input,
+.textarea-input,
+.select-input {
+  /* Native controls follow the app's light or dark theme. */
+  color-scheme: light dark;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.625rem 0.75rem;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  outline: none;
+}
+
+.text-input:focus,
+.textarea-input:focus,
+.select-input:focus {
+  border-color: var(--accent-primary);
+}
+
+.textarea-input {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.help-text {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

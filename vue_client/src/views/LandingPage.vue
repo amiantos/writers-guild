@@ -173,11 +173,6 @@
               @set-default="setDefaultPreset"
             />
           </template>
-
-          <!-- Bureaus Tab (experimental) -->
-          <template v-if="bureausEnabled" #tab-bureaus>
-            <BureausTab />
-          </template>
         </Tabs>
       </div>
     </main>
@@ -274,7 +269,6 @@ import CreateLorebookModal from '../components/CreateLorebookModal.vue';
 import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
 import ProviderSelectionModal from '../components/ProviderSelectionModal.vue';
-import BureausTab from '../components/bureau/BureausTab.vue';
 import ChatsTable from '../components/chat/ChatsTable.vue';
 import { chatsAPI } from '../services/chatsApi';
 
@@ -354,10 +348,9 @@ const recentCharacters = computed(() => {
     .filter((char) => char != null);
 });
 
-// Chats and Bureaus are experimental: their tabs show once they're turned on in Settings.
+// Chats are experimental: their tab shows once they're turned on in Settings.
 const chatsEnabled = ref(false);
-const bureausEnabled = ref(false);
-const EXPERIMENTAL_TABS = ['chats', 'bureaus'];
+const EXPERIMENTAL_TABS = ['chats'];
 
 // Tabs configuration
 const tabs = computed(() => [
@@ -366,7 +359,6 @@ const tabs = computed(() => [
   { key: 'characters', label: 'Characters', icon: 'fas fa-users' },
   { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' },
   { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' },
-  ...(bureausEnabled.value ? [{ key: 'bureaus', label: 'Bureaus', icon: 'fas fa-landmark' }] : []),
 ]);
 
 // Active tab with localStorage persistence
@@ -387,13 +379,10 @@ async function loadExperimentalFeatures() {
   try {
     const { settings } = await settingsAPI.get();
     chatsEnabled.value = Boolean(settings?.experimentalChats);
-    bureausEnabled.value = Boolean(settings?.experimentalBureaus);
   } catch (error) {
     console.error('Failed to load settings:', error);
   }
-  const savedTabEnabled =
-    (savedTab === 'chats' && chatsEnabled.value) ||
-    (savedTab === 'bureaus' && bureausEnabled.value);
+  const savedTabEnabled = savedTab === 'chats' && chatsEnabled.value;
   if (savedTabEnabled && activeTab.value === 'stories') {
     activeTab.value = savedTab;
   }
