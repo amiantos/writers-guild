@@ -45,11 +45,6 @@ function createApp() {
   return app;
 }
 
-async function setGenerator(on) {
-  const settings = await storage.getSettings();
-  await storage.saveSettings({ ...settings, experimentalCharacterGenerator: on });
-}
-
 function answerWith(character) {
   return vi
     .spyOn(DeepSeekProvider.prototype, 'generate')
@@ -57,16 +52,7 @@ function answerWith(character) {
 }
 
 describe('character generator routes', () => {
-  it('answer 404 while the experimental toggle is off', async () => {
-    await setGenerator(false);
-    const res = await request(createApp())
-      .post('/api/character-generator/generate')
-      .send({ idea: 'A pub owner', presetId });
-    expect(res.status).toBe(404);
-  });
-
   it("generate a card with the chosen preset, in a lorebook's world, without saving it", async () => {
-    await setGenerator(true);
     await storage.saveLorebook('saltmere', {
       name: 'Saltmere',
       entries: [{ keys: ['The Gull'], content: 'The harbor pub.', enabled: true }],
@@ -87,7 +73,6 @@ describe('character generator routes', () => {
   });
 
   it('reject a missing idea, an unknown lorebook, and a failed generation', async () => {
-    await setGenerator(true);
     const app = createApp();
     const url = '/api/character-generator/generate';
     expect((await request(app).post(url).send({ presetId })).status).toBe(400);
@@ -101,7 +86,6 @@ describe('character generator routes', () => {
   });
 
   it('save the edited card to the library as a new character', async () => {
-    await setGenerator(true);
     const res = await request(createApp())
       .post('/api/character-generator/save')
       .send({ card: { data: { name: 'Ines', description: 'Runs the pub.', creator: 'someone' } } });

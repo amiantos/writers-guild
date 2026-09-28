@@ -1,10 +1,9 @@
 /**
  * Character Generator API Routes
  *
- * The experimental character generator for the library: it writes a card from
+ * The character generator for the library: it writes a card from
  * an idea with a preset, and saves the card once the reader has looked it over
- * (see services/character-generator.js). Every route answers 404 while the
- * generator's experimental toggle is off.
+ * (see services/character-generator.js).
  */
 
 import express from 'express';
@@ -29,16 +28,6 @@ router.use((req, res, next) => {
   }
   next();
 });
-
-router.use(
-  asyncHandler(async (req, res, next) => {
-    const settings = await storage.getSettings();
-    if (!settings?.experimentalCharacterGenerator) {
-      throw new AppError('The character generator is turned off', 404);
-    }
-    next();
-  }),
-);
 
 function bodyString(body, field) {
   const value = body?.[field];

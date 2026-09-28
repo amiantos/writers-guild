@@ -106,8 +106,7 @@ export class SqliteStorageService {
           experimental_chats = @experimentalChats,
           experimental_bureaus = @experimentalBureaus,
           experimental_enhanced_story = @experimentalEnhancedStory,
-          experimental_archivist = @experimentalArchivist,
-          experimental_character_generator = @experimentalCharacterGenerator
+          experimental_archivist = @experimentalArchivist
         WHERE id = 1
       `),
 
@@ -479,7 +478,6 @@ export class SqliteStorageService {
       experimentalBureaus: !!row.experimental_bureaus,
       experimentalEnhancedStory: !!row.experimental_enhanced_story,
       experimentalArchivist: !!row.experimental_archivist,
-      experimentalCharacterGenerator: !!row.experimental_character_generator,
     };
   }
 
@@ -502,7 +500,6 @@ export class SqliteStorageService {
       experimentalBureaus: settings.experimentalBureaus ? 1 : 0,
       experimentalEnhancedStory: settings.experimentalEnhancedStory ? 1 : 0,
       experimentalArchivist: settings.experimentalArchivist ? 1 : 0,
-      experimentalCharacterGenerator: settings.experimentalCharacterGenerator ? 1 : 0,
     });
     return settings;
   }

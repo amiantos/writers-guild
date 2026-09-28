@@ -91,11 +91,7 @@
                 <button class="btn btn-primary" @click="showCreateCharacterModal = true">
                   <i class="fas fa-plus"></i> Create
                 </button>
-                <button
-                  v-if="characterGeneratorEnabled"
-                  class="btn btn-secondary"
-                  @click="showCharacterGeneratorModal = true"
-                >
+                <button class="btn btn-secondary" @click="showCharacterGeneratorModal = true">
                   <i class="fas fa-wand-magic-sparkles"></i> Generate
                 </button>
                 <button class="btn btn-secondary" @click="showImportCharacterModal = true">
@@ -204,7 +200,7 @@
       @created="handleCharacterCreated"
     />
 
-    <!-- Character Generator Modal (experimental) -->
+    <!-- Character Generator Modal -->
     <CharacterGeneratorModal
       v-if="showCharacterGeneratorModal"
       :presets="presets"
@@ -361,8 +357,6 @@ const recentCharacters = computed(() => {
 // Chats and Bureaus are experimental: their tabs show once they're turned on in Settings.
 const chatsEnabled = ref(false);
 const bureausEnabled = ref(false);
-// The character generator is experimental too: its Generate button shows once it's turned on.
-const characterGeneratorEnabled = ref(false);
 const EXPERIMENTAL_TABS = ['chats', 'bureaus'];
 
 // Tabs configuration
@@ -394,7 +388,6 @@ async function loadExperimentalFeatures() {
     const { settings } = await settingsAPI.get();
     chatsEnabled.value = Boolean(settings?.experimentalChats);
     bureausEnabled.value = Boolean(settings?.experimentalBureaus);
-    characterGeneratorEnabled.value = Boolean(settings?.experimentalCharacterGenerator);
   } catch (error) {
     console.error('Failed to load settings:', error);
   }

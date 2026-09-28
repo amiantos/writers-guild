@@ -51,7 +51,6 @@ router.put(
       experimentalBureaus,
       experimentalEnhancedStory,
       experimentalArchivist,
-      experimentalCharacterGenerator,
     } = req.body;
 
     // Get current settings
@@ -96,9 +95,6 @@ router.put(
       }),
       ...(experimentalArchivist !== undefined && {
         experimentalArchivist: Boolean(experimentalArchivist),
-      }),
-      ...(experimentalCharacterGenerator !== undefined && {
-        experimentalCharacterGenerator: Boolean(experimentalCharacterGenerator),
       }),
     };
 
