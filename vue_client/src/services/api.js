@@ -863,8 +863,12 @@ export const archivistAPI = {
     return request(`/archivist/${kind}/${sourceId}`);
   },
 
-  async run(kind, sourceId, { signal } = {}) {
-    return request(`/archivist/${kind}/${sourceId}/run`, { method: 'POST', signal });
+  async run(kind, sourceId) {
+    return request(`/archivist/${kind}/${sourceId}/run`, { method: 'POST' });
+  },
+
+  async cancel(kind, sourceId) {
+    return request(`/archivist/${kind}/${sourceId}/cancel`, { method: 'POST' });
   },
 
   /** @param {Array<{id: number, accept: boolean, replace?: string}>} decisions */

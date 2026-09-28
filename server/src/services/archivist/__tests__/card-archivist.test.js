@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
+  ArchivistRunError,
+  describeError,
   applyEdit,
   buildArchivistPrompt,
   castLabels,
@@ -197,6 +199,39 @@ describe('runArchivist', () => {
     ).rejects.toThrow(/JSON/);
     expect(provider.generate).toHaveBeenCalledTimes(2);
   });
+
+  it('keeps an answer that was not JSON when the retry then fails', async () => {
+    const provider = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({ content: 'Sure! Here you go.' })
+        .mockRejectedValueOnce(new Error('fetch failed')),
+    };
+    const failure = await runArchivist({ provider, cast: [LAYLA], text: 'x', kind: 'chat' }).catch(
+      (error) => error,
+    );
+    expect(failure.message).toBe('fetch failed');
+    expect(failure.answer).toBe('Sure! Here you go.');
+  });
+
+  it('says when the answer was empty, rather than not JSON', async () => {
+    const provider = { generate: vi.fn(async () => ({ content: '' })) };
+    await expect(
+      runArchivist({ provider, cast: [LAYLA], text: 'x', kind: 'chat' }),
+    ).rejects.toThrow(/answer was empty/);
+  });
+});
+
+describe('describeError', () => {
+  it('adds the causes a failed fetch keeps under its message', () => {
+    const error = new TypeError('fetch failed', {
+      cause: new Error('Headers Timeout Error', { cause: 'UND_ERR_HEADERS_TIMEOUT' }),
+    });
+    expect(describeError(error)).toBe(
+      'fetch failed (Headers Timeout Error: UND_ERR_HEADERS_TIMEOUT)',
+    );
+    expect(describeError(new Error('Plain'))).toBe('Plain');
+  });
 });
 
 describe('characters who share a name', () => {
@@ -283,6 +318,42 @@ describe('the context a run fits in', () => {
     // The newest are the ones shown.
     const last = provider.generate.mock.calls.at(-1)[1];
     expect(last).toContain(`Pass ${pass - 1}, change 19`);
+  });
+
+  it('names the part that failed, and hands back what earlier parts found', async () => {
+    const provider = {
+      resolveContextTokens: () => 4096,
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: JSON.stringify({
+            suggestions: [
+              {
+                character: 'Layla',
+                field: 'description',
+                find: 'She is single',
+                replace: 'She is dating Sam',
+              },
+            ],
+          }),
+        })
+        .mockRejectedValue(new Error('Context length exceeded')),
+    };
+    const parts = [];
+    const text = Array.from({ length: 20 }, (_, i) => `${i} ${'word '.repeat(200)}`).join('\n\n');
+    const failure = await runArchivist({
+      provider,
+      cast: [LAYLA],
+      text,
+      kind: 'story',
+      onPart: (part) => parts.push(part),
+    }).catch((error) => error);
+
+    expect(failure).toBeInstanceOf(ArchivistRunError);
+    expect(failure.message).toMatch(/^Part 2 of \d+: Context length exceeded$/);
+    expect(failure.found.map((s) => s.replace)).toEqual(['She is dating Sam']);
+    expect(parts.map((part) => part.index)).toEqual([0, 1]);
+    expect(parts[0].count).toBeGreaterThan(2);
   });
 
   it("refuses when the cards alone don't leave room for the story", async () => {

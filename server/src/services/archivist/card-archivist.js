@@ -271,6 +271,36 @@ function newestThatFit(found) {
 }
 
 /**
+ * A run that stopped partway. `found` holds what the passes before the failing one suggested, so
+ * they needn't be lost with it.
+ */
+export class ArchivistRunError extends Error {
+  constructor(message, { part, found, answer, cause }) {
+    super(message, { cause });
+    this.name = 'ArchivistRunError';
+    this.part = part;
+    this.found = found;
+    // The start of the model's last answer, for the log, when it wasn't what was asked for.
+    this.answer = answer;
+  }
+}
+
+/**
+ * An error's message with the causes under it, since a failed fetch only says "fetch failed" and
+ * keeps the reason (a timeout, a closed connection) in its cause.
+ */
+export function describeError(error) {
+  const messages = [];
+  for (let current = error; current && messages.length < 4; current = current.cause) {
+    const message = current instanceof Error ? current.message : String(current);
+    if (message && !messages.includes(message)) messages.push(message);
+  }
+  if (messages.length === 0) return 'Unknown error';
+  const [first, ...causes] = messages;
+  return causes.length > 0 ? `${first} (${causes.join(': ')})` : first;
+}
+
+/**
  * Read a story or chat and return the new suggestions for its cast.
  * @param {Object} params
  * @param {Object} params.provider - A regular-mode provider.
@@ -280,8 +310,20 @@ function newestThatFit(found) {
  * @param {'story'|'chat'} params.kind
  * @param {Array<Object>} [params.existing] - Suggestions already kept for this source.
  * @param {AbortSignal} [params.signal]
+ * @param {(part: {index: number, count: number, characters: number}) => void} [params.onPart] -
+ *   Called as each pass starts.
+ * @throws {ArchivistRunError} When a pass fails, unless the run was cancelled.
  */
-export async function runArchivist({ provider, preset, cast, text, kind, existing = [], signal }) {
+export async function runArchivist({
+  provider,
+  preset,
+  cast,
+  text,
+  kind,
+  existing = [],
+  signal,
+  onPart,
+}) {
   const settings = preset?.generationSettings ?? {};
   // AI Horde works out its context from its workers, so this may be a promise.
   const contextTokens =
@@ -328,6 +370,7 @@ export async function runArchivist({ provider, preset, cast, text, kind, existin
   const chunks = chunkText(text, budget);
 
   for (const [index, chunk] of chunks.entries()) {
+    signal?.throwIfAborted();
     const pending = [...existing.filter((s) => s.status === 'proposed'), ...newestThatFit(found)];
     const { system, user } = buildArchivistPrompt({
       cast,
@@ -338,15 +381,43 @@ export async function runArchivist({ provider, preset, cast, text, kind, existin
       rejected,
     });
 
+    const part = { index, count: chunks.length, characters: chunk.length };
+    onPart?.(part);
     let parsed = null;
-    for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
-      const result = await provider.generate(system, user, options);
-      parsed = parseSuggestions(result?.content);
+    let answer = '';
+    try {
+      for (let attempt = 0; attempt < 2 && parsed === null; attempt++) {
+        const result = await provider.generate(system, user, options);
+        answer = String(result?.content ?? '');
+        parsed = parseSuggestions(answer);
+      }
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      // An answer that wasn't JSON before the retry failed is still worth logging.
+      throw new ArchivistRunError(inPart(part, describeError(error)), {
+        part,
+        found,
+        answer: answer ? answer.slice(0, 500) : undefined,
+        cause: error,
+      });
     }
     if (parsed === null) {
-      throw new Error("The Archivist's answer wasn't the JSON it was asked for. Try again.");
+      const problem = answer.trim()
+        ? "The Archivist's answer wasn't the JSON it was asked for."
+        : "The Archivist's answer was empty. A reasoning model may have used all " +
+          `${answerTokens} tokens it had for thinking.`;
+      throw new ArchivistRunError(inPart(part, problem), {
+        part,
+        found,
+        answer: answer.slice(0, 500),
+      });
     }
     found.push(...validateSuggestions(parsed, cast, [...existing, ...found]));
   }
   return found;
+}
+
+/** A pass's failure, naming the pass when there's more than one. */
+function inPart(part, message) {
+  return part.count > 1 ? `Part ${part.index + 1} of ${part.count}: ${message}` : message;
 }
