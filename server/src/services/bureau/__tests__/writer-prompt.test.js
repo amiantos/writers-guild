@@ -145,7 +145,7 @@ describe('buildWriterMessages', () => {
       });
       expect(system).toBe(expected.system);
       expect(user).toBe(expected.user);
-      expect(user).toContain("Write the next part of the story from Mara's perspective.");
+      expect(user).toContain('Write the next part of the story focusing on Mara:');
     });
 
     it('for an empty chapter, as Start Story', () => {
@@ -174,7 +174,9 @@ describe('buildWriterMessages', () => {
       });
       expect(system).toBe(expected.system);
       expect(user).toBe(expected.user);
-      expect(user).toMatch(/^Rewrite the following text to be in third person/);
+      expect(user).toMatch(
+        /^Rewrite the following text to follow these perspective rules:\n\nWrite only in third-person past tense perspective\./,
+      );
     });
   });
 
@@ -232,7 +234,7 @@ describe('buildWriterMessages', () => {
     expect(system).toContain('=== CHARACTER PROFILES ===');
     expect(system).toContain('Character 1: Mara');
     expect(system).toContain('Character 2: Ivo');
-    expect(user).toContain("Write the next part of the story from Ivo's perspective.");
+    expect(user).toContain('Write the next part of the story focusing on Ivo:');
   });
 
   it("still describes anyone else marked as a reader's character", () => {

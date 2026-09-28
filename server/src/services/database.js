@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { BUREAU_DB_FILENAME } from './bureau/bureau-db.js';
 
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 17;
 
 /**
  * Initialize the SQLite database with schema
@@ -109,6 +109,10 @@ function createAllTables(db) {
       passages TEXT DEFAULT '[]',
       persona_character_id TEXT,
       config_preset_id TEXT,
+      -- Narrative perspective (shared/perspective.js); null is the default, third person past
+      perspective TEXT,
+      perspective_tense TEXT,
+      perspective_character_id TEXT,
       created TEXT NOT NULL,
       modified TEXT NOT NULL
     );
@@ -691,6 +695,16 @@ function migrateSchema(db, fromVersion, dataRoot) {
     // Migration to version 16: The Archivist's suggested Continuity updates
     if (fromVersion < 16) {
       createContinuitySuggestionTables(db);
+    }
+
+    // Migration to version 17: Each story's narrative perspective
+    if (fromVersion < 17) {
+      const storyColumns = db.prepare('PRAGMA table_info(stories)').all();
+      for (const column of ['perspective', 'perspective_tense', 'perspective_character_id']) {
+        if (!storyColumns.some((existing) => existing.name === column)) {
+          db.exec(`ALTER TABLE stories ADD COLUMN ${column} TEXT`);
+        }
+      }
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

@@ -609,7 +609,7 @@ describe('generateWriterTurn', () => {
     // Everyone's card stays in the prompt; only the instruction changes.
     expect(system).toContain('Character 1: Mara');
     expect(system).toContain('Character 2: Ivo');
-    expect(user).toContain("Write the next part of the story from Ivo's perspective.");
+    expect(user).toContain('Write the next part of the story focusing on Ivo:');
     const run = stores.bureaus.getRun(bureau.id, turn.runId);
     expect(run.steps[0].request.character).toEqual(character);
     const turns = stores.stories.listTurns(story.id);

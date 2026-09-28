@@ -1,12 +1,12 @@
 <template>
-  <Modal title="Rewrite to Third Person?" max-width="500px" @close="handleSkip">
+  <Modal title="Rewrite to Story Perspective?" max-width="500px" @close="handleSkip">
     <div class="prompt-content">
       <p class="prompt-message">
-        Would you like to rewrite this text to third-person narrative style?
+        Would you like to rewrite this text in the story's narrative perspective?
       </p>
       <p class="prompt-description">
-        This will convert the text to third-person past tense, which is the recommended format for
-        story writing in Writers Guild.
+        This will convert the text to {{ perspective }}. You can change the story's perspective in
+        Edit Story.
       </p>
       <div class="dont-ask-checkbox">
         <input type="checkbox" id="dont-ask-third-person" v-model="dontAskAgain" />
@@ -27,6 +27,14 @@
 import { ref } from 'vue';
 import Modal from './Modal.vue';
 import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys';
+
+defineProps({
+  // How the story is told, from describePerspective() in shared/perspective.js
+  perspective: {
+    type: String,
+    default: 'third person, past tense',
+  },
+});
 
 const emit = defineEmits(['close', 'rewrite', 'skip']);
 

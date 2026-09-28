@@ -20,8 +20,9 @@
         <p class="field-description">
           Granular template with full control. Variables:
           <code v-text="'{{character.name}}'"></code>,
-          <code v-text="'{{persona.description}}'"></code>, etc. Conditionals:
-          <code v-text="'{{#if variable}}...{{/if}}'"></code>. Loops:
+          <code v-text="'{{persona.description}}'"></code>,
+          <code v-text="'{{perspective}}'"></code> (the story's narrative perspective), etc.
+          Conditionals: <code v-text="'{{#if variable}}...{{/if}}'"></code>. Loops:
           <code v-text="'{{#each array}}...{{/each}}'"></code>. See default for complete reference.
         </p>
         <textarea
@@ -107,7 +108,7 @@
       <!-- Rewrite Template -->
       <div class="form-group">
         <div class="label-row">
-          <label for="templateRewrite">Rewrite to Third Person Template</label>
+          <label for="templateRewrite">Rewrite to Story Perspective Template</label>
           <button
             type="button"
             class="btn-toggle"
@@ -116,6 +117,9 @@
             {{ isCustomized('rewriteThirdPerson') ? 'Use Default' : 'Customize' }}
           </button>
         </div>
+        <p class="field-description">
+          <code v-text="'{{perspective}}'"></code> is the story's perspective, set in Edit Story.
+        </p>
         <textarea
           v-if="isCustomized('rewriteThirdPerson')"
           id="templateRewrite"

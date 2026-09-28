@@ -35,22 +35,31 @@ describe('ThirdPersonPromptModal', () => {
     it('should render the modal with correct title', () => {
       const wrapper = mount(ThirdPersonPromptModal);
 
-      expect(wrapper.findComponent(Modal).props('title')).toBe('Rewrite to Third Person?');
+      expect(wrapper.findComponent(Modal).props('title')).toBe('Rewrite to Story Perspective?');
     });
 
     it('should display the prompt message', () => {
       const wrapper = mount(ThirdPersonPromptModal);
 
       expect(wrapper.find('.prompt-message').text()).toBe(
-        'Would you like to rewrite this text to third-person narrative style?',
+        "Would you like to rewrite this text in the story's narrative perspective?",
       );
     });
 
     it('should display the description', () => {
       const wrapper = mount(ThirdPersonPromptModal);
 
-      expect(wrapper.find('.prompt-description').text()).toContain('third-person past tense');
-      expect(wrapper.find('.prompt-description').text()).toContain('recommended format');
+      expect(wrapper.find('.prompt-description').text()).toContain('third person, past tense');
+    });
+
+    it("should describe the story's perspective when given one", () => {
+      const wrapper = mount(ThirdPersonPromptModal, {
+        props: { perspective: 'first person, present tense, narrated by Layla' },
+      });
+
+      expect(wrapper.find('.prompt-description').text()).toContain(
+        'first person, present tense, narrated by Layla',
+      );
     });
 
     it('should render the checkbox with proper accessibility attributes', () => {

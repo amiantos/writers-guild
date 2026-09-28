@@ -14,7 +14,7 @@
     </button>
     <button class="overflow-menu-item" @click="$emit('rewrite')">
       <i class="fas fa-repeat"></i>
-      <span>Rewrite to Third Person</span>
+      <span>Rewrite to Story Perspective</span>
     </button>
     <button class="overflow-menu-item" @click="$emit('clear')">
       <i class="fas fa-eraser"></i>

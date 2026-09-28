@@ -138,6 +138,47 @@ describe('Stories API Routes - CRUD Operations', () => {
   });
 
   describe('PUT /:id - Update Story Metadata', () => {
+    it('saves, clears and validates the narrative perspective', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Told by Layla' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({ perspective: 'first', perspectiveTense: 'present', perspectiveCharacterId: 'c1' })
+        .expect(200);
+      let story = (await request(app).get(`/api/stories/${storyId}`).expect(200)).body.story;
+      expect(story.perspective).toBe('first');
+      expect(story.perspectiveTense).toBe('present');
+      expect(story.perspectiveCharacterId).toBe('c1');
+
+      // A title-only update leaves the perspective alone
+      await request(app).put(`/api/stories/${storyId}`).send({ title: 'Renamed' }).expect(200);
+      story = (await request(app).get(`/api/stories/${storyId}`).expect(200)).body.story;
+      expect(story.perspective).toBe('first');
+
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({ perspective: null, perspectiveTense: null, perspectiveCharacterId: null })
+        .expect(200);
+      story = (await request(app).get(`/api/stories/${storyId}`).expect(200)).body.story;
+      expect(story.perspective).toBeNull();
+      expect(story.perspectiveTense).toBeNull();
+      expect(story.perspectiveCharacterId).toBeNull();
+
+      await request(app).put(`/api/stories/${storyId}`).send({ perspective: 'fourth' }).expect(400);
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({ perspectiveTense: 'future' })
+        .expect(400);
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({ perspectiveCharacterId: 7 })
+        .expect(400);
+    });
+
     it('should update story title', async () => {
       // Create story via API
       const createResponse = await request(app)
