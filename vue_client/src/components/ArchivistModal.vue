@@ -144,8 +144,12 @@ const decisions = reactive({});
 const editing = reactive({});
 const edited = reactive({});
 let closed = false;
-// When the last read whose ending was already shown started, so it isn't shown again.
+// The id of the newest read seen, and of the last one whose ending is already shown (or that
+// came before the read this modal just started), so it isn't taken for a new one.
+let latestRun = null;
 let settledRun = null;
+// Whether this modal asked for a read that the server hasn't been seen running yet.
+let awaitingStart = false;
 
 const busy = computed(() => running.value || applying.value);
 
@@ -231,10 +235,16 @@ async function load() {
   try {
     const response = await archivistAPI.list(props.kind, props.sourceId);
     const run = response.run;
-    if (response.running && run?.startedAt !== settledRun) {
+    const id = run?.id ?? null;
+    latestRun = id;
+    if (response.running && (id === null || id !== settledRun)) {
       running.value = true;
+      awaitingStart = false;
       progress.value = run?.part ?? null;
       show(response.suggestions);
+      schedule();
+    } else if (running.value && awaitingStart && id === settledRun) {
+      // The read just asked for hasn't started on the server yet.
       schedule();
     } else if (running.value) {
       finish(run, response.suggestions);
@@ -244,7 +254,10 @@ async function load() {
       if (run?.error) failure.value = run.error;
     }
   } catch (error) {
-    if (running.value) finish({ error: error.message }, null);
+    // A check that fails while a read runs is tried again, unless the source or the Archivist
+    // is gone.
+    if (running.value && error.status === 404) finish({ error: error.message }, null);
+    else if (running.value) schedule();
     else toast.error('Failed to load suggestions: ' + error.message);
   } finally {
     loading.value = false;
@@ -255,10 +268,11 @@ async function load() {
 function finish(run, list) {
   if (!running.value) return;
   running.value = false;
+  awaitingStart = false;
   progress.value = null;
   clearTimeout(pollTimer);
   pollTimer = null;
-  settledRun = run?.startedAt ?? null;
+  settledRun = run?.id ?? null;
   if (list) show(list);
   if (run?.cancelled) return;
   hasRun.value = true;
@@ -274,6 +288,8 @@ async function read() {
   running.value = true;
   progress.value = null;
   failure.value = null;
+  settledRun = latestRun;
+  awaitingStart = true;
   schedule();
   try {
     const response = await archivistAPI.run(props.kind, props.sourceId);
@@ -281,7 +297,7 @@ async function read() {
   } catch (error) {
     // The server's own answer says how the read ended. Anything else (a proxy or the browser
     // giving up on a long wait, or another read already running) leaves the checks to find out.
-    if (error.run) finish(error.run, null);
+    if (error.run) finish(error.run, error.suggestions ?? null);
     else if (!error.status || error.status >= 500 || error.status === 409) return;
     else finish({ error: error.message }, null);
   }

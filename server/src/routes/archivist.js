@@ -35,6 +35,9 @@ let suggestions;
 // it, or how the last one ended. A read goes on when its request drops (a proxy or browser giving
 // up on a long wait), so the reader can still learn how it ended by asking again.
 const runs = new Map();
+// Finished reads remembered at most, the oldest forgotten first.
+const MAX_FINISHED_RUNS = 100;
+let lastRunId = 0;
 // The latest card save queued per character, so two reviews can't overwrite each other's edits.
 const cardLocks = new Map();
 
@@ -176,8 +179,8 @@ async function pendingFor(kind, sourceId) {
 /** A read as the client sees it. */
 function runView(run) {
   if (!run) return null;
-  const { running, part, added, error, cancelled, startedAt, finishedAt } = run;
-  return { running, part, added, error, cancelled, startedAt, finishedAt };
+  const { id, running, part, added, error, cancelled, startedAt, finishedAt } = run;
+  return { id, running, part, added, error, cancelled, startedAt, finishedAt };
 }
 
 /** Log a failed read with everything the reader's message leaves out. */
@@ -252,6 +255,19 @@ async function read(kind, sourceId, run) {
   } finally {
     run.running = false;
     run.finishedAt = new Date().toISOString();
+    delete run.controller;
+    forgetOldRuns();
+  }
+}
+
+/** Forget the oldest finished reads past the most kept. The map keeps the order reads started. */
+function forgetOldRuns() {
+  let finished = [...runs.values()].filter((run) => !run.running).length;
+  for (const [key, run] of runs) {
+    if (finished <= MAX_FINISHED_RUNS) break;
+    if (run.running) continue;
+    runs.delete(key);
+    finished -= 1;
   }
 }
 
@@ -313,6 +329,7 @@ router.post(
       throw new AppError('The Archivist is already reading this', 409);
     }
     const run = {
+      id: ++lastRunId,
       running: true,
       part: null,
       added: 0,
@@ -322,13 +339,19 @@ router.post(
       finishedAt: null,
       controller: new AbortController(),
     };
+    // Set anew, so the map's order is the order reads started.
+    runs.delete(key);
     runs.set(key, run);
     await read(kind, sourceId, run);
     // A source that isn't there has no read to remember.
     if (run.status === 404) runs.delete(key);
     if (res.destroyed) return;
     if (run.error) {
-      throw new AppError(run.error, run.status ?? 500, { run: runView(run) });
+      // What earlier parts found is kept, so the list comes too.
+      throw new AppError(run.error, run.status ?? 500, {
+        run: runView(run),
+        suggestions: await pendingFor(kind, sourceId),
+      });
     }
     res.json({
       added: run.added,
@@ -345,7 +368,7 @@ router.post(
     const { kind, sourceId } = req.params;
     const run = runs.get(`${kind}:${sourceId}`);
     const cancelled = Boolean(run?.running);
-    if (cancelled) run.controller.abort();
+    if (cancelled) run.controller?.abort();
     res.json({ cancelled });
   }),
 );

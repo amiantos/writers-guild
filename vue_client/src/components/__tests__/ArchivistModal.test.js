@@ -164,12 +164,12 @@ describe('ArchivistModal', () => {
         .mockResolvedValueOnce({
           suggestions: [],
           running: true,
-          run: { running: true, part: { index: 1, count: 3 }, startedAt: 't1' },
+          run: { running: true, part: { index: 1, count: 3 }, id: 1 },
         })
         .mockResolvedValueOnce({
           suggestions: [suggestion(1)],
           running: false,
-          run: { running: false, added: 1, error: null, startedAt: 't1' },
+          run: { running: false, added: 1, error: null, id: 1 },
         });
       // A proxy giving up on the wait answers for the server, without saying how the read went.
       mockArchivistAPI.run.mockRejectedValue(
@@ -205,7 +205,7 @@ describe('ArchivistModal', () => {
         }),
     );
     mockArchivistAPI.cancel.mockImplementation(async () => {
-      answer({ added: 0, suggestions: [], run: { cancelled: true, startedAt: 't1' } });
+      answer({ added: 0, suggestions: [], run: { cancelled: true, id: 1 } });
       return { cancelled: true };
     });
     const wrapper = await mountModal();
@@ -218,5 +218,60 @@ describe('ArchivistModal', () => {
     expect(wrapper.text()).not.toContain('is reading');
     expect(mockToast.error).not.toHaveBeenCalled();
     wrapper.unmount();
+  });
+
+  it('shows the suggestions earlier parts kept when a later part fails', async () => {
+    mockArchivistAPI.list.mockResolvedValue({ suggestions: [], running: false, run: null });
+    mockArchivistAPI.run.mockRejectedValue(
+      Object.assign(new Error('Part 2 of 3: Context length exceeded'), {
+        status: 502,
+        run: { id: 1, running: false, added: 1, error: 'Part 2 of 3: Context length exceeded' },
+        suggestions: [suggestion(1)],
+      }),
+    );
+    const wrapper = await mountModal();
+
+    await buttonsOf(wrapper, 'Read Story')[0].trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.archivist-error').text()).toContain('Context length exceeded');
+    expect(wrapper.find('ins').text()).toBe('She is with Sam.');
+  });
+
+  it("doesn't take the last read, or a failed check, for how a new read ended", async () => {
+    vi.useFakeTimers();
+    try {
+      const earlier = { id: 1, running: false, added: 0, error: null };
+      mockArchivistAPI.list
+        .mockResolvedValueOnce({ suggestions: [], running: false, run: earlier })
+        // Checked before the new read has started on the server.
+        .mockResolvedValueOnce({ suggestions: [], running: false, run: earlier })
+        .mockRejectedValueOnce(Object.assign(new Error('Bad Gateway'), { status: 502 }))
+        .mockResolvedValueOnce({
+          suggestions: [suggestion(1)],
+          running: false,
+          run: { id: 2, running: false, added: 1, error: null },
+        });
+      mockArchivistAPI.run.mockReturnValue(new Promise(() => {}));
+      const wrapper = await mountModal();
+
+      await buttonsOf(wrapper, 'Read Story')[0].trigger('click');
+      await vi.advanceTimersByTimeAsync(3000);
+      await flushPromises();
+      expect(wrapper.text()).toContain('is reading this story');
+
+      await vi.advanceTimersByTimeAsync(3000);
+      await flushPromises();
+      expect(wrapper.text()).toContain('is reading this story');
+      expect(mockToast.error).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(3000);
+      await flushPromises();
+      expect(wrapper.find('ins').text()).toBe('She is with Sam.');
+      expect(mockToast.success).toHaveBeenCalledTimes(1);
+      wrapper.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
