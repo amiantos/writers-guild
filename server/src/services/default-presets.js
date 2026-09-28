@@ -128,6 +128,11 @@ Write only what they type: no narration, no descriptions of actions, no asterisk
 Match the character's voice and mood, and what the scenario says they're doing.
 Write in the same language as the conversation.`;
 
+// The sentence that carries a direction. The instruction template ends with it, and Bureau adds it
+// to other templates when a turn has a direction.
+export const DIRECTION_SENTENCE =
+  'The user additionally sends along these instructions for what events they would like to see occur: {{instruction}}';
+
 /**
  * Default user prompt templates with placeholders
  * Available placeholders:
@@ -144,13 +149,12 @@ Write in the same language as the conversation.`;
  */
 export const DEFAULT_PROMPT_TEMPLATES = {
   continue:
-    'Continue the story naturally from where it left off. Write the next 7 paragraphs, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters.',
+    "Continue the story naturally from where it left off. Write the next 3 paragraphs, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters. Don't write actions or dialog for the user's Persona.",
 
   character:
     'Write the next part of the story from {{char}}\'s perspective. Focus on their thoughts, actions, and dialogue. Write 2-3 paragraphs maximum, less if it makes sense stylistically or sets up a good response opportunity for other characters. (There is a chance that "{{char}}\'s" is multiple characters, at which point you may respond as any of them as is relevant to the story.)',
 
-  instruction:
-    'Continue the story naturally from where it left off. Write the next 7 paragraphs, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters. The user additionally sends along these instructions for what events they would like to see occur: {{instruction}}',
+  instruction: `Continue the story naturally from where it left off. Write the next 3 paragraphs, maintaining the established tone and style, write less if it makes sense stylistically or sets up a good response opportunity for other characters. ${DIRECTION_SENTENCE}`,
 
   rewriteThirdPerson:
     'Rewrite the following text to be in third person narrative perspective, using past tense. Assume reference to "you" in the original text are meant to reference the user\'s Persona, if one is provided. Change all verbs to past tense. Maintain the same events, dialogue, and meaning, but from a third-person narrator\'s viewpoint. Feel free to correct errors in grammar, punctuation, and paragraph formatting. Only return the rewritten text by itself in your response.\n\nText to rewrite:\n\n{{storyContent}}',

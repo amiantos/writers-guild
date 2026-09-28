@@ -92,7 +92,7 @@ describe('buildWriterMessages', () => {
         expect(user).toBe(expected.user);
       }
       expect(expected.user).toContain('Here is the current story so far:');
-      expect(expected.user).toContain('Write the next 7 paragraphs');
+      expect(expected.user).toContain('Write the next 3 paragraphs');
     });
 
     it('for Direct, as Continue with Instruction', () => {
