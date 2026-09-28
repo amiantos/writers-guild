@@ -3,6 +3,43 @@
 All notable changes to Writers Guild are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-09-28
+
+### Story mode
+
+- Narrative perspective: a story's edit modal now picks how it's told: third person (the default),
+  third person limited, omniscient or objective, first person, or second person, in past or present
+  tense. First person and third person limited take a narrator or viewpoint character from the
+  story's characters or its Persona; second person addresses the Persona as "you". Rewrite to Third
+  Person is now Rewrite to Story Perspective and follows the story's perspective.
+- The default system prompt's perspective section is now a `{{perspective}}` template tag, which
+  renders the old text for stories that haven't set a perspective. **Custom system prompts need
+  `{{perspective}}` added to use the new setting**; the Edit Story modal warns when the story's
+  preset doesn't have it.
+- The scrolling quick access row and tables now shade their edges when there's more to scroll to.
+  Thanks to Justin Self.
+
+### Providers and presets
+
+- New default Continue and Custom instruction templates: both ask for 3 paragraphs instead of 7, and
+  Continue tells the model not to write actions or dialog for your Persona. Presets still on the
+  default templates pick these up automatically; customized templates are left alone.
+
+### Experimental features
+
+- **Continuity**: text you write once about what's true across stories and chats. A story or chat
+  picks a Continuity in its edit modal, and its text goes ahead of that story's or chat's own
+  scenario in the prompt. Each change is kept as a version that can be restored.
+- **Archivist**: for a story or chat in a Continuity, the Archivist now suggests an updated
+  Continuity with what happened worked in, instead of card edits, and an accepted update is kept in
+  the Continuity's History. Long reads keep going if the request drops or the modal is closed, can be
+  stopped with a Stop button, and a failed read says which part failed and why.
+
+### Removed
+
+- **Bureaus** are gone, along with their tab. Existing Bureau data (`data/bureau.db`) is left on
+  disk but no longer read.
+
 ## [1.2.0] - 2026-09-28
 
 ### Library
