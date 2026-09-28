@@ -91,6 +91,9 @@
                 <button class="btn btn-primary" @click="showCreateCharacterModal = true">
                   <i class="fas fa-plus"></i> Create
                 </button>
+                <button class="btn btn-secondary" @click="showCharacterGeneratorModal = true">
+                  <i class="fas fa-wand-magic-sparkles"></i> Generate
+                </button>
                 <button class="btn btn-secondary" @click="showImportCharacterModal = true">
                   <i class="fas fa-download"></i> Import
                 </button>
@@ -197,6 +200,15 @@
       @created="handleCharacterCreated"
     />
 
+    <!-- Character Generator Modal -->
+    <CharacterGeneratorModal
+      v-if="showCharacterGeneratorModal"
+      :presets="presets"
+      :lorebooks="lorebooks"
+      @close="showCharacterGeneratorModal = false"
+      @created="handleCharacterCreated"
+    />
+
     <!-- Import Character Modal -->
     <ImportCharacterModal
       v-if="showImportCharacterModal"
@@ -257,6 +269,7 @@ import PresetsTable from '../components/PresetsTable.vue';
 import CharacterStoriesModal from '../components/CharacterStoriesModal.vue';
 import CreateCharacterModal from '../components/CreateCharacterModal.vue';
 import ImportCharacterModal from '../components/ImportCharacterModal.vue';
+import CharacterGeneratorModal from '../components/CharacterGeneratorModal.vue';
 import CreateLorebookModal from '../components/CreateLorebookModal.vue';
 import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
@@ -300,6 +313,7 @@ const selectedCharacter = ref(null);
 // Create/Import Character Modals
 const showCreateCharacterModal = ref(false);
 const showImportCharacterModal = ref(false);
+const showCharacterGeneratorModal = ref(false);
 
 // Create/Import Lorebook Modals
 const showCreateLorebookModal = ref(false);

@@ -875,3 +875,25 @@ export const archivistAPI = {
     });
   },
 };
+
+// The experimental character generator: a library card written from an idea.
+export const characterGeneratorAPI = {
+  /**
+   * @param {{idea: string, name?: string, presetId?: string, lorebookId?: string}} params
+   * @returns {Promise<{card: Object}>} The card, not yet saved.
+   */
+  async generate(params, { signal } = {}) {
+    return request('/character-generator/generate', {
+      method: 'POST',
+      body: JSON.stringify(params),
+      signal,
+    });
+  },
+
+  async save(card) {
+    return request('/character-generator/save', {
+      method: 'POST',
+      body: JSON.stringify({ card }),
+    });
+  },
+};
