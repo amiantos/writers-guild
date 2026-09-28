@@ -106,13 +106,15 @@ export class SqliteStorageService {
           experimental_chats = @experimentalChats,
           experimental_bureaus = @experimentalBureaus,
           experimental_enhanced_story = @experimentalEnhancedStory,
-          experimental_archivist = @experimentalArchivist
+          experimental_archivist = @experimentalArchivist,
+          experimental_continuity = @experimentalContinuity
         WHERE id = 1
       `),
 
       // Stories
       listStories: this.db.prepare(`
-        SELECT id, title, description, scenario, created, modified, persona_character_id, config_preset_id, word_count
+        SELECT id, title, description, scenario, created, modified, persona_character_id, config_preset_id, word_count,
+               continuity_id
         FROM stories
         ORDER BY modified DESC
       `),
@@ -133,6 +135,7 @@ export class SqliteStorageService {
       ),
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, scenario = @scenario,
+                          continuity_id = @continuityId,
                           persona_character_id = @personaCharacterId,
                           config_preset_id = @configPresetId, modified = @modified
         WHERE id = @id
@@ -478,6 +481,7 @@ export class SqliteStorageService {
       experimentalBureaus: !!row.experimental_bureaus,
       experimentalEnhancedStory: !!row.experimental_enhanced_story,
       experimentalArchivist: !!row.experimental_archivist,
+      experimentalContinuity: !!row.experimental_continuity,
     };
   }
 
@@ -500,6 +504,7 @@ export class SqliteStorageService {
       experimentalBureaus: settings.experimentalBureaus ? 1 : 0,
       experimentalEnhancedStory: settings.experimentalEnhancedStory ? 1 : 0,
       experimentalArchivist: settings.experimentalArchivist ? 1 : 0,
+      experimentalContinuity: settings.experimentalContinuity ? 1 : 0,
     });
     return settings;
   }
@@ -518,6 +523,7 @@ export class SqliteStorageService {
         title: row.title,
         description: row.description,
         scenario: row.scenario || '',
+        continuityId: row.continuity_id ?? null,
         created: row.created,
         modified: row.modified,
         characterIds,
@@ -550,6 +556,7 @@ export class SqliteStorageService {
       title: row.title,
       description: row.description,
       scenario: row.scenario || '',
+      continuityId: row.continuity_id ?? null,
       content: row.content || '',
       created: row.created,
       modified: row.modified,
@@ -628,6 +635,8 @@ export class SqliteStorageService {
       title: updates.title ?? existing.title,
       description: updates.description ?? existing.description,
       scenario: updates.scenario !== undefined ? updates.scenario : existing.scenario || '',
+      continuityId:
+        updates.continuityId !== undefined ? updates.continuityId : existing.continuity_id,
       personaCharacterId:
         updates.personaCharacterId !== undefined
           ? updates.personaCharacterId
@@ -725,11 +734,11 @@ export class SqliteStorageService {
         modified: now,
       });
 
-      // Copy scenario if present
-      if (existing.scenario) {
+      // Copy scenario and Continuity if present
+      if (existing.scenario || existing.continuity_id) {
         this.db
-          .prepare('UPDATE stories SET scenario = ? WHERE id = ?')
-          .run(existing.scenario, newId);
+          .prepare('UPDATE stories SET scenario = ?, continuity_id = ? WHERE id = ?')
+          .run(existing.scenario || '', existing.continuity_id ?? null, newId);
       }
 
       // Copy avatar windows if present

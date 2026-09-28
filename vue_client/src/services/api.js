@@ -876,6 +876,35 @@ export const archivistAPI = {
   },
 };
 
+// The experimental Continuities: text shared by stories and chats, ahead of each one's scenario.
+export const continuitiesAPI = {
+  async list() {
+    return request('/continuities');
+  },
+
+  /** @param {{name: string, content?: string}} fields */
+  async create(fields) {
+    return request('/continuities', { method: 'POST', body: JSON.stringify(fields) });
+  },
+
+  /** @param {{name?: string, content?: string}} fields */
+  async update(id, fields) {
+    return request(`/continuities/${id}`, { method: 'PUT', body: JSON.stringify(fields) });
+  },
+
+  async delete(id) {
+    return request(`/continuities/${id}`, { method: 'DELETE' });
+  },
+
+  async listVersions(id) {
+    return request(`/continuities/${id}/versions`);
+  },
+
+  async restoreVersion(id, versionId) {
+    return request(`/continuities/${id}/versions/${versionId}/restore`, { method: 'POST' });
+  },
+};
+
 // The experimental character generator: a library card written from an idea.
 export const characterGeneratorAPI = {
   /**

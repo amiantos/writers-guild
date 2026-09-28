@@ -14,6 +14,8 @@
         />
       </div>
 
+      <ContinuityPicker ref="continuityPicker" :continuity-id="story.continuityId ?? null" />
+
       <div class="form-group">
         <label for="storyScenario">Story Scenario</label>
         <textarea
@@ -42,6 +44,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import Modal from './Modal.vue';
+import ContinuityPicker from './ContinuityPicker.vue';
 import { storiesAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 
@@ -59,6 +62,7 @@ const storyTitle = ref(props.story.title || '');
 const storyScenario = ref(props.story.scenario || '');
 const saving = ref(false);
 const titleInput = ref(null);
+const continuityPicker = ref(null);
 
 onMounted(() => {
   // Focus title input when modal opens
@@ -75,10 +79,14 @@ async function saveStory() {
   try {
     saving.value = true;
 
-    await storiesAPI.updateMetadata(props.story.id, {
+    const updates = {
       title: storyTitle.value.trim(),
       scenario: storyScenario.value.trim(),
-    });
+    };
+    const continuityId = await continuityPicker.value?.save();
+    if (continuityId !== undefined) updates.continuityId = continuityId;
+
+    await storiesAPI.updateMetadata(props.story.id, updates);
 
     toast.success('Story updated successfully');
     emit('updated');

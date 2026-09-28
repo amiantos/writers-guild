@@ -4,6 +4,10 @@ import EditChatModal from '../EditChatModal.vue';
 import { chatsAPI } from '../../../services/chatsApi';
 
 vi.mock('../../../services/chatsApi', () => ({ chatsAPI: { update: vi.fn() } }));
+vi.mock('../../../services/api', () => ({
+  settingsAPI: { get: vi.fn().mockResolvedValue({ settings: {} }) },
+  continuitiesAPI: { list: vi.fn() },
+}));
 vi.mock('../../../composables/useToast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));

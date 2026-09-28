@@ -29,6 +29,7 @@ import bureausRouter from './src/routes/bureaus.js';
 import chatsRouter from './src/routes/chats.js';
 import archivistRouter from './src/routes/archivist.js';
 import characterGeneratorRouter from './src/routes/character-generator.js';
+import continuitiesRouter from './src/routes/continuities.js';
 
 // Import migration service
 import { runMigration } from './src/services/migration.js';
@@ -129,6 +130,7 @@ app.use('/api/bureaus', bureausRouter);
 app.use('/api/chats', chatsRouter);
 app.use('/api/archivist', archivistRouter);
 app.use('/api/character-generator', characterGeneratorRouter);
+app.use('/api/continuities', continuitiesRouter);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: `Not found: ${req.method} ${req.originalUrl}` });
