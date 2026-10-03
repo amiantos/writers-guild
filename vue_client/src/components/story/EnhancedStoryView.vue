@@ -8,7 +8,7 @@
 
       <template v-for="(block, index) in blocks" :key="block.key">
         <!-- Text with no record, such as an older story's, has no seam to open -->
-        <PassageSeam v-if="block.record" :passage="block.record" />
+        <PassageSeam v-if="block.record" :story-id="storyId" :passage="block.record" />
         <PassageBlock
           :block="block"
           :busy="busy"
@@ -47,6 +47,8 @@ import PassageSeam from './PassageSeam.vue';
 import PassageBlock from './PassageBlock.vue';
 
 const props = defineProps({
+  /** The story's id, for fetching the prompts its passages were written from. */
+  storyId: { type: String, default: '' },
   content: { type: String, default: '' },
   /** The record of the story's passages. */
   passages: { type: Array, default: () => [] },

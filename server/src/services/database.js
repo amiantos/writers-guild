@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 17;
+const SCHEMA_VERSION = 18;
 
 /**
  * Initialize the SQLite database with schema
@@ -247,6 +247,7 @@ function createAllTables(db) {
   createCardSuggestionTables(db);
   createContinuityTables(db);
   createContinuitySuggestionTables(db);
+  createPassagePromptTables(db);
 
   console.log('Database schema created successfully');
 }
@@ -451,6 +452,26 @@ function createContinuitySuggestionTables(db) {
     BEGIN
       DELETE FROM continuity_suggestions WHERE source_kind = 'chat' AND source_id = OLD.id;
     END;
+  `);
+}
+
+/**
+ * Create the table of the prompts Enhanced Story Mode's passages were written from. A prompt holds
+ * the story up to that point, so it's kept gzipped here rather than in the story's record of
+ * passages, which is loaded and saved with the story; a passage names its prompt by id.
+ */
+function createPassagePromptTables(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS passage_prompts (
+      story_id TEXT NOT NULL,
+      id TEXT NOT NULL,
+      -- The system and user prompts, gzipped.
+      system BLOB NOT NULL,
+      user BLOB NOT NULL,
+      created TEXT NOT NULL,
+      PRIMARY KEY (story_id, id),
+      FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE
+    );
   `);
 }
 
@@ -662,6 +683,11 @@ function migrateSchema(db, fromVersion) {
           db.exec(`ALTER TABLE stories ADD COLUMN ${column} TEXT`);
         }
       }
+    }
+
+    // Migration to version 18: The prompts Enhanced Story Mode's passages were written from
+    if (fromVersion < 18) {
+      createPassagePromptTables(db);
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

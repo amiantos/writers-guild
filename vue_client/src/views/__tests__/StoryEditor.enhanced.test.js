@@ -15,6 +15,7 @@ vi.mock('../../services/api', () => ({
     undo: vi.fn(),
     redo: vi.fn(),
     setRewritePrompt: vi.fn(),
+    getPrompt: vi.fn(),
   },
   settingsAPI: { get: vi.fn() },
   charactersAPI: { list: vi.fn() },
@@ -150,6 +151,51 @@ describe('StoryEditor in Enhanced Story Mode', () => {
     await seams.at(-1).trigger('click');
     expect(wrapper.find('.seam-panel').text()).toContain('Keep it wet.');
     expect(wrapper.find('.seam-panel').text()).toContain('Continued the story');
+  });
+
+  it("keeps a continuation's prompt, and shows it in the seam once opened", async () => {
+    loadStory('Opening.\n\n');
+    storiesAPI.continueStory.mockReturnValue(
+      stream([
+        { prompts: { system: 'Be a writer.', user: 'Opening.', promptId: 'prompt-1' } },
+        { content: 'The rain came down.' },
+      ]),
+    );
+    storiesAPI.getPrompt.mockResolvedValue({
+      prompt: { id: 'prompt-1', system: 'Be a writer.', user: 'Opening.' },
+    });
+    const wrapper = await mountEditor();
+
+    await button(wrapper, 'Continue').trigger('click');
+    await flushPromises();
+    expect(lastSave().passages).toEqual([expect.objectContaining({ promptId: 'prompt-1' })]);
+
+    await wrapper.findAll('.seam-toggle').at(-1).trigger('click');
+    const details = wrapper.find('.prompt-block');
+    expect(storiesAPI.getPrompt).not.toHaveBeenCalled();
+    details.element.open = true;
+    await details.trigger('toggle');
+    await flushPromises();
+
+    expect(storiesAPI.getPrompt).toHaveBeenCalledWith('s1', 'prompt-1');
+    expect(details.text()).toContain('Be a writer.');
+    expect(details.text()).toContain('Opening.');
+  });
+
+  it("says so when a passage's prompt is no longer kept", async () => {
+    loadStory('Opening.\n\nThe rain came down.\n\n', [
+      { id: 'p1', text: 'The rain came down.', source: 'generated', promptId: 'gone' },
+    ]);
+    storiesAPI.getPrompt.mockRejectedValue(Object.assign(new Error('nope'), { status: 404 }));
+    const wrapper = await mountEditor();
+
+    await wrapper.find('.seam-toggle').trigger('click');
+    const details = wrapper.find('.prompt-block');
+    details.element.open = true;
+    await details.trigger('toggle');
+    await flushPromises();
+
+    expect(details.text()).toContain('This prompt is no longer kept.');
   });
 
   it('sends the same request as story mode: the saved story, then continue', async () => {

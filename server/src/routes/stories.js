@@ -305,6 +305,7 @@ const PASSAGE_STRING_FIELDS = [
   'characterName',
   'instruction',
   'reasoning',
+  'promptId',
   'created',
 ];
 
@@ -363,6 +364,18 @@ router.put(
     // Include history status in response
     const historyStatus = await storage.getHistoryStatus(req.params.id);
     res.json({ ...result, ...historyStatus });
+  }),
+);
+
+// The prompt one of Enhanced Story Mode's passages was written from
+router.get(
+  '/:id/prompts/:promptId',
+  asyncHandler(async (req, res) => {
+    const prompt = storage.getPassagePrompt(req.params.id, req.params.promptId);
+    if (!prompt) {
+      throw new AppError('Prompt not found', 404);
+    }
+    res.json({ prompt });
   }),
 );
 
@@ -821,6 +834,8 @@ async function loadGenerationContext(storyId) {
     persona,
     characterCards,
     activatedLorebooks,
+    // Enhanced Story Mode shows each passage's prompt in its seam, so keep them while it's on.
+    keepPrompts: Boolean(settings?.experimentalEnhancedStory),
   };
 }
 
@@ -890,12 +905,23 @@ async function streamGeneration(
 
   const { system: systemPrompt, user: userPrompt } = prompts;
 
-  // Send prompts for debugging
+  // Keep the prompt for the passage this writes, so its seam can show it later, with the story
+  // left out since it's kept already. Ideas aren't passages.
+  const promptId =
+    context.keepPrompts && generationType !== 'ideate'
+      ? storage.savePassagePrompt(context.story.id, {
+          system: systemPrompt,
+          user: prompts.userWithoutStory ?? userPrompt,
+        })
+      : null;
+
+  // Send prompts for debugging, and for the passage's seam
   res.write(
     `data: ${JSON.stringify({
       prompts: {
         system: systemPrompt,
         user: userPrompt,
+        ...(promptId && { promptId }),
       },
     })}\n\n`,
   );

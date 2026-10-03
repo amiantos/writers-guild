@@ -373,6 +373,7 @@ describe('Stories API Routes - CRUD Operations', () => {
               characterId: 'c1',
               characterName: 'Mara',
               reasoning: 'Set the mood.',
+              promptId: 'prompt-1',
               created: '2026-01-01T00:00:00.000Z',
               edited: true,
               extra: 'dropped',
@@ -391,6 +392,7 @@ describe('Stories API Routes - CRUD Operations', () => {
           characterId: 'c1',
           characterName: 'Mara',
           reasoning: 'Set the mood.',
+          promptId: 'prompt-1',
           created: '2026-01-01T00:00:00.000Z',
           edited: true,
         },
@@ -1229,6 +1231,58 @@ describe('Stories API Routes - Generation Endpoints', () => {
     expect(response.text).toContain('"content":"hello "');
     expect(response.text).toContain('"content":"world"');
     expect(response.text).toContain('data: [DONE]');
+  });
+
+  it('keeps the prompt, less the story, for Enhanced Story Mode, only while it is on', async () => {
+    const { storyId } = await createStoryWithPreset();
+    const mockStreaming = () => {
+      vi.spyOn(DeepSeekProvider.prototype, 'buildPrompts').mockResolvedValue({
+        system: 'system prompt',
+        user: 'Story: Rain fell.',
+        userWithoutStory: 'Story: [The story: all 10 characters]',
+      });
+      vi.spyOn(DeepSeekProvider.prototype, 'getCapabilities').mockReturnValue({
+        streaming: true,
+      });
+      vi.spyOn(DeepSeekProvider.prototype, 'generateStreaming').mockResolvedValue({
+        stream: (async function* () {
+          yield { content: 'Rain.', finished: true };
+        })(),
+        metadata: {},
+      });
+    };
+    const promptsEvent = (text) =>
+      text
+        .split('\n\n')
+        .map((event) => event.replace(/^data: /, ''))
+        .filter((data) => data.startsWith('{'))
+        .map((data) => JSON.parse(data))
+        .find((data) => data.prompts).prompts;
+
+    const settings = await storage.getSettings();
+    try {
+      mockStreaming();
+      const off = await request(app).post(`/api/stories/${storyId}/continue`).expect(200);
+      expect(promptsEvent(off.text).promptId).toBeUndefined();
+
+      await storage.saveSettings({ ...settings, experimentalEnhancedStory: true });
+      mockStreaming();
+      const on = await request(app).post(`/api/stories/${storyId}/continue`).expect(200);
+      const { promptId, user } = promptsEvent(on.text);
+      expect(promptId).toEqual(expect.any(String));
+      expect(user).toBe('Story: Rain fell.');
+
+      const kept = await request(app)
+        .get(`/api/stories/${storyId}/prompts/${promptId}`)
+        .expect(200);
+      expect(kept.body.prompt).toMatchObject({
+        system: 'system prompt',
+        user: 'Story: [The story: all 10 characters]',
+      });
+      await request(app).get(`/api/stories/${storyId}/prompts/missing`).expect(404);
+    } finally {
+      await storage.saveSettings(settings);
+    }
   });
 
   it('POST /:id/continue should use character mode when characterId query is provided', async () => {

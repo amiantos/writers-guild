@@ -22,6 +22,21 @@ import {
  */
 export const REWRITE_GENERATION_TYPES = new Set(['rewriteThirdPerson']);
 
+// What a story that isn't placed by {{storyContent}} goes between, ahead of the instruction.
+const STORY_CONTEXT_OPEN = 'Here is the current story so far:\n\n';
+const STORY_CONTEXT_CLOSE = '\n\n---\n\n';
+
+// Where {{storyContent}} goes while the rest of a template is filled in.
+const STORY_MARK = '\u0000WG_STORY\u0000';
+
+/** What a kept prompt shows in place of the story: how much of it went in. */
+function storyNote(included, total) {
+  const count = (n) => n.toLocaleString('en-US');
+  return included < total
+    ? `[The story: its last ${count(included)} of ${count(total)} characters]`
+    : `[The story: all ${count(total)} characters]`;
+}
+
 export class PromptBuilder {
   constructor(config = {}) {
     this.config = {
@@ -462,7 +477,7 @@ export class PromptBuilder {
     const contentToInclude =
       storyContent.length > maxChars ? '...' + storyContent.slice(-maxChars) : storyContent;
 
-    return `Here is the current story so far:\n\n${contentToInclude}\n\n---\n\n`;
+    return `${STORY_CONTEXT_OPEN}${contentToInclude}${STORY_CONTEXT_CLOSE}`;
   }
 
   /**
@@ -475,7 +490,11 @@ export class PromptBuilder {
    * as separate context — never both. Preserving in both paths would register
    * every image twice and hand the model duplicate placeholders.
    *
-   * @returns {{ instruction: string, storyContext: string }}
+   * An interpolated story is left as STORY_MARK in the instruction, and goes in once every other
+   * placeholder is filled, so the prompt can also be told without it (see buildPrompts()).
+   *
+   * @returns {{ instruction: string, storyContext: string, keptStoryContext: string,
+   *   storyText: string, storyNote: string }}
    */
   applyStoryContent(instruction, template, storyContent, maxChars, imagePreserver) {
     const usesPlaceholder = template.includes('{{storyContent}}');
@@ -485,22 +504,29 @@ export class PromptBuilder {
         ? imagePreserver.preserve(storyContent, 'story')
         : storyContent;
       return {
-        // A function, so `$` patterns in the story ("$&", "$'") stay as written.
-        instruction: instruction.replace(/\{\{storyContent\}\}/g, () => preserved),
+        // A function, so `$` patterns in the template's other text stay as written.
+        instruction: instruction.replace(/\{\{storyContent\}\}/g, () => STORY_MARK),
         storyContext: '',
+        keptStoryContext: '',
+        storyText: preserved,
+        storyNote: storyNote(storyContent.length, storyContent.length),
       };
     }
 
     if (!storyContent.trim()) {
-      return { instruction, storyContext: '' };
+      return { instruction, storyContext: '', keptStoryContext: '', storyText: '', storyNote: '' };
     }
 
     // Only the content that survives truncation is preserved, so we never
     // register a placeholder for an image the model will not see.
     const truncated = this.truncateStoryContent(storyContent, maxChars);
+    const included = Math.min(storyContent.length, maxChars);
     return {
       instruction,
       storyContext: imagePreserver ? imagePreserver.preserve(truncated, 'story') : truncated,
+      keptStoryContext: `${STORY_CONTEXT_OPEN}${storyNote(included, storyContent.length)}${STORY_CONTEXT_CLOSE}`,
+      storyText: '',
+      storyNote: '',
     };
   }
 
@@ -517,7 +543,12 @@ export class PromptBuilder {
       perspective = renderPerspective(),
     } = params;
 
-    let storyContext = '';
+    let story = {
+      storyContext: '',
+      keptStoryContext: '',
+      storyText: '',
+      storyNote: '',
+    };
     let instruction = '';
 
     // Determine the actual template to use:
@@ -546,8 +577,7 @@ export class PromptBuilder {
           maxChars,
           imagePreserver,
         );
-        instruction = applied.instruction;
-        storyContext = applied.storyContext;
+        ({ instruction, ...story } = applied);
       }
       instruction = instruction.replace(/\{\{user\}\}/gi, userName || 'the user');
     } else {
@@ -602,8 +632,7 @@ export class PromptBuilder {
           maxChars,
           imagePreserver,
         );
-        instruction = applied.instruction;
-        storyContext = applied.storyContext;
+        ({ instruction, ...story } = applied);
       }
       instruction = instruction.replace(/\{\{user\}\}/gi, userName || 'the user');
     }
@@ -617,7 +646,11 @@ export class PromptBuilder {
       console.log(`[ImagePreserver] Appended image-preservation note for ${type}`);
     }
 
-    return storyContext + instruction;
+    // The story goes in last, so nothing above changes it but {{user}}, as it always has.
+    const storyText = story.storyText.replace(/\{\{user\}\}/gi, userName || 'the user');
+    this.userPromptWithoutStory =
+      story.keptStoryContext + instruction.split(STORY_MARK).join(story.storyNote);
+    return story.storyContext + instruction.split(STORY_MARK).join(storyText);
   }
 
   /**
@@ -697,6 +730,9 @@ export class PromptBuilder {
     return {
       system: systemPrompt,
       user: userPrompt,
+      // For keeping: the story is kept already, and a copy in every passage's prompt would grow
+      // with the square of its length.
+      userWithoutStory: this.userPromptWithoutStory,
     };
   }
 }
