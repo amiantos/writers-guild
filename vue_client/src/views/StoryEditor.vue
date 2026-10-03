@@ -64,6 +64,7 @@
         <EnhancedStoryView
           v-if="enhancedEnabled"
           ref="enhancedRef"
+          :story-id="storyId"
           :content="content"
           :passages="passages"
           :pending="livePassage"
@@ -1029,6 +1030,9 @@ async function handleStoryStarter() {
           system: chunk.prompts.system || '',
           user: chunk.prompts.user || '',
         };
+        // The passage's seam shows its prompt, while it's written and, once kept, after.
+        if (chunk.prompts.promptId) passage.promptId = chunk.prompts.promptId;
+        if (pending.value) pending.value.prompt = lastPrompts.value;
       }
 
       // Handle queue status (AI Horde)
@@ -1184,6 +1188,9 @@ async function generate(isCustom, instruction, characterId) {
           system: chunk.prompts.system || '',
           user: chunk.prompts.user || '',
         };
+        // The passage's seam shows its prompt, while it's written and, once kept, after.
+        if (chunk.prompts.promptId) passage.promptId = chunk.prompts.promptId;
+        if (pending.value) pending.value.prompt = lastPrompts.value;
       }
 
       // Handle queue status (AI Horde)
@@ -1510,6 +1517,9 @@ async function rewriteToThirdPerson(skipConfirm = false) {
           system: chunk.prompts.system || '',
           user: chunk.prompts.user || '',
         };
+        // The passage's seam shows its prompt, while it's written and, once kept, after.
+        if (chunk.prompts.promptId) passage.promptId = chunk.prompts.promptId;
+        if (pending.value) pending.value.prompt = lastPrompts.value;
       }
 
       // Handle queue status (AI Horde)

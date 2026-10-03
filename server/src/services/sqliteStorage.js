@@ -7,6 +7,13 @@ import { initializeDatabase, calculateWordCount } from './database.js';
 import { computeCharacterChecksum, computeLorebookChecksum } from './checksum-service.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
+import { gzipSync, gunzipSync } from 'zlib';
+
+/**
+ * How long a passage prompt can go unreferenced by the story's record before it's dropped: long
+ * enough for the passage it was written for to be recorded, since a save can land mid-generation.
+ */
+const UNREFERENCED_PROMPT_GRACE_MS = 60 * 60 * 1000;
 
 /**
  * Where a character version came from. original: the card as it was imported or created, kept
@@ -129,6 +136,22 @@ export class SqliteStorageService {
         'UPDATE stories SET avatar_windows = ? WHERE id = ?',
       ),
       updateStoryPassages: this.db.prepare('UPDATE stories SET passages = ? WHERE id = ?'),
+      insertPassagePrompt: this.db.prepare(
+        'INSERT INTO passage_prompts (story_id, id, system, user, created) VALUES (?, ?, ?, ?, ?)',
+      ),
+      getPassagePrompt: this.db.prepare(
+        'SELECT system, user, created FROM passage_prompts WHERE story_id = ? AND id = ?',
+      ),
+      listPassagePromptIds: this.db.prepare(
+        'SELECT id, created FROM passage_prompts WHERE story_id = ?',
+      ),
+      deletePassagePrompt: this.db.prepare(
+        'DELETE FROM passage_prompts WHERE story_id = ? AND id = ?',
+      ),
+      copyPassagePrompts: this.db.prepare(`
+        INSERT INTO passage_prompts (story_id, id, system, user, created)
+        SELECT ?, id, system, user, created FROM passage_prompts WHERE story_id = ?
+      `),
       updateStoryContentAndPassages: this.db.prepare(
         'UPDATE stories SET content = ?, word_count = ?, modified = ?, passages = ? WHERE id = ?',
       ),
@@ -698,6 +721,7 @@ export class SqliteStorageService {
           passages,
           storyId,
         );
+        this.prunePassagePrompts(storyId, options.passages);
       } else {
         this.stmts.updateStoryContent.run(content, wordCount, modified, storyId);
       }
@@ -706,8 +730,48 @@ export class SqliteStorageService {
 
     if (passages) {
       this.stmts.updateStoryPassages.run(passages, storyId);
+      this.prunePassagePrompts(storyId, options.passages);
     }
     return { success: true, modified: existing.modified, changed };
+  }
+
+  /**
+   * Keep the prompt a passage was written from, for Enhanced Story Mode's record to name.
+   * @returns {string} The prompt's id.
+   */
+  savePassagePrompt(storyId, { system, user }) {
+    const id = uuidv4();
+    this.stmts.insertPassagePrompt.run(
+      storyId,
+      id,
+      gzipSync(system ?? ''),
+      gzipSync(user ?? ''),
+      new Date().toISOString(),
+    );
+    return id;
+  }
+
+  /** The prompt a passage was written from, or null if it isn't kept. */
+  getPassagePrompt(storyId, promptId) {
+    const row = this.stmts.getPassagePrompt.get(storyId, promptId);
+    if (!row) return null;
+    return {
+      id: promptId,
+      system: gunzipSync(row.system).toString('utf8'),
+      user: gunzipSync(row.user).toString('utf8'),
+      created: row.created,
+    };
+  }
+
+  /** Drop the prompts no passage in the record names, once they're past their grace period. */
+  prunePassagePrompts(storyId, passages) {
+    const named = new Set(passages.map((passage) => passage.promptId).filter(Boolean));
+    const cutoff = new Date(Date.now() - UNREFERENCED_PROMPT_GRACE_MS).toISOString();
+    for (const { id, created } of this.stmts.listPassagePromptIds.all(storyId)) {
+      if (!named.has(id) && created < cutoff) {
+        this.stmts.deletePassagePrompt.run(storyId, id);
+      }
+    }
   }
 
   async deleteStory(storyId) {
@@ -775,6 +839,7 @@ export class SqliteStorageService {
       // Copy the record of how each passage was written
       if (existing.passages) {
         this.stmts.updateStoryPassages.run(existing.passages, newId);
+        this.stmts.copyPassagePrompts.run(newId, storyId);
       }
 
       // Copy character associations
