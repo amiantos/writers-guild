@@ -1233,12 +1233,13 @@ describe('Stories API Routes - Generation Endpoints', () => {
     expect(response.text).toContain('data: [DONE]');
   });
 
-  it('keeps the prompt for Enhanced Story Mode, and only while it is on', async () => {
+  it('keeps the prompt, less the story, for Enhanced Story Mode, only while it is on', async () => {
     const { storyId } = await createStoryWithPreset();
     const mockStreaming = () => {
       vi.spyOn(DeepSeekProvider.prototype, 'buildPrompts').mockResolvedValue({
         system: 'system prompt',
-        user: 'user prompt',
+        user: 'Story: Rain fell.',
+        storyInPrompt: { text: 'Rain fell.', included: 10, total: 10 },
       });
       vi.spyOn(DeepSeekProvider.prototype, 'getCapabilities').mockReturnValue({
         streaming: true,
@@ -1267,13 +1268,17 @@ describe('Stories API Routes - Generation Endpoints', () => {
       await storage.saveSettings({ ...settings, experimentalEnhancedStory: true });
       mockStreaming();
       const on = await request(app).post(`/api/stories/${storyId}/continue`).expect(200);
-      const { promptId } = promptsEvent(on.text);
+      const { promptId, user } = promptsEvent(on.text);
       expect(promptId).toEqual(expect.any(String));
+      expect(user).toBe('Story: Rain fell.');
 
       const kept = await request(app)
         .get(`/api/stories/${storyId}/prompts/${promptId}`)
         .expect(200);
-      expect(kept.body.prompt).toMatchObject({ system: 'system prompt', user: 'user prompt' });
+      expect(kept.body.prompt).toMatchObject({
+        system: 'system prompt',
+        user: 'Story: [The story: all 10 characters]',
+      });
       await request(app).get(`/api/stories/${storyId}/prompts/missing`).expect(404);
     } finally {
       await storage.saveSettings(settings);

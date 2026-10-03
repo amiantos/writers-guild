@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { PromptBuilder } from '../prompt-builder.js';
+import { PromptBuilder, withoutStory } from '../prompt-builder.js';
 import { MacroProcessor } from '../macro-processor.js';
 import { ImagePreserver } from '../image-preserver.js';
 
@@ -1288,6 +1288,62 @@ describe('PromptBuilder', () => {
       expect(customBuilder.config.instructionTemplates.continue).toBe(
         'Custom continue instruction',
       );
+    });
+  });
+
+  describe('withoutStory', () => {
+    const context = (content) => ({
+      characterCards: [],
+      activatedLorebooks: [],
+      story: { content },
+      settings: {},
+    });
+
+    it('notes the whole story in place of it', () => {
+      const result = builder.buildPrompts(context('Rain fell on the town.'), {
+        generationType: 'continue',
+      });
+      expect(result.user).toContain('Rain fell on the town.');
+
+      const kept = withoutStory(result.user, result.storyInPrompt);
+      expect(kept).not.toContain('Rain fell');
+      expect(kept).toContain(
+        'Here is the current story so far:\n\n[The story: all 22 characters]\n\n---',
+      );
+      expect(kept).toContain('Continue the story naturally');
+    });
+
+    it('notes how much of a truncated story went in', () => {
+      const story = 'word '.repeat(2000);
+      const result = builder.buildPrompts(context(story), {
+        generationType: 'continue',
+        maxContextTokens: 4000,
+        maxGenerationTokens: 3000,
+      });
+
+      const kept = withoutStory(result.user, result.storyInPrompt);
+      expect(kept).not.toContain('word word');
+      expect(kept).toMatch(/\[The story: its last [\d,]+ of 10,000 characters\]/);
+    });
+
+    it('replaces a story placed by {{storyContent}}, images and all', () => {
+      const story = 'She smiled. ![pic](/api/assets/a.png) Then left.';
+      const result = builder.buildPrompts(context(story), {
+        generationType: 'continue',
+        templateText: 'Story:\n{{storyContent}}\nGo on.',
+        imagePreserver: new ImagePreserver(),
+      });
+      expect(result.user).toContain('[WG_IMAGE_0]');
+
+      expect(withoutStory(result.user, result.storyInPrompt)).toBe(
+        `Story:\n[The story: all ${story.length} characters]\nGo on.`,
+      );
+    });
+
+    it('leaves a prompt with no story as it is', () => {
+      const result = builder.buildPrompts(context(''), { generationType: 'storyStarter' });
+      expect(result.storyInPrompt).toBeNull();
+      expect(withoutStory(result.user, result.storyInPrompt)).toBe(result.user);
     });
   });
 });

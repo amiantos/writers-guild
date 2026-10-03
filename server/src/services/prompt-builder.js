@@ -22,6 +22,10 @@ import {
  */
 export const REWRITE_GENERATION_TYPES = new Set(['rewriteThirdPerson']);
 
+// What a story that isn't placed by {{storyContent}} goes between, ahead of the instruction.
+const STORY_CONTEXT_OPEN = 'Here is the current story so far:\n\n';
+const STORY_CONTEXT_CLOSE = '\n\n---\n\n';
+
 export class PromptBuilder {
   constructor(config = {}) {
     this.config = {
@@ -462,7 +466,7 @@ export class PromptBuilder {
     const contentToInclude =
       storyContent.length > maxChars ? '...' + storyContent.slice(-maxChars) : storyContent;
 
-    return `Here is the current story so far:\n\n${contentToInclude}\n\n---\n\n`;
+    return `${STORY_CONTEXT_OPEN}${contentToInclude}${STORY_CONTEXT_CLOSE}`;
   }
 
   /**
@@ -484,6 +488,11 @@ export class PromptBuilder {
       const preserved = imagePreserver
         ? imagePreserver.preserve(storyContent, 'story')
         : storyContent;
+      this.storyInPrompt = {
+        text: preserved,
+        included: storyContent.length,
+        total: storyContent.length,
+      };
       return {
         // A function, so `$` patterns in the story ("$&", "$'") stay as written.
         instruction: instruction.replace(/\{\{storyContent\}\}/g, () => preserved),
@@ -498,10 +507,13 @@ export class PromptBuilder {
     // Only the content that survives truncation is preserved, so we never
     // register a placeholder for an image the model will not see.
     const truncated = this.truncateStoryContent(storyContent, maxChars);
-    return {
-      instruction,
-      storyContext: imagePreserver ? imagePreserver.preserve(truncated, 'story') : truncated,
+    const storyContext = imagePreserver ? imagePreserver.preserve(truncated, 'story') : truncated;
+    this.storyInPrompt = {
+      text: storyContext.slice(STORY_CONTEXT_OPEN.length, -STORY_CONTEXT_CLOSE.length),
+      included: Math.min(storyContent.length, maxChars),
+      total: storyContent.length,
     };
+    return { instruction, storyContext };
   }
 
   buildGenerationPrompt(type, params) {
@@ -664,6 +676,8 @@ export class PromptBuilder {
     // persona and lorebook text all funnel through there, and all of it can
     // carry cached image URLs.
     this.imagePreserver = imagePreserver;
+    // Where the story went in, set when it's placed in the user prompt.
+    this.storyInPrompt = null;
 
     // Build system prompt first (with custom template if provided and not null)
     const systemPrompt = this.buildSystemPrompt(
@@ -697,6 +711,27 @@ export class PromptBuilder {
     return {
       system: systemPrompt,
       user: userPrompt,
+      storyInPrompt: this.storyInPrompt,
     };
   }
+}
+
+/**
+ * The user prompt with the story it carries replaced by a note of how much of it went in, for
+ * keeping: the story is already kept, and a copy in every passage's prompt would grow with the
+ * square of its length.
+ *
+ * @param {string} user - The user prompt.
+ * @param {{ text: string, included: number, total: number }|null} storyInPrompt - From
+ *   buildPrompts().
+ */
+export function withoutStory(user, storyInPrompt) {
+  if (!storyInPrompt?.text) return user;
+  const { text, included, total } = storyInPrompt;
+  const count = (n) => n.toLocaleString('en-US');
+  const note =
+    included < total
+      ? `[The story: its last ${count(included)} of ${count(total)} characters]`
+      : `[The story: all ${count(total)} characters]`;
+  return user.split(text).join(note);
 }
