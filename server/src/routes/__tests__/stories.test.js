@@ -1239,7 +1239,7 @@ describe('Stories API Routes - Generation Endpoints', () => {
       vi.spyOn(DeepSeekProvider.prototype, 'buildPrompts').mockResolvedValue({
         system: 'system prompt',
         user: 'Story: Rain fell.',
-        storyInPrompt: { text: 'Rain fell.', included: 10, total: 10 },
+        userWithoutStory: 'Story: [The story: all 10 characters]',
       });
       vi.spyOn(DeepSeekProvider.prototype, 'getCapabilities').mockReturnValue({
         streaming: true,

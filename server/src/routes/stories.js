@@ -9,7 +9,7 @@ import { PromptBuilder } from '../services/prompt-builder.js';
 import { MacroProcessor } from '../services/macro-processor.js';
 import { LorebookActivator } from '../services/lorebook-activator.js';
 import { ImagePreserver } from '../services/image-preserver.js';
-import { REWRITE_GENERATION_TYPES, withoutStory } from '../services/prompt-builder.js';
+import { REWRITE_GENERATION_TYPES } from '../services/prompt-builder.js';
 import { getProvider } from '../services/provider-factory.js';
 import { createPresetFromSettings } from '../services/default-presets.js';
 import { MAX_STORY_PASSAGES } from '../../../shared/story-passages.js';
@@ -911,7 +911,7 @@ async function streamGeneration(
     context.keepPrompts && generationType !== 'ideate'
       ? storage.savePassagePrompt(context.story.id, {
           system: systemPrompt,
-          user: withoutStory(userPrompt, prompts.storyInPrompt),
+          user: prompts.userWithoutStory ?? userPrompt,
         })
       : null;
 
