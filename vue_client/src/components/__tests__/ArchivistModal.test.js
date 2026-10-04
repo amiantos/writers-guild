@@ -317,7 +317,7 @@ describe('ArchivistModal', () => {
       expect(wrapper.find('ins').text()).toBe('The date went well.');
       expect(wrapper.find('del').exists()).toBe(false);
       expect(mockToast.success).toHaveBeenCalledWith(
-        'The Archivist suggested an update to "Bradley and Amanda"',
+        'The Archivist made 1 new suggestion(s) for "Bradley and Amanda" and its cards',
       );
     });
 

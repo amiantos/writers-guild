@@ -104,6 +104,16 @@ export class ContinuityStorage {
       getVersion: db.prepare(
         'SELECT * FROM continuity_versions WHERE continuity_id = ? AND id = ?',
       ),
+      characterIds: db.prepare(`
+        SELECT sc.character_id AS id FROM story_characters sc
+          JOIN stories s ON s.id = sc.story_id WHERE s.continuity_id = @id
+        UNION SELECT persona_character_id FROM stories
+          WHERE continuity_id = @id AND persona_character_id IS NOT NULL
+        UNION SELECT hc.character_id FROM chat_characters hc
+          JOIN chats h ON h.id = hc.chat_id WHERE h.continuity_id = @id
+        UNION SELECT persona_character_id FROM chats
+          WHERE continuity_id = @id AND persona_character_id IS NOT NULL
+      `),
     };
   }
 
@@ -125,6 +135,11 @@ export class ContinuityStorage {
   /** A Continuity's text, or '' when it's gone. */
   content(id) {
     return this.stmts.getContent.get(id)?.content ?? '';
+  }
+
+  /** The ids of every character in a Continuity's stories and chats, their personas included. */
+  characterIds(id) {
+    return this.stmts.characterIds.all({ id }).map((row) => row.id);
   }
 
   /** Make a Continuity, keeping its text as the first version. */

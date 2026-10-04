@@ -519,10 +519,16 @@ describe('Archivist routes', () => {
   });
 });
 
-function answerWithContinuity(continuity) {
-  return vi
-    .spyOn(DeepSeekProvider.prototype, 'generate')
-    .mockResolvedValue({ content: JSON.stringify({ continuity, rationale: 'Added the date.' }) });
+/**
+ * Answer a Continuity pass with `continuity`, and a card pass with `cardSuggestions`, telling
+ * them apart by the JSON each asks for.
+ */
+function answerWithContinuity(continuity, cardSuggestions = []) {
+  return vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(async (system) => ({
+    content: system.includes('"suggestions"')
+      ? JSON.stringify({ suggestions: cardSuggestions })
+      : JSON.stringify({ continuity, rationale: 'Added the date.' }),
+  }));
 }
 
 describe('Archivist routes for a source in a Continuity', () => {
@@ -546,21 +552,25 @@ describe('Archivist routes for a source in a Continuity', () => {
     return { storyId, continuity };
   }
 
-  it('suggest an updated Continuity instead of card edits, and apply an edited one', async () => {
+  it('suggest an updated Continuity and card edits, and apply an edited Continuity', async () => {
     await setArchivist(true);
     await setContinuity(true);
     const app = createApp();
     const bradley = await character('Bradley', { description: 'Bradley is single.' });
     const { storyId, continuity } = await storyInContinuity([bradley]);
-    const generate = answerWithContinuity(UPDATED);
+    const generate = answerWithContinuity(UPDATED, [
+      { character: 'Bradley', field: 'description', find: '', replace: 'He grew up in Ohio.' },
+    ]);
 
     const listed = await request(app).get(`/api/archivist/story/${storyId}`);
     expect(listed.body.continuity).toEqual({ id: continuity.id, name: 'Bradley and Amanda' });
 
     const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
     expect(run.status).toBe(200);
-    expect(run.body.added).toBe(1);
-    expect(run.body.suggestions).toEqual([]);
+    expect(run.body.added).toBe(2);
+    expect(run.body.run.stage).toBe('cards');
+    expect(run.body.suggestions.map((s) => s.replace)).toEqual(['He grew up in Ohio.']);
+    expect(generate).toHaveBeenCalledTimes(2);
     expect(generate.mock.calls[0][1]).toContain(START);
     expect(generate.mock.calls[0][1]).toContain('They went out to dinner');
     const suggestion = run.body.continuitySuggestion;
@@ -684,6 +694,58 @@ describe('Archivist routes for a source in a Continuity', () => {
     expect(moved.body).toMatchObject({ continuityApplied: false, continuitySuggestion: null });
     expect(continuities.get(continuity.id).content).toBe(START);
     expect(continuities.get(other.id).content).toBe('Other.');
+  });
+
+  it('keep the Continuity update when reading the cards fails', async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const bradley = await character('Bradley', { description: 'Bradley is single.' });
+    const { storyId } = await storyInContinuity([bradley]);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(async (system) => {
+      if (system.includes('"suggestions"')) throw new Error('Server busy');
+      return { content: JSON.stringify({ continuity: UPDATED, rationale: '' }) };
+    });
+    const run = await request(createApp()).post(`/api/archivist/story/${storyId}/run`);
+    expect(run.status).toBe(502);
+    expect(run.body.error).toBe('Server busy What the Archivist found before it failed is kept.');
+    const listed = await request(createApp()).get(`/api/archivist/story/${storyId}`);
+    expect(listed.body.continuitySuggestion.replace).toBe(UPDATED);
+  });
+
+  it("condense a Continuity's text with the cards of everyone in it, saving nothing", async () => {
+    await setArchivist(true);
+    await setContinuity(true);
+    const app = createApp();
+    const amanda = await character('Amanda', { description: 'Amanda is a vet.' });
+    const persona = await character('Bradley', { description: 'Bradley fixes bikes.' });
+    const { continuity } = await storyInContinuity();
+    const chatId = chats.createChat({ title: 'Later', characterIds: [amanda] }).id;
+    chats.updateChat(chatId, { continuityId: continuity.id, personaCharacterId: persona });
+    await storage.setDefaultPresetId(await preset());
+    const generate = vi
+      .spyOn(DeepSeekProvider.prototype, 'generate')
+      .mockResolvedValue({ content: JSON.stringify({ continuity: 'Short.', rationale: 'Cut.' }) });
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const res = await request(app)
+      .post(`/api/archivist/continuities/${continuity.id}/compact`)
+      .send({ content: `${START} Unsaved.` });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ content: 'Short.', rationale: 'Cut.' });
+    const user = generate.mock.calls[0][1];
+    expect(user).toContain('Amanda is a vet.');
+    expect(user).toContain('Bradley fixes bikes.');
+    expect(user).toContain('Unsaved.');
+    expect(continuities.get(continuity.id).content).toBe(START);
+
+    await request(app).post('/api/archivist/continuities/nope/compact').expect(404);
+    await request(app)
+      .post(`/api/archivist/continuities/${continuity.id}/compact`)
+      .send({ content: ' ' })
+      .expect(400);
+    await setContinuity(false);
+    await request(app).post(`/api/archivist/continuities/${continuity.id}/compact`).expect(404);
   });
 
   it('keep no update from a read whose story was deleted meanwhile', async () => {

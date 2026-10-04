@@ -4,10 +4,10 @@
  * The experimental Archivist for library character cards: it reads a story or
  * chat, suggests edits to its characters' descriptions and personalities, and
  * applies the ones the reader accepts as new card versions (see
- * services/archivist/card-archivist.js). A story or chat in a Continuity gets
- * an updated Continuity instead (see services/archivist/continuity-archivist.js),
- * while Continuities are turned on. Every route answers 404 while the
- * Archivist's experimental toggle is off.
+ * services/archivist/card-archivist.js). A story or chat in a Continuity also
+ * gets an updated Continuity (see services/archivist/continuity-archivist.js),
+ * while Continuities are turned on, and a Continuity can be condensed on its
+ * own. Every route answers 404 while the Archivist's experimental toggle is off.
  */
 
 import express from 'express';
@@ -28,6 +28,7 @@ import { ContinuityStorage } from '../services/continuity/continuity-storage.js'
 import { ContinuitySuggestionStorage } from '../services/archivist/continuity-suggestion-storage.js';
 import {
   MAX_CONTINUITY_SUGGESTION_CHARACTERS,
+  compactContinuity,
   runContinuityArchivist,
 } from '../services/archivist/continuity-archivist.js';
 
@@ -48,6 +49,8 @@ const runs = new Map();
 // Finished reads remembered at most, the oldest forgotten first.
 const MAX_FINISHED_RUNS = 100;
 let lastRunId = 0;
+// The Continuities being condensed now, so one isn't condensed twice at once.
+const compacting = new Set();
 // The latest card save queued per character, so two reviews can't overwrite each other's edits.
 const cardLocks = new Map();
 
@@ -124,7 +127,7 @@ async function loadSource(kind, sourceId) {
 }
 
 /**
- * The Continuity the Archivist keeps up to date for a source, in place of its cast's cards, or
+ * The Continuity the Archivist keeps up to date for a source, alongside its cast's cards, or
  * null: the source isn't in one, or Continuities are turned off.
  */
 async function continuityFor(source) {
@@ -165,7 +168,12 @@ async function listFor(kind, sourceId, source) {
 
 /** The source's characters as the Archivist sees them, the persona's card included. */
 async function loadCast(source) {
-  const ids = new Set([...source.characterIds, source.personaCharacterId].filter(Boolean));
+  return loadCards([...source.characterIds, source.personaCharacterId]);
+}
+
+/** Characters' cards by id, as the Archivist sees them, skipping any that are gone. */
+async function loadCards(characterIds) {
+  const ids = new Set(characterIds.filter(Boolean));
   const cast = [];
   for (const id of ids) {
     let card;
@@ -233,8 +241,8 @@ async function pendingFor(kind, sourceId) {
 /** A read as the client sees it. */
 function runView(run) {
   if (!run) return null;
-  const { id, running, part, added, error, cancelled, startedAt, finishedAt } = run;
-  return { id, running, part, added, error, cancelled, startedAt, finishedAt };
+  const { id, running, stage, part, added, error, cancelled, startedAt, finishedAt } = run;
+  return { id, running, stage, part, added, error, cancelled, startedAt, finishedAt };
 }
 
 /** Log a failed read with everything the reader's message leaves out. */
@@ -247,48 +255,108 @@ function logFailure(key, error) {
 }
 
 /**
- * Read a source to the end, keeping what it suggests and recording how it ended in `run`. A read
- * that fails partway keeps what the passes before it found; a cancelled one keeps nothing.
+ * Read a source to the end, keeping what it suggests and recording how it ended in `run`. A
+ * source in a Continuity gets an update to it first, then card edits. A read that fails partway
+ * keeps what the passes before it found; a cancelled one keeps nothing.
  */
 async function read(kind, sourceId, run) {
   const key = `${kind}:${sourceId}`;
+  const onPart = (part) => {
+    run.part = { index: part.index, count: part.count };
+    console.log(
+      `[Archivist] ${key}: ${run.stage}, part ${part.index + 1} of ${part.count} (${part.characters} characters)`,
+    );
+  };
   try {
     const source = await loadSource(kind, sourceId);
     if (!source.text.trim()) {
       throw new AppError(`There's nothing in this ${kind} to read yet`, 400);
     }
     const continuity = await continuityFor(source);
-    if (continuity) {
-      await readForContinuity(kind, sourceId, source, continuity, run);
-      return;
-    }
     const cast = await loadCast(source);
-    if (cast.length === 0) {
+    if (!continuity && cast.length === 0) {
       throw new AppError(`This ${kind} has no library characters to review`, 400);
     }
     const { preset, provider } = await providerFor(source);
     console.log(`[Archivist] ${key}: reading ${source.text.length} characters`);
-    const found = await runArchivist({
-      provider,
-      preset,
-      cast,
-      text: source.text,
-      kind,
-      existing: suggestions.listForSource(kind, sourceId),
-      signal: run.controller.signal,
-      onPart: (part) => {
-        run.part = { index: part.index, count: part.count };
-        console.log(
-          `[Archivist] ${key}: part ${part.index + 1} of ${part.count} (${part.characters} characters)`,
-        );
-      },
-    });
+
+    // Keeps a Continuity update, counting it when it was kept.
+    const keepUpdate = (update) => {
+      if (!update) return 0;
+      const kept = continuitySuggestions.add(kind, sourceId, {
+        continuityId: continuity.id,
+        base: continuity.content,
+        replace: update.replace,
+        rationale: update.rationale,
+      });
+      return kept ? 1 : 0;
+    };
+    let update = null;
+    if (continuity) {
+      run.stage = 'continuity';
+      run.part = null;
+      console.log(`[Archivist] ${key}: updating the Continuity "${continuity.name}"`);
+      try {
+        update = await runContinuityArchivist({
+          provider,
+          preset,
+          name: continuity.name,
+          continuity: continuity.content,
+          text: source.text,
+          kind,
+          cast,
+          signal: run.controller.signal,
+          onPart,
+          onCompact: () => {
+            run.stage = 'compact';
+            run.part = null;
+            console.log(`[Archivist] ${key}: condensing the Continuity`);
+          },
+        });
+      } catch (error) {
+        if (error instanceof ArchivistRunError) {
+          error.keep = () => keepUpdate(error.found[0]);
+          error.keptNote = () => 'The Continuity update from the parts before it is kept.';
+        }
+        throw error;
+      }
+    }
+
+    let found = [];
+    if (cast.length > 0) {
+      run.stage = 'cards';
+      run.part = null;
+      try {
+        found = await runArchivist({
+          provider,
+          preset,
+          cast,
+          text: source.text,
+          kind,
+          existing: suggestions.listForSource(kind, sourceId),
+          signal: run.controller.signal,
+          onPart,
+        });
+      } catch (error) {
+        // The Continuity update is whole by now, so it's kept with whatever the cards' passes found.
+        if (!run.controller.signal.aborted && (update || error instanceof ArchivistRunError)) {
+          const cards = error instanceof ArchivistRunError ? error.found : [];
+          error.keep = () => keepUpdate(update) + suggestions.addAll(kind, sourceId, cards).length;
+          error.keptNote = (kept) =>
+            update
+              ? 'What the Archivist found before it failed is kept.'
+              : `The ${kept} suggestion(s) from the parts before it are kept.`;
+        }
+        throw error;
+      }
+    }
+
     // Nothing is kept from a read the reader cancelled.
     if (run.controller.signal.aborted) {
       run.cancelled = true;
       return;
     }
-    run.added = suggestions.addAll(kind, sourceId, found).length;
+    run.added = keepUpdate(update) + suggestions.addAll(kind, sourceId, found).length;
     console.log(`[Archivist] ${key}: done, ${run.added} new suggestion(s)`);
   } catch (error) {
     if (run.controller.signal.aborted) {
@@ -302,19 +370,10 @@ async function read(kind, sourceId, run) {
       return;
     }
     logFailure(key, error);
-    // What the passes before a failing one found is kept, as the kind of read it was keeps it.
-    let kept = 0;
-    if (error instanceof ArchivistRunError && error.found.length > 0) {
-      kept = error.keep ? error.keep() : suggestions.addAll(kind, sourceId, error.found).length;
-    }
+    const kept = error.keep ? error.keep() : 0;
     run.added = kept;
-    let keptNote = '';
-    if (kept > 0) {
-      keptNote = error.keep
-        ? ' The update from the parts before it is kept.'
-        : ` The ${kept} suggestion(s) from the parts before it are kept.`;
-    }
-    run.error = (error.message || 'The Archivist failed') + keptNote;
+    run.error =
+      (error.message || 'The Archivist failed') + (kept > 0 ? ` ${error.keptNote(kept)}` : '');
     run.status = 502;
   } finally {
     run.running = false;
@@ -322,54 +381,6 @@ async function read(kind, sourceId, run) {
     delete run.controller;
     forgetOldRuns();
   }
-}
-
-/**
- * Read a source that's in a Continuity, keeping the updated Continuity it suggests. A failing pass's
- * error gets a `keep` that keeps what the passes before it wrote.
- */
-async function readForContinuity(kind, sourceId, source, continuity, run) {
-  const key = `${kind}:${sourceId}`;
-  const { preset, provider } = await providerFor(source);
-  console.log(
-    `[Archivist] ${key}: reading ${source.text.length} characters for the Continuity "${continuity.name}"`,
-  );
-  const keep = (found) =>
-    continuitySuggestions.add(kind, sourceId, {
-      continuityId: continuity.id,
-      base: continuity.content,
-      replace: found.replace,
-      rationale: found.rationale,
-    })
-      ? 1
-      : 0;
-  let found;
-  try {
-    found = await runContinuityArchivist({
-      provider,
-      preset,
-      name: continuity.name,
-      continuity: continuity.content,
-      text: source.text,
-      kind,
-      signal: run.controller.signal,
-      onPart: (part) => {
-        run.part = { index: part.index, count: part.count };
-        console.log(
-          `[Archivist] ${key}: part ${part.index + 1} of ${part.count} (${part.characters} characters)`,
-        );
-      },
-    });
-  } catch (error) {
-    if (error instanceof ArchivistRunError) error.keep = () => keep(error.found[0]);
-    throw error;
-  }
-  if (run.controller.signal.aborted) {
-    run.cancelled = true;
-    return;
-  }
-  run.added = found ? keep(found) : 0;
-  console.log(`[Archivist] ${key}: done, ${run.added ? 'an update' : 'no update'} suggested`);
 }
 
 /** Forget the oldest finished reads past the most kept. The map keeps the order reads started. */
@@ -465,6 +476,65 @@ function reviewDecisions(body) {
 
 // ==================== Routes ====================
 
+// Condense a Continuity's text, given in the body as the reader has it now, with the cards of the
+// characters in its stories and chats. Nothing is saved: the answer goes back to the editor, for
+// the reader to keep or undo. It's written with the default preset.
+router.post(
+  '/continuities/:id/compact',
+  asyncHandler(async (req, res) => {
+    const settings = await storage.getSettings();
+    const continuity = settings?.experimentalContinuity ? continuities.get(req.params.id) : null;
+    if (!continuity) throw new AppError('Continuity not found', 404);
+    const given = req.body?.content;
+    if (given !== undefined && typeof given !== 'string') {
+      throw new AppError('content must be a string', 400);
+    }
+    const text = (given ?? continuity.content).trim();
+    if (!text) throw new AppError('There is nothing in this Continuity to condense', 400);
+    if (text.length > MAX_CONTINUITY_SUGGESTION_CHARACTERS) {
+      throw new AppError(
+        `content must be at most ${MAX_CONTINUITY_SUGGESTION_CHARACTERS} characters`,
+        400,
+      );
+    }
+    if (compacting.has(continuity.id)) {
+      throw new AppError('The Archivist is already condensing this Continuity', 409);
+    }
+
+    compacting.add(continuity.id);
+    const controller = new AbortController();
+    // Stop when the reader gives up waiting, since nothing is kept without them.
+    res.on('close', () => {
+      if (!res.writableEnded) controller.abort();
+    });
+    try {
+      const { preset, provider } = await providerFor({ configPresetId: null });
+      const cast = await loadCards(continuities.characterIds(continuity.id));
+      console.log(
+        `[Archivist] continuity:${continuity.id}: condensing ${text.length} characters with ${cast.length} card(s)`,
+      );
+      const compacted = await compactContinuity({
+        provider,
+        preset,
+        name: continuity.name,
+        continuity: text,
+        cast,
+        signal: controller.signal,
+      });
+      res.json({
+        content: compacted?.replace ?? null,
+        rationale: compacted?.rationale ?? '',
+      });
+    } catch (error) {
+      if (controller.signal.aborted || error instanceof AppError) throw error;
+      logFailure(`continuity:${continuity.id}`, error);
+      throw new AppError(error.message || 'The Archivist failed', 502);
+    } finally {
+      compacting.delete(continuity.id);
+    }
+  }),
+);
+
 // The suggestions for a story or chat that are waiting for review, and its latest read
 router.get(
   '/:kind/:sourceId',
@@ -495,6 +565,7 @@ router.post(
     const run = {
       id: ++lastRunId,
       running: true,
+      stage: null,
       part: null,
       added: 0,
       error: null,

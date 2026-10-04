@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import ContinuityPicker from '../ContinuityPicker.vue';
-import { continuitiesAPI, settingsAPI } from '../../services/api';
+import { archivistAPI, continuitiesAPI, settingsAPI } from '../../services/api';
 
 vi.mock('../../services/api', () => ({
   settingsAPI: { get: vi.fn() },
+  archivistAPI: { compactContinuity: vi.fn() },
   continuitiesAPI: {
     list: vi.fn(),
     create: vi.fn(),
@@ -14,8 +15,9 @@ vi.mock('../../services/api', () => ({
     restoreVersion: vi.fn(),
   },
 }));
+const toastInfo = vi.fn();
 vi.mock('../../composables/useToast', () => ({
-  useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: toastInfo }),
 }));
 const confirm = vi.fn();
 vi.mock('../../composables/useConfirm', () => ({ useConfirm: () => ({ confirm }) }));
@@ -28,8 +30,10 @@ const HARBOR = {
   chatCount: 1,
 };
 
-async function mountPicker(props = {}, { enabled = true } = {}) {
-  settingsAPI.get.mockResolvedValue({ settings: { experimentalContinuity: enabled } });
+async function mountPicker(props = {}, { enabled = true, archivist = false } = {}) {
+  settingsAPI.get.mockResolvedValue({
+    settings: { experimentalContinuity: enabled, experimentalArchivist: archivist },
+  });
   continuitiesAPI.list.mockResolvedValue({ continuities: [HARBOR] });
   const wrapper = mount(ContinuityPicker, { props });
   await flushPromises();
@@ -51,6 +55,58 @@ describe('ContinuityPicker', () => {
     const wrapper = await mountPicker({ continuityId: 'k1' });
     expect(wrapper.find('#continuityContent').element.value).toBe('Layla and Sam are married.');
     expect(wrapper.text()).toContain('Also used by 2 other stories and chats');
+  });
+
+  it('offers Compact only while the Archivist is on', async () => {
+    const off = await mountPicker({ continuityId: 'k1' });
+    expect(off.findAll('button').some((b) => b.text().includes('Compact'))).toBe(false);
+    const on = await mountPicker({ continuityId: 'k1' }, { archivist: true });
+    expect(on.findAll('button').some((b) => b.text().includes('Compact'))).toBe(true);
+  });
+
+  it('puts the condensed text in place to save, and undoes it', async () => {
+    archivistAPI.compactContinuity.mockResolvedValue({ content: 'Married.', rationale: 'Cut.' });
+    continuitiesAPI.update.mockResolvedValue({ continuity: { ...HARBOR, content: 'Married.' } });
+    const wrapper = await mountPicker({ continuityId: 'k1' }, { archivist: true });
+    await wrapper.find('#continuityContent').setValue('Layla and Sam are married. Unsaved.');
+    const compact = wrapper.findAll('button').find((b) => b.text().includes('Compact'));
+    await compact.trigger('click');
+    await flushPromises();
+
+    expect(archivistAPI.compactContinuity).toHaveBeenCalledWith(
+      'k1',
+      'Layla and Sam are married. Unsaved.',
+    );
+    expect(wrapper.find('#continuityContent').element.value).toBe('Married.');
+    expect(wrapper.text()).toContain('condensed this from 35 to 8 characters: Cut.');
+
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Undo'))
+      .trigger('click');
+    expect(wrapper.find('#continuityContent').element.value).toBe(
+      'Layla and Sam are married. Unsaved.',
+    );
+
+    await compact.trigger('click');
+    await flushPromises();
+    expect(await wrapper.vm.save()).toBe('k1');
+    expect(continuitiesAPI.update).toHaveBeenCalledWith('k1', {
+      name: 'Harbor',
+      content: 'Married.',
+    });
+  });
+
+  it("says so when the Archivist can't make it shorter", async () => {
+    archivistAPI.compactContinuity.mockResolvedValue({ content: null, rationale: '' });
+    const wrapper = await mountPicker({ continuityId: 'k1' }, { archivist: true });
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Compact'))
+      .trigger('click');
+    await flushPromises();
+    expect(toastInfo).toHaveBeenCalled();
+    expect(wrapper.find('#continuityContent').element.value).toBe('Layla and Sam are married.');
   });
 
   it('saves edits to the text and returns its id', async () => {

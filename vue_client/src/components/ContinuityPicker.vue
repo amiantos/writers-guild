@@ -12,6 +12,17 @@
         </select>
         <template v-if="selected">
           <button
+            v-if="archivist"
+            type="button"
+            class="btn btn-secondary btn-small"
+            :disabled="busy || !content.trim()"
+            title="Ask the Archivist to condense this Continuity, using its characters' cards"
+            @click="compact"
+          >
+            <i class="fas" :class="compacting ? 'fa-spinner fa-spin' : 'fa-compress'"></i>
+            {{ compacting ? 'Compacting...' : 'Compact' }}
+          </button>
+          <button
             type="button"
             class="btn btn-secondary btn-small"
             :disabled="busy"
@@ -50,6 +61,7 @@
           id="continuityContent"
           v-model="content"
           class="textarea-input"
+          :readonly="compacting"
           maxlength="20000"
           placeholder="What carries over from story to story: who is together, what happened last time, where everyone is now..."
           rows="6"
@@ -61,6 +73,14 @@
             {{ sharedWith === 1 ? 'story or chat' : 'stories and chats' }}, so changes here apply to
             them too.
           </template>
+        </p>
+        <p v-if="beforeCompact !== null" class="form-help compact-note">
+          The Archivist condensed this from {{ beforeCompact.length }} to
+          {{ content.length }} characters{{ compactRationale ? `: ${compactRationale}` : '.' }} It's
+          kept when you save, and the old text stays in History.
+          <button type="button" class="btn btn-secondary btn-small" @click="undoCompact">
+            <i class="fas fa-rotate-left"></i> Undo
+          </button>
         </p>
       </div>
 
@@ -95,7 +115,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { continuitiesAPI, settingsAPI } from '../services/api';
+import { archivistAPI, continuitiesAPI, settingsAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 
@@ -132,6 +152,11 @@ const content = ref('');
 const versions = ref([]);
 const showHistory = ref(false);
 const busy = ref(false);
+// Whether the Archivist is on, for Compact, and the text as it was before the last Compact.
+const archivist = ref(false);
+const compacting = ref(false);
+const beforeCompact = ref(null);
+const compactRationale = ref('');
 
 const selected = computed(
   () => continuities.value.find((continuity) => continuity.id === selection.value) ?? null,
@@ -149,12 +174,14 @@ watch(selection, () => {
   name.value = selected.value?.name ?? '';
   content.value = selected.value?.content ?? '';
   showHistory.value = false;
+  beforeCompact.value = null;
 });
 
 onMounted(async () => {
   try {
     const { settings } = await settingsAPI.get();
     if (!settings?.experimentalContinuity) return;
+    archivist.value = Boolean(settings.experimentalArchivist);
     continuities.value = (await continuitiesAPI.list()).continuities;
     enabled.value = true;
     if (!selected.value) selection.value = NONE;
@@ -186,6 +213,34 @@ async function toggleHistory() {
   }
 }
 
+/** Ask the Archivist to condense the text as it stands here; nothing is saved until the story is. */
+async function compact() {
+  busy.value = true;
+  compacting.value = true;
+  try {
+    const before = content.value;
+    const result = await archivistAPI.compactContinuity(selected.value.id, before);
+    if (!result.content) {
+      toast.info("The Archivist couldn't make this Continuity any shorter.");
+      return;
+    }
+    // A second Compact still undoes to the text before the first.
+    beforeCompact.value ??= before;
+    compactRationale.value = result.rationale;
+    content.value = result.content;
+  } catch (error) {
+    toast.error('Failed to compact: ' + error.message);
+  } finally {
+    busy.value = false;
+    compacting.value = false;
+  }
+}
+
+function undoCompact() {
+  content.value = beforeCompact.value;
+  beforeCompact.value = null;
+}
+
 async function restore(version) {
   const confirmed = await confirm({
     message: `Restore "${selected.value.name}" to this version?\n\nThe current text stays in History, and any unsaved changes to it here are replaced.`,
@@ -198,6 +253,7 @@ async function restore(version) {
     const { continuity } = await continuitiesAPI.restoreVersion(selected.value.id, version.id);
     keep(continuity);
     content.value = continuity.content;
+    beforeCompact.value = null;
     await loadVersions();
     toast.success(`Restored "${continuity.name}"`);
   } catch (error) {
@@ -331,6 +387,10 @@ defineExpose({ save });
   font-size: 0.75rem;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.compact-note .btn {
+  margin-left: 0.5rem;
 }
 
 .version-list {

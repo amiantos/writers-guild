@@ -2,9 +2,10 @@
  * Card Archivist
  *
  * Reads a finished story or chat and suggests small edits to the library cards
- * of the characters in it, so a card keeps up with what happened: a new
- * relationship, a change in circumstances, a new goal, or a lasting shift in
- * who someone is. Cards keep their format: a suggestion replaces one span of a
+ * of the characters in it, for what it reveals about who they are: their past,
+ * family, job, tastes, skills or habits, the details that would hold in any
+ * story they're in. What happened in the story itself is left to a Continuity
+ * (see continuity-archivist.js). Cards keep their format: a suggestion replaces one span of a
  * card's description or personality, or adds a sentence to the end, and waits
  * for the reader to accept, edit, or reject it.
  *
@@ -111,15 +112,15 @@ function describeEdit(suggestion) {
 export function buildArchivistPrompt({ cast, text, kind, part, pending = [], rejected = [] }) {
   const source = kind === 'chat' ? 'chat' : 'story';
   const system = [
-    `You are the Archivist. You read a ${source} and keep the character cards of its characters up to date with what happened in it.`,
-    'A card is a description and a personality written before the ' +
-      `${source}. Suggest an edit only for a lasting change the ${source} clearly shows: a new or ended relationship (and with whom), a change in circumstances such as where they live or what they do, a new goal or plan for the future, something important they learned or lost, or a real shift in who they are. Not passing moods, events that are over and don't matter later, or anything the card already says.`,
+    `You are the Archivist. You read a ${source} and add to the character cards of its characters what it reveals about who they are.`,
+    `A card is a description and a personality, used for every story the character is in, so it holds what is true of them in any story, not where one story left them. Suggest an edit only for a character-specific fact the ${source} clearly shows and the card doesn't already cover: something from their past (their dad died when they were young, where they grew up), their family, their job or what they do with their days, what they love or can't stand, a skill, a habit, a belief or fear, or a trait that gives them more depth or flavor. Also correct a card the ${source} plainly contradicts on such a fact.`,
+    `Leave out the ${source}'s own events and where they leave things: what happened, who is together now, plans, moods, injuries or anything else that belongs to this ${source} rather than to the character.`,
     'Each edit changes as little as it can and matches the card\'s voice, tense and person. To change something the card says, set "find" to the exact text to replace, copied character for character from the card (a phrase or sentence, not the whole field), and "replace" to the new text. To add something the card doesn\'t cover, leave "find" empty and set "replace" to one or two sentences to add at the end. Keep placeholders such as {{char}} and {{user}} as they are.',
     `Most ${source}s call for no edits, and a few at most. Don't repeat an edit that is waiting for review or that the reader turned down.`,
     'Answer with JSON only, no other text, in this shape:',
     '{"suggestions": [{"character": "the name as its card\'s heading gives it", "field": "description" or "personality", "find": "exact text from the card, or empty", "replace": "new text", "rationale": "what in the ' +
       `${source} shows it, in one sentence", "quote": "a short quote from the ${source} that shows it"}]}`,
-    'Answer {"suggestions": []} when nothing lasting changed.',
+    `Answer {"suggestions": []} when the ${source} reveals nothing new about its characters.`,
   ].join('\n\n');
 
   const labels = castLabels(cast);
