@@ -1290,4 +1290,78 @@ describe('PromptBuilder', () => {
       );
     });
   });
+
+  describe('userWithoutStory', () => {
+    const context = (content) => ({
+      characterCards: [],
+      activatedLorebooks: [],
+      story: { content },
+      settings: {},
+    });
+
+    it('notes the whole story in place of it', () => {
+      const result = builder.buildPrompts(context('Rain fell on the town.'), {
+        generationType: 'continue',
+      });
+      expect(result.user).toContain('Rain fell on the town.');
+
+      expect(result.userWithoutStory).not.toContain('Rain fell');
+      expect(result.userWithoutStory).toBe(
+        result.user.replace('Rain fell on the town.', '[The story: all 22 characters]'),
+      );
+    });
+
+    it('notes how much of a truncated story went in', () => {
+      const story = 'word '.repeat(2000);
+      const result = builder.buildPrompts(context(story), {
+        generationType: 'continue',
+        maxContextTokens: 4000,
+        maxGenerationTokens: 3000,
+      });
+
+      expect(result.userWithoutStory).not.toContain('word word');
+      expect(result.userWithoutStory).toMatch(
+        /^Here is the current story so far:\n\n\[The story: its last [\d,]+ of 10,000 characters\]\n\n---/,
+      );
+    });
+
+    it('replaces a story placed by {{storyContent}}, images and all', () => {
+      const story = 'She smiled. ![pic](/api/assets/a.png) Then left.';
+      const result = builder.buildPrompts(context(story), {
+        generationType: 'continue',
+        templateText: 'Story:\n{{storyContent}}\nGo on.',
+        imagePreserver: new ImagePreserver(),
+      });
+      expect(result.user).toBe('Story:\nShe smiled. [WG_IMAGE_0] Then left.\nGo on.');
+      expect(result.userWithoutStory).toBe(
+        `Story:\n[The story: all ${story.length} characters]\nGo on.`,
+      );
+    });
+
+    it('leaves the rest of the prompt alone when it repeats the story', () => {
+      const result = builder.buildPrompts(context('Rain.'), {
+        generationType: 'continue',
+        templateText: 'Story: {{storyContent}}\nUse "Rain." as the title.',
+      });
+      expect(result.user).toBe('Story: Rain.\nUse "Rain." as the title.');
+      expect(result.userWithoutStory).toBe(
+        'Story: [The story: all 5 characters]\nUse "Rain." as the title.',
+      );
+    });
+
+    it('leaves out a story that names {{user}}, which is filled in it as before', () => {
+      const result = builder.buildPrompts(context('{{user}} waved.'), {
+        generationType: 'continue',
+        templateText: 'Story: {{storyContent}}',
+        userName: 'Alice',
+      });
+      expect(result.user).toBe('Story: Alice waved.');
+      expect(result.userWithoutStory).toBe('Story: [The story: all 15 characters]');
+    });
+
+    it('is the prompt itself when there is no story', () => {
+      const result = builder.buildPrompts(context(''), { generationType: 'storyStarter' });
+      expect(result.userWithoutStory).toBe(result.user);
+    });
+  });
 });

@@ -11,6 +11,17 @@
 
     <div v-if="open" class="seam-panel">
       <p v-if="meta" class="seam-meta">{{ meta }}</p>
+      <details v-if="hasPrompt" class="seam-block prompt-block" @toggle="onPromptToggle">
+        <summary class="block-label">Prompt</summary>
+        <p v-if="promptError" class="seam-meta">{{ promptError }}</p>
+        <p v-else-if="!prompt" class="seam-meta">Loading the prompt…</p>
+        <template v-else>
+          <div class="prompt-part">System</div>
+          <pre class="block-text">{{ prompt.system }}</pre>
+          <div class="prompt-part">User</div>
+          <pre class="block-text">{{ prompt.user }}</pre>
+        </template>
+      </details>
       <div v-if="instruction" class="seam-block">
         <div class="block-label">Your instruction</div>
         <pre class="block-text">{{ instruction }}</pre>
@@ -32,11 +43,17 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
 import { formatDateTime } from '../../composables/formatDateTime';
+import { storiesAPI } from '../../services/api';
 
 const props = defineProps({
+  /** The story's id, for fetching the prompt the passage was written from. */
+  storyId: { type: String, default: '' },
   /** The record of the passage below; absent while it's being written. */
   passage: { type: Object, default: null },
-  /** Live progress ({ status, action, characterName, instruction }) while the passage is written. */
+  /**
+   * Live progress ({ status, action, characterName, instruction, prompt }) while the passage is
+   * written.
+   */
   live: { type: Object, default: null },
   /** The live reasoning, while the passage below is being written. */
   liveReasoning: { type: String, default: '' },
@@ -60,6 +77,34 @@ const reasoningRef = ref(null);
 const source = computed(() => props.live ?? props.passage ?? {});
 const reasoning = computed(() => (props.live ? props.liveReasoning : props.passage?.reasoning));
 const instruction = computed(() => source.value.instruction ?? '');
+
+// The prompt is fetched the first time it's opened, since it holds the story up to that point.
+const storedPrompt = ref(null);
+const promptError = ref('');
+const prompt = computed(() => (props.live ? props.live.prompt : storedPrompt.value));
+const hasPrompt = computed(() =>
+  props.live ? Boolean(props.live.prompt) : Boolean(props.storyId && props.passage?.promptId),
+);
+
+async function onPromptToggle(event) {
+  if (!event.target.open || props.live || storedPrompt.value) return;
+  promptError.value = '';
+  try {
+    const { prompt: fetched } = await storiesAPI.getPrompt(props.storyId, props.passage.promptId);
+    storedPrompt.value = fetched;
+  } catch (error) {
+    promptError.value =
+      error.status === 404 ? 'This prompt is no longer kept.' : "The prompt couldn't be loaded.";
+  }
+}
+
+watch(
+  () => props.passage?.promptId,
+  () => {
+    storedPrompt.value = null;
+    promptError.value = '';
+  },
+);
 
 const label = computed(() => {
   if (props.live) return props.live.status;
@@ -182,6 +227,20 @@ watch(
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.prompt-block summary {
+  cursor: pointer;
+}
+
+.prompt-block[open] summary {
+  margin-bottom: 0.25rem;
+}
+
+.prompt-part {
+  margin-top: 0.375rem;
+  font-size: 0.7rem;
   color: var(--text-secondary);
 }
 

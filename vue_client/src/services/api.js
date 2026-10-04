@@ -179,6 +179,11 @@ export const storiesAPI = {
     });
   },
 
+  /** The prompt one of Enhanced Story Mode's passages was written from. */
+  getPrompt(storyId, promptId) {
+    return request(`/stories/${storyId}/prompts/${promptId}`);
+  },
+
   updateMetadata(storyId, updates) {
     return request(`/stories/${storyId}`, {
       method: 'PUT',
