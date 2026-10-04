@@ -105,11 +105,12 @@
               </label>
               <p class="help-text">
                 Adds a Review Cards button to stories and chats. The Archivist reads what happened
-                and suggests small edits to your characters' descriptions and personalities, such as
-                a new relationship or goal, for you to accept, edit, or reject. Uses the story or
-                chat's preset. Accepted edits show in each card's History and can be restored. With
-                Continuity on, a story or chat in a Continuity gets an update to its Continuity
-                instead.
+                and suggests additions to your characters' descriptions and personalities for what
+                it reveals about them, such as their past, job or tastes, for you to accept, edit,
+                or reject. Uses the story or chat's preset. Accepted edits show in each card's
+                History and can be restored. With Continuity on, a story or chat in a Continuity
+                also gets an update to its Continuity, condensed when it grows long, and a
+                Continuity can be condensed by hand.
               </p>
             </div>
             <div class="checkbox-group">

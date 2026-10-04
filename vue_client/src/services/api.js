@@ -887,6 +887,17 @@ export const archivistAPI = {
       body: JSON.stringify({ decisions, ...(continuity ? { continuity } : {}) }),
     });
   },
+
+  /**
+   * Condense a Continuity's text, as given, without saving it.
+   * @returns {Promise<{content: string|null, rationale: string}>} The shorter text, or null.
+   */
+  async compactContinuity(continuityId, content) {
+    return request(`/archivist/continuities/${continuityId}/compact`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  },
 };
 
 // The experimental Continuities: text shared by stories and chats, ahead of each one's scenario.

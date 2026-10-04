@@ -65,6 +65,12 @@ describe('buildArchivistPrompt', () => {
     expect(user).toContain('personality: "stubborn" -> "yielding"');
     expect(user).toContain('Layla kissed Sam.');
   });
+
+  it("asks for facts about who a character is, not the story's own events", () => {
+    const { system } = buildArchivistPrompt({ cast: [LAYLA], text: 'Hi.', kind: 'chat' });
+    expect(system).toContain('true of them in any story');
+    expect(system).toContain("Leave out the chat's own events");
+  });
 });
 
 describe('parseSuggestions', () => {

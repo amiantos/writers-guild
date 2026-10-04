@@ -191,12 +191,14 @@ const running = ref(false);
 const applying = ref(false);
 const hasRun = ref(false);
 const stopping = ref(false);
-// The pass being read, as {index, count}, while a long source is read in several.
+// The pass being read, as {index, count}, while a long source is read in several, and what the
+// read is doing: 'continuity', 'compact' or 'cards'.
 const progress = ref(null);
+const stage = ref(null);
 // Why the last read failed, until the next one starts.
 const failure = ref(null);
 const suggestions = ref([]);
-// The Continuity this source is in, as {id, name}, when the Archivist updates it instead of cards.
+// The Continuity this source is in, as {id, name}, when the Archivist updates it too.
 const continuity = ref(null);
 // The Continuity update waiting for review, and the reader's decision and edits to it.
 const continuitySuggestion = ref(null);
@@ -227,11 +229,11 @@ const idleHint = computed(() => {
   if (name) {
     return hasRun.value
       ? `Nothing in this ${props.kind} to carry forward into "${name}".`
-      : `This ${props.kind} is in the Continuity "${name}", so the Archivist reads it and suggests an update to the Continuity with what happened worked in. Nothing changes until you accept it, and accepted updates can be restored from the Continuity's History.`;
+      : `This ${props.kind} is in the Continuity "${name}", so the Archivist reads it and suggests an update to the Continuity with what happened worked in, condensing it when it grows long. It also suggests additions to its characters' cards for what the ${props.kind} reveals about them, like their past, job or tastes. Nothing changes until you accept it, and accepted changes can be restored from History.`;
   }
   return hasRun.value
-    ? `Nothing to change: the cards already match this ${props.kind}.`
-    : `The Archivist reads this ${props.kind} and suggests edits to its characters' descriptions and personalities, for lasting changes like a new relationship or goal. Nothing changes until you accept it, and accepted edits can be restored from each card's History.`;
+    ? `Nothing to change: the cards already cover what this ${props.kind} reveals.`
+    : `The Archivist reads this ${props.kind} and suggests additions to its characters' descriptions and personalities for what it reveals about them, like their past, job or tastes. Nothing changes until you accept it, and accepted edits can be restored from each card's History.`;
 });
 
 /** Whether a character is part of a word, so a change isn't cut between two of them. */
@@ -274,10 +276,18 @@ const continuityDiff = computed(() => {
   ].filter((piece) => piece.text);
 });
 
+const STAGE_LABELS = {
+  continuity: 'for the Continuity',
+  compact: 'and condensing the Continuity',
+  cards: 'for the cards',
+};
+
 const readingLabel = computed(() => {
   const part = progress.value;
   const where = part && part.count > 1 ? `, part ${part.index + 1} of ${part.count}` : '';
-  return `The Archivist is reading this ${props.kind}${where}...`;
+  // A read that only reviews cards needn't say so.
+  const what = continuity.value && STAGE_LABELS[stage.value] ? ` ${STAGE_LABELS[stage.value]}` : '';
+  return `The Archivist is reading this ${props.kind}${what}${where}...`;
 });
 
 const groups = computed(() => {
@@ -398,6 +408,7 @@ async function load() {
       running.value = true;
       awaitingStart = false;
       progress.value = run?.part ?? null;
+      stage.value = run?.stage ?? null;
       show(response);
       schedule();
     } else if (running.value && awaitingStart && id === settledRun) {
@@ -430,6 +441,7 @@ function finish(run, list) {
   running.value = false;
   awaitingStart = false;
   progress.value = null;
+  stage.value = null;
   clearTimeout(pollTimer);
   pollTimer = null;
   settledRun = run?.id ?? null;
@@ -442,7 +454,7 @@ function finish(run, list) {
   } else if (run?.added > 0) {
     toast.success(
       continuity.value
-        ? `The Archivist suggested an update to "${continuity.value.name}"`
+        ? `The Archivist made ${run.added} new suggestion(s) for "${continuity.value.name}" and its cards`
         : `The Archivist suggested ${run.added} new edit(s)`,
     );
   }
@@ -451,6 +463,7 @@ function finish(run, list) {
 async function read() {
   running.value = true;
   progress.value = null;
+  stage.value = null;
   failure.value = null;
   settledRun = latestRun;
   awaitingStart = true;
