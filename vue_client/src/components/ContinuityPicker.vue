@@ -3,7 +3,12 @@
     <div class="form-group">
       <label for="continuitySelect">Continuity</label>
       <div class="picker-row">
-        <select id="continuitySelect" v-model="selection" class="select-input">
+        <select
+          id="continuitySelect"
+          v-model="selection"
+          class="select-input"
+          :disabled="compacting"
+        >
           <option :value="NONE">None</option>
           <option v-for="continuity in continuities" :key="continuity.id" :value="continuity.id">
             {{ continuity.name }}
@@ -78,7 +83,12 @@
           The Archivist condensed this from {{ beforeCompact.length }} to
           {{ content.length }} characters{{ compactRationale ? `: ${compactRationale}` : '.' }} It's
           kept when you save, and the old text stays in History.
-          <button type="button" class="btn btn-secondary btn-small" @click="undoCompact">
+          <button
+            type="button"
+            class="btn btn-secondary btn-small"
+            :disabled="compacting"
+            @click="undoCompact"
+          >
             <i class="fas fa-rotate-left"></i> Undo
           </button>
         </p>
@@ -218,8 +228,11 @@ async function compact() {
   busy.value = true;
   compacting.value = true;
   try {
+    const id = selected.value.id;
     const before = content.value;
-    const result = await archivistAPI.compactContinuity(selected.value.id, before);
+    const result = await archivistAPI.compactContinuity(id, before);
+    // An answer for text that has changed since, or another Continuity, no longer applies.
+    if (selection.value !== id || content.value !== before) return;
     if (!result.content) {
       toast.info("The Archivist couldn't make this Continuity any shorter.");
       return;
@@ -297,6 +310,7 @@ async function deleteSelected() {
  */
 async function save() {
   if (!enabled.value) return undefined;
+  if (compacting.value) throw new Error('Wait for Compact to finish before saving');
   if (selection.value === NONE) return null;
 
   const fields = {

@@ -61,8 +61,10 @@ describe('withoutTitle', () => {
     expect(withoutTitle(CONTINUITY, 'Bradley and Amanda')).toBe(CONTINUITY);
     const titled = `Bradley and Amanda\n${CONTINUITY}`;
     expect(withoutTitle(titled, 'Bradley and Amanda', `Bradley and Amanda\nOld.`)).toBe(titled);
-    const prose = `Continuity matters to Bradley.\n${CONTINUITY}`;
-    expect(withoutTitle(prose, 'X')).toBe(prose);
+    for (const first of ['Continuity matters to Bradley.', 'Continuity binds them together']) {
+      const prose = `${first}\n${CONTINUITY}`;
+      expect(withoutTitle(prose, 'X')).toBe(prose);
+    }
   });
 });
 
@@ -235,12 +237,21 @@ describe('compactContinuity', () => {
       generate: vi.fn(async () => answer('S.')),
     };
     const cast = [
-      { name: 'Small', description: 'Fits.', personality: '' },
       { name: 'Huge', description: 'y'.repeat(40_000), personality: '' },
+      { name: 'Small', description: 'Fits.', personality: '' },
     ];
     await compactContinuity({ ...base, provider, continuity: CONTINUITY, cast });
     const user = provider.generate.mock.calls[0][1];
     expect(user).toContain('## Small');
     expect(user).not.toContain('## Huge');
+  });
+
+  it('needs room in the answer for the condensed text only', async () => {
+    const provider = {
+      resolveContextTokens: () => 16_384,
+      generate: vi.fn(async () => answer('S.')),
+    };
+    const found = await compactContinuity({ ...base, provider, continuity: 'z '.repeat(3500) });
+    expect(found.replace).toBe('S.');
   });
 });

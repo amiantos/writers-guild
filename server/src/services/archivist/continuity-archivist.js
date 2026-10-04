@@ -118,8 +118,8 @@ function headingText(line) {
 
 /**
  * An answer's text without a title the model put on it: a first line that is just the
- * Continuity's name (as a heading, in bold, or after "Continuity:"), or that calls itself the
- * Continuity, unless the Continuity itself started with that line.
+ * Continuity's name (as a heading, in bold, or after "Continuity:"), or that is a bare
+ * "Continuity" heading or a "Continuity:" label, unless the Continuity itself started with that line.
  */
 export function withoutTitle(answer, name, before = '') {
   const [first, ...rest] = answer.split('\n');
@@ -127,12 +127,15 @@ export function withoutTitle(answer, name, before = '') {
   const ownFirst = normalized(before.split('\n')[0] ?? '');
   if (ownFirst && normalized(first) === ownFirst) return answer;
   const isName = Boolean(name) && headingText(first) === normalized(name).toLowerCase();
-  const isTitle = /^[#*_\s]*(the\s+)?continuity\b[^.!?]*$/i.test(first.trim());
+  const isTitle = /^[#*_\s]*(the\s+)?continuity[*_\s]*(:.*)?$/i.test(first.trim());
   if (!isName && !isTitle) return answer;
   return rest.join('\n').trim() || answer;
 }
 
-/** Character cards as the condensing prompt shows them, as many as fit in `room` characters. */
+/**
+ * Character cards as the condensing prompt shows them, as many as fit in `room` characters. A
+ * card too long for what's left is skipped, so shorter ones after it can still be shown.
+ */
 function cardsThatFit(cast, room) {
   const shown = [];
   for (const member of cast) {
@@ -142,8 +145,8 @@ function cardsThatFit(cast, room) {
         .filter((field) => member[field]?.trim())
         .map((field) => member[field].trim()),
     ].join('\n');
+    if (card.length + 2 > room) continue;
     room -= card.length + 2;
-    if (room < 0) break;
     shown.push(card);
   }
   return shown;
@@ -194,19 +197,23 @@ export function buildCompactPrompt({ continuity, cards = [] }) {
  * @throws {ArchivistRunError} When the pass fails, unless the run was cancelled.
  */
 export async function compactContinuity({ provider, preset, name, continuity, cast = [], signal }) {
-  const repeatTokens = Math.ceil(continuity.length / CHARACTERS_PER_TOKEN) + ANSWER_GROWTH_TOKENS;
+  // The answer is shorter than the Continuity, so it needs room for no more than the length that
+  // calls for condensing, and for the rationale; the Continuity itself only has to fit the prompt.
+  const answerRoomTokens =
+    Math.ceil(Math.min(continuity.length, COMPACT_AT_CHARACTERS) / CHARACTERS_PER_TOKEN) +
+    ANSWER_GROWTH_TOKENS;
   const { options, contextTokens, answerTokens } = await archivistOptions(
     provider,
     preset,
     signal,
-    repeatTokens,
+    answerRoomTokens,
   );
   const bare = buildCompactPrompt({ continuity });
   const room =
     (contextTokens - answerTokens - CONTEXT_MARGIN_TOKENS) * CHARACTERS_PER_TOKEN -
     bare.system.length -
     bare.user.length;
-  if (room < 0 || answerTokens < repeatTokens) {
+  if (room < 0 || answerTokens < answerRoomTokens) {
     throw new Error(
       "This preset's context is too small for the Archivist to condense the Continuity. Try a preset with a larger context.",
     );

@@ -97,6 +97,23 @@ describe('ContinuityPicker', () => {
     });
   });
 
+  it('refuses to save while Compact is running, and drops its answer after a switch', async () => {
+    let finish;
+    archivistAPI.compactContinuity.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const wrapper = await mountPicker({ continuityId: 'k1' }, { archivist: true });
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text().includes('Compact'))
+      .trigger('click');
+    await expect(wrapper.vm.save()).rejects.toThrow('Wait for Compact');
+
+    wrapper.vm.$.setupState.selection = '';
+    finish({ content: 'Married.', rationale: '' });
+    await flushPromises();
+    expect(await wrapper.vm.save()).toBeNull();
+    expect(wrapper.text()).not.toContain('condensed this');
+  });
+
   it("says so when the Archivist can't make it shorter", async () => {
     archivistAPI.compactContinuity.mockResolvedValue({ content: null, rationale: '' });
     const wrapper = await mountPicker({ continuityId: 'k1' }, { archivist: true });
