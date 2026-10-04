@@ -246,12 +246,14 @@ describe('compactContinuity', () => {
     expect(user).not.toContain('## Huge');
   });
 
-  it('needs room in the answer for the condensed text only', async () => {
-    const provider = {
-      resolveContextTokens: () => 16_384,
-      generate: vi.fn(async () => answer('S.')),
-    };
-    const found = await compactContinuity({ ...base, provider, continuity: 'z '.repeat(3500) });
-    expect(found.replace).toBe('S.');
+  it('needs room in the answer for the condensed text only, even in an 8k context', async () => {
+    for (const context of [8192, 16_384]) {
+      const provider = {
+        resolveContextTokens: () => context,
+        generate: vi.fn(async () => answer('S.')),
+      };
+      const found = await compactContinuity({ ...base, provider, continuity: 'z '.repeat(3500) });
+      expect(found.replace).toBe('S.');
+    }
   });
 });

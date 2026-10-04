@@ -32,6 +32,8 @@ const CHARACTERS_PER_TOKEN = 3;
 const CONTEXT_MARGIN_TOKENS = 512;
 // Room for the answer beyond the Continuity it repeats: what it adds, and the rationale.
 const ANSWER_GROWTH_TOKENS = 2000;
+// Room for a condensed answer's rationale and JSON.
+const COMPACT_NOTE_TOKENS = 500;
 
 /**
  * The system and user prompts for one pass.
@@ -197,11 +199,10 @@ export function buildCompactPrompt({ continuity, cards = [] }) {
  * @throws {ArchivistRunError} When the pass fails, unless the run was cancelled.
  */
 export async function compactContinuity({ provider, preset, name, continuity, cast = [], signal }) {
-  // The answer is shorter than the Continuity, so it needs room for no more than the length that
-  // calls for condensing, and for the rationale; the Continuity itself only has to fit the prompt.
+  // The answer is condensed, so it needs room for the target with some slack, and the rationale;
+  // the Continuity itself only has to fit the prompt.
   const answerRoomTokens =
-    Math.ceil(Math.min(continuity.length, COMPACT_AT_CHARACTERS) / CHARACTERS_PER_TOKEN) +
-    ANSWER_GROWTH_TOKENS;
+    Math.ceil((COMPACT_TARGET_CHARACTERS * 1.5) / CHARACTERS_PER_TOKEN) + COMPACT_NOTE_TOKENS;
   const { options, contextTokens, answerTokens } = await archivistOptions(
     provider,
     preset,
