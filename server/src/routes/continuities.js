@@ -1,10 +1,9 @@
 /**
  * Continuities API Routes
  *
- * The experimental Continuities: text the reader writes once and shares
- * between stories and chats, put ahead of each one's own scenario in the
- * prompt (see services/continuity/continuity-storage.js). Every route answers
- * 404 while the experimental toggle is off.
+ * Continuities: text the reader writes once and shares between stories and
+ * chats, put ahead of each one's own scenario in the prompt (see
+ * services/continuity/continuity-storage.js).
  */
 
 import express from 'express';
@@ -27,16 +26,6 @@ router.use((req, res, next) => {
   }
   next();
 });
-
-router.use(
-  asyncHandler(async (req, res, next) => {
-    const settings = await storage.getSettings();
-    if (!settings?.experimentalContinuity) {
-      throw new AppError('Continuities are turned off', 404);
-    }
-    next();
-  }),
-);
 
 // ==================== Helpers ====================
 

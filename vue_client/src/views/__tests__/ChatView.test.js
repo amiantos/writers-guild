@@ -3,7 +3,6 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import ChatView from '../ChatView.vue';
 import { chatsAPI } from '../../services/chatsApi';
-import { settingsAPI } from '../../services/api';
 
 vi.mock('../../services/chatsApi', () => ({
   chatsAPI: {
@@ -18,10 +17,6 @@ vi.mock('../../services/chatsApi', () => ({
     clear: vi.fn(),
     delete: vi.fn(),
   },
-}));
-
-vi.mock('../../services/api', () => ({
-  settingsAPI: { get: vi.fn(async () => ({ settings: { experimentalArchivist: false } })) },
 }));
 
 const characters = ref([
@@ -104,12 +99,7 @@ describe('ChatView', () => {
     chatsAPI.get.mockResolvedValue({ chat: CHAT, turns: TURNS });
   });
 
-  it('offers the Archivist only when its experimental toggle is on', async () => {
-    const off = mountChat();
-    await flushPromises();
-    expect(button(off, 'Review Cards with the Archivist')).toBeUndefined();
-
-    settingsAPI.get.mockResolvedValueOnce({ settings: { experimentalArchivist: true } });
+  it('offers the Archivist', async () => {
     const on = mountChat();
     await flushPromises();
     await button(on, 'Review Cards with the Archivist').trigger('click');

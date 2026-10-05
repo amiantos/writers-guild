@@ -12,7 +12,6 @@ function downgradeToV13(dataRoot) {
   db.exec('DROP TRIGGER card_suggestions_story_deleted');
   db.exec('DROP TRIGGER card_suggestions_chat_deleted');
   db.exec('DROP TABLE card_suggestions');
-  db.exec('ALTER TABLE settings DROP COLUMN experimental_archivist');
   db.prepare('UPDATE schema_version SET version = 13').run();
   db.close();
 }
@@ -28,13 +27,12 @@ describe('the Archivist migration', () => {
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
-  it('adds the toggle, off, and the table of suggestions', async () => {
+  it('adds the table of suggestions', async () => {
     new SqliteStorageService(dataRoot).close();
     downgradeToV13(dataRoot);
 
     const storage = new SqliteStorageService(dataRoot);
     try {
-      expect((await storage.getSettings()).experimentalArchivist).toBe(false);
       expect(storage.db.prepare('SELECT COUNT(*) AS count FROM card_suggestions').get().count).toBe(
         0,
       );

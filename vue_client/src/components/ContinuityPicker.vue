@@ -17,7 +17,6 @@
         </select>
         <template v-if="selected">
           <button
-            v-if="archivist"
             type="button"
             class="btn btn-secondary btn-small"
             :disabled="busy || !content.trim()"
@@ -125,7 +124,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { archivistAPI, continuitiesAPI, settingsAPI } from '../services/api';
+import { archivistAPI, continuitiesAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 
@@ -154,6 +153,7 @@ const props = defineProps({
 const toast = useToast();
 const { confirm } = useConfirm();
 
+// The Continuities have loaded, so the picker can show.
 const enabled = ref(false);
 const continuities = ref([]);
 const selection = ref(props.continuityId ?? NONE);
@@ -162,8 +162,7 @@ const content = ref('');
 const versions = ref([]);
 const showHistory = ref(false);
 const busy = ref(false);
-// Whether the Archivist is on, for Compact, and the text as it was before the last Compact.
-const archivist = ref(false);
+// Compact is running, and the text as it was before the last Compact.
 const compacting = ref(false);
 const beforeCompact = ref(null);
 const compactRationale = ref('');
@@ -189,9 +188,6 @@ watch(selection, () => {
 
 onMounted(async () => {
   try {
-    const { settings } = await settingsAPI.get();
-    if (!settings?.experimentalContinuity) return;
-    archivist.value = Boolean(settings.experimentalArchivist);
     continuities.value = (await continuitiesAPI.list()).continuities;
     enabled.value = true;
     if (!selected.value) selection.value = NONE;
@@ -306,7 +302,7 @@ async function deleteSelected() {
 /**
  * Save the picked Continuity's name and text, creating it when it's new.
  * @returns {Promise<string|null|undefined>} The id the story or chat should be in, null for
- *   none, or undefined while Continuities are off, when the story or chat should be left as it is.
+ *   none, or undefined when Continuities couldn't be loaded, when the story or chat should be left as it is.
  */
 async function save() {
   if (!enabled.value) return undefined;

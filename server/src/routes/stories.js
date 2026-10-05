@@ -720,13 +720,9 @@ router.delete(
  * Helper function to load all context needed for generation
  */
 async function loadGenerationContext(storyId) {
-  // Load story, with its Continuity ahead of its scenario when Continuities are on
+  // Load story, with its Continuity ahead of its scenario
   const settings = await storage.getSettings();
-  const story = withContinuityScenario(
-    await storage.getStory(storyId),
-    continuities,
-    settings?.experimentalContinuity,
-  );
+  const story = withContinuityScenario(await storage.getStory(storyId), continuities);
 
   // Load preset configuration (story-specific or default)
   let preset = null;
@@ -834,8 +830,9 @@ async function loadGenerationContext(storyId) {
     persona,
     characterCards,
     activatedLorebooks,
-    // Enhanced Story Mode shows each passage's prompt in its seam, so keep them while it's on.
-    keepPrompts: Boolean(settings?.experimentalEnhancedStory),
+    // Enhanced Story Mode shows each passage's prompt in its seam, so keep them unless the old
+    // story mode is back in its place.
+    keepPrompts: !settings?.experimentalOldStoryMode,
   };
 }
 

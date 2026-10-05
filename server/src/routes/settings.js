@@ -48,9 +48,7 @@ router.put(
       defaultPersonaId,
       onboardingCompleted,
       experimentalChats,
-      experimentalEnhancedStory,
-      experimentalArchivist,
-      experimentalContinuity,
+      experimentalOldStoryMode,
     } = req.body;
 
     // Get current settings
@@ -87,14 +85,8 @@ router.put(
         onboardingCompleted: Boolean(onboardingCompleted),
       }),
       ...(experimentalChats !== undefined && { experimentalChats: Boolean(experimentalChats) }),
-      ...(experimentalEnhancedStory !== undefined && {
-        experimentalEnhancedStory: Boolean(experimentalEnhancedStory),
-      }),
-      ...(experimentalArchivist !== undefined && {
-        experimentalArchivist: Boolean(experimentalArchivist),
-      }),
-      ...(experimentalContinuity !== undefined && {
-        experimentalContinuity: Boolean(experimentalContinuity),
+      ...(experimentalOldStoryMode !== undefined && {
+        experimentalOldStoryMode: Boolean(experimentalOldStoryMode),
       }),
     };
 

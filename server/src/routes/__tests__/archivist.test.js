@@ -43,11 +43,6 @@ function createApp() {
   return app;
 }
 
-async function setArchivist(on) {
-  const settings = await storage.getSettings();
-  await storage.saveSettings({ ...settings, experimentalArchivist: on });
-}
-
 let counter = 0;
 async function character(name, data = {}) {
   counter += 1;
@@ -83,16 +78,7 @@ function answerWith(suggestions) {
 }
 
 describe('Archivist routes', () => {
-  it('answer 404 while the experimental toggle is off', async () => {
-    await setArchivist(false);
-    const layla = await character('Layla', { description: 'Layla is single.' });
-    const storyId = await story('Layla met Sam.', [layla]);
-    const res = await request(createApp()).get(`/api/archivist/story/${storyId}`);
-    expect(res.status).toBe(404);
-  });
-
   it('suggest, accept and reject edits, saving each card once as an Archivist version', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', {
       description: 'Layla is a baker. She is single.',
@@ -155,7 +141,6 @@ describe('Archivist routes', () => {
   });
 
   it('leave a suggestion waiting when the card changed underneath it', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.' });
     const storyId = await story('Layla met Sam.', [layla]);
@@ -185,7 +170,6 @@ describe('Archivist routes', () => {
   });
 
   it("read a chat as a transcript, with the persona's card in the cast", async () => {
-    await setArchivist(true);
     const layla = await character('Layla', { description: 'She is single.' });
     const bradley = await character('Bradley', { description: 'The user.' });
     const chat = chats.createChat({
@@ -212,7 +196,6 @@ describe('Archivist routes', () => {
   });
 
   it('refuse to read an empty story, and delete suggestions with their story', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.' });
     const empty = await story('', [layla]);
@@ -229,7 +212,6 @@ describe('Archivist routes', () => {
   });
 
   it('read a source once at a time', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.' });
     const storyId = await story('Layla met Sam.', [layla]);
@@ -253,7 +235,6 @@ describe('Archivist routes', () => {
   });
 
   it('keep both edits when two reviews of the same card run at once', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.', personality: 'Warm.' });
     const storyId = await story('Layla met Sam.', [layla]);
@@ -295,7 +276,6 @@ describe('Archivist routes', () => {
   });
 
   it('decide a suggestion once when an accept and a reject of it run at once', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.' });
     const storyId = await story('Layla met Sam.', [layla]);
@@ -336,7 +316,6 @@ describe('Archivist routes', () => {
   });
 
   it('reject malformed review decisions, and a suggestion decided twice', async () => {
-    await setArchivist(true);
     const layla = await character('Layla');
     const storyId = await story('Layla met Sam.', [layla]);
     const review = (decisions) =>
@@ -353,7 +332,6 @@ describe('Archivist routes', () => {
   });
 
   it("keep nothing from a read whose story, or a character's card, was deleted meanwhile", async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.' });
     const sam = await character('Sam', { description: 'He is single.' });
@@ -385,7 +363,6 @@ describe('Archivist routes', () => {
   });
 
   it('keep reading when the request drops, and report how the read ended', async () => {
-    await setArchivist(true);
     const layla = await character('Layla', { description: 'She is single.' });
     const storyId = await story('Layla met Sam.', [layla]);
     let finish;
@@ -434,7 +411,6 @@ describe('Archivist routes', () => {
   });
 
   it('keep nothing from a read the reader stopped', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.' });
     const storyId = await story('Layla met Sam.', [layla]);
@@ -469,7 +445,6 @@ describe('Archivist routes', () => {
   });
 
   it('say why a read failed, in its answer, the log, and later lists', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.' });
     const storyId = await story('Layla met Sam.', [layla]);
@@ -489,7 +464,6 @@ describe('Archivist routes', () => {
   });
 
   it('keep what earlier parts found when a later part fails', async () => {
-    await setArchivist(true);
     const app = createApp();
     const layla = await character('Layla', { description: 'She is single.' });
     const long = Array.from({ length: 40 }, (_, i) => `${i} ${'Layla walked. '.repeat(200)}`).join(
@@ -540,11 +514,6 @@ describe('Archivist routes for a source in a Continuity', () => {
     continuities = new ContinuityStorage(storage.db);
   });
 
-  async function setContinuity(on) {
-    const settings = await storage.getSettings();
-    await storage.saveSettings({ ...settings, experimentalContinuity: on });
-  }
-
   async function storyInContinuity(characterIds = []) {
     const continuity = continuities.create({ name: 'Bradley and Amanda', content: START });
     const storyId = await story('They went out to dinner and hit it off.', characterIds);
@@ -553,8 +522,6 @@ describe('Archivist routes for a source in a Continuity', () => {
   }
 
   it('suggest an updated Continuity and card edits, and apply an edited Continuity', async () => {
-    await setArchivist(true);
-    await setContinuity(true);
     const app = createApp();
     const bradley = await character('Bradley', { description: 'Bradley is single.' });
     const { storyId, continuity } = await storyInContinuity([bradley]);
@@ -598,8 +565,6 @@ describe('Archivist routes for a source in a Continuity', () => {
   });
 
   it("read a story with no characters, and replace an update that's still waiting", async () => {
-    await setArchivist(true);
-    await setContinuity(true);
     const app = createApp();
     const { storyId } = await storyInContinuity();
     answerWithContinuity(UPDATED);
@@ -614,8 +579,6 @@ describe('Archivist routes for a source in a Continuity', () => {
   });
 
   it('leave an update waiting when the Continuity changed underneath it, and reject it', async () => {
-    await setArchivist(true);
-    await setContinuity(true);
     const app = createApp();
     const { storyId, continuity } = await storyInContinuity();
     answerWithContinuity(UPDATED);
@@ -637,27 +600,13 @@ describe('Archivist routes for a source in a Continuity', () => {
   });
 
   it('say so when nothing is worth carrying forward', async () => {
-    await setArchivist(true);
-    await setContinuity(true);
     const { storyId } = await storyInContinuity();
     answerWithContinuity(null);
     const run = await request(createApp()).post(`/api/archivist/story/${storyId}/run`);
     expect(run.body).toMatchObject({ added: 0, continuitySuggestion: null });
   });
 
-  it('review the cards while Continuities are turned off', async () => {
-    await setArchivist(true);
-    await setContinuity(false);
-    const layla = await character('Layla', { description: 'She is single.' });
-    const { storyId } = await storyInContinuity([layla]);
-    answerWith([{ character: 'Layla', field: 'description', find: '', replace: 'She dates.' }]);
-    const run = await request(createApp()).post(`/api/archivist/story/${storyId}/run`);
-    expect(run.body).toMatchObject({ added: 1, continuity: null, continuitySuggestion: null });
-  });
-
   it('reject a malformed Continuity decision', async () => {
-    await setArchivist(true);
-    await setContinuity(true);
     const { storyId } = await storyInContinuity();
     const app = createApp();
     await request(app)
@@ -670,22 +619,13 @@ describe('Archivist routes for a source in a Continuity', () => {
       .expect(400);
   });
 
-  it('hide and refuse an update to a Continuity the story left, or while Continuities are off', async () => {
-    await setArchivist(true);
-    await setContinuity(true);
+  it('hide and refuse an update to a Continuity the story left', async () => {
     const app = createApp();
     const { storyId, continuity } = await storyInContinuity();
     answerWithContinuity(UPDATED);
     const run = await request(app).post(`/api/archivist/story/${storyId}/run`);
     const { id } = run.body.continuitySuggestion;
 
-    await setContinuity(false);
-    const off = await request(app)
-      .post(`/api/archivist/story/${storyId}/review`)
-      .send({ continuity: { id, accept: true } });
-    expect(off.body).toMatchObject({ continuityApplied: false, continuitySuggestion: null });
-
-    await setContinuity(true);
     const other = continuities.create({ name: 'Elsewhere', content: 'Other.' });
     await storage.updateStoryMetadata(storyId, { continuityId: other.id });
     const moved = await request(app)
@@ -697,8 +637,6 @@ describe('Archivist routes for a source in a Continuity', () => {
   });
 
   it('keep the Continuity update when reading the cards fails', async () => {
-    await setArchivist(true);
-    await setContinuity(true);
     const bradley = await character('Bradley', { description: 'Bradley is single.' });
     const { storyId } = await storyInContinuity([bradley]);
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -714,8 +652,6 @@ describe('Archivist routes for a source in a Continuity', () => {
   });
 
   it("condense a Continuity's text with the cards of everyone in it, saving nothing", async () => {
-    await setArchivist(true);
-    await setContinuity(true);
     const app = createApp();
     const amanda = await character('Amanda', { description: 'Amanda is a vet.' });
     const persona = await character('Bradley', { description: 'Bradley fixes bikes.' });
@@ -744,13 +680,9 @@ describe('Archivist routes for a source in a Continuity', () => {
       .post(`/api/archivist/continuities/${continuity.id}/compact`)
       .send({ content: ' ' })
       .expect(400);
-    await setContinuity(false);
-    await request(app).post(`/api/archivist/continuities/${continuity.id}/compact`).expect(404);
   });
 
   it('keep no update from a read whose story was deleted meanwhile', async () => {
-    await setArchivist(true);
-    await setContinuity(true);
     const { storyId, continuity } = await storyInContinuity();
     vi.spyOn(DeepSeekProvider.prototype, 'generate').mockImplementation(async () => {
       await storage.deleteStory(storyId);

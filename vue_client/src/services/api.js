@@ -861,7 +861,7 @@ export default {
   onboarding: onboardingAPI,
 };
 
-// The experimental Archivist: suggested edits to a story or chat's character cards.
+// The Archivist: suggested edits to a story or chat's character cards.
 // `kind` is 'story' or 'chat'.
 export const archivistAPI = {
   async list(kind, sourceId) {
@@ -900,7 +900,7 @@ export const archivistAPI = {
   },
 };
 
-// The experimental Continuities: text shared by stories and chats, ahead of each one's scenario.
+// Continuities: text shared by stories and chats, ahead of each one's scenario.
 export const continuitiesAPI = {
   async list() {
     return request('/continuities');

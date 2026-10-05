@@ -23,7 +23,6 @@
           <i class="fas fa-user"></i>
         </button>
         <button
-          v-if="archivistEnabled"
           class="icon-btn"
           :disabled="generating"
           @click="openArchivist"
@@ -450,11 +449,10 @@ let abortController = null;
 const bottomInput = ref('');
 const bottomInputRef = ref(null);
 
-// Enhanced Story Mode (experimental): in place of the editor and preview, the story as passages,
-// with how each was written between them. It changes how the story is shown and edited, never
-// what's sent to the model.
-const enhancedEnabled = ref(false);
-const archivistEnabled = ref(false);
+// Enhanced Story Mode: in place of the editor and preview, the story as passages, with how each
+// was written between them. It changes how the story is shown and edited, never what's sent to the
+// model. The old story mode's editor and preview come back with an experimental setting.
+const enhancedEnabled = ref(true);
 const showArchivist = ref(false);
 // The story and settings have loaded, so it's known which view to show.
 const viewReady = ref(false);
@@ -798,8 +796,7 @@ async function loadSettings() {
     const response = await settingsAPI.get();
     const serverSettings = response.settings || response;
     shouldShowReasoning.value = serverSettings.showReasoning ?? false;
-    enhancedEnabled.value = serverSettings.experimentalEnhancedStory ?? false;
-    archivistEnabled.value = serverSettings.experimentalArchivist ?? false;
+    enhancedEnabled.value = !serverSettings.experimentalOldStoryMode;
   } catch (error) {
     console.error('Failed to load settings:', error);
     // Default to false if settings can't be loaded

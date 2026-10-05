@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 18;
+const SCHEMA_VERSION = 19;
 
 /**
  * Initialize the SQLite database with schema
@@ -85,9 +85,7 @@ function createAllTables(db) {
       default_preset_id TEXT,
       onboarding_completed INTEGER DEFAULT 0,
       experimental_chats INTEGER DEFAULT 0,
-      experimental_enhanced_story INTEGER DEFAULT 0,
-      experimental_archivist INTEGER DEFAULT 0,
-      experimental_continuity INTEGER DEFAULT 0
+      experimental_old_story_mode INTEGER DEFAULT 0
     );
 
     -- Insert default settings
@@ -635,12 +633,9 @@ function migrateSchema(db, fromVersion) {
     // Version 11 put Bureaus behind an experimental toggle. Bureaus have since been removed, so it
     // has nothing left to do; older databases keep their unused experimental_bureaus column.
 
-    // Migration to version 12: Enhanced Story Mode's toggle, and the record of each story's passages
+    // Migration to version 12: The record of each story's passages, for Enhanced Story Mode. It
+    // also added the mode's experimental toggle, since retired; see version 19.
     if (fromVersion < 12) {
-      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
-      if (!settingsColumns.some((column) => column.name === 'experimental_enhanced_story')) {
-        db.exec('ALTER TABLE settings ADD COLUMN experimental_enhanced_story INTEGER DEFAULT 0');
-      }
       const storyColumns = db.prepare('PRAGMA table_info(stories)').all();
       if (!storyColumns.some((column) => column.name === 'passages')) {
         db.exec("ALTER TABLE stories ADD COLUMN passages TEXT DEFAULT '[]'");
@@ -652,21 +647,15 @@ function migrateSchema(db, fromVersion) {
       createCharacterVersionTables(db);
     }
 
-    // Migration to version 14: The Archivist's toggle and its suggested card edits
+    // Migration to version 14: The Archivist's suggested card edits. It also added the Archivist's
+    // experimental toggle, since retired; see version 19.
     if (fromVersion < 14) {
-      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
-      if (!settingsColumns.some((column) => column.name === 'experimental_archivist')) {
-        db.exec('ALTER TABLE settings ADD COLUMN experimental_archivist INTEGER DEFAULT 0');
-      }
       createCardSuggestionTables(db);
     }
 
-    // Migration to version 15: Continuities, their toggle, and the stories and chats in them
+    // Migration to version 15: Continuities, and the stories and chats in them. It also added their
+    // experimental toggle, since retired; see version 19.
     if (fromVersion < 15) {
-      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
-      if (!settingsColumns.some((column) => column.name === 'experimental_continuity')) {
-        db.exec('ALTER TABLE settings ADD COLUMN experimental_continuity INTEGER DEFAULT 0');
-      }
       createContinuityTables(db);
     }
 
@@ -688,6 +677,16 @@ function migrateSchema(db, fromVersion) {
     // Migration to version 18: The prompts Enhanced Story Mode's passages were written from
     if (fromVersion < 18) {
       createPassagePromptTables(db);
+    }
+
+    // Migration to version 19: Enhanced Story Mode, the Archivist and Continuities are no longer
+    // experimental, so their toggles are ignored (databases that had them keep the unused
+    // columns), and the old story mode comes back behind a toggle of its own, off
+    if (fromVersion < 19) {
+      const settingsColumns = db.prepare('PRAGMA table_info(settings)').all();
+      if (!settingsColumns.some((column) => column.name === 'experimental_old_story_mode')) {
+        db.exec('ALTER TABLE settings ADD COLUMN experimental_old_story_mode INTEGER DEFAULT 0');
+      }
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

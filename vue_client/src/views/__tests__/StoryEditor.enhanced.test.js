@@ -76,7 +76,7 @@ function loadStory(content, passages = []) {
 
 async function mountEditor({ enhanced = true } = {}) {
   settingsAPI.get.mockResolvedValue({
-    settings: { showReasoning: false, experimentalEnhancedStory: enhanced },
+    settings: { showReasoning: false, experimentalOldStoryMode: !enhanced },
   });
   const wrapper = mount(StoryEditor, { props: { storyId: 's1' }, global: { stubs: STUBS } });
   await flushPromises();

@@ -205,9 +205,8 @@ function findSpeaker(characters, characterId) {
  * otherwise as JSON once the reply is saved.
  */
 async function respondWithReply(req, res, { chat, context, speaker, userTurn, regenerate }) {
-  // The prompt reads the chat's Continuity ahead of its scenario when Continuities are on.
-  const settings = await storage.getSettings();
-  const promptChat = withContinuityScenario(chat, continuities, settings?.experimentalContinuity);
+  // The prompt reads the chat's Continuity ahead of its scenario.
+  const promptChat = withContinuityScenario(chat, continuities);
   const channel = sseChannel(req, res);
   const controller = new AbortController();
   res.on('close', () => {

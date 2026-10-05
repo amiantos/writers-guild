@@ -1233,7 +1233,7 @@ describe('Stories API Routes - Generation Endpoints', () => {
     expect(response.text).toContain('data: [DONE]');
   });
 
-  it('keeps the prompt, less the story, for Enhanced Story Mode, only while it is on', async () => {
+  it('keeps the prompt, less the story, for Enhanced Story Mode, unless the old story mode is on', async () => {
     const { storyId } = await createStoryWithPreset();
     const mockStreaming = () => {
       vi.spyOn(DeepSeekProvider.prototype, 'buildPrompts').mockResolvedValue({
@@ -1262,11 +1262,6 @@ describe('Stories API Routes - Generation Endpoints', () => {
     const settings = await storage.getSettings();
     try {
       mockStreaming();
-      const off = await request(app).post(`/api/stories/${storyId}/continue`).expect(200);
-      expect(promptsEvent(off.text).promptId).toBeUndefined();
-
-      await storage.saveSettings({ ...settings, experimentalEnhancedStory: true });
-      mockStreaming();
       const on = await request(app).post(`/api/stories/${storyId}/continue`).expect(200);
       const { promptId, user } = promptsEvent(on.text);
       expect(promptId).toEqual(expect.any(String));
@@ -1280,6 +1275,11 @@ describe('Stories API Routes - Generation Endpoints', () => {
         user: 'Story: [The story: all 10 characters]',
       });
       await request(app).get(`/api/stories/${storyId}/prompts/missing`).expect(404);
+
+      await storage.saveSettings({ ...settings, experimentalOldStoryMode: true });
+      mockStreaming();
+      const old = await request(app).post(`/api/stories/${storyId}/continue`).expect(200);
+      expect(promptsEvent(old.text).promptId).toBeUndefined();
     } finally {
       await storage.saveSettings(settings);
     }
