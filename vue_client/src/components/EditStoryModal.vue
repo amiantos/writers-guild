@@ -539,6 +539,7 @@ async function saveStory() {
 
 <style scoped>
 .edit-story-content {
+  --control-height: 2.625rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -596,14 +597,46 @@ async function saveStory() {
   border-color: var(--accent-primary);
 }
 
+/* Single-line inputs share the controls' height; the name stays a little larger */
+.text-input,
+.section :deep(.continuity-picker .text-input) {
+  height: var(--control-height);
+}
+
 .title-input {
+  height: auto;
   font-size: 1.125rem;
   font-weight: 600;
 }
 
-.select-input {
-  flex: 1;
+/*
+ * Selects drawn by hand rather than natively, since native ones (macOS especially) ignore
+ * padding and come out thinner than the buttons beside them. Continuity's are included.
+ */
+.select-input,
+.section :deep(.continuity-picker .select-input) {
   min-width: 0;
+  height: var(--control-height);
+  padding: 0 2.25rem 0 0.75rem;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  line-height: normal;
+  cursor: pointer;
+}
+
+/* Buttons beside a select match its height */
+.picker-row .btn,
+.section :deep(.continuity-picker .picker-row .btn) {
+  height: var(--control-height);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .textarea-input {
