@@ -19,8 +19,12 @@
         >
           <i class="fas fa-eye"></i>
         </button>
-        <button class="icon-btn" @click="showManageCharacters = true" title="Manage Characters">
-          <i class="fas fa-user"></i>
+        <button
+          class="icon-btn"
+          @click="showEditStory = true"
+          title="Edit Story: characters, lorebooks, scenario, preset"
+        >
+          <i class="fas fa-pencil"></i>
         </button>
         <button
           class="icon-btn"
@@ -29,15 +33,6 @@
           title="Review Cards with the Archivist"
         >
           <i class="fas fa-scroll"></i>
-        </button>
-        <button class="icon-btn" @click="showManageLorebooks = true" title="Manage Lorebooks">
-          <i class="fas fa-book"></i>
-        </button>
-        <button class="icon-btn" @click="showRenameStory = true" title="Edit Story">
-          <i class="fas fa-pencil"></i>
-        </button>
-        <button class="icon-btn" @click="showPresetSelector = true" title="Configuration Preset">
-          <i class="fas fa-sliders"></i>
         </button>
         <button class="icon-btn" @click="deleteStory" title="Delete Story">
           <i class="fas fa-trash"></i>
@@ -293,13 +288,6 @@
       @generate="handleCustomPrompt"
     />
 
-    <ManageCharactersModal
-      v-if="showManageCharacters"
-      :story="story"
-      @close="showManageCharacters = false"
-      @updated="handleStoryUpdated"
-    />
-
     <ArchivistModal
       v-if="showArchivist"
       kind="story"
@@ -308,27 +296,10 @@
       @applied="loadCharacters"
     />
 
-    <ManageLorebooksModal
-      v-if="showManageLorebooks"
+    <EditStoryModal
+      v-if="showEditStory && story"
       :story="story"
-      @close="showManageLorebooks = false"
-      @updated="handleStoryUpdated"
-    />
-
-    <RenameStoryModal
-      v-if="showRenameStory"
-      :story="story"
-      :characters="storyCharacters"
-      :persona="storyPersona"
-      @close="showRenameStory = false"
-      @updated="handleStoryUpdated"
-    />
-
-    <StoryPresetModal
-      v-if="showPresetSelector"
-      :story-id="props.storyId"
-      :current-preset-id="story?.configPresetId"
-      @close="showPresetSelector = false"
+      @close="showEditStory = false"
       @updated="handleStoryUpdated"
     />
 
@@ -383,11 +354,8 @@ import CharacterResponseModal from '../components/CharacterResponseModal.vue';
 import GreetingSelectorModal from '../components/GreetingSelectorModal.vue';
 import ViewPromptModal from '../components/ViewPromptModal.vue';
 import CustomPromptModal from '../components/CustomPromptModal.vue';
-import ManageCharactersModal from '../components/ManageCharactersModal.vue';
-import ManageLorebooksModal from '../components/ManageLorebooksModal.vue';
 import ArchivistModal from '../components/ArchivistModal.vue';
-import RenameStoryModal from '../components/RenameStoryModal.vue';
-import StoryPresetModal from '../components/StoryPresetModal.vue';
+import EditStoryModal from '../components/EditStoryModal.vue';
 import IdeateModal from '../components/IdeateModal.vue';
 import FloatingAvatarWindow from '../components/FloatingAvatarWindow.vue';
 import ThirdPersonPromptModal from '../components/ThirdPersonPromptModal.vue';
@@ -433,10 +401,7 @@ const showCharacterSelector = ref(false);
 const showGreetingSelector = ref(false);
 const showViewPromptModal = ref(false);
 const showCustomPromptModal = ref(false);
-const showManageCharacters = ref(false);
-const showManageLorebooks = ref(false);
-const showRenameStory = ref(false);
-const showPresetSelector = ref(false);
+const showEditStory = ref(false);
 const showIdeateModal = ref(false);
 const ideateResponse = ref('');
 const ideateLoading = ref(false);
@@ -654,6 +619,13 @@ onMounted(async () => {
 
   // Add keyboard shortcut listener
   window.addEventListener('keydown', handleKeyboardShortcut);
+
+  // A story started with New Story opens on its setup, ready for a name and scenario
+  if (route.query.edit) {
+    router.replace({ query: { ...route.query, edit: undefined } });
+    showEditStory.value = true;
+    return;
+  }
 
   // Check if we should show greeting selector first (for newly created stories with characters)
   if (story.value?.needsRewritePrompt && story.value?.characterIds?.length > 0) {
@@ -1460,7 +1432,8 @@ async function selectGreeting(greeting) {
 function handleCloseGreeting() {
   showGreetingSelector.value = false;
   nextTick().then(() => {
-    if (shouldShowThirdPersonPrompt()) {
+    // A story still blank has nothing to rewrite
+    if (!isStoryEmpty.value && shouldShowThirdPersonPrompt()) {
       showThirdPersonPrompt.value = true;
     }
   });

@@ -778,7 +778,15 @@ export class SqliteStorageService {
     return { success: true };
   }
 
-  async duplicateStory(storyId) {
+  /**
+   * Copy a story with its characters, lorebooks, Continuity, perspective and preset.
+   *
+   * @param {string} storyId
+   * @param {Object} [options]
+   * @param {boolean} [options.blank] - Start the copy as a new story instead: no content,
+   *   scenario, passages or avatar windows, titled "(New)" rather than "(Copy)".
+   */
+  async duplicateStory(storyId, { blank = false } = {}) {
     const existing = this.stmts.getStory.get(storyId);
     if (!existing) {
       throw new Error(`Story not found: ${storyId}`);
@@ -787,8 +795,7 @@ export class SqliteStorageService {
     const newId = uuidv4();
     const now = new Date().toISOString();
 
-    // Generate new title with "(Copy)" suffix
-    const newTitle = `${existing.title} (Copy)`;
+    const newTitle = `${existing.title} ${blank ? '(New)' : '(Copy)'}`;
 
     // Use transaction to ensure atomicity
     const transaction = this.db.transaction(() => {
@@ -797,9 +804,9 @@ export class SqliteStorageService {
         id: newId,
         title: newTitle,
         description: existing.description || '',
-        content: existing.content || '',
-        wordCount: existing.word_count || 0,
-        needsRewritePrompt: existing.needs_rewrite_prompt || 0,
+        content: blank ? '' : existing.content || '',
+        wordCount: blank ? 0 : existing.word_count || 0,
+        needsRewritePrompt: blank ? 0 : existing.needs_rewrite_prompt || 0,
         personaCharacterId: existing.persona_character_id,
         configPresetId: existing.config_preset_id,
         created: now,
@@ -807,10 +814,11 @@ export class SqliteStorageService {
       });
 
       // Copy scenario and Continuity if present
-      if (existing.scenario || existing.continuity_id) {
+      const scenario = blank ? '' : existing.scenario || '';
+      if (scenario || existing.continuity_id) {
         this.db
           .prepare('UPDATE stories SET scenario = ?, continuity_id = ? WHERE id = ?')
-          .run(existing.scenario || '', existing.continuity_id ?? null, newId);
+          .run(scenario, existing.continuity_id ?? null, newId);
       }
 
       // Copy the narrative perspective
@@ -826,12 +834,12 @@ export class SqliteStorageService {
         );
 
       // Copy avatar windows if present
-      if (existing.avatar_windows) {
+      if (existing.avatar_windows && !blank) {
         this.stmts.updateStoryAvatarWindows.run(existing.avatar_windows, newId);
       }
 
       // Copy the record of how each passage was written
-      if (existing.passages) {
+      if (existing.passages && !blank) {
         this.stmts.updateStoryPassages.run(existing.passages, newId);
         this.stmts.copyPassagePrompts.run(newId, storyId);
       }

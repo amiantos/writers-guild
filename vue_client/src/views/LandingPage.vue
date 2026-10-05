@@ -55,6 +55,7 @@
               :stories="stories"
               :characters="characters"
               @open="openStory"
+              @new-from="startNewStory"
               @duplicate="duplicateStory"
               @delete="deleteStory"
             />
@@ -448,7 +449,8 @@ async function createNewStory() {
     const { story } = await storiesAPI.create('Untitled Story');
     // Invalidate stories cache so it refreshes when returning to dashboard
     invalidateCache('stories');
-    openStory(story.id);
+    // A blank story opens on Edit Story, to pick its characters and setup
+    router.push({ name: 'story', params: { storyId: story.id }, query: { edit: '1' } });
   } catch (error) {
     console.error('Error creating story:', error);
     toast.error('Failed to create story');
@@ -496,6 +498,18 @@ function editCharacter(characterId) {
 
 function editLorebook(lorebookId) {
   router.push({ name: 'lorebook-detail', params: { lorebookId } });
+}
+
+/** Start a new, empty story with this one's setup, opened on Edit Story. */
+async function startNewStory(story) {
+  try {
+    const { story: newStory } = await storiesAPI.duplicate(story.id, { blank: true });
+    invalidateCache('stories');
+    router.push({ name: 'story', params: { storyId: newStory.id }, query: { edit: '1' } });
+  } catch (error) {
+    console.error('Error starting a new story:', error);
+    toast.error('Failed to start a new story: ' + error.message);
+  }
 }
 
 async function duplicateStory(story) {

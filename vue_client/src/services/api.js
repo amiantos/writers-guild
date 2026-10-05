@@ -165,9 +165,11 @@ export const storiesAPI = {
     });
   },
 
-  duplicate(storyId) {
+  /** Copy a story; `blank` starts a new story from its setup, without content or scenario. */
+  duplicate(storyId, { blank = false } = {}) {
     return request(`/stories/${storyId}/duplicate`, {
       method: 'POST',
+      body: JSON.stringify(blank ? { blank } : {}),
     });
   },
 
