@@ -449,7 +449,8 @@ async function createNewStory() {
     const { story } = await storiesAPI.create('Untitled Story');
     // Invalidate stories cache so it refreshes when returning to dashboard
     invalidateCache('stories');
-    openStory(story.id);
+    // A blank story opens on Edit Story, to pick its characters and setup
+    router.push({ name: 'story', params: { storyId: story.id }, query: { edit: '1' } });
   } catch (error) {
     console.error('Error creating story:', error);
     toast.error('Failed to create story');
@@ -503,6 +504,7 @@ function editLorebook(lorebookId) {
 async function startNewStory(story) {
   try {
     const { story: newStory } = await storiesAPI.duplicate(story.id, { blank: true });
+    invalidateCache('stories');
     router.push({ name: 'story', params: { storyId: newStory.id }, query: { edit: '1' } });
   } catch (error) {
     console.error('Error starting a new story:', error);
