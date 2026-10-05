@@ -18,6 +18,7 @@ import { MacroProcessor } from '../macro-processor.js';
 import { PromptBuilder } from '../prompt-builder.js';
 import { TemplateEngine } from '../template-engine.js';
 import { labelImages } from '../image-labels.js';
+import { joinNames } from '../../../../shared/story-titles.js';
 
 export {
   MAX_REPLY_MESSAGES,
@@ -44,12 +45,8 @@ function stripAsterisks(text) {
   return text.replace(/\*/g, '');
 }
 
-/** "Layla", "Layla and Sam", "Layla, Sam, and Ada" */
-export function joinNames(names) {
-  if (names.length <= 1) return names[0] ?? '';
-  if (names.length === 2) return `${names[0]} and ${names[1]}`;
-  return `${names.slice(0, -1).join(', ')}, and ${names.at(-1)}`;
-}
+// "Layla", "Layla and Sam", "Layla, Sam, and Ada", shared with the cast-named titles
+export { joinNames };
 
 function nameOf(card) {
   return card?.data?.name || card?.name || 'Character';
