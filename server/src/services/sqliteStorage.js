@@ -183,7 +183,7 @@ export class SqliteStorageService {
       updateCharacterThumbnails: this.db.prepare(`
         UPDATE characters
         SET thumbnail = @thumbnail, thumbnail_medium = @thumbnailMedium, portrait = @portrait
-        WHERE id = @id
+        WHERE id = @id AND image = @image
       `),
       insertCharacter: this.db.prepare(`
         INSERT INTO characters (id, name, data, image, thumbnail, thumbnail_medium, portrait,
@@ -1192,13 +1192,20 @@ export class SqliteStorageService {
     return !!row?.portrait;
   }
 
-  async setCharacterThumbnails(characterId, thumbnail, thumbnailMedium, portrait) {
-    this.stmts.updateCharacterThumbnails.run({
+  /**
+   * Store the smaller copies rendered from `image`, unless the character's image has been
+   * replaced since, which brings its own.
+   * @returns {Promise<boolean>} Whether they were stored
+   */
+  async setCharacterThumbnails(characterId, image, { thumbnail, thumbnailMedium, portrait }) {
+    const result = this.stmts.updateCharacterThumbnails.run({
       id: characterId,
+      image,
       thumbnail,
       thumbnailMedium,
       portrait,
     });
+    return result.changes > 0;
   }
 
   async deleteCharacter(characterId) {

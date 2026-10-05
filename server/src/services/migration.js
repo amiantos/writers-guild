@@ -251,7 +251,13 @@ async function generateMissingThumbnails(storage) {
             : storage.generatePortrait(imageBuffer),
         ]);
 
-        await storage.setCharacterThumbnails(char.id, small, medium, portrait);
+        // The server is already taking requests, so the image may have been replaced meanwhile
+        const stored = await storage.setCharacterThumbnails(char.id, imageBuffer, {
+          thumbnail: small,
+          thumbnailMedium: medium,
+          portrait,
+        });
+        if (!stored) continue;
         updated++;
         console.log(`✓ Backfilled thumbnails for character: ${char.id}`);
       } catch (error) {

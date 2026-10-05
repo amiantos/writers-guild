@@ -93,4 +93,22 @@ describe('character portraits', () => {
       migrated.close();
     }
   });
+
+  it('leaves the sizes of an image replaced while the backfill was rendering', async () => {
+    const storage = new SqliteStorageService(dataRoot);
+    try {
+      const oldImage = await gradientPng();
+      await storage.saveCharacter('char-1', { data: { name: 'Ada' } }, oldImage);
+      const stale = await storage.generateImageSizes(oldImage);
+
+      const newImage = await sharp(oldImage).resize(200, 300).png().toBuffer();
+      await storage.saveCharacter('char-1', { data: { name: 'Ada' } }, newImage);
+      const fresh = await storage.getCharacterPortrait('char-1');
+
+      expect(await storage.setCharacterThumbnails('char-1', oldImage, stale)).toBe(false);
+      expect((await storage.getCharacterPortrait('char-1')).equals(fresh)).toBe(true);
+    } finally {
+      storage.close();
+    }
+  });
 });
