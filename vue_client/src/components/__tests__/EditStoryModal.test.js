@@ -340,8 +340,8 @@ describe('EditStoryModal for a chat', () => {
     await wrapper.find('#storyPreset').setValue('p1');
     await save(wrapper);
 
+    // The cast-named title is left to the server, which renames it from the cast
     expect(chatsAPI.update).toHaveBeenCalledWith('ch1', {
-      title: 'Chat with Layla and Marcus',
       scenario: 'Dawn.',
       characterIds: ['c1', 'c2'],
       personaCharacterId: 'p9',
@@ -350,8 +350,16 @@ describe('EditStoryModal for a chat', () => {
     });
     expect(charactersAPI.addToStory).not.toHaveBeenCalled();
     expect(storiesAPI.updateMetadata).not.toHaveBeenCalled();
-    expect(wrapper.emitted('updated')[0][0].title).toBe('Chat with Layla and Marcus');
+    expect(wrapper.emitted('updated')[0][0].scenario).toBe('Dawn.');
     expect(wrapper.emitted('close')).toBeTruthy();
+    wrapper.unmount();
+  });
+
+  it('sends a typed or custom title', async () => {
+    const wrapper = await mountModal({ story: CHAT, kind: 'chat' });
+    await wrapper.find('#storyTitle').setValue('Late night');
+    await save(wrapper);
+    expect(chatsAPI.update.mock.calls[0][1]).toMatchObject({ title: 'Late night' });
     wrapper.unmount();
   });
 

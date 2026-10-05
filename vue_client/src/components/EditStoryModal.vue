@@ -569,13 +569,17 @@ async function saveChat() {
   try {
     saving.value = true;
     const updates = {
-      title: storyTitle.value.trim(),
       scenario: storyScenario.value.trim(),
       characterIds: characterIds.value,
       personaCharacterId: personaId.value,
       lorebookIds: lorebookIds.value,
       ...presetUpdate(),
     };
+    // A title still named after the cast is left to the server, which renames it from the cast
+    // and has no length limit for it, unlike a title sent here
+    if (titleEdited.value || !isAutoChatTitle(storyTitle.value)) {
+      updates.title = storyTitle.value.trim();
+    }
     const continuityId = await continuityPicker.value?.save();
     if (continuityId !== undefined) updates.continuityId = continuityId;
 
