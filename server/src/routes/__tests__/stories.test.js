@@ -522,6 +522,11 @@ describe('Stories API Routes - CRUD Operations', () => {
         .put(`/api/stories/${storyId}/content`)
         .send({ content: 'Rain.\n\n', passages: [{ id: 'p1', text: 'Rain.', source: 'user' }] })
         .expect(200);
+      const avatarWindows = [{ id: 'w1', characterId: 'c1', x: 40, y: 80, width: 200, height: 300 }];
+      await request(app)
+        .put(`/api/stories/${storyId}/avatar-windows`)
+        .send({ avatarWindows })
+        .expect(200);
 
       const response = await request(app)
         .post(`/api/stories/${storyId}/duplicate`)
@@ -536,6 +541,7 @@ describe('Stories API Routes - CRUD Operations', () => {
       expect(story.perspective).toBe('first');
       expect(story.perspectiveTense).toBe('present');
       expect(story.configPresetId).toBe('preset-1');
+      expect(story.avatarWindows).toEqual(avatarWindows);
     });
 
     it('should return 500 for non-existent story', async () => {
