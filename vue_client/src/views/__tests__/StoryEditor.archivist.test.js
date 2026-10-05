@@ -61,8 +61,9 @@ async function mountEditor() {
   storiesAPI.get.mockResolvedValue({
     story: { id: 's1', title: 'Rain', content: 'Opening.', passages: [], characterIds: [] },
   });
+  // The old story mode's editor, whose edits wait for the next save
   settingsAPI.get.mockResolvedValue({
-    settings: { showReasoning: false, experimentalArchivist: true },
+    settings: { showReasoning: false, experimentalOldStoryMode: true },
   });
   const wrapper = mount(StoryEditor, { props: { storyId: 's1' }, global: { stubs: STUBS } });
   await flushPromises();

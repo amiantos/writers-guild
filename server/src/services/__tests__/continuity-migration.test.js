@@ -14,7 +14,6 @@ function downgradeToV14(dataRoot) {
   db.exec('ALTER TABLE chats DROP COLUMN continuity_id');
   db.exec('DROP TABLE continuity_versions');
   db.exec('DROP TABLE continuities');
-  db.exec('ALTER TABLE settings DROP COLUMN experimental_continuity');
   db.prepare('UPDATE schema_version SET version = 14').run();
   db.close();
 }
@@ -30,7 +29,7 @@ describe('the Continuity migration', () => {
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
-  it('adds the toggle, off, the tables, and a Continuity to stories and chats', async () => {
+  it('adds the tables, and a Continuity to stories and chats', async () => {
     const before = new SqliteStorageService(dataRoot);
     const story = await before.createStory('Kept');
     before.close();
@@ -38,7 +37,6 @@ describe('the Continuity migration', () => {
 
     const storage = new SqliteStorageService(dataRoot);
     try {
-      expect((await storage.getSettings()).experimentalContinuity).toBe(false);
       expect(storage.db.prepare('SELECT COUNT(*) AS count FROM continuities').get().count).toBe(0);
       expect((await storage.getStory(story.id)).continuityId).toBeNull();
       const chatColumns = storage.db.prepare('PRAGMA table_info(chats)').all();

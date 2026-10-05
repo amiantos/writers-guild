@@ -29,11 +29,11 @@ export function scenarioWithContinuity(continuityText, scenario) {
 }
 
 /**
- * A story or chat as its prompt sees it: when Continuities are on and it's in one, its scenario
- * is its Continuity's text followed by its own scenario. Otherwise it's returned as it is.
+ * A story or chat as its prompt sees it: when it's in a Continuity, its scenario is the
+ * Continuity's text followed by its own scenario. Otherwise it's returned as it is.
  */
-export function withContinuityScenario(source, continuities, enabled) {
-  if (!enabled || !source?.continuityId) return source;
+export function withContinuityScenario(source, continuities) {
+  if (!source?.continuityId) return source;
   return {
     ...source,
     scenario: scenarioWithContinuity(continuities.content(source.continuityId), source.scenario),

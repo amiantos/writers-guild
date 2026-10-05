@@ -41,11 +41,6 @@ function createApp() {
   return app;
 }
 
-async function setContinuity(on) {
-  const settings = await storage.getSettings();
-  await storage.saveSettings({ ...settings, experimentalContinuity: on });
-}
-
 let counter = 0;
 async function preset() {
   counter += 1;
@@ -88,13 +83,7 @@ describe('Continuities API', () => {
     app = createApp();
   });
 
-  it('answers 404 while the toggle is off', async () => {
-    await setContinuity(false);
-    await request(app).get('/api/continuities').expect(404);
-  });
-
   it('creates, lists, renames and edits a Continuity, keeping each text as a version', async () => {
-    await setContinuity(true);
     const continuity = await createContinuity(app);
     expect(continuity).toMatchObject({
       name: 'The Harbor Years',
@@ -128,7 +117,6 @@ describe('Continuities API', () => {
   });
 
   it('restores an earlier version as a new one', async () => {
-    await setContinuity(true);
     const continuity = await createContinuity(app);
     await request(app)
       .put(`/api/continuities/${continuity.id}`)
@@ -152,7 +140,6 @@ describe('Continuities API', () => {
   });
 
   it('refuses a missing name or text that is too long', async () => {
-    await setContinuity(true);
     await request(app).post('/api/continuities').send({ content: 'x' }).expect(400);
     await request(app)
       .post('/api/continuities')
@@ -161,7 +148,6 @@ describe('Continuities API', () => {
   });
 
   it('counts its stories and chats, and deleting it takes them out of it', async () => {
-    await setContinuity(true);
     const continuity = await createContinuity(app);
     const story = (await request(app).post('/api/stories').send({ title: 'One' }).expect(201)).body
       .story;
@@ -184,7 +170,6 @@ describe('Continuities API', () => {
   });
 
   it("won't put a story or chat in a Continuity that doesn't exist", async () => {
-    await setContinuity(true);
     const story = (await request(app).post('/api/stories').send({ title: 'Two' }).expect(201)).body
       .story;
     await request(app).put(`/api/stories/${story.id}`).send({ continuityId: 'nope' }).expect(400);
@@ -211,7 +196,6 @@ describe('Continuity in prompts', () => {
   }
 
   it("puts a story's Continuity ahead of its scenario", async () => {
-    await setContinuity(true);
     const storyId = await storyInContinuity('A storm is coming.');
     const spy = stubStoryGeneration();
 
@@ -221,18 +205,7 @@ describe('Continuity in prompts', () => {
     );
   });
 
-  it("leaves a story's scenario alone while the toggle is off", async () => {
-    await setContinuity(true);
-    const storyId = await storyInContinuity('A storm is coming.');
-    await setContinuity(false);
-    const spy = stubStoryGeneration();
-
-    await request(app).post(`/api/stories/${storyId}/continue`).expect(200);
-    expect(spy.mock.calls[0][0].story.scenario).toBe('A storm is coming.');
-  });
-
   it("puts a chat's Continuity ahead of its scenario", async () => {
-    await setContinuity(true);
     const continuity = await createContinuity(app);
     const layla = 'char-layla';
     await storage.saveCharacter(layla, { spec: 'chara_card_v2', data: { name: 'Layla' } });

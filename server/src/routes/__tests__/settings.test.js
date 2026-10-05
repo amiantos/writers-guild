@@ -50,18 +50,15 @@ describe('Settings API Routes', () => {
   });
 
   describe('PUT / - Update Settings', () => {
-    it('keeps Enhanced Story Mode off until it is turned on', async () => {
+    it('keeps the old story mode off until it is turned on', async () => {
       const initial = await request(app).get('/api/settings').expect(200);
-      expect(initial.body.settings.experimentalEnhancedStory).toBe(false);
+      expect(initial.body.settings.experimentalOldStoryMode).toBe(false);
 
-      await request(app).put('/api/settings').send({ experimentalEnhancedStory: true }).expect(200);
+      await request(app).put('/api/settings').send({ experimentalOldStoryMode: true }).expect(200);
       const enabled = await request(app).get('/api/settings').expect(200);
-      expect(enabled.body.settings.experimentalEnhancedStory).toBe(true);
+      expect(enabled.body.settings.experimentalOldStoryMode).toBe(true);
 
-      await request(app)
-        .put('/api/settings')
-        .send({ experimentalEnhancedStory: false })
-        .expect(200);
+      await request(app).put('/api/settings').send({ experimentalOldStoryMode: false }).expect(200);
     });
 
     it('keeps chats off until they are turned on', async () => {

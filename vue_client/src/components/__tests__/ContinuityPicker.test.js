@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import ContinuityPicker from '../ContinuityPicker.vue';
-import { archivistAPI, continuitiesAPI, settingsAPI } from '../../services/api';
+import { archivistAPI, continuitiesAPI } from '../../services/api';
 
 vi.mock('../../services/api', () => ({
-  settingsAPI: { get: vi.fn() },
   archivistAPI: { compactContinuity: vi.fn() },
   continuitiesAPI: {
     list: vi.fn(),
@@ -30,10 +29,7 @@ const HARBOR = {
   chatCount: 1,
 };
 
-async function mountPicker(props = {}, { enabled = true, archivist = false } = {}) {
-  settingsAPI.get.mockResolvedValue({
-    settings: { experimentalContinuity: enabled, experimentalArchivist: archivist },
-  });
+async function mountPicker(props = {}) {
   continuitiesAPI.list.mockResolvedValue({ continuities: [HARBOR] });
   const wrapper = mount(ContinuityPicker, { props });
   await flushPromises();
@@ -45,8 +41,11 @@ describe('ContinuityPicker', () => {
     vi.clearAllMocks();
   });
 
-  it('shows nothing and leaves the story alone while Continuities are off', async () => {
-    const wrapper = await mountPicker({}, { enabled: false });
+  it("shows nothing and leaves the story alone when Continuities can't be loaded", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    continuitiesAPI.list.mockRejectedValue(new Error('offline'));
+    const wrapper = mount(ContinuityPicker, { props: {} });
+    await flushPromises();
     expect(wrapper.find('#continuitySelect').exists()).toBe(false);
     expect(await wrapper.vm.save()).toBeUndefined();
   });
@@ -57,17 +56,17 @@ describe('ContinuityPicker', () => {
     expect(wrapper.text()).toContain('Also used by 2 other stories and chats');
   });
 
-  it('offers Compact only while the Archivist is on', async () => {
-    const off = await mountPicker({ continuityId: 'k1' });
-    expect(off.findAll('button').some((b) => b.text().includes('Compact'))).toBe(false);
-    const on = await mountPicker({ continuityId: 'k1' }, { archivist: true });
-    expect(on.findAll('button').some((b) => b.text().includes('Compact'))).toBe(true);
+  it('offers Compact for a picked Continuity', async () => {
+    const none = await mountPicker();
+    expect(none.findAll('button').some((b) => b.text().includes('Compact'))).toBe(false);
+    const picked = await mountPicker({ continuityId: 'k1' });
+    expect(picked.findAll('button').some((b) => b.text().includes('Compact'))).toBe(true);
   });
 
   it('puts the condensed text in place to save, and undoes it', async () => {
     archivistAPI.compactContinuity.mockResolvedValue({ content: 'Married.', rationale: 'Cut.' });
     continuitiesAPI.update.mockResolvedValue({ continuity: { ...HARBOR, content: 'Married.' } });
-    const wrapper = await mountPicker({ continuityId: 'k1' }, { archivist: true });
+    const wrapper = await mountPicker({ continuityId: 'k1' });
     await wrapper.find('#continuityContent').setValue('Layla and Sam are married. Unsaved.');
     const compact = wrapper.findAll('button').find((b) => b.text().includes('Compact'));
     await compact.trigger('click');
@@ -100,7 +99,7 @@ describe('ContinuityPicker', () => {
   it('refuses to save while Compact is running, and drops its answer after a switch', async () => {
     let finish;
     archivistAPI.compactContinuity.mockReturnValue(new Promise((resolve) => (finish = resolve)));
-    const wrapper = await mountPicker({ continuityId: 'k1' }, { archivist: true });
+    const wrapper = await mountPicker({ continuityId: 'k1' });
     await wrapper
       .findAll('button')
       .find((b) => b.text().includes('Compact'))
@@ -116,7 +115,7 @@ describe('ContinuityPicker', () => {
 
   it("says so when the Archivist can't make it shorter", async () => {
     archivistAPI.compactContinuity.mockResolvedValue({ content: null, rationale: '' });
-    const wrapper = await mountPicker({ continuityId: 'k1' }, { archivist: true });
+    const wrapper = await mountPicker({ continuityId: 'k1' });
     await wrapper
       .findAll('button')
       .find((b) => b.text().includes('Compact'))

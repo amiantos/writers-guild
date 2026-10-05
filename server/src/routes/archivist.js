@@ -1,13 +1,12 @@
 /**
  * Archivist API Routes
  *
- * The experimental Archivist for library character cards: it reads a story or
- * chat, suggests edits to its characters' descriptions and personalities, and
+ * The Archivist for library character cards: it reads a story or chat,
+ * suggests edits to its characters' descriptions and personalities, and
  * applies the ones the reader accepts as new card versions (see
  * services/archivist/card-archivist.js). A story or chat in a Continuity also
  * gets an updated Continuity (see services/archivist/continuity-archivist.js),
- * while Continuities are turned on, and a Continuity can be condensed on its
- * own. Every route answers 404 while the Archivist's experimental toggle is off.
+ * and a Continuity can be condensed on its own.
  */
 
 import express from 'express';
@@ -77,16 +76,6 @@ router.use((req, res, next) => {
   next();
 });
 
-router.use(
-  asyncHandler(async (req, res, next) => {
-    const settings = await storage.getSettings();
-    if (!settings?.experimentalArchivist) {
-      throw new AppError('The Archivist is turned off', 404);
-    }
-    next();
-  }),
-);
-
 // ==================== Helpers ====================
 
 /**
@@ -128,20 +117,17 @@ async function loadSource(kind, sourceId) {
 
 /**
  * The Continuity the Archivist keeps up to date for a source, alongside its cast's cards, or
- * null: the source isn't in one, or Continuities are turned off.
+ * null when the source isn't in one.
  */
-async function continuityFor(source) {
+function continuityFor(source) {
   if (!source.continuityId) return null;
-  const settings = await storage.getSettings();
-  if (!settings?.experimentalContinuity) return null;
   return continuities.get(source.continuityId);
 }
 
 /**
  * The Continuity update waiting for review, with the Continuity's name and text as they now
  * stand, or null. Only an update to `active`, the Continuity the Archivist keeps for the source
- * now, is shown: one to a Continuity the source has left, or while Continuities are turned off,
- * waits unseen. It's stale when the Continuity changed since it was written.
+ * now, is shown: one to a Continuity the source has left waits unseen. It's stale when the Continuity changed since it was written.
  */
 function pendingContinuityFor(kind, sourceId, active) {
   const suggestion = continuitySuggestions.proposedFor(kind, sourceId);
@@ -158,7 +144,7 @@ function pendingContinuityFor(kind, sourceId, active) {
 
 /** What a list of a source's suggestions says, the Continuity it would update included. */
 async function listFor(kind, sourceId, source) {
-  const continuity = await continuityFor(source ?? (await loadSource(kind, sourceId)));
+  const continuity = continuityFor(source ?? (await loadSource(kind, sourceId)));
   return {
     suggestions: await pendingFor(kind, sourceId),
     continuity: continuity ? { id: continuity.id, name: continuity.name } : null,
@@ -272,7 +258,7 @@ async function read(kind, sourceId, run) {
     if (!source.text.trim()) {
       throw new AppError(`There's nothing in this ${kind} to read yet`, 400);
     }
-    const continuity = await continuityFor(source);
+    const continuity = continuityFor(source);
     const cast = await loadCast(source);
     if (!continuity && cast.length === 0) {
       throw new AppError(`This ${kind} has no library characters to review`, 400);
@@ -482,8 +468,7 @@ function reviewDecisions(body) {
 router.post(
   '/continuities/:id/compact',
   asyncHandler(async (req, res) => {
-    const settings = await storage.getSettings();
-    const continuity = settings?.experimentalContinuity ? continuities.get(req.params.id) : null;
+    const continuity = continuities.get(req.params.id);
     if (!continuity) throw new AppError('Continuity not found', 404);
     const given = req.body?.content;
     if (given !== undefined && typeof given !== 'string') {
@@ -618,7 +603,7 @@ router.post(
     const decisions = reviewDecisions(req.body);
     const continuity = continuityDecision(req.body);
     const continuityResult = continuity
-      ? reviewContinuity(kind, sourceId, continuity, await continuityFor(source))
+      ? reviewContinuity(kind, sourceId, continuity, continuityFor(source))
       : { applied: false, stale: false };
     const own = new Map(
       suggestions

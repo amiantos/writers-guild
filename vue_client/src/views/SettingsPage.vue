@@ -88,41 +88,12 @@
             </div>
             <div class="checkbox-group">
               <label class="checkbox-label">
-                <input type="checkbox" v-model="settings.experimentalEnhancedStory" />
-                <span>Enhanced Story Mode</span>
+                <input type="checkbox" v-model="settings.experimentalOldStoryMode" />
+                <span>Use Old Story Mode Experience</span>
               </label>
               <p class="help-text">
-                Replaces story mode's editor and preview with the story as passages: hover one to
-                edit, delete, or write the last one again, and open the seam above it to see how it
-                was written, reasoning included. A text box at the bottom writes, instructs, and
-                continues. Prompts and generation are the same as story mode's.
-              </p>
-            </div>
-            <div class="checkbox-group">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="settings.experimentalArchivist" />
-                <span>Archivist</span>
-              </label>
-              <p class="help-text">
-                Adds a Review Cards button to stories and chats. The Archivist reads what happened
-                and suggests additions to your characters' descriptions and personalities for what
-                it reveals about them, such as their past, job or tastes, for you to accept, edit,
-                or reject. Uses the story or chat's preset. Accepted edits show in each card's
-                History and can be restored. With Continuity on, a story or chat in a Continuity
-                also gets an update to its Continuity, condensed when it grows long, and a
-                Continuity can be condensed by hand.
-              </p>
-            </div>
-            <div class="checkbox-group">
-              <label class="checkbox-label">
-                <input type="checkbox" v-model="settings.experimentalContinuity" />
-                <span>Continuity</span>
-              </label>
-              <p class="help-text">
-                Lets stories and chats share a Continuity: text you write once about what's true
-                across them, such as who is together and what happened last time. Pick one when
-                editing a story or chat; its text goes ahead of that story or chat's own scenario.
-                Every change to it is kept, and an earlier version can be restored.
+                Brings back story mode's single editor and preview in place of passages. Prompts and
+                generation are the same either way.
               </p>
             </div>
           </div>
@@ -233,9 +204,7 @@ const settings = ref({
   lorebookRecursionDepth: 3,
   lorebookEnableRecursion: true,
   experimentalChats: false,
-  experimentalEnhancedStory: false,
-  experimentalArchivist: false,
-  experimentalContinuity: false,
+  experimentalOldStoryMode: false,
 });
 
 onMounted(async () => {
@@ -298,9 +267,7 @@ async function loadSettings() {
       lorebookRecursionDepth: serverSettings.lorebookRecursionDepth ?? 3,
       lorebookEnableRecursion: serverSettings.lorebookEnableRecursion ?? true,
       experimentalChats: serverSettings.experimentalChats ?? false,
-      experimentalEnhancedStory: serverSettings.experimentalEnhancedStory ?? false,
-      experimentalArchivist: serverSettings.experimentalArchivist ?? false,
-      experimentalContinuity: serverSettings.experimentalContinuity ?? false,
+      experimentalOldStoryMode: serverSettings.experimentalOldStoryMode ?? false,
     };
   } catch (error) {
     console.error('Failed to load settings:', error);

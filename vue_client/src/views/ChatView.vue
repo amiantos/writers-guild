@@ -18,7 +18,6 @@
           <i class="fas fa-user"></i>
         </button>
         <button
-          v-if="archivistEnabled"
           class="icon-btn"
           :disabled="!chat || sending"
           title="Review Cards with the Archivist"
@@ -314,7 +313,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { chatsAPI } from '../services/chatsApi';
-import { settingsAPI } from '../services/api';
 import { useDataCache } from '../composables/useDataCache';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
@@ -346,7 +344,6 @@ const loadError = ref('');
 
 const text = ref('');
 const sending = ref(false);
-const archivistEnabled = ref(false);
 const showArchivist = ref(false);
 const pending = ref(null);
 const lastPrompt = ref(null);
@@ -730,18 +727,8 @@ function goToSettings() {
   router.push('/settings');
 }
 
-async function loadSettings() {
-  try {
-    const { settings } = await settingsAPI.get();
-    archivistEnabled.value = settings?.experimentalArchivist ?? false;
-  } catch (error) {
-    console.error('Failed to load settings:', error);
-  }
-}
-
 onMounted(() => {
   load();
-  loadSettings();
 });
 
 // The router reuses this view when only the chat changes, as when going back and forward
