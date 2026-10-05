@@ -452,6 +452,7 @@ export class SqliteStorageService {
   async generateThumbnail(imageBuffer) {
     try {
       return await sharp(imageBuffer)
+        .autoOrient()
         .resize(96, 96, {
           fit: 'cover',
           position: 'top',
@@ -471,6 +472,7 @@ export class SqliteStorageService {
   async generateMediumThumbnail(imageBuffer) {
     try {
       return await sharp(imageBuffer)
+        .autoOrient()
         .resize(256, 384, {
           fit: 'cover',
           position: 'top',
@@ -491,6 +493,7 @@ export class SqliteStorageService {
   async generatePortrait(imageBuffer) {
     try {
       return await sharp(imageBuffer)
+        .autoOrient()
         .resize(1024, 1536, {
           fit: 'inside',
           withoutEnlargement: true,

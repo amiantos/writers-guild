@@ -68,6 +68,24 @@ describe('character portraits', () => {
     }
   });
 
+  it('turns photos the way their EXIF orientation says before resizing', async () => {
+    const storage = new SqliteStorageService(dataRoot);
+    try {
+      // Stored 768x512, shown 512x768 once rotated by its orientation tag
+      const sideways = await sharp(await gradientPng())
+        .rotate(90)
+        .jpeg()
+        .withMetadata({ orientation: 6 })
+        .toBuffer();
+      await storage.saveCharacter('char-1', { data: { name: 'Ada' } }, sideways);
+
+      const portrait = await sharp(await storage.getCharacterPortrait('char-1')).metadata();
+      expect([portrait.width, portrait.height]).toEqual([512, 768]);
+    } finally {
+      storage.close();
+    }
+  });
+
   it('adds the portrait column and clears old thumbnails so they are rendered again', async () => {
     const storage = new SqliteStorageService(dataRoot);
     await storage.saveCharacter('char-1', { data: { name: 'Ada' } }, await gradientPng());
