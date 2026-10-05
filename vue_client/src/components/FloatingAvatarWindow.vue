@@ -97,7 +97,7 @@ const currentCharacter = computed(() => {
 const currentCharacterImageUrl = computed(() => {
   const char = currentCharacter.value;
   if (!char) return null;
-  return char.thumbnailMediumUrl || char.imageUrl || null;
+  return char.portraitUrl || char.imageUrl || null;
 });
 
 // Cycle to next character

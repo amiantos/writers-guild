@@ -218,8 +218,8 @@ async function needsMigration(storage) {
 }
 
 /**
- * Backfill missing thumbnails (96x96 and/or 256x384) for any character with an image
- * but missing one or both thumbnail sizes. Runs on every server start; no-op if up to date.
+ * Backfill missing thumbnails (96x96 and/or 256x384) and portraits for any character with an
+ * image but missing one or more of them. Runs on every server start; no-op if up to date.
  * @param {StorageService} storage - Storage service instance
  * @returns {Promise<number>} Number of characters updated
  */
@@ -234,20 +234,24 @@ async function generateMissingThumbnails(storage) {
 
       const hasSmall = await storage.hasCharacterThumbnail(char.id);
       const hasMedium = await storage.hasCharacterThumbnailMedium(char.id);
-      if (hasSmall && hasMedium) continue;
+      const hasPortrait = await storage.hasCharacterPortrait(char.id);
+      if (hasSmall && hasMedium && hasPortrait) continue;
 
       try {
         const imageBuffer = await storage.getCharacterImage(char.id);
-        const [small, medium] = await Promise.all([
+        const [small, medium, portrait] = await Promise.all([
           hasSmall
             ? storage.getCharacterThumbnail(char.id)
             : storage.generateThumbnail(imageBuffer),
           hasMedium
             ? storage.getCharacterThumbnailMedium(char.id)
             : storage.generateMediumThumbnail(imageBuffer),
+          hasPortrait
+            ? storage.getCharacterPortrait(char.id)
+            : storage.generatePortrait(imageBuffer),
         ]);
 
-        await storage.setCharacterThumbnails(char.id, small, medium);
+        await storage.setCharacterThumbnails(char.id, small, medium, portrait);
         updated++;
         console.log(`✓ Backfilled thumbnails for character: ${char.id}`);
       } catch (error) {
@@ -388,7 +392,7 @@ export async function migrate(storage) {
 }
 
 // Export helper functions for use in onboarding
-export { importDefaultCharacters, createDefaultStory };
+export { importDefaultCharacters, createDefaultStory, generateMissingThumbnails };
 
 /**
  * Run migration automatically on server start
