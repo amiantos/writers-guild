@@ -45,10 +45,7 @@ const STUBS = {
   },
   ViewPromptModal: true,
   CustomPromptModal: true,
-  ManageCharactersModal: true,
-  ManageLorebooksModal: true,
-  RenameStoryModal: true,
-  StoryPresetModal: true,
+  EditStoryModal: true,
   IdeateModal: true,
   FloatingAvatarWindow: true,
   ThirdPersonPromptModal: {

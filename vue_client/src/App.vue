@@ -1,6 +1,7 @@
 <template>
   <div id="app">
-    <RouterView />
+    <!-- Keyed by path, so moving from one story to another mounts a fresh editor -->
+    <RouterView :key="$route.path" />
     <ToastContainer />
     <ConfirmDialog
       v-if="isConfirmVisible"

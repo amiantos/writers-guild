@@ -429,7 +429,8 @@ router.delete(
 router.post(
   '/:id/duplicate',
   asyncHandler(async (req, res) => {
-    const story = await storage.duplicateStory(req.params.id);
+    // `blank` starts a new story from this one's setup, without its content or scenario
+    const story = await storage.duplicateStory(req.params.id, { blank: req.body?.blank === true });
     res.status(201).json({ story });
   }),
 );

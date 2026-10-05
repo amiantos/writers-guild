@@ -20,6 +20,13 @@
         </button>
         <button
           class="btn btn-small btn-secondary"
+          @click="$emit('new-from', row)"
+          title="New story with this story's setup"
+        >
+          <i class="fas fa-file-circle-plus"></i>
+        </button>
+        <button
+          class="btn btn-small btn-secondary"
           @click="$emit('duplicate', row)"
           title="Duplicate story"
         >
@@ -48,7 +55,7 @@ const props = defineProps({
   },
 });
 
-defineEmits(['open', 'duplicate', 'delete']);
+defineEmits(['open', 'new-from', 'duplicate', 'delete']);
 
 const columns = [
   {

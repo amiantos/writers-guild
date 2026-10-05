@@ -503,6 +503,41 @@ describe('Stories API Routes - CRUD Operations', () => {
       expect(duplicateResponse.body.story.content).toBe('Story content here');
     });
 
+    it('starts a blank new story from the setup when asked', async () => {
+      const createResponse = await request(app)
+        .post('/api/stories')
+        .send({ title: 'Chapter One', description: 'Desc' })
+        .expect(201);
+      const storyId = createResponse.body.story.id;
+      await request(app)
+        .put(`/api/stories/${storyId}`)
+        .send({
+          scenario: 'A storm rolls in.',
+          perspective: 'first',
+          perspectiveTense: 'present',
+          configPresetId: 'preset-1',
+        })
+        .expect(200);
+      await request(app)
+        .put(`/api/stories/${storyId}/content`)
+        .send({ content: 'Rain.\n\n', passages: [{ id: 'p1', text: 'Rain.', source: 'user' }] })
+        .expect(200);
+
+      const response = await request(app)
+        .post(`/api/stories/${storyId}/duplicate`)
+        .send({ blank: true })
+        .expect(201);
+
+      const story = response.body.story;
+      expect(story.title).toBe('Chapter One (New)');
+      expect(story.content).toBe('');
+      expect(story.scenario || '').toBe('');
+      expect(story.passages ?? []).toEqual([]);
+      expect(story.perspective).toBe('first');
+      expect(story.perspectiveTense).toBe('present');
+      expect(story.configPresetId).toBe('preset-1');
+    });
+
     it('should return 500 for non-existent story', async () => {
       await request(app).post('/api/stories/non-existent-id/duplicate').expect(500);
     });
