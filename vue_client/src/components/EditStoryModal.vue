@@ -570,11 +570,14 @@ async function saveChat() {
     saving.value = true;
     const updates = {
       scenario: storyScenario.value.trim(),
-      characterIds: characterIds.value,
       personaCharacterId: personaId.value,
       lorebookIds: lorebookIds.value,
       ...presetUpdate(),
     };
+    // Sending the cast renames a cast-named title, so it's only sent when it changed
+    if (characterIds.value.join(',') !== (props.story.characterIds ?? []).join(',')) {
+      updates.characterIds = characterIds.value;
+    }
     // A title still named after the cast is left to the server, which renames it from the cast
     // and has no length limit for it, unlike a title sent here
     if (titleEdited.value || !isAutoChatTitle(storyTitle.value)) {

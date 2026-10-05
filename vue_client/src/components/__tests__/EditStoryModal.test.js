@@ -355,6 +355,17 @@ describe('EditStoryModal for a chat', () => {
     wrapper.unmount();
   });
 
+  it('leaves the cast and a cast-named title alone when the cast is untouched', async () => {
+    const story = { ...CHAT, title: 'Chat with Layla at sea' };
+    const wrapper = await mountModal({ story, kind: 'chat' });
+    await wrapper.find('#storyScenario').setValue('Dawn.');
+    await save(wrapper);
+    const [, updates] = chatsAPI.update.mock.calls[0];
+    expect(updates).not.toHaveProperty('characterIds');
+    expect(updates).not.toHaveProperty('title');
+    wrapper.unmount();
+  });
+
   it('sends a typed or custom title', async () => {
     const wrapper = await mountModal({ story: CHAT, kind: 'chat' });
     await wrapper.find('#storyTitle').setValue('Late night');
