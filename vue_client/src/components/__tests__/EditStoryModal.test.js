@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { shallowRef } from 'vue';
 import EditStoryModal from '../EditStoryModal.vue';
 import { charactersAPI, lorebooksAPI, presetsAPI, storiesAPI } from '../../services/api';
+import { chatsAPI } from '../../services/chatsApi';
 
 vi.mock('../../services/api', () => ({
   storiesAPI: {
@@ -16,6 +17,7 @@ vi.mock('../../services/api', () => ({
   lorebooksAPI: { list: vi.fn() },
   presetsAPI: { get: vi.fn(), getDefaultId: vi.fn(), list: vi.fn() },
 }));
+vi.mock('../../services/chatsApi', () => ({ chatsAPI: { update: vi.fn() } }));
 vi.mock('../../composables/useToast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }));
@@ -49,11 +51,23 @@ const STORY = {
   perspectiveCharacterId: null,
 };
 
-async function mountModal({ story = STORY, systemPrompt = null } = {}) {
+const CHAT = {
+  id: 'ch1',
+  title: 'Chat with Layla',
+  scenario: 'Midnight.',
+  configPresetId: null,
+  characterIds: ['c1'],
+  personaCharacterId: 'p9',
+  lorebookIds: [],
+};
+
+async function mountModal({ story = STORY, systemPrompt = null, ...props } = {}) {
   presetsAPI.get.mockResolvedValue({ preset: { promptTemplates: { systemPrompt } } });
   const wrapper = mount(EditStoryModal, {
-    props: { story },
+    props: { story, ...props },
     global: { stubs: { ContinuityPicker, PresetEditorModal: true, Teleport: true } },
+    // Focus is only tracked in the document
+    attachTo: props.focusScenario ? document.body : undefined,
   });
   await flushPromises();
   return wrapper;
@@ -284,5 +298,81 @@ describe('EditStoryModal', () => {
     await flushPromises();
     expect(presetsAPI.get).toHaveBeenLastCalledWith('p2');
     expect(wrapper.find('.perspective-warning').exists()).toBe(true);
+  });
+});
+
+describe('EditStoryModal for a chat', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cachedCharacters.value = CHARACTERS;
+    chatsAPI.update.mockImplementation(async (id, fields) => ({ chat: { ...CHAT, ...fields } }));
+    lorebooksAPI.list.mockResolvedValue({
+      lorebooks: [{ id: 'lb2', name: 'Marcus Lore', characters: [{ id: 'c2', name: 'Marcus' }] }],
+    });
+    presetsAPI.list.mockResolvedValue({ presets: [{ id: 'p1', name: 'Story Preset' }] });
+    presetsAPI.getDefaultId.mockResolvedValue({ defaultPresetId: 'p1' });
+  });
+
+  it('leaves out the perspective', async () => {
+    const wrapper = await mountModal({ story: CHAT, kind: 'chat' });
+    const labels = wrapper.findAll('.form-group > label').map((label) => label.text());
+    expect(labels).toEqual([
+      'Chat Name *',
+      'Characters',
+      'Persona',
+      'Lorebooks',
+      'Chat Scenario',
+      'Generation Preset',
+    ]);
+    expect(presetsAPI.get).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('saves everything in one chat update, without a character’s lorebook', async () => {
+    const wrapper = await mountModal({ story: CHAT, kind: 'chat' });
+
+    await wrapper.find('#characterFilter').setValue('Marcus');
+    await wrapper.find('.search-result').trigger('click');
+    expect(wrapper.find('#storyTitle').element.value).toBe('Chat with Layla and Marcus');
+    expect(wrapper.findAll('.chip')).toHaveLength(0);
+
+    await wrapper.find('#storyScenario').setValue('  Dawn.  ');
+    await wrapper.find('#storyPreset').setValue('p1');
+    await save(wrapper);
+
+    expect(chatsAPI.update).toHaveBeenCalledWith('ch1', {
+      title: 'Chat with Layla and Marcus',
+      scenario: 'Dawn.',
+      characterIds: ['c1', 'c2'],
+      personaCharacterId: 'p9',
+      lorebookIds: [],
+      configPresetId: 'p1',
+    });
+    expect(charactersAPI.addToStory).not.toHaveBeenCalled();
+    expect(storiesAPI.updateMetadata).not.toHaveBeenCalled();
+    expect(wrapper.emitted('updated')[0][0].title).toBe('Chat with Layla and Marcus');
+    expect(wrapper.emitted('close')).toBeTruthy();
+    wrapper.unmount();
+  });
+
+  it('keeps the Persona out of the cast', async () => {
+    const wrapper = await mountModal({ story: CHAT, kind: 'chat' });
+
+    // Picking a cast member as Persona takes them out of the chat
+    await wrapper.find('#storyPersona').setValue('c1');
+    expect(wrapper.findAll('.cast-name')).toHaveLength(0);
+    expect(wrapper.find('#storyTitle').element.value).toBe('Untitled Chat');
+
+    // Adding the Persona to the cast leaves the chat without one
+    await wrapper.find('#characterFilter').setValue('Layla');
+    await wrapper.find('.search-result').trigger('click');
+    expect(wrapper.find('#storyPersona').element.selectedIndex).toBe(0);
+    wrapper.unmount();
+  });
+
+  it('can open on the scenario', async () => {
+    const wrapper = await mountModal({ story: CHAT, kind: 'chat', focusScenario: true });
+    expect(document.activeElement).toBe(wrapper.find('#storyScenario').element);
+    wrapper.unmount();
   });
 });

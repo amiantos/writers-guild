@@ -12,10 +12,10 @@
         <button
           class="icon-btn"
           :disabled="!chat || sending"
-          title="Manage Characters"
-          @click="showManageCharacters = true"
+          title="Edit Chat: characters, lorebooks, scenario, preset"
+          @click="openEditChat(false)"
         >
-          <i class="fas fa-user"></i>
+          <i class="fas fa-pencil"></i>
         </button>
         <button
           class="icon-btn"
@@ -24,30 +24,6 @@
           @click="showArchivist = true"
         >
           <i class="fas fa-scroll"></i>
-        </button>
-        <button
-          class="icon-btn"
-          :disabled="!chat || sending"
-          title="Manage Lorebooks"
-          @click="showManageLorebooks = true"
-        >
-          <i class="fas fa-book"></i>
-        </button>
-        <button
-          class="icon-btn"
-          :disabled="!chat || sending"
-          title="Edit Chat"
-          @click="openEditChat(false)"
-        >
-          <i class="fas fa-pencil"></i>
-        </button>
-        <button
-          class="icon-btn"
-          :disabled="!chat || sending"
-          title="Configuration Preset"
-          @click="showPresetSelector = true"
-        >
-          <i class="fas fa-sliders"></i>
         </button>
         <button
           class="icon-btn"
@@ -94,8 +70,8 @@
         <div v-if="chatCharacters.length === 0" class="empty-state">
           <i class="fas fa-user-plus"></i>
           <p>Add characters to start chatting.</p>
-          <button class="btn btn-primary" @click="showManageCharacters = true">
-            <i class="fas fa-user"></i> Manage Characters
+          <button class="btn btn-primary" @click="openEditChat(false)">
+            <i class="fas fa-user"></i> Add Characters
           </button>
         </div>
 
@@ -250,22 +226,6 @@
     </div>
 
     <!-- Modals -->
-    <ManageCharactersModal
-      v-if="showManageCharacters"
-      :story="chat"
-      noun="chat"
-      :adapter="characterAdapter"
-      @close="showManageCharacters = false"
-    />
-
-    <ManageLorebooksModal
-      v-if="showManageLorebooks"
-      :story="chat"
-      noun="chat"
-      :adapter="lorebookAdapter"
-      @close="showManageLorebooks = false"
-    />
-
     <ArchivistModal
       v-if="showArchivist"
       kind="chat"
@@ -274,21 +234,13 @@
       @applied="loadCharacters"
     />
 
-    <EditChatModal
+    <EditStoryModal
       v-if="showEditChat"
-      :chat="chat"
+      kind="chat"
+      :story="chat"
       :focus-scenario="editScenarioFirst"
       @close="showEditChat = false"
       @updated="handleChatUpdated"
-    />
-
-    <StoryPresetModal
-      v-if="showPresetSelector"
-      :story-id="chatId"
-      :current-preset-id="chat?.configPresetId"
-      noun="chat"
-      :save-preset="savePreset"
-      @close="showPresetSelector = false"
     />
 
     <CharacterResponseModal
@@ -319,11 +271,8 @@ import { useConfirm } from '../composables/useConfirm';
 import { setPageTitle } from '../router';
 import { describeQueue, showsSender, splitReply } from '../composables/chatMessages';
 import ChatBubble from '../components/chat/ChatBubble.vue';
-import EditChatModal from '../components/chat/EditChatModal.vue';
 import ChatSeam from '../components/chat/ChatSeam.vue';
-import ManageCharactersModal from '../components/ManageCharactersModal.vue';
-import ManageLorebooksModal from '../components/ManageLorebooksModal.vue';
-import StoryPresetModal from '../components/StoryPresetModal.vue';
+import EditStoryModal from '../components/EditStoryModal.vue';
 import CharacterResponseModal from '../components/CharacterResponseModal.vue';
 import ViewPromptModal from '../components/ViewPromptModal.vue';
 import ArchivistModal from '../components/ArchivistModal.vue';
@@ -351,11 +300,8 @@ let abortController = null;
 
 const listRef = ref(null);
 const inputRef = ref(null);
-const showManageCharacters = ref(false);
-const showManageLorebooks = ref(false);
 const showEditChat = ref(false);
 const editScenarioFirst = ref(false);
-const showPresetSelector = ref(false);
 const showCharacterSelector = ref(false);
 const showViewPromptModal = ref(false);
 const showOverflowMenu = ref(false);
@@ -425,7 +371,7 @@ async function load() {
     setPageTitle(chat.value.title);
     // A new chat starts by picking who's in it, as a story starts with its greeting.
     if (chat.value.characterIds.length === 0 && turns.value.length === 0) {
-      showManageCharacters.value = true;
+      openEditChat(false);
     }
   } catch (error) {
     if (!isCurrent(chatId)) return;
@@ -659,42 +605,9 @@ async function clearChat() {
 
 // ==================== Setup ====================
 
-async function updateChat(fields) {
-  const { chat: updated } = await chatsAPI.update(props.chatId, fields);
-  handleChatUpdated(updated);
-  return updated;
-}
-
 function handleChatUpdated(updated) {
   chat.value = updated;
   setPageTitle(updated.title);
-}
-
-// The persona can't also be in the chat, so choosing one takes them out of it.
-const characterAdapter = {
-  addCharacter: (id) =>
-    updateChat({
-      characterIds: [...chat.value.characterIds, id],
-      personaCharacterId:
-        chat.value.personaCharacterId === id ? null : chat.value.personaCharacterId,
-    }),
-  removeCharacter: (id) =>
-    updateChat({ characterIds: chat.value.characterIds.filter((item) => item !== id) }),
-  setPersona: (id) =>
-    updateChat({
-      personaCharacterId: id,
-      characterIds: chat.value.characterIds.filter((item) => item !== id),
-    }),
-};
-
-const lorebookAdapter = {
-  addLorebook: (id) => updateChat({ lorebookIds: [...chat.value.lorebookIds, id] }),
-  removeLorebook: (id) =>
-    updateChat({ lorebookIds: chat.value.lorebookIds.filter((item) => item !== id) }),
-};
-
-function savePreset(presetId) {
-  return updateChat({ configPresetId: presetId });
 }
 
 function openEditChat(scenarioFirst) {
@@ -740,10 +653,7 @@ watch(
     lastPrompt.value = null;
     text.value = '';
     showOverflowMenu.value = false;
-    showManageCharacters.value = false;
-    showManageLorebooks.value = false;
     showEditChat.value = false;
-    showPresetSelector.value = false;
     showCharacterSelector.value = false;
     showViewPromptModal.value = false;
     showArchivist.value = false;

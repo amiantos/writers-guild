@@ -14,7 +14,8 @@ import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { SqliteStorageService } from '../services/sqliteStorage.js';
 import { ChatStorage } from '../services/chat/chat-storage.js';
 import { generateChatReply, replyNames } from '../services/chat/chat-reply.js';
-import { joinNames, pickSpeaker } from '../services/chat/chat-prompt.js';
+import { pickSpeaker } from '../services/chat/chat-prompt.js';
+import { generateChatTitle, isAutoChatTitle } from '../../../shared/story-titles.js';
 import { getProvider } from '../services/provider-factory.js';
 import { sseChannel } from '../utils/sse.js';
 import {
@@ -143,14 +144,9 @@ async function characterCard(characterId) {
   }
 }
 
-function isAutoTitle(title) {
-  return title === 'Untitled Chat' || title.startsWith('Chat with ');
-}
-
 async function defaultTitle(characterIds) {
   const cards = await Promise.all(characterIds.map(characterCard));
-  const names = cards.filter(Boolean).map((card) => card.data?.name || 'Character');
-  return names.length > 0 ? `Chat with ${joinNames(names)}` : 'Untitled Chat';
+  return generateChatTitle(cards.filter(Boolean).map((card) => card.data?.name || 'Character'));
 }
 
 /**
@@ -305,7 +301,7 @@ router.put(
     const characterChange =
       fields.characterIds !== undefined &&
       fields.title === undefined &&
-      isAutoTitle(existing.title);
+      isAutoChatTitle(existing.title);
     if (fields.title === '' || characterChange) {
       fields.title = await defaultTitle(characterIds);
     }

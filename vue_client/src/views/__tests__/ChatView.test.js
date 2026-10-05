@@ -66,17 +66,16 @@ function mountChat() {
     global: {
       stubs: {
         ViewPromptModal: true,
-        EditChatModal: true,
-        StoryPresetModal: true,
-        ManageLorebooksModal: true,
+        EditStoryModal: {
+          name: 'EditStoryModal',
+          props: ['story', 'kind', 'focusScenario'],
+          emits: ['updated', 'close'],
+          template: '<div class="edit-chat" />',
+        },
         ArchivistModal: {
           name: 'ArchivistModal',
           props: ['kind', 'sourceId'],
           template: '<div class="archivist" />',
-        },
-        ManageCharactersModal: {
-          props: ['story', 'adapter'],
-          template: '<div class="manage-characters" />',
         },
         CharacterResponseModal: {
           props: ['characters'],
@@ -342,31 +341,31 @@ describe('ChatView', () => {
     const wrapper = mountChat();
     await flushPromises();
 
-    expect(wrapper.find('.manage-characters').exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'EditStoryModal' }).props()).toMatchObject({
+      kind: 'chat',
+      focusScenario: false,
+    });
     expect(wrapper.find('.empty-state').text()).toContain('Add characters to start chatting.');
     expect(wrapper.find('.scenario-text').text()).toContain('Describe this scenario');
     expect(wrapper.find('.message-input').attributes('disabled')).toBeDefined();
   });
 
-  it('adds characters through the chat, keeping the persona out of it', async () => {
-    chatsAPI.update.mockImplementation(async (_id, fields) => ({ chat: { ...CHAT, ...fields } }));
+  it('edits the chat in the Edit Chat modal, opening on the scenario from the scenario', async () => {
     const wrapper = mountChat();
     await flushPromises();
 
-    await button(wrapper, 'Manage Characters').trigger('click');
-    const { adapter } = wrapper.findComponent('.manage-characters').props();
-    await adapter.addCharacter('sam');
-    expect(chatsAPI.update).toHaveBeenLastCalledWith('c1', {
-      characterIds: ['layla', 'sam'],
-      personaCharacterId: null,
-    });
-    await adapter.setPersona('layla');
-    expect(chatsAPI.update).toHaveBeenLastCalledWith('c1', {
-      personaCharacterId: 'layla',
-      characterIds: ['sam'],
-    });
+    expect(button(wrapper, 'Manage Characters')).toBeUndefined();
+    await button(wrapper, 'Edit Chat: characters, lorebooks, scenario, preset').trigger('click');
+    const modal = wrapper.findComponent({ name: 'EditStoryModal' });
+    expect(modal.props()).toMatchObject({ kind: 'chat', story: CHAT, focusScenario: false });
+
+    modal.vm.$emit('updated', { ...CHAT, title: 'Chat with Layla and Sam' });
     await flushPromises();
-    expect(wrapper.find('.chat-title').text()).toBe('Chat with Layla');
+    expect(wrapper.find('.chat-title').text()).toBe('Chat with Layla and Sam');
+
+    wrapper.findComponent({ name: 'EditStoryModal' }).vm.$emit('close');
+    await wrapper.find('.scenario-block').trigger('click');
+    expect(wrapper.findComponent({ name: 'EditStoryModal' }).props('focusScenario')).toBe(true);
   });
 
   it('loads the new chat, dropping the old one’s prompt, when only the chat changes', async () => {
