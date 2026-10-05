@@ -784,7 +784,7 @@ export class SqliteStorageService {
    * @param {string} storyId
    * @param {Object} [options]
    * @param {boolean} [options.blank] - Start the copy as a new story instead: no content,
-   *   scenario, passages or avatar windows, titled "(New)" rather than "(Copy)".
+   *   scenario or passages, titled "(New)" rather than "(Copy)". Avatar windows still carry over.
    */
   async duplicateStory(storyId, { blank = false } = {}) {
     const existing = this.stmts.getStory.get(storyId);
@@ -834,7 +834,7 @@ export class SqliteStorageService {
         );
 
       // Copy avatar windows if present
-      if (existing.avatar_windows && !blank) {
+      if (existing.avatar_windows) {
         this.stmts.updateStoryAvatarWindows.run(existing.avatar_windows, newId);
       }
 
