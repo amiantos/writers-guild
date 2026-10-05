@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
-const SCHEMA_VERSION = 19;
+const SCHEMA_VERSION = 20;
 
 /**
  * Initialize the SQLite database with schema
@@ -120,6 +120,7 @@ function createAllTables(db) {
       image BLOB,
       thumbnail BLOB,
       thumbnail_medium BLOB,
+      portrait BLOB,
       created TEXT NOT NULL,
       modified TEXT NOT NULL,
       import_origin_checksum TEXT,
@@ -687,6 +688,17 @@ function migrateSchema(db, fromVersion) {
       if (!settingsColumns.some((column) => column.name === 'experimental_old_story_mode')) {
         db.exec('ALTER TABLE settings ADD COLUMN experimental_old_story_mode INTEGER DEFAULT 0');
       }
+    }
+
+    // Migration to version 20: A larger portrait for the floating portraits beside a story, and
+    // thumbnails re-rendered at full colour (they were saved as 256-colour PNGs). The startup
+    // thumbnail backfill fills in all three from each character's image.
+    if (fromVersion < 20) {
+      const characterColumns = db.prepare('PRAGMA table_info(characters)').all();
+      if (!characterColumns.some((column) => column.name === 'portrait')) {
+        db.exec('ALTER TABLE characters ADD COLUMN portrait BLOB');
+      }
+      db.exec('UPDATE characters SET thumbnail = NULL, thumbnail_medium = NULL');
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

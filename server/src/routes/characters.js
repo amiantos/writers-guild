@@ -297,6 +297,7 @@ router.get(
           imageUrl: null,
           thumbnailUrl: null,
           thumbnailMediumUrl: null,
+          portraitUrl: null,
           created: null,
           totalWords: 0,
         };
@@ -314,6 +315,7 @@ router.get(
         thumbnailMediumUrl: char.hasThumbnailMedium
           ? `/api/characters/${char.id}/thumbnail-medium`
           : imageUrl,
+        portraitUrl: char.hasPortrait ? `/api/characters/${char.id}/portrait` : imageUrl,
         created: char.created,
         totalWords: wordsByCharacter.get(char.id) ?? 0,
       };
@@ -749,13 +751,13 @@ router.get(
       throw new AppError('Character has no thumbnail', 404);
     }
 
-    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Type', 'image/webp');
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
     res.send(thumbnailBuffer);
   }),
 );
 
-// Get character medium thumbnail (256x384, 2:3 — for picker cards / floating avatar)
+// Get character medium thumbnail (256x384, 2:3 — for picker cards)
 router.get(
   '/:characterId/thumbnail-medium',
   asyncHandler(async (req, res) => {
@@ -766,9 +768,26 @@ router.get(
       throw new AppError('Character has no medium thumbnail', 404);
     }
 
-    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Type', 'image/webp');
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
     res.send(thumbnailBuffer);
+  }),
+);
+
+// Get character portrait (up to 1024x1536, uncropped — for the floating portraits beside a story)
+router.get(
+  '/:characterId/portrait',
+  asyncHandler(async (req, res) => {
+    const { characterId } = req.params;
+    const portraitBuffer = await storage.getCharacterPortrait(characterId);
+
+    if (!portraitBuffer) {
+      throw new AppError('Character has no portrait', 404);
+    }
+
+    res.setHeader('Content-Type', 'image/webp');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+    res.send(portraitBuffer);
   }),
 );
 

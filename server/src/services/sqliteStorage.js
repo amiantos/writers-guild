@@ -179,20 +179,24 @@ export class SqliteStorageService {
       getCharacterThumbnailMedium: this.db.prepare(
         'SELECT thumbnail_medium FROM characters WHERE id = ?',
       ),
+      getCharacterPortrait: this.db.prepare('SELECT portrait FROM characters WHERE id = ?'),
       updateCharacterThumbnails: this.db.prepare(`
-        UPDATE characters SET thumbnail = @thumbnail, thumbnail_medium = @thumbnailMedium WHERE id = @id
+        UPDATE characters
+        SET thumbnail = @thumbnail, thumbnail_medium = @thumbnailMedium, portrait = @portrait
+        WHERE id = @id AND image = @image
       `),
       insertCharacter: this.db.prepare(`
-        INSERT INTO characters (id, name, data, image, thumbnail, thumbnail_medium, created, modified,
-                                import_origin_checksum, import_internal_checksum, current_checksum)
-        VALUES (@id, @name, @data, @image, @thumbnail, @thumbnailMedium, @created, @modified,
-                @importOriginChecksum, @importInternalChecksum, @currentChecksum)
+        INSERT INTO characters (id, name, data, image, thumbnail, thumbnail_medium, portrait,
+                                created, modified, import_origin_checksum,
+                                import_internal_checksum, current_checksum)
+        VALUES (@id, @name, @data, @image, @thumbnail, @thumbnailMedium, @portrait, @created,
+                @modified, @importOriginChecksum, @importInternalChecksum, @currentChecksum)
       `),
       updateCharacter: this.db.prepare(`
         UPDATE characters SET name = @name, data = @data, modified = @modified WHERE id = @id
       `),
       updateCharacterWithImage: this.db.prepare(`
-        UPDATE characters SET name = @name, data = @data, image = @image, thumbnail = @thumbnail, thumbnail_medium = @thumbnailMedium, modified = @modified WHERE id = @id
+        UPDATE characters SET name = @name, data = @data, image = @image, thumbnail = @thumbnail, thumbnail_medium = @thumbnailMedium, portrait = @portrait, modified = @modified WHERE id = @id
       `),
       updateCharacterCurrentChecksum: this.db.prepare(
         'UPDATE characters SET current_checksum = ? WHERE id = ?',
@@ -208,7 +212,8 @@ export class SqliteStorageService {
         SELECT id, name, data, created,
                image IS NOT NULL AS has_image,
                thumbnail IS NOT NULL AS has_thumbnail,
-               thumbnail_medium IS NOT NULL AS has_thumbnail_medium
+               thumbnail_medium IS NOT NULL AS has_thumbnail_medium,
+               portrait IS NOT NULL AS has_portrait
         FROM characters
         ORDER BY name
       `),
@@ -447,12 +452,13 @@ export class SqliteStorageService {
   async generateThumbnail(imageBuffer) {
     try {
       return await sharp(imageBuffer)
+        .autoOrient()
         .resize(96, 96, {
           fit: 'cover',
           position: 'top',
           withoutEnlargement: false,
         })
-        .png({ quality: 90 })
+        .webp({ quality: 90 })
         .toBuffer();
     } catch (error) {
       console.error('Failed to generate thumbnail:', error);
@@ -461,22 +467,56 @@ export class SqliteStorageService {
   }
 
   /**
-   * Generate medium thumbnail from image buffer (256x384, 2:3 — for picker cards / floating avatar)
+   * Generate medium thumbnail from image buffer (256x384, 2:3 — for picker cards)
    */
   async generateMediumThumbnail(imageBuffer) {
     try {
       return await sharp(imageBuffer)
+        .autoOrient()
         .resize(256, 384, {
           fit: 'cover',
           position: 'top',
           withoutEnlargement: false,
         })
-        .png({ quality: 90 })
+        .webp({ quality: 90 })
         .toBuffer();
     } catch (error) {
       console.error('Failed to generate medium thumbnail:', error);
       return null;
     }
+  }
+
+  /**
+   * Generate a portrait from image buffer (up to 1024x1536, uncropped and never enlarged — for
+   * the floating portraits beside a story, which can be resized well past the medium thumbnail)
+   */
+  async generatePortrait(imageBuffer) {
+    try {
+      return await sharp(imageBuffer)
+        .autoOrient()
+        .resize(1024, 1536, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .webp({ quality: 90 })
+        .toBuffer();
+    } catch (error) {
+      console.error('Failed to generate portrait:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Every smaller copy of a character's image that's kept beside it.
+   * @returns {Promise<{thumbnail: Buffer|null, thumbnailMedium: Buffer|null, portrait: Buffer|null}>}
+   */
+  async generateImageSizes(imageBuffer) {
+    const [thumbnail, thumbnailMedium, portrait] = await Promise.all([
+      this.generateThumbnail(imageBuffer),
+      this.generateMediumThumbnail(imageBuffer),
+      this.generatePortrait(imageBuffer),
+    ]);
+    return { thumbnail, thumbnailMedium, portrait };
   }
 
   // ==================== Settings Operations ====================
@@ -886,6 +926,7 @@ export class SqliteStorageService {
         hasImage: !!row.has_image,
         hasThumbnail: !!row.has_thumbnail,
         hasThumbnailMedium: !!row.has_thumbnail_medium,
+        hasPortrait: !!row.has_portrait,
         failed: false,
       };
 
@@ -971,14 +1012,7 @@ export class SqliteStorageService {
 
     if (existing) {
       // Update existing character
-      let thumbnail = null;
-      let thumbnailMedium = null;
-      if (imageBuffer) {
-        [thumbnail, thumbnailMedium] = await Promise.all([
-          this.generateThumbnail(imageBuffer),
-          this.generateMediumThumbnail(imageBuffer),
-        ]);
-      }
+      const sizes = imageBuffer ? await this.generateImageSizes(imageBuffer) : null;
 
       this.db.transaction(() => {
         const previous = this.stmts.getCharacterVersionBase.get(characterId);
@@ -1010,8 +1044,7 @@ export class SqliteStorageService {
             name,
             data: dataJson,
             image: imageBuffer,
-            thumbnail,
-            thumbnailMedium,
+            ...sizes,
             modified: now,
           });
         } else {
@@ -1041,22 +1074,16 @@ export class SqliteStorageService {
       })();
     } else {
       // Insert new character
-      let thumbnail = null;
-      let thumbnailMedium = null;
-      if (imageBuffer) {
-        [thumbnail, thumbnailMedium] = await Promise.all([
-          this.generateThumbnail(imageBuffer),
-          this.generateMediumThumbnail(imageBuffer),
-        ]);
-      }
+      const sizes = imageBuffer
+        ? await this.generateImageSizes(imageBuffer)
+        : { thumbnail: null, thumbnailMedium: null, portrait: null };
 
       this.stmts.insertCharacter.run({
         id: characterId,
         name,
         data: dataJson,
         image: imageBuffer,
-        thumbnail,
-        thumbnailMedium,
+        ...sizes,
         created: now,
         modified: now,
         importOriginChecksum: options.originChecksum ?? null,
@@ -1158,12 +1185,30 @@ export class SqliteStorageService {
     return !!row?.thumbnail_medium;
   }
 
-  async setCharacterThumbnails(characterId, thumbnail, thumbnailMedium) {
-    this.stmts.updateCharacterThumbnails.run({
+  async getCharacterPortrait(characterId) {
+    const row = this.stmts.getCharacterPortrait.get(characterId);
+    return row?.portrait || null;
+  }
+
+  async hasCharacterPortrait(characterId) {
+    const row = this.stmts.getCharacterPortrait.get(characterId);
+    return !!row?.portrait;
+  }
+
+  /**
+   * Store the smaller copies rendered from `image`, unless the character's image has been
+   * replaced since, which brings its own.
+   * @returns {Promise<boolean>} Whether they were stored
+   */
+  async setCharacterThumbnails(characterId, image, { thumbnail, thumbnailMedium, portrait }) {
+    const result = this.stmts.updateCharacterThumbnails.run({
       id: characterId,
+      image,
       thumbnail,
       thumbnailMedium,
+      portrait,
     });
+    return result.changes > 0;
   }
 
   async deleteCharacter(characterId) {

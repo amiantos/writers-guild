@@ -4,6 +4,7 @@ import request from 'supertest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import sharp from 'sharp';
 import { createTestPng, createTestCharacterPng } from './test-helpers.js';
 
 // Import the routers
@@ -549,7 +550,7 @@ describe('Characters API Routes', () => {
 
       const response = await request(app).get(`/api/characters/${charId}/thumbnail`).expect(200);
 
-      expect(response.headers['content-type']).toBe('image/png');
+      expect(response.headers['content-type']).toBe('image/webp');
       expect(response.headers['cache-control']).toBe('public, max-age=86400');
     });
   });
@@ -596,8 +597,51 @@ describe('Characters API Routes', () => {
         .get(`/api/characters/${charId}/thumbnail-medium`)
         .expect(200);
 
-      expect(response.headers['content-type']).toBe('image/png');
+      expect(response.headers['content-type']).toBe('image/webp');
       expect(response.headers['cache-control']).toBe('public, max-age=86400');
+    });
+  });
+
+  describe('GET /:characterId/portrait - Get Character Portrait', () => {
+    it('should return 404 when character has no portrait', async () => {
+      const createResponse = await request(app)
+        .post('/api/characters')
+        .send({ name: 'No Portrait', description: 'Has no portrait' })
+        .expect(201);
+
+      const response = await request(app)
+        .get(`/api/characters/${createResponse.body.id}/portrait`)
+        .expect(404);
+
+      expect(response.body.error).toContain('no portrait');
+    });
+
+    it('keeps the image uncropped, scaled down to fit 1024x1536 but never enlarged', async () => {
+      const upload = async (name, png) => {
+        const createResponse = await request(app)
+          .post('/api/characters/create')
+          .field('characterData', JSON.stringify({ name, description: 'Has portrait' }))
+          .attach('image', png, { filename: 'test.png', contentType: 'image/png' })
+          .expect(201);
+        const response = await request(app)
+          .get(`/api/characters/${createResponse.body.id}/portrait`)
+          .buffer(true)
+          .parse((res, callback) => {
+            const chunks = [];
+            res.on('data', (chunk) => chunks.push(chunk));
+            res.on('end', () => callback(null, Buffer.concat(chunks)));
+          })
+          .expect(200);
+        expect(response.headers['content-type']).toBe('image/webp');
+        expect(response.headers['cache-control']).toBe('public, max-age=86400');
+        return sharp(response.body).metadata();
+      };
+
+      const large = await upload('Large Portrait', createTestPng(2048, 2048));
+      expect([large.width, large.height]).toEqual([1024, 1024]);
+
+      const small = await upload('Small Portrait', createTestPng(400, 600));
+      expect([small.width, small.height]).toEqual([400, 600]);
     });
   });
 
@@ -1062,6 +1106,7 @@ describe('Characters API Routes', () => {
       expect(char).toBeDefined();
       expect(char.imageUrl).toBe(`/api/characters/${charId}/image`);
       expect(char.thumbnailUrl).toBe(`/api/characters/${charId}/thumbnail`);
+      expect(char.portraitUrl).toBe(`/api/characters/${charId}/portrait`);
     });
 
     it('should calculate total words from stories', async () => {
