@@ -1638,7 +1638,11 @@ async function startNewStory() {
   if (generating.value || creatingNewStory.value) return;
   creatingNewStory.value = true;
   try {
-    await saveStory(true);
+    // Leaving with unsaved content would lose it
+    if (!(await saveStory(true))) {
+      toast.error("Couldn't save this story, so the new one wasn't started");
+      return;
+    }
     const { story: newStory } = await storiesAPI.duplicate(props.storyId, { blank: true });
     router.push({ name: 'story', params: { storyId: newStory.id }, query: { edit: '1' } });
   } catch (error) {

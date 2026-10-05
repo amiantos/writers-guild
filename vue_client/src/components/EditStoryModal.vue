@@ -256,6 +256,8 @@ const lorebooks = ref([]);
 const presets = ref([]);
 const defaultPresetId = ref(null);
 const showPresetEditor = ref(false);
+// Lorebooks taken off here, so one the server attaches with a character is only dropped when asked
+const removedLorebookIds = new Set();
 // The preset's custom system prompt leaves out {{perspective}}
 const presetIgnoresPerspective = ref(false);
 
@@ -337,14 +339,12 @@ function imageUrl(character) {
 function addCharacter(characterId) {
   if (!characterIds.value.includes(characterId)) {
     characterIds.value.push(characterId);
-    // Mirror the server, which attaches a character's own lorebook along with them
-    const lorebookId = charactersById.value.get(characterId)?.lorebookId;
-    if (
-      lorebookId &&
-      !lorebookIds.value.includes(lorebookId) &&
-      lorebooks.value.some((l) => l.id === lorebookId)
-    ) {
-      lorebookIds.value.push(lorebookId);
+    // Mirror the server, which attaches a character's own lorebook along with them. The
+    // lorebook list names the characters linked to each one.
+    const lorebook = lorebooks.value.find((l) => l.characters?.some((c) => c.id === characterId));
+    if (lorebook && !lorebookIds.value.includes(lorebook.id)) {
+      lorebookIds.value.push(lorebook.id);
+      removedLorebookIds.delete(lorebook.id);
     }
   }
   characterFilter.value = '';
@@ -368,6 +368,7 @@ function addLorebook(lorebookId, select) {
 
 function removeLorebook(lorebookId) {
   lorebookIds.value = lorebookIds.value.filter((id) => id !== lorebookId);
+  removedLorebookIds.add(lorebookId);
 }
 
 async function loadLorebooks() {
@@ -452,9 +453,13 @@ async function saveAssociations() {
     await storiesAPI.setPersona(storyId, personaId.value);
   }
 
-  const current = new Set([...(props.story.lorebookIds ?? []), ...attached]);
+  const originalLorebooks = props.story.lorebookIds ?? [];
+  const current = new Set([...originalLorebooks, ...attached]);
   for (const id of current) {
-    if (!lorebookIds.value.includes(id)) await storiesAPI.removeLorebookFromStory(storyId, id);
+    const dropped = originalLorebooks.includes(id) || removedLorebookIds.has(id);
+    if (dropped && !lorebookIds.value.includes(id)) {
+      await storiesAPI.removeLorebookFromStory(storyId, id);
+    }
   }
   for (const id of lorebookIds.value) {
     if (!current.has(id)) await storiesAPI.addLorebookToStory(storyId, id);

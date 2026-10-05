@@ -83,6 +83,19 @@ describe('StoryEditor New Story', () => {
     });
   });
 
+  it("doesn't start a new story when this one fails to save", async () => {
+    storiesAPI.updateContent.mockRejectedValue(new Error('disk full'));
+    const wrapper = await mountEditor();
+    wrapper.vm.$.setupState.content = 'Opening. More.';
+
+    await newStoryButton(wrapper).trigger('click');
+    await flushPromises();
+
+    expect(storiesAPI.updateContent).toHaveBeenCalled();
+    expect(storiesAPI.duplicate).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   it('opens Edit Story on load when asked, and drops the ask from the address', async () => {
     route.query = { edit: '1' };
     const wrapper = await mountEditor();

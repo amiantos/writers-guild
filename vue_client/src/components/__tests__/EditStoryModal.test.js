@@ -32,7 +32,7 @@ const ContinuityPicker = {
 
 const CHARACTERS = [
   { id: 'c1', name: 'Layla', tags: [] },
-  { id: 'c2', name: 'Marcus', tags: ['pilot'], lorebookId: 'lb2' },
+  { id: 'c2', name: 'Marcus', tags: ['pilot'] },
   { id: 'p9', name: 'Brad', tags: [] },
 ];
 
@@ -73,7 +73,7 @@ describe('EditStoryModal', () => {
     lorebooksAPI.list.mockResolvedValue({
       lorebooks: [
         { id: 'lb1', name: 'Harbor Town' },
-        { id: 'lb2', name: 'Marcus Lore' },
+        { id: 'lb2', name: 'Marcus Lore', characters: [{ id: 'c2', name: 'Marcus' }] },
         { id: 'lb3', name: 'Ships' },
       ],
     });
@@ -149,6 +149,18 @@ describe('EditStoryModal', () => {
     await save(wrapper);
 
     expect(storiesAPI.removeLorebookFromStory).toHaveBeenCalledWith('s1', 'lb2');
+  });
+
+  it('keeps a lorebook the server attached even when it is not known here', async () => {
+    charactersAPI.addToStory.mockResolvedValue({ addedLorebookId: 'lb9' });
+    const wrapper = await mountModal();
+
+    await wrapper.find('#characterFilter').setValue('Brad');
+    await wrapper.find('.search-result').trigger('click');
+    await save(wrapper);
+
+    expect(charactersAPI.addToStory).toHaveBeenCalledWith('s1', 'p9');
+    expect(storiesAPI.removeLorebookFromStory).not.toHaveBeenCalled();
   });
 
   it('removes characters and lorebooks, and changes the Persona and preset', async () => {
