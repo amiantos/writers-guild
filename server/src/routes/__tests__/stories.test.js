@@ -522,7 +522,9 @@ describe('Stories API Routes - CRUD Operations', () => {
         .put(`/api/stories/${storyId}/content`)
         .send({ content: 'Rain.\n\n', passages: [{ id: 'p1', text: 'Rain.', source: 'user' }] })
         .expect(200);
-      const avatarWindows = [{ id: 'w1', characterId: 'c1', x: 40, y: 80, width: 200, height: 300 }];
+      const avatarWindows = [
+        { id: 'w1', characterId: 'c1', x: 40, y: 80, width: 200, height: 300 },
+      ];
       await request(app)
         .put(`/api/stories/${storyId}/avatar-windows`)
         .send({ avatarWindows })
