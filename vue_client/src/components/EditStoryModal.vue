@@ -85,7 +85,6 @@
               {{ option.name }}
             </option>
           </select>
-          <p class="form-help">Who you are in the story. They don't need to be in the cast.</p>
         </div>
       </section>
 
