@@ -92,6 +92,7 @@ describe('EditStoryModal', () => {
     expect(labels).toEqual([
       'Story Name *',
       'Characters',
+      'Persona',
       'Lorebooks',
       'Story Scenario',
       'Perspective & Narrator',
@@ -123,9 +124,8 @@ describe('EditStoryModal', () => {
     expect(results.map((result) => result.text())).toEqual(['Marcus']);
     await results[0].trigger('click');
 
+    expect(wrapper.findAll('.cast-name').map((name) => name.text())).toEqual(['Layla', 'Marcus']);
     expect(wrapper.findAll('.chip').map((chip) => chip.text())).toEqual([
-      'Layla',
-      'Marcus',
       'Harbor Town',
       'Marcus Lore',
     ]);
@@ -135,8 +135,7 @@ describe('EditStoryModal', () => {
     expect(charactersAPI.addToStory).toHaveBeenCalledWith('s1', 'c2');
     // The server already attached Marcus's lorebook, so it isn't added twice
     expect(storiesAPI.addLorebookToStory).not.toHaveBeenCalled();
-    // The cast changed and the title didn't, so an auto-generated title can follow the cast
-    expect(storiesAPI.updateMetadata.mock.calls[0][1]).not.toHaveProperty('title');
+    expect(storiesAPI.updateMetadata.mock.calls[0][1]).toMatchObject({ title: 'Harbor' });
   });
 
   it('drops a lorebook the server attached when it was removed here', async () => {
@@ -186,6 +185,35 @@ describe('EditStoryModal', () => {
     expect(wrapper.find('#storyPersona').element.selectedIndex).toBe(0);
   });
 
+  it('renames a cast-named story as characters are added and removed', async () => {
+    const wrapper = await mountModal({ story: { ...STORY, title: 'A Story with Layla' } });
+
+    await wrapper.find('#characterFilter').setValue('Marcus');
+    await wrapper.find('.search-result').trigger('click');
+    expect(wrapper.find('#storyTitle').element.value).toBe('A Story with Layla and Marcus');
+
+    await wrapper.find('[aria-label="Remove Layla"]').trigger('click');
+    expect(wrapper.find('#storyTitle').element.value).toBe('A Story with Marcus');
+
+    await save(wrapper);
+    expect(storiesAPI.updateMetadata.mock.calls[0][1]).toMatchObject({
+      title: 'A Story with Marcus',
+    });
+  });
+
+  it('leaves a typed or custom name alone when the cast changes', async () => {
+    const custom = await mountModal();
+    await custom.find('#characterFilter').setValue('Marcus');
+    await custom.find('.search-result').trigger('click');
+    expect(custom.find('#storyTitle').element.value).toBe('Harbor');
+
+    const typed = await mountModal({ story: { ...STORY, title: 'A Story with Layla' } });
+    await typed.find('#storyTitle').setValue('A Story with Layla at sea');
+    await typed.find('#characterFilter').setValue('Marcus');
+    await typed.find('.search-result').trigger('click');
+    expect(typed.find('#storyTitle').element.value).toBe('A Story with Layla at sea');
+  });
+
   it('shows the default perspective and saves it as null', async () => {
     const wrapper = await mountModal();
     expect(wrapper.find('#storyPerspective').element.value).toBe('third');
@@ -209,7 +237,7 @@ describe('EditStoryModal', () => {
 
     const select = wrapper.find('#storyPerspectiveCharacter');
     expect(select.findAll('option').map((option) => option.text())).toEqual([
-      'Not set',
+      'Narrator: not set',
       'Brad (Persona)',
       'Layla',
     ]);

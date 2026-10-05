@@ -14,61 +14,70 @@
           ref="titleInput"
           v-model="storyTitle"
           type="text"
-          class="text-input"
+          class="text-input title-input"
           placeholder="Enter story name..."
+          @input="titleEdited = true"
           @keydown.enter.prevent
         />
       </div>
 
-      <div class="form-group">
-        <label for="characterFilter">Characters</label>
-        <div class="chip-list">
-          <span v-for="character in selectedCharacters" :key="character.id" class="chip">
-            <span class="chip-avatar">
-              <img v-if="imageUrl(character)" :src="imageUrl(character)" :alt="character.name" />
-              <i v-else class="fas fa-user"></i>
-            </span>
-            {{ character.name }}
-            <button
-              type="button"
-              class="chip-remove"
-              :aria-label="`Remove ${character.name}`"
-              @click="removeCharacter(character.id)"
-            >
-              <i class="fas fa-xmark"></i>
-            </button>
-          </span>
-          <span v-if="selectedCharacters.length === 0" class="chip-empty">No characters yet</span>
-        </div>
-        <div class="search-picker">
-          <input
-            id="characterFilter"
-            v-model="characterFilter"
-            type="text"
-            class="text-input"
-            autocomplete="off"
-            placeholder="Add a character by name or tag..."
-            @keydown.enter.prevent="addFirstMatch"
-            @keydown.esc.stop="characterFilter = ''"
-          />
-          <ul v-if="characterFilter.trim()" class="search-results">
-            <li v-for="character in characterMatches" :key="character.id">
-              <button type="button" class="search-result" @click="addCharacter(character.id)">
-                <span class="chip-avatar">
-                  <img
-                    v-if="imageUrl(character)"
-                    :src="imageUrl(character)"
-                    :alt="character.name"
-                  />
-                  <i v-else class="fas fa-user"></i>
-                </span>
-                {{ character.name }}
+      <section class="section">
+        <h3 class="section-title">Cast</h3>
+        <div class="form-group">
+          <label for="characterFilter">Characters</label>
+          <div class="cast-grid">
+            <div v-for="character in selectedCharacters" :key="character.id" class="cast-tile">
+              <span class="cast-avatar">
+                <img v-if="imageUrl(character)" :src="imageUrl(character)" :alt="character.name" />
+                <i v-else class="fas fa-user"></i>
+              </span>
+              <span class="cast-name">{{ character.name }}</span>
+              <button
+                type="button"
+                class="tile-remove"
+                :aria-label="`Remove ${character.name}`"
+                :title="`Remove ${character.name}`"
+                @click="removeCharacter(character.id)"
+              >
+                <i class="fas fa-xmark"></i>
               </button>
-            </li>
-            <li v-if="characterMatches.length === 0" class="search-empty">No characters match</li>
-          </ul>
+            </div>
+            <p v-if="selectedCharacters.length === 0" class="empty-note">
+              No characters yet. Find one below to add them.
+            </p>
+          </div>
+          <div class="search-picker">
+            <i class="fas fa-magnifying-glass search-icon" aria-hidden="true"></i>
+            <input
+              id="characterFilter"
+              v-model="characterFilter"
+              type="text"
+              class="text-input search-input"
+              autocomplete="off"
+              placeholder="Add a character by name or tag..."
+              @keydown.enter.prevent="addFirstMatch"
+              @keydown.esc.stop="characterFilter = ''"
+            />
+            <ul v-if="characterFilter.trim()" class="search-results">
+              <li v-for="character in characterMatches" :key="character.id">
+                <button type="button" class="search-result" @click="addCharacter(character.id)">
+                  <span class="result-avatar">
+                    <img
+                      v-if="imageUrl(character)"
+                      :src="imageUrl(character)"
+                      :alt="character.name"
+                    />
+                    <i v-else class="fas fa-user"></i>
+                  </span>
+                  <span>{{ character.name }}</span>
+                  <i class="fas fa-plus result-add" aria-hidden="true"></i>
+                </button>
+              </li>
+              <li v-if="characterMatches.length === 0" class="search-empty">No characters match</li>
+            </ul>
+          </div>
         </div>
-        <div class="inline-field">
+        <div class="form-group">
           <label for="storyPersona">Persona</label>
           <select id="storyPersona" v-model="personaId" class="select-input">
             <option :value="null">None</option>
@@ -76,118 +85,128 @@
               {{ option.name }}
             </option>
           </select>
+          <p class="form-help">Who you are in the story. They don't need to be in the cast.</p>
         </div>
-      </div>
+      </section>
 
-      <div class="form-group">
-        <label for="lorebookSelect">Lorebooks</label>
-        <div class="chip-list">
-          <span v-for="lorebook in selectedLorebooks" :key="lorebook.id" class="chip">
-            <i class="fas fa-book chip-icon"></i>
-            {{ lorebook.name }}
+      <section class="section">
+        <h3 class="section-title">World</h3>
+        <div class="form-group">
+          <label for="lorebookSelect">Lorebooks</label>
+          <div v-if="selectedLorebooks.length > 0" class="chip-list">
+            <span v-for="lorebook in selectedLorebooks" :key="lorebook.id" class="chip">
+              <i class="fas fa-book chip-icon" aria-hidden="true"></i>
+              {{ lorebook.name }}
+              <button
+                type="button"
+                class="chip-remove"
+                :aria-label="`Remove ${lorebook.name}`"
+                :title="`Remove ${lorebook.name}`"
+                @click="removeLorebook(lorebook.id)"
+              >
+                <i class="fas fa-xmark"></i>
+              </button>
+            </span>
+          </div>
+          <select
+            v-if="availableLorebooks.length > 0"
+            id="lorebookSelect"
+            class="select-input"
+            :value="''"
+            @change="addLorebook($event.target.value, $event.target)"
+          >
+            <option value="" disabled>Add a lorebook...</option>
+            <option v-for="lorebook in availableLorebooks" :key="lorebook.id" :value="lorebook.id">
+              {{ lorebook.name }}
+            </option>
+          </select>
+          <p v-else-if="selectedLorebooks.length === 0" class="empty-note">No lorebooks yet.</p>
+        </div>
+
+        <ContinuityPicker ref="continuityPicker" :continuity-id="story.continuityId ?? null" />
+      </section>
+
+      <section class="section">
+        <h3 class="section-title">Story</h3>
+        <div class="form-group">
+          <label for="storyScenario">Story Scenario</label>
+          <textarea
+            id="storyScenario"
+            v-model="storyScenario"
+            class="textarea-input"
+            placeholder="Set a scenario for this story. This describes the initial situation, setting, or premise..."
+            rows="4"
+          ></textarea>
+          <p class="form-help">
+            When set, the story scenario replaces character-specific scenarios in the AI prompt.
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="storyPerspective">Perspective &amp; Narrator</label>
+          <div class="picker-row">
+            <select id="storyPerspective" v-model="perspective" class="select-input">
+              <option v-for="mode in PERSPECTIVE_MODES" :key="mode.value" :value="mode.value">
+                {{ mode.label }}
+              </option>
+            </select>
+            <select
+              id="storyPerspectiveTense"
+              v-model="perspectiveTense"
+              class="select-input"
+              aria-label="Tense"
+            >
+              <option v-for="tense in PERSPECTIVE_TENSES" :key="tense.value" :value="tense.value">
+                {{ tense.label }}
+              </option>
+            </select>
+            <select
+              v-if="characterLabel"
+              id="storyPerspectiveCharacter"
+              v-model="perspectiveCharacterId"
+              class="select-input"
+              :aria-label="characterLabel"
+            >
+              <option :value="null">{{ characterLabel }}: not set</option>
+              <option v-for="option in narratorOptions" :key="option.id" :value="option.id">
+                {{ option.name }}
+              </option>
+            </select>
+          </div>
+          <p v-if="perspective === 'second'" class="form-help">The story's Persona is "you".</p>
+          <p v-if="presetIgnoresPerspective" class="form-help perspective-warning">
+            This story's preset has a custom system prompt without
+            <code v-text="'{{perspective}}'"></code>, so the perspective set here is left out of the
+            system prompt. Add <code v-text="'{{perspective}}'"></code> to it in the preset's prompt
+            templates.
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-title">Generation</h3>
+        <div class="form-group">
+          <label for="storyPreset">Generation Preset</label>
+          <div class="picker-row">
+            <select id="storyPreset" v-model="presetId" class="select-input">
+              <option :value="null">
+                Use Default Preset{{ defaultPresetName ? ` (${defaultPresetName})` : '' }}
+              </option>
+              <option v-for="preset in presets" :key="preset.id" :value="preset.id">
+                {{ preset.name }}
+              </option>
+            </select>
             <button
               type="button"
-              class="chip-remove"
-              :aria-label="`Remove ${lorebook.name}`"
-              @click="removeLorebook(lorebook.id)"
+              class="btn btn-secondary"
+              :disabled="!effectivePresetId"
+              @click="showPresetEditor = true"
             >
-              <i class="fas fa-xmark"></i>
+              <i class="fas fa-edit"></i> Edit Preset
             </button>
-          </span>
-          <span v-if="selectedLorebooks.length === 0" class="chip-empty">No lorebooks</span>
+          </div>
         </div>
-        <select
-          v-if="availableLorebooks.length > 0"
-          id="lorebookSelect"
-          class="select-input"
-          :value="''"
-          @change="addLorebook($event.target.value, $event.target)"
-        >
-          <option value="" disabled>Add a lorebook...</option>
-          <option v-for="lorebook in availableLorebooks" :key="lorebook.id" :value="lorebook.id">
-            {{ lorebook.name }}
-          </option>
-        </select>
-      </div>
-
-      <ContinuityPicker ref="continuityPicker" :continuity-id="story.continuityId ?? null" />
-
-      <div class="form-group">
-        <label for="storyScenario">Story Scenario</label>
-        <textarea
-          id="storyScenario"
-          v-model="storyScenario"
-          class="textarea-input"
-          placeholder="Set a scenario for this story. This describes the initial situation, setting, or premise..."
-          rows="4"
-        ></textarea>
-        <p class="form-help">
-          When set, the story scenario replaces character-specific scenarios in the AI prompt.
-        </p>
-      </div>
-
-      <div class="form-group">
-        <label for="storyPerspective">Perspective &amp; Narrator</label>
-        <div class="picker-row">
-          <select id="storyPerspective" v-model="perspective" class="select-input">
-            <option v-for="mode in PERSPECTIVE_MODES" :key="mode.value" :value="mode.value">
-              {{ mode.label }}
-            </option>
-          </select>
-          <select
-            id="storyPerspectiveTense"
-            v-model="perspectiveTense"
-            class="select-input"
-            aria-label="Tense"
-          >
-            <option v-for="tense in PERSPECTIVE_TENSES" :key="tense.value" :value="tense.value">
-              {{ tense.label }}
-            </option>
-          </select>
-        </div>
-        <div v-if="characterLabel" class="inline-field">
-          <label for="storyPerspectiveCharacter">{{ characterLabel }}</label>
-          <select
-            id="storyPerspectiveCharacter"
-            v-model="perspectiveCharacterId"
-            class="select-input"
-          >
-            <option :value="null">Not set</option>
-            <option v-for="option in narratorOptions" :key="option.id" :value="option.id">
-              {{ option.name }}
-            </option>
-          </select>
-        </div>
-        <p v-if="perspective === 'second'" class="form-help">The story's Persona is "you".</p>
-        <p v-if="presetIgnoresPerspective" class="form-help perspective-warning">
-          This story's preset has a custom system prompt without
-          <code v-text="'{{perspective}}'"></code>, so the perspective set here is left out of the
-          system prompt. Add <code v-text="'{{perspective}}'"></code> to it in the preset's prompt
-          templates.
-        </p>
-      </div>
-
-      <div class="form-group">
-        <label for="storyPreset">Generation Preset</label>
-        <div class="picker-row">
-          <select id="storyPreset" v-model="presetId" class="select-input">
-            <option :value="null">
-              Use Default Preset{{ defaultPresetName ? ` (${defaultPresetName})` : '' }}
-            </option>
-            <option v-for="preset in presets" :key="preset.id" :value="preset.id">
-              {{ preset.name }}
-            </option>
-          </select>
-          <button
-            type="button"
-            class="btn btn-secondary btn-small"
-            :disabled="!effectivePresetId"
-            @click="showPresetEditor = true"
-          >
-            <i class="fas fa-edit"></i> Edit Preset
-          </button>
-        </div>
-      </div>
+      </section>
     </div>
 
     <PresetEditorModal
@@ -219,6 +238,7 @@ import {
   PERSPECTIVE_MODES,
   PERSPECTIVE_TENSES,
 } from '../../../shared/perspective.js';
+import { generateAutoTitle, isAutoGeneratedTitle } from '../../../shared/story-titles.js';
 import { useToast } from '../composables/useToast';
 import { useDataCache } from '../composables/useDataCache';
 
@@ -240,6 +260,8 @@ const { characters: cachedCharacters, loadCharacters } = useDataCache();
 // Everything is edited locally and only written on Save, so Cancel leaves the story as it was.
 const storyTitle = ref(props.story.title || '');
 const storyScenario = ref(props.story.scenario || '');
+// The name was typed in, so it no longer follows the cast
+const titleEdited = ref(false);
 const characterIds = ref([...(props.story.characterIds ?? [])]);
 const personaId = ref(props.story.personaCharacterId ?? null);
 const lorebookIds = ref([...(props.story.lorebookIds ?? [])]);
@@ -270,6 +292,17 @@ function byName(a, b) {
 
 const selectedCharacters = computed(() =>
   characterIds.value.map((id) => charactersById.value.get(id) || { id, name: 'Unknown' }),
+);
+
+// A story still named after its cast is renamed as the cast changes, as the server does on Save
+watch(
+  () => selectedCharacters.value.map((c) => c.name),
+  (names) => {
+    if (titleEdited.value || !isAutoGeneratedTitle(storyTitle.value)) return;
+    // Wait for every character to load, so a name isn't previewed as "Unknown"
+    if (allCharacters.value.length === 0) return;
+    storyTitle.value = generateAutoTitle(names);
+  },
 );
 
 const characterMatches = computed(() => {
@@ -464,8 +497,6 @@ async function saveAssociations() {
   for (const id of lorebookIds.value) {
     if (!current.has(id)) await storiesAPI.addLorebookToStory(storyId, id);
   }
-
-  return { castChanged: removed.length > 0 || added.length > 0 };
 }
 
 async function saveStory() {
@@ -474,9 +505,10 @@ async function saveStory() {
   try {
     saving.value = true;
 
-    const { castChanged } = await saveAssociations();
+    await saveAssociations();
 
     const updates = {
+      title: storyTitle.value.trim(),
       scenario: storyScenario.value.trim(),
       // Defaults are stored as null, so they follow the default if it ever changes
       perspective: perspective.value === DEFAULT_PERSPECTIVE_MODE ? null : perspective.value,
@@ -484,9 +516,6 @@ async function saveStory() {
         perspectiveTense.value === DEFAULT_PERSPECTIVE_TENSE ? null : perspectiveTense.value,
       perspectiveCharacterId: characterLabel.value ? perspectiveCharacterId.value : null,
     };
-    // An untouched auto-generated title follows the cast, which the server renames on changes
-    const title = storyTitle.value.trim();
-    if (title !== props.story.title || !castChanged) updates.title = title;
     if (presetId.value !== (props.story.configPresetId ?? null)) {
       updates.configPresetId = presetId.value;
     }
@@ -516,6 +545,25 @@ async function saveStory() {
   gap: 1.25rem;
 }
 
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 1.125rem 1.125rem;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -528,38 +576,40 @@ async function saveStory() {
   color: var(--text-primary);
 }
 
-.text-input {
+.text-input,
+.select-input,
+.textarea-input {
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.625rem 0.75rem;
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: 6px;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.5;
   outline: none;
 }
 
-.text-input:focus {
+.text-input:focus,
+.select-input:focus,
+.textarea-input:focus {
   border-color: var(--accent-primary);
+}
+
+.title-input {
+  font-size: 1.125rem;
+  font-weight: 600;
 }
 
 .select-input {
   flex: 1;
   min-width: 0;
-  padding: 0.75rem;
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-family: inherit;
-  font-size: 1rem;
-  outline: none;
 }
 
-.select-input:focus {
-  border-color: var(--accent-primary);
+.textarea-input {
+  resize: vertical;
+  min-height: 100px;
 }
 
 .picker-row {
@@ -569,16 +619,156 @@ async function saveStory() {
   align-items: center;
 }
 
-.inline-field {
-  display: flex;
-  align-items: center;
+.picker-row .select-input {
+  flex: 1 1 160px;
+}
+
+/* Cast: one tile per character, portrait above name */
+.cast-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
   gap: 0.75rem;
 }
 
-.inline-field label {
-  font-weight: 500;
+.cast-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.cast-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-tertiary);
   color: var(--text-secondary);
+  font-size: 1.25rem;
+  border: 2px solid var(--border-color);
+}
+
+.cast-avatar img,
+.result-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.cast-name {
+  max-width: 100%;
+  font-size: 0.8rem;
+  text-align: center;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tile-remove {
+  position: absolute;
+  top: -2px;
+  right: calc(50% - 38px);
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tile-remove:hover {
+  color: var(--danger, #dc3545);
+  border-color: currentColor;
+}
+
+.empty-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.search-picker {
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.8rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.search-input {
+  padding-left: 2.1rem;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.search-result {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.375rem 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search-result:hover,
+.search-result:focus-visible {
+  background-color: var(--bg-tertiary);
+}
+
+.result-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.result-add {
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+
+.search-empty {
+  padding: 0.375rem 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
 .chip-list {
@@ -591,7 +781,7 @@ async function saveStory() {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.25rem 0.25rem 0.25rem 0.375rem;
+  padding: 0.25rem 0.25rem 0.25rem 0.625rem;
   background-color: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 999px;
@@ -600,29 +790,7 @@ async function saveStory() {
 }
 
 .chip-icon {
-  margin-left: 0.25rem;
   color: var(--text-secondary);
-}
-
-.chip-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--bg-secondary);
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-}
-
-.chip-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center top;
 }
 
 .chip-remove {
@@ -643,76 +811,19 @@ async function saveStory() {
   color: var(--text-primary);
 }
 
-.chip-empty {
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
-.search-picker {
-  position: relative;
-}
-
-.search-results {
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0.25rem;
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-}
-
-.search-result {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.375rem 0.5rem;
-  border: none;
-  border-radius: 4px;
-  background: none;
-  color: var(--text-primary);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.search-result:hover,
-.search-result:focus-visible {
-  background-color: var(--bg-tertiary);
-}
-
-.search-empty {
-  padding: 0.375rem 0.5rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
 .perspective-warning {
   color: var(--warning);
-}
-
-.textarea-input {
-  width: 100%;
-  padding: 0.75rem;
-  background-color: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-family: inherit;
-  font-size: 1rem;
-  line-height: 1.5;
-  resize: vertical;
-  min-height: 100px;
-  outline: none;
-}
-
-.textarea-input:focus {
-  border-color: var(--accent-primary);
 }
 
 .form-help {
   font-size: 0.75rem;
   color: var(--text-secondary);
   margin: 0;
+}
+
+/* The Continuity picker brings its own fields; fit them to these sections */
+.section :deep(.continuity-picker) {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 </style>

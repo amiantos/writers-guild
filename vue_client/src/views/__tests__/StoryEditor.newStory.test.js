@@ -9,7 +9,6 @@ vi.mock('../../services/api', () => ({
     getHistoryStatus: vi.fn(),
     updateContent: vi.fn(),
     setRewritePrompt: vi.fn(),
-    duplicate: vi.fn(),
   },
   settingsAPI: { get: vi.fn() },
   charactersAPI: { list: vi.fn() },
@@ -34,19 +33,30 @@ vi.mock('../../composables/useConfirm', () => ({
 const STUBS = {
   ReasoningPanel: true,
   CharacterResponseModal: true,
-  GreetingSelectorModal: true,
+  GreetingSelectorModal: {
+    name: 'GreetingSelectorModal',
+    emits: ['close'],
+    template: '<button class="close-greeting" @click="$emit(\'close\')">Close</button>',
+  },
   ViewPromptModal: true,
   CustomPromptModal: true,
   EditStoryModal: { name: 'EditStoryModal', props: ['story'], template: '<div />' },
   IdeateModal: true,
   ArchivistModal: true,
   FloatingAvatarWindow: true,
-  ThirdPersonPromptModal: true,
+  ThirdPersonPromptModal: { name: 'ThirdPersonPromptModal', template: '<div />' },
 };
 
-async function mountEditor() {
+async function mountEditor(story = {}) {
   storiesAPI.get.mockResolvedValue({
-    story: { id: 's1', title: 'Rain', content: 'Opening.', passages: [], characterIds: [] },
+    story: {
+      id: 's1',
+      title: 'Rain',
+      content: 'Opening.',
+      passages: [],
+      characterIds: [],
+      ...story,
+    },
   });
   settingsAPI.get.mockResolvedValue({ settings: { showReasoning: false } });
   const wrapper = mount(StoryEditor, { props: { storyId: 's1' }, global: { stubs: STUBS } });
@@ -54,46 +64,12 @@ async function mountEditor() {
   return wrapper;
 }
 
-function newStoryButton(wrapper) {
-  return wrapper
-    .findAll('button')
-    .find((candidate) => candidate.attributes('title') === "New Story with this story's setup");
-}
-
-describe('StoryEditor New Story', () => {
+describe('StoryEditor opening on Edit Story', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     route.query = {};
     storiesAPI.getHistoryStatus.mockResolvedValue({ canUndo: false, canRedo: false });
     charactersAPI.list.mockResolvedValue({ characters: [] });
-  });
-
-  it('starts a blank copy and opens it on Edit Story', async () => {
-    storiesAPI.duplicate.mockResolvedValue({ story: { id: 's2' } });
-    const wrapper = await mountEditor();
-
-    await newStoryButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(storiesAPI.duplicate).toHaveBeenCalledWith('s1', { blank: true });
-    expect(router.push).toHaveBeenCalledWith({
-      name: 'story',
-      params: { storyId: 's2' },
-      query: { edit: '1' },
-    });
-  });
-
-  it("doesn't start a new story when this one fails to save", async () => {
-    storiesAPI.updateContent.mockRejectedValue(new Error('disk full'));
-    const wrapper = await mountEditor();
-    wrapper.vm.$.setupState.content = 'Opening. More.';
-
-    await newStoryButton(wrapper).trigger('click');
-    await flushPromises();
-
-    expect(storiesAPI.updateContent).toHaveBeenCalled();
-    expect(storiesAPI.duplicate).not.toHaveBeenCalled();
-    expect(router.push).not.toHaveBeenCalled();
   });
 
   it('opens Edit Story on load when asked, and drops the ask from the address', async () => {
@@ -107,5 +83,41 @@ describe('StoryEditor New Story', () => {
   it('keeps Edit Story closed on an ordinary load', async () => {
     const wrapper = await mountEditor();
     expect(wrapper.findComponent({ name: 'EditStoryModal' }).exists()).toBe(false);
+  });
+});
+
+describe('StoryEditor greeting dismissed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    route.query = {};
+    storiesAPI.getHistoryStatus.mockResolvedValue({ canUndo: false, canRedo: false });
+    storiesAPI.setRewritePrompt.mockResolvedValue({});
+    charactersAPI.list.mockResolvedValue({ characters: [{ id: 'c1', name: 'Layla' }] });
+  });
+
+  it('skips the rewrite prompt when the story is still blank', async () => {
+    const wrapper = await mountEditor({
+      content: '',
+      characterIds: ['c1'],
+      needsRewritePrompt: true,
+    });
+
+    await wrapper.find('.close-greeting').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.findComponent({ name: 'ThirdPersonPromptModal' }).exists()).toBe(false);
+  });
+
+  it('still offers the rewrite when the story has text', async () => {
+    const wrapper = await mountEditor({
+      content: 'Hello there.',
+      characterIds: ['c1'],
+      needsRewritePrompt: true,
+    });
+
+    await wrapper.find('.close-greeting').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.findComponent({ name: 'ThirdPersonPromptModal' }).exists()).toBe(true);
   });
 });

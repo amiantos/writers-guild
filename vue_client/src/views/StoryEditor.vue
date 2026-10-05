@@ -21,14 +21,6 @@
         </button>
         <button
           class="icon-btn"
-          :disabled="generating"
-          @click="openArchivist"
-          title="Review Cards with the Archivist"
-        >
-          <i class="fas fa-scroll"></i>
-        </button>
-        <button
-          class="icon-btn"
           @click="showEditStory = true"
           title="Edit Story: characters, lorebooks, scenario, preset"
         >
@@ -36,11 +28,11 @@
         </button>
         <button
           class="icon-btn"
-          :disabled="generating || creatingNewStory"
-          @click="startNewStory"
-          title="New Story with this story's setup"
+          :disabled="generating"
+          @click="openArchivist"
+          title="Review Cards with the Archivist"
         >
-          <i class="fas fa-file-circle-plus"></i>
+          <i class="fas fa-scroll"></i>
         </button>
         <button class="icon-btn" @click="deleteStory" title="Delete Story">
           <i class="fas fa-trash"></i>
@@ -410,7 +402,6 @@ const showGreetingSelector = ref(false);
 const showViewPromptModal = ref(false);
 const showCustomPromptModal = ref(false);
 const showEditStory = ref(false);
-const creatingNewStory = ref(false);
 const showIdeateModal = ref(false);
 const ideateResponse = ref('');
 const ideateLoading = ref(false);
@@ -1441,7 +1432,8 @@ async function selectGreeting(greeting) {
 function handleCloseGreeting() {
   showGreetingSelector.value = false;
   nextTick().then(() => {
-    if (shouldShowThirdPersonPrompt()) {
+    // A story still blank has nothing to rewrite
+    if (!isStoryEmpty.value && shouldShowThirdPersonPrompt()) {
       showThirdPersonPrompt.value = true;
     }
   });
@@ -1631,26 +1623,6 @@ async function clearStory() {
   content.value = '';
   await saveStory();
   toast.success('Story cleared');
-}
-
-/** Start a new, empty story with this one's characters, lorebooks, Continuity and preset. */
-async function startNewStory() {
-  if (generating.value || creatingNewStory.value) return;
-  creatingNewStory.value = true;
-  try {
-    // Leaving with unsaved content would lose it
-    if (!(await saveStory(true))) {
-      toast.error("Couldn't save this story, so the new one wasn't started");
-      return;
-    }
-    const { story: newStory } = await storiesAPI.duplicate(props.storyId, { blank: true });
-    router.push({ name: 'story', params: { storyId: newStory.id }, query: { edit: '1' } });
-  } catch (error) {
-    console.error('Failed to start a new story:', error);
-    toast.error('Failed to start a new story: ' + error.message);
-  } finally {
-    creatingNewStory.value = false;
-  }
 }
 
 function exportStory() {
