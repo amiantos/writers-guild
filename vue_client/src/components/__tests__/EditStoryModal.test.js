@@ -201,6 +201,13 @@ describe('EditStoryModal', () => {
     });
   });
 
+  it('keeps the name when the character list refreshes without a cast change', async () => {
+    const wrapper = await mountModal({ story: { ...STORY, title: 'A Story with Layla (New)' } });
+    cachedCharacters.value = [...CHARACTERS];
+    await flushPromises();
+    expect(wrapper.find('#storyTitle').element.value).toBe('A Story with Layla (New)');
+  });
+
   it('leaves a typed or custom name alone when the cast changes', async () => {
     const custom = await mountModal();
     await custom.find('#characterFilter').setValue('Marcus');
