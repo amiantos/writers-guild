@@ -17,7 +17,7 @@
         </nav>
         <h1 class="mobile-title">{{ activeSectionLabel }}</h1>
         <div class="header-actions">
-          <label v-if="searchable" class="search search-inline">
+          <label v-if="onShelf" class="search search-inline">
             <i class="fas fa-magnifying-glass"></i>
             <input
               v-model="searchQuery"
@@ -27,7 +27,7 @@
             />
           </label>
           <button
-            v-if="searchable"
+            v-if="onShelf"
             type="button"
             class="icon-btn search-toggle"
             :aria-label="searchOpen ? 'Close search' : searchLabel"
@@ -67,7 +67,7 @@
         </div>
       </div>
       <!-- Narrower screens search from a row under the bar -->
-      <div v-if="searchOpen && searchable" class="search-row">
+      <div v-if="searchOpen && onShelf" class="search-row">
         <label class="search">
           <i class="fas fa-magnifying-glass"></i>
           <input
@@ -116,7 +116,7 @@
         :continuities="continuities"
         :chats-enabled="chatsEnabled"
         :query="queries.characters"
-        :loading="loadingCharacters"
+        :loading="loadingStories || loadingCharacters"
         @new-story="createStoryWithCharacter"
         @open-story="openStory"
         @open-chat="openChat"
@@ -183,7 +183,7 @@
       </template>
     </main>
 
-    <button v-if="searchable" type="button" class="new-fab" @click="openNewSheet">
+    <button v-if="onShelf" type="button" class="new-fab" @click="openNewSheet">
       <i class="fas fa-plus"></i> New
     </button>
 
@@ -369,14 +369,15 @@ const activeSectionLabel = computed(
   () => sections.find((section) => section.key === activeSection.value)?.label,
 );
 
-// The stories' and characters' shelves each keep their own search, in the header
+// The stories' and characters' shelves each keep their own search in the header, and their own
+// New sheet
 const library = ref(null);
 const characterShelf = ref(null);
 const queries = ref({ stories: '', characters: '' });
 const searchOpen = ref(false);
 const searchInput = ref(null);
 
-const searchable = computed(() => activeSection.value in queries.value);
+const onShelf = computed(() => activeSection.value in queries.value);
 const searchLabel = computed(() =>
   activeSection.value === 'characters' ? 'Search characters' : 'Search stories',
 );
