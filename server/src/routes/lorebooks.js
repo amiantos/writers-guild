@@ -11,10 +11,16 @@ import { LorebookParser } from '../services/lorebook-parser.js';
 import { cacheAndRewriteLorebookImages } from '../services/image-cacher.js';
 import { computeLorebookChecksum } from '../services/checksum-service.js';
 import { AssetManager } from '../services/asset-manager.js';
+import { safeFetch, readBodyWithLimit } from '../services/safe-fetch.js';
 import { sseChannel } from '../utils/sse.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Lorebooks fetched by URL (import-url): bounded so a hostile or broken server
+// cannot stall an import or fill memory. The size matches the JSON body limit.
+const URL_IMPORT_TIMEOUT_MS = 30_000;
+const URL_IMPORT_MAX_BYTES = 50 * 1024 * 1024; // 50MB
 
 // Initialize storage service
 let storage;
@@ -198,18 +204,23 @@ router.post(
 
     try {
       // Fetch JSON from URL
-      const response = await fetch(url);
+      const response = await safeFetch(url, {
+        signal: AbortSignal.timeout(URL_IMPORT_TIMEOUT_MS),
+      });
 
       if (!response.ok) {
+        await response.body?.cancel();
         throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
       }
 
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
+        await response.body?.cancel();
         throw new Error('URL does not point to a JSON file');
       }
 
-      const jsonData = await response.json();
+      const body = await readBodyWithLimit(response, URL_IMPORT_MAX_BYTES);
+      const jsonData = JSON.parse(body.toString('utf8'));
       const buffer = Buffer.from(JSON.stringify(jsonData), 'utf8');
 
       // Parse lorebook

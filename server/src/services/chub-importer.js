@@ -4,6 +4,13 @@
  * Fetches character data from CHUB API and downloads character images.
  */
 
+import { safeFetch, readBodyWithLimit } from './safe-fetch.js';
+
+// The fallback image URL comes from CHUB's API response, so image downloads
+// go through safeFetch and are bounded like any other untrusted fetch.
+const IMAGE_TIMEOUT_MS = 30_000;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20MB
+
 export class ChubImporter {
   /**
    * Extract character path from CHUB URL
@@ -104,7 +111,8 @@ export class ChubImporter {
    */
   static async downloadImage(imageUrl) {
     try {
-      const response = await fetch(imageUrl, {
+      const response = await safeFetch(imageUrl, {
+        signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -113,12 +121,11 @@ export class ChubImporter {
       });
 
       if (!response.ok) {
+        await response.body?.cancel();
         throw new Error(`Failed to download image: ${response.status} ${response.statusText}`);
       }
 
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      return buffer;
+      return await readBodyWithLimit(response, MAX_IMAGE_BYTES);
     } catch (error) {
       throw new Error(`Image download failed: ${error.message}`, { cause: error });
     }

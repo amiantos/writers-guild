@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import fs from 'fs';
@@ -495,6 +495,58 @@ describe('Lorebooks API Routes', () => {
         .expect(400);
 
       expect(response.body.error).toContain('URL is required');
+    });
+
+    describe('fetching', () => {
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it('should import a lorebook from a JSON URL', async () => {
+        const lorebookJson = {
+          entries: { 0: { uid: 0, keys: ['dragon'], content: 'A dragon', enabled: true } },
+          name: 'Remote Lorebook',
+        };
+        vi.stubGlobal('fetch', async () => Response.json(lorebookJson));
+
+        const response = await request(app)
+          .post('/api/lorebooks/import-url')
+          .send({ url: 'https://example.com/lorebook.json' })
+          .expect(200);
+
+        expect(response.body.name).toBe('Remote Lorebook');
+        expect(response.body.entryCount).toBe(1);
+      });
+
+      it('should refuse a URL pointing at a private address', async () => {
+        const fetchSpy = vi.fn();
+        vi.stubGlobal('fetch', fetchSpy);
+
+        const response = await request(app)
+          .post('/api/lorebooks/import-url')
+          .send({ url: 'http://127.0.0.1:8080/lorebook.json' })
+          .expect(400);
+
+        expect(response.body.error).toContain('non-public address');
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it('should refuse a response larger than the import limit', async () => {
+        vi.stubGlobal(
+          'fetch',
+          async () =>
+            new Response('{}', {
+              headers: { 'content-type': 'application/json', 'content-length': String(1024 ** 3) },
+            }),
+        );
+
+        const response = await request(app)
+          .post('/api/lorebooks/import-url')
+          .send({ url: 'https://example.com/huge.json' })
+          .expect(400);
+
+        expect(response.body.error).toContain('Response larger than');
+      });
     });
   });
 });
