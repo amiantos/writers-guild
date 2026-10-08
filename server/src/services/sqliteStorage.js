@@ -35,6 +35,15 @@ const CHARACTER_VERSION_FIELDS = [
   'alternate_greetings',
 ];
 
+/** A JSON column's object, or an empty one where it's missing or unreadable. */
+function parseJSON(text) {
+  try {
+    return JSON.parse(text || '{}') ?? {};
+  } catch {
+    return {};
+  }
+}
+
 /** The library lorebook linked to a card. The checksum leaves it out, but versions keep it. */
 function linkedLorebookOf(card) {
   return card?.data?.extensions?.ursceal_lorebook_id ?? null;
@@ -364,7 +373,8 @@ export class SqliteStorageService {
 
       // Presets
       listPresets: this.db.prepare(
-        'SELECT id, name, provider, is_default FROM presets ORDER BY name',
+        `SELECT id, name, provider, is_default, api_config, generation_settings FROM presets
+         ORDER BY name`,
       ),
       getPreset: this.db.prepare('SELECT * FROM presets WHERE id = ?'),
       insertPreset: this.db.prepare(`
@@ -378,6 +388,12 @@ export class SqliteStorageService {
         WHERE id = @id
       `),
       deletePreset: this.db.prepare('DELETE FROM presets WHERE id = ?'),
+      clearStoryPreset: this.db.prepare(
+        'UPDATE stories SET config_preset_id = NULL WHERE config_preset_id = ?',
+      ),
+      clearChatPreset: this.db.prepare(
+        'UPDATE chats SET config_preset_id = NULL WHERE config_preset_id = ?',
+      ),
       presetExists: this.db.prepare('SELECT 1 FROM presets WHERE id = ?'),
 
       // Story History (undo/redo)
@@ -1649,14 +1665,26 @@ export class SqliteStorageService {
 
   // ==================== Preset Operations ====================
 
+  /**
+   * Every preset, with the few settings the presets list shows. The API key stays out: the editor
+   * reads the whole preset with getPreset().
+   */
   async listPresets() {
     const rows = this.stmts.listPresets.all();
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      provider: row.provider,
-      isDefault: !!row.is_default,
-    }));
+    return rows.map((row) => {
+      const apiConfig = parseJSON(row.api_config);
+      const generationSettings = parseJSON(row.generation_settings);
+      return {
+        id: row.id,
+        name: row.name,
+        provider: row.provider,
+        isDefault: !!row.is_default,
+        model: apiConfig.model || null,
+        models: Array.isArray(apiConfig.models) ? apiConfig.models : [],
+        maxTokens: generationSettings.maxTokens ?? null,
+        temperature: generationSettings.temperature ?? null,
+      };
+    });
   }
 
   async getPreset(presetId) {
@@ -1700,8 +1728,16 @@ export class SqliteStorageService {
     return { id: presetId };
   }
 
+  /**
+   * Delete a preset. Stories and chats that used it go back to the default preset, rather than
+   * failing to load one that's gone.
+   */
   async deletePreset(presetId) {
-    this.stmts.deletePreset.run(presetId);
+    this.db.transaction(() => {
+      this.stmts.clearStoryPreset.run(presetId);
+      this.stmts.clearChatPreset.run(presetId);
+      this.stmts.deletePreset.run(presetId);
+    })();
     return { success: true };
   }
 

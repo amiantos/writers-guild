@@ -105,7 +105,7 @@ onBeforeUnmount(() => {
 .scroll-viewport {
   overflow-x: auto;
   overflow-y: hidden;
-  /* Contain the content's own z-indexes, like DataTable's sticky header, so
+  /* Contain the content's own z-indexes, like a sticky header, so
      the shadows below always paint over it. */
   position: relative;
   z-index: 0;

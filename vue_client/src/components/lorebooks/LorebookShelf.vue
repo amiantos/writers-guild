@@ -18,7 +18,8 @@
     <section v-else class="shelf" aria-labelledby="lorebooks-title">
       <div class="shelf-header">
         <h2 id="lorebooks-title">
-          Lorebooks <span class="shelf-count">{{ countLabel }}</span>
+          <span class="shelf-name">Lorebooks</span>
+          <span class="shelf-count">{{ countLabel }}</span>
         </h2>
         <div class="shelf-controls">
           <label class="sort">

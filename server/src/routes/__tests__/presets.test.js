@@ -7,6 +7,7 @@ import os from 'os';
 
 // Import the router
 import presetsRouter from '../presets.js';
+import { SqliteStorageService } from '../../services/sqliteStorage.js';
 import { AIHordeProvider } from '../../services/providers/aihorde-provider.js';
 import { OpenRouterProvider } from '../../services/providers/openrouter-provider.js';
 import { OpenAIProvider } from '../../services/providers/openai-provider.js';
@@ -68,6 +69,27 @@ describe('Presets API Routes', () => {
 
       expect(response.body).toHaveProperty('presets');
       expect(Array.isArray(response.body.presets)).toBe(true);
+    });
+    it('gives each preset its model and length, but never its API key', async () => {
+      const { body: created } = await request(app)
+        .post('/api/presets')
+        .send({
+          name: 'Listed',
+          provider: 'deepseek',
+          apiConfig: { apiKey: 'sk-secret', model: 'deepseek-v4-flash' },
+          generationSettings: { maxTokens: 4000, temperature: 0.8 },
+        })
+        .expect(201);
+
+      const { body } = await request(app).get('/api/presets').expect(200);
+      const listed = body.presets.find((p) => p.id === created.preset.id);
+      expect(listed).toMatchObject({
+        model: 'deepseek-v4-flash',
+        models: [],
+        maxTokens: 4000,
+        temperature: 0.8,
+      });
+      expect(JSON.stringify(listed)).not.toContain('sk-secret');
     });
   });
 
@@ -196,6 +218,31 @@ describe('Presets API Routes', () => {
 
       // Verify preset is deleted
       await request(app).get(`/api/presets/${presetId}`).expect(500);
+    });
+
+    it('sends stories and chats that used it back to the default preset', async () => {
+      const { body: created } = await request(app)
+        .post('/api/presets')
+        .send({ name: 'Used', provider: 'deepseek' })
+        .expect(201);
+      const presetId = created.preset.id;
+      const storage = new SqliteStorageService(tempDir);
+      const story = await storage.createStory('Uses the preset');
+      await storage.updateStoryMetadata(story.id, { configPresetId: presetId });
+      storage.db
+        .prepare(
+          `INSERT INTO chats (id, title, config_preset_id, created, modified)
+           VALUES ('chat-1', 'Chat', ?, '2026-01-01', '2026-01-01')`,
+        )
+        .run(presetId);
+
+      await request(app).delete(`/api/presets/${presetId}`).expect(200);
+
+      expect((await storage.getStory(story.id)).configPresetId).toBeNull();
+      const chat = storage.db
+        .prepare("SELECT config_preset_id FROM chats WHERE id = 'chat-1'")
+        .get();
+      expect(chat.config_preset_id).toBeNull();
     });
 
     it('should return 404 for non-existent preset', async () => {

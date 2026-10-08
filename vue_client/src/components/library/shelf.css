@@ -199,6 +199,11 @@
     font-size: 1.25rem;
   }
 
+  /* Where the shelf is named for its section, the bar's title already says it */
+  .shelf-name {
+    display: none;
+  }
+
   .shelf-controls {
     margin-left: 0;
     width: 100%;
