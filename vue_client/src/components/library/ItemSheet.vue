@@ -33,14 +33,28 @@
     <dl class="setup">
       <div>
         <dt>Cast</dt>
-        <dd>
-          <AvatarStack v-if="cast.length" :characters="cast" :size="28" />
-          <span class="ellipsis">{{ cast.length ? castNames : 'No characters' }}</span>
+        <dd class="people">
+          <RouterLink
+            v-for="character in cast"
+            :key="character.id"
+            :to="characterRoute(character)"
+            class="person"
+            :title="`Open ${character.name}`"
+          >
+            <AvatarStack :characters="[character]" :size="26" />
+            <span class="ellipsis">{{ character.name }}</span>
+          </RouterLink>
+          <span v-if="!cast.length" class="muted">No characters</span>
         </dd>
       </div>
       <div v-if="persona">
         <dt>Persona</dt>
-        <dd>{{ persona.name }}</dd>
+        <dd class="people">
+          <RouterLink :to="characterRoute(persona)" class="person" :title="`Open ${persona.name}`">
+            <AvatarStack :characters="[persona]" :size="26" />
+            <span class="ellipsis">{{ persona.name }}</span>
+          </RouterLink>
+        </dd>
       </div>
       <div>
         <dt>Preset</dt>
@@ -80,7 +94,6 @@ import BottomSheet from './BottomSheet.vue';
 import StoryCover from './StoryCover.vue';
 import AvatarStack from './AvatarStack.vue';
 import { timeAgo } from '../../composables/library.js';
-import { joinNames } from '../../../../shared/story-titles.js';
 
 const props = defineProps({
   // A card from buildLibraryItems()
@@ -98,7 +111,9 @@ const cast = computed(() =>
   props.item.characterIds.map((id) => props.charactersById.get(id)).filter(Boolean),
 );
 
-const castNames = computed(() => joinNames(cast.value.map((c) => c.name)));
+function characterRoute(character) {
+  return { name: 'character-detail', params: { characterId: character.id } };
+}
 
 const persona = computed(() => props.charactersById.get(props.item.personaCharacterId) ?? null);
 
@@ -254,6 +269,37 @@ const meta = computed(() => {
   gap: 10px;
   font-size: 0.875rem;
   font-weight: 500;
+}
+
+/* The cast and persona link to their character pages */
+.setup dd.people {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 0;
+}
+
+.person {
+  --stack-ring: var(--bg-tertiary);
+  max-width: 100%;
+  min-height: 34px;
+  box-sizing: border-box;
+  padding: 0 12px 0 4px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.person:hover {
+  color: var(--accent-primary);
+}
+
+.person:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .ellipsis {

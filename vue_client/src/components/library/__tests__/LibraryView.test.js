@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, RouterLinkStub } from '@vue/test-utils';
 import LibraryView from '../LibraryView.vue';
 import StoryCover from '../StoryCover.vue';
 import ChatCard from '../ChatCard.vue';
@@ -52,7 +52,7 @@ function mountLibrary(props = {}) {
       chatsEnabled: true,
       ...props,
     },
-    global: { stubs: { Teleport: true } },
+    global: { stubs: { Teleport: true, RouterLink: RouterLinkStub } },
   });
 }
 
@@ -139,6 +139,19 @@ describe('LibraryView', () => {
       .find((b) => b.text().includes('New story with this setup'));
     await button.trigger('click');
     expect(wrapper.emitted('new-from')[0][0].id).toBe('s1');
+  });
+
+  it('links a story’s cast and persona to their character pages from its sheet', async () => {
+    const stories = [{ ...STORIES[1], personaCharacterId: 'mara' }];
+    const wrapper = mountLibrary({ stories, chats: [] });
+    await wrapper.find('.shelf-grid .cover-menu').trigger('click');
+    const links = wrapper
+      .findAllComponents(RouterLinkStub)
+      .map((link) => [link.find('.ellipsis').text(), link.props('to').params.characterId]);
+    expect(links).toEqual([
+      ['Captain Rhee', 'rhee'],
+      ['Mara Voss', 'mara'],
+    ]);
   });
 
   it('opens a card’s sheet and deletes from it', async () => {
