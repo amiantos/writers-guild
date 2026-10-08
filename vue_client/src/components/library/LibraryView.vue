@@ -66,11 +66,11 @@
             :aria-label="setup.label"
             @click="$emit('new-from', setup.story)"
           >
-            <span class="setup-avatars"><AvatarStack :characters="setup.cast" :size="34" /></span>
-            <span class="setup-text">
+            <span class="setup-text" :title="setup.sub">
               <span class="setup-names">{{ setup.names }}</span>
               <span class="setup-sub">{{ setup.sub }}</span>
             </span>
+            <span class="setup-avatars"><AvatarStack :characters="setup.cast" :size="34" /></span>
             <span class="setup-plus"><i class="fas fa-plus"></i></span>
           </button>
         </aside>
@@ -402,14 +402,21 @@ const setupRows = computed(() =>
     const perspective = describePerspective({
       mode: story.perspective,
       tense: story.perspectiveTense,
+      characterName: charactersById.value.get(story.perspectiveCharacterId)?.name,
     });
+    const persona = charactersById.value.get(story.personaCharacterId);
     return {
       key: story.id,
       story,
       cast,
       names,
       sub: capitalize(
-        [continuityNames.value.get(story.continuityId), preset?.name, perspective]
+        [
+          continuityNames.value.get(story.continuityId),
+          perspective,
+          persona && `as ${persona.name}`,
+          preset?.name,
+        ]
           .filter(Boolean)
           .join(' · '),
       ),
@@ -633,6 +640,7 @@ defineExpose({ openNew });
 
 .setup-avatars {
   flex: none;
+  margin-left: auto;
   display: flex;
 }
 

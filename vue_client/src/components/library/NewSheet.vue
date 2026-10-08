@@ -59,12 +59,12 @@
           :aria-label="setup.label"
           @click="$emit('setup', setup.story)"
         >
-          <span class="row-avatars"><AvatarStack :characters="setup.cast" :size="36" /></span>
-          <span class="row-text">
+          <span class="row-text" :title="setup.sub">
             <span class="row-title">{{ setup.names }}</span>
             <span class="row-sub">{{ setup.sub }}</span>
             <span class="row-sub">{{ setup.used }}</span>
           </span>
+          <span class="row-avatars"><AvatarStack :characters="setup.cast" :size="36" /></span>
           <i class="fas fa-chevron-right row-chevron"></i>
         </button>
       </template>
