@@ -3,9 +3,9 @@ import { mount, RouterLinkStub } from '@vue/test-utils';
 import CharacterShelf from '../CharacterShelf.vue';
 
 const CHARACTERS = [
-  { id: 'mara', name: 'Mara Voss', tags: ['sailor'], created: '2026-01-01T00:00:00.000Z' },
-  { id: 'rhee', name: 'Captain Rhee', tags: ['soldier'], created: '2026-02-01T00:00:00.000Z' },
-  { id: 'ash', name: 'Ash', tags: [], created: '2026-03-01T00:00:00.000Z' },
+  { id: 'mara', name: 'Mara Voss', created: '2026-01-01T00:00:00.000Z' },
+  { id: 'rhee', name: 'Captain Rhee', created: '2026-02-01T00:00:00.000Z' },
+  { id: 'ash', name: 'Ash', created: '2026-03-01T00:00:00.000Z' },
 ];
 
 const STORIES = [
@@ -57,8 +57,7 @@ const shelfNames = (wrapper) =>
     .findAll('.tile-name')
     .map((node) => node.text());
 
-const metaLeads = (wrapper) =>
-  wrapper.findAll('.tile-meta').map((node) => node.text().split(' · ')[0]);
+const tileLines = (wrapper, line) => wrapper.findAll(`.tile-${line}`).map((node) => node.text());
 
 async function openSheet(wrapper, name) {
   await wrapper.find(`[aria-label="More actions for ${name}"]`).trigger('click');
@@ -74,10 +73,16 @@ describe('CharacterShelf', () => {
   });
 
   it('counts chats only while they are turned on', () => {
-    expect(metaLeads(mountShelf())).toEqual(['1 story', '1 story', 'No stories yet']);
+    expect(tileLines(mountShelf(), 'counts')).toEqual(['1 story', '1 story', 'No stories yet']);
     const withChats = mountShelf({ chatsEnabled: true });
     expect(shelfNames(withChats)[0]).toBe('Captain Rhee');
-    expect(withChats.findAll('.tile-meta')[0].text()).toContain('1 story · 1 chat');
+    expect(tileLines(withChats, 'counts')[0]).toBe('1 story · 1 chat');
+  });
+
+  it('dates a card by when they were last active, or else when they were added', () => {
+    const [mara, , ash] = tileLines(mountShelf(), 'meta');
+    expect(mara).toMatch(/^Active /);
+    expect(ash).toMatch(/^Added /);
   });
 
   it('links each card to the character’s page', () => {
@@ -87,13 +92,13 @@ describe('CharacterShelf', () => {
     expect(links).toEqual(['mara', 'rhee', 'ash']);
   });
 
-  it('filters by Continuity and tag chips', async () => {
+  it('filters by Continuity chip', async () => {
     const wrapper = mountShelf();
-    const chip = (text) => wrapper.findAll('.chip').find((c) => c.text().includes(text));
-    await chip('Saltmarsh Cycle').trigger('click');
+    const chip = wrapper.findAll('.chip').find((c) => c.text().includes('Saltmarsh Cycle'));
+    await chip.trigger('click');
     expect(shelfNames(wrapper)).toEqual(['Mara Voss']);
-    await chip('soldier').trigger('click');
-    expect(shelfNames(wrapper)).toEqual(['Captain Rhee']);
+    await chip.trigger('click');
+    expect(shelfNames(wrapper)).toEqual(['Mara Voss', 'Captain Rhee', 'Ash']);
   });
 
   it('searches with the header’s query, and sorts by the remembered choice', async () => {
@@ -141,14 +146,6 @@ describe('CharacterShelf', () => {
     expect(wrapper.findAll('.appearance')).toHaveLength(5);
     await wrapper.find('.see-all').trigger('click');
     expect(wrapper.emitted('show-in-library')[0]).toEqual(['mara']);
-  });
-
-  it('filters by a tag from a character’s sheet', async () => {
-    const wrapper = mountShelf();
-    await openSheet(wrapper, 'Mara Voss');
-    await wrapper.find('.tag').trigger('click');
-    expect(wrapper.find('.appearance').exists()).toBe(false);
-    expect(shelfNames(wrapper)).toEqual(['Mara Voss']);
   });
 
   it('deletes from a character’s sheet', async () => {

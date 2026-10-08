@@ -36,12 +36,12 @@
       </div>
 
       <ScrollShadows
-        v-if="filters.continuities.length || filters.tags.length"
+        v-if="filters.continuities.length"
         class="chips-scroll"
         hide-scrollbar
         edge="fade"
       >
-        <div class="chips" role="group" aria-label="Filter by Continuity or tag">
+        <div class="chips" role="group" aria-label="Filter by Continuity">
           <button type="button" class="chip" :aria-pressed="!filter" @click="filter = null">
             All
           </button>
@@ -54,25 +54,18 @@
           >
             <i class="fas fa-magnifying-glass"></i> All filters
           </button>
-          <template v-for="chip in chips" :key="`${chip.kind}:${chip.id}`">
-            <span v-if="chip.dividerBefore" class="chip-divider" aria-hidden="true"></span>
-            <button
-              type="button"
-              class="chip"
-              :aria-pressed="isFilter(chip.kind, chip.id)"
-              @click="toggleFilter(chip.kind, chip.id)"
-            >
-              <span
-                v-if="chip.kind === 'continuity'"
-                class="chip-swatch"
-                :style="{ background: chip.color }"
-              ></span>
-              <span :class="{ 'chip-continuity': chip.kind === 'continuity' }">
-                {{ chip.name }}
-              </span>
-              <span class="chip-count">{{ chip.count }}</span>
-            </button>
-          </template>
+          <button
+            v-for="chip in chips"
+            :key="chip.id"
+            type="button"
+            class="chip"
+            :aria-pressed="isFilter(chip.id)"
+            @click="toggleFilter(chip.id)"
+          >
+            <span class="chip-swatch" :style="{ background: chip.color }"></span>
+            <span class="chip-continuity">{{ chip.name }}</span>
+            <span class="chip-count">{{ chip.count }}</span>
+          </button>
         </div>
       </ScrollShadows>
 
@@ -107,7 +100,6 @@
       @open-story="runAction('open-story', $event)"
       @open-chat="runAction('open-chat', $event)"
       @show-all="runAction('show-in-library')"
-      @filter-tag="filterByTag"
       @edit="runAction('edit')"
       @delete="runAction('delete')"
     />
@@ -115,9 +107,8 @@
     <FilterSheet
       v-if="showFilters"
       title="Filter characters"
-      placeholder="Search Continuities and tags"
+      placeholder="Search Continuities"
       :continuities="filters.continuities"
-      :tags="filters.tags"
       :active="filter"
       @close="showFilters = false"
       @pick="pickFilter"
@@ -189,9 +180,8 @@ const menuId = ref(null);
 const showNew = ref(false);
 const showFilters = ref(false);
 
-// The chip row holds the first few; All filters lists the rest.
-const CHIP_CONTINUITIES = 6;
-const CHIP_TAGS = 12;
+// The chip row holds the most recently active few; All filters lists the rest.
+const CHIP_CONTINUITIES = 8;
 
 watch(sort, () => {
   try {
@@ -220,36 +210,23 @@ const menuItem = computed(() => items.value.find((item) => item.id === menuId.va
 
 const filters = computed(() => characterFilters(items.value));
 
-// A filter whose Continuity or tag left the shelf no longer applies.
-watch(filters, ({ continuities, tags }) => {
-  const list = filter.value?.kind === 'continuity' ? continuities : tags;
-  if (filter.value && !list.some((entry) => entry.id === filter.value.id)) filter.value = null;
+// A filter whose Continuity left the shelf no longer applies.
+watch(filters, ({ continuities }) => {
+  if (filter.value && !continuities.some((entry) => entry.id === filter.value.id)) {
+    filter.value = null;
+  }
 });
 
 const chips = computed(() => {
-  const entries = [
-    ...filters.value.continuities
-      .slice(0, CHIP_CONTINUITIES)
-      .map((c) => ({ ...c, kind: 'continuity' })),
-    ...filters.value.tags.slice(0, CHIP_TAGS).map((t) => ({ ...t, kind: 'tag' })),
-  ];
-  // A filter picked from All filters or a character's sheet stays in reach, first in the row.
-  const active = filter.value;
-  if (active && !entries.some((e) => e.kind === active.kind && e.id === active.id)) {
-    const list = active.kind === 'continuity' ? filters.value.continuities : filters.value.tags;
-    const entry = list.find((e) => e.id === active.id);
-    if (entry) entries.unshift({ ...entry, kind: active.kind });
-  }
-  return entries.map((entry, index) => ({
-    ...entry,
-    dividerBefore: index > 0 && entry.kind !== entries[index - 1].kind,
-  }));
+  const all = filters.value.continuities;
+  const entries = all.slice(0, CHIP_CONTINUITIES);
+  // A filter picked from All filters stays in reach, first in the row.
+  const active = filter.value && all.find((entry) => entry.id === filter.value.id);
+  if (active && !entries.includes(active)) entries.unshift(active);
+  return entries;
 });
 
-const hasMoreFilters = computed(
-  () =>
-    filters.value.continuities.length > CHIP_CONTINUITIES || filters.value.tags.length > CHIP_TAGS,
-);
+const hasMoreFilters = computed(() => filters.value.continuities.length > CHIP_CONTINUITIES);
 
 const visibleItems = computed(() =>
   sortCharacterItems(
@@ -263,22 +240,17 @@ const countLabel = computed(() => {
   return `${n} ${n === 1 ? 'character' : 'characters'}`;
 });
 
-function isFilter(kind, id) {
-  return filter.value?.kind === kind && filter.value.id === id;
+function isFilter(id) {
+  return filter.value?.id === id;
 }
 
-function toggleFilter(kind, id) {
-  filter.value = isFilter(kind, id) ? null : { kind, id };
+function toggleFilter(id) {
+  filter.value = isFilter(id) ? null : { kind: 'continuity', id };
 }
 
 function pickFilter(picked) {
   filter.value = picked;
   showFilters.value = false;
-}
-
-function filterByTag(id) {
-  menuId.value = null;
-  filter.value = { kind: 'tag', id };
 }
 
 function openNew() {

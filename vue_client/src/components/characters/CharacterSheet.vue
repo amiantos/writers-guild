@@ -63,22 +63,6 @@
       </div>
     </template>
 
-    <template v-if="item.tags.length">
-      <h3 class="tags-title">Tags</h3>
-      <div class="tags">
-        <button
-          v-for="tag in item.tags"
-          :key="tag"
-          type="button"
-          class="tag"
-          :aria-label="`Show characters tagged ${tag}`"
-          @click="$emit('filter-tag', tagKey(tag))"
-        >
-          {{ tag }}
-        </button>
-      </div>
-    </template>
-
     <div class="sheet-list">
       <button type="button" @click="$emit('edit')">
         <i class="fas fa-user-pen"></i> Character details
@@ -95,7 +79,7 @@ import { computed } from 'vue';
 import BottomSheet from '../library/BottomSheet.vue';
 import StoryCover from '../library/StoryCover.vue';
 import CharacterTile from './CharacterTile.vue';
-import { appearanceLine, tagKey } from '../../composables/characters.js';
+import { appearanceLine } from '../../composables/characters.js';
 import { shortCount, timeAgo } from '../../composables/library.js';
 
 const props = defineProps({
@@ -104,16 +88,7 @@ const props = defineProps({
   charactersById: { type: Map, required: true },
 });
 
-defineEmits([
-  'close',
-  'new-story',
-  'open-story',
-  'open-chat',
-  'show-all',
-  'filter-tag',
-  'edit',
-  'delete',
-]);
+defineEmits(['close', 'new-story', 'open-story', 'open-chat', 'show-all', 'edit', 'delete']);
 
 // The most recent few; See all opens the rest on the home page's shelf.
 const SHOWN = 5;
@@ -307,31 +282,6 @@ h3 {
   flex: none;
   color: var(--text-secondary);
   font-size: 0.8125rem;
-}
-
-.tags-title {
-  margin-top: 20px;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-
-.tag {
-  min-height: 32px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 999px;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  font-size: 0.8125rem;
-}
-
-.tag:hover {
-  color: var(--accent-primary);
 }
 
 .sheet-list {

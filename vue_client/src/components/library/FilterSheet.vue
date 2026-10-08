@@ -49,26 +49,7 @@
         </button>
       </template>
 
-      <template v-if="matchingTags.length">
-        <h3>Tags</h3>
-        <button
-          v-for="tag in matchingTags"
-          :key="tag.id"
-          type="button"
-          class="filter-row"
-          :aria-pressed="isActive('tag', tag.id)"
-          @click="$emit('pick', { kind: 'tag', id: tag.id })"
-        >
-          <span class="tag-icon"><i class="fas fa-tag"></i></span>
-          <span class="row-name">{{ tag.name }}</span>
-          <span class="row-count">{{ tag.count }}</span>
-        </button>
-      </template>
-
-      <p
-        v-if="!matchingContinuities.length && !matchingCharacters.length && !matchingTags.length"
-        class="no-match"
-      >
+      <p v-if="!matchingContinuities.length && !matchingCharacters.length" class="no-match">
         Nothing matches.
       </p>
     </div>
@@ -81,11 +62,10 @@ import BottomSheet from './BottomSheet.vue';
 import AvatarStack from './AvatarStack.vue';
 
 const props = defineProps({
-  // From libraryFilters() or characterFilters(): every Continuity, character and tag on the
-  // shelf, with counts
+  // From libraryFilters() or characterFilters(): every Continuity and character on the shelf,
+  // with counts
   continuities: { type: Array, default: () => [] },
   characters: { type: Array, default: () => [] },
-  tags: { type: Array, default: () => [] },
   charactersById: { type: Map, default: () => new Map() },
   title: { type: String, default: 'Filter the library' },
   placeholder: { type: String, default: 'Search Continuities and characters' },
@@ -108,7 +88,6 @@ const matchingContinuities = computed(() =>
 const matchingCharacters = computed(() =>
   props.characters.filter((c) => matches(c.name)).toSorted(byName),
 );
-const matchingTags = computed(() => props.tags.filter((t) => matches(t.name)).toSorted(byName));
 
 function isActive(kind, id) {
   return props.active?.kind === kind && props.active.id === id;
@@ -203,13 +182,6 @@ h3 {
   flex: none;
   border-radius: 3px;
   box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.25);
-}
-
-.tag-icon {
-  width: 32px;
-  flex: none;
-  text-align: center;
-  color: var(--text-secondary);
 }
 
 .row-name {

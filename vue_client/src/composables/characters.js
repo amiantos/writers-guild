@@ -14,13 +14,6 @@ export const CHARACTER_SORTS = [
   { key: 'words', label: 'Word count' },
 ];
 
-/** A tag as a filter key: case and surrounding spaces don't count. */
-export function tagKey(tag) {
-  return String(tag ?? '')
-    .trim()
-    .toLowerCase();
-}
-
 /**
  * One card per character, with what the shelf shows and filters on, plus the character itself as
  * `source`. `appearances` are the stories and chats they're in, as buildLibraryItems() cards, most
@@ -53,15 +46,9 @@ export function buildCharacterItems({
         });
       }
     }
-    const tags = [];
-    for (const tag of character.tags ?? []) {
-      if (tagKey(tag) && !tags.some((t) => tagKey(t) === tagKey(tag)))
-        tags.push(String(tag).trim());
-    }
     return {
       id: character.id,
       name: character.name || 'Unknown',
-      tags,
       created: character.created ?? null,
       // Their solo stories' cover color, so the two match
       color: castColor([character.id], character.id),
@@ -80,8 +67,8 @@ export function buildCharacterItems({
 /**
  * The cards to show.
  * @param {Object} options
- * @param {{kind: 'continuity'|'tag', id: string}|null} [options.filter]
- * @param {string} [options.query] - Matched against names and tags.
+ * @param {{kind: 'continuity', id: string}|null} [options.filter]
+ * @param {string} [options.query] - Matched against names.
  */
 export function filterCharacterItems(items, { filter = null, query = '' } = {}) {
   const needle = query.trim().toLowerCase();
@@ -89,9 +76,7 @@ export function filterCharacterItems(items, { filter = null, query = '' } = {}) 
     if (filter?.kind === 'continuity' && !item.continuities.some((c) => c.id === filter.id)) {
       return false;
     }
-    if (filter?.kind === 'tag' && !item.tags.some((tag) => tagKey(tag) === filter.id)) return false;
-    if (!needle) return true;
-    return [item.name, ...item.tags].some((text) => text.toLowerCase().includes(needle));
+    return !needle || item.name.toLowerCase().includes(needle);
   });
 }
 
@@ -126,28 +111,19 @@ export function sortCharacterItems(items, sort = 'active') {
 
 /**
  * The filters: each Continuity the characters have been in, with how many characters, the most
- * recently active first; and each tag, the most used first.
+ * recently active first.
  * @param {Array} items - Cards from buildCharacterItems(), most recently active first.
  */
 export function characterFilters(items) {
   const continuities = new Map();
-  const tags = new Map();
   for (const item of items) {
     for (const continuity of item.continuities) {
       const entry = continuities.get(continuity.id) ?? { ...continuity, count: 0 };
       entry.count++;
       continuities.set(continuity.id, entry);
     }
-    for (const tag of item.tags) {
-      const entry = tags.get(tagKey(tag)) ?? { id: tagKey(tag), name: tag, count: 0 };
-      entry.count++;
-      tags.set(entry.id, entry);
-    }
   }
-  return {
-    continuities: [...continuities.values()],
-    tags: [...tags.values()].toSorted((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
-  };
+  return { continuities: [...continuities.values()] };
 }
 
 /** "3 stories", "1 story · 2 chats", or "No stories yet". */

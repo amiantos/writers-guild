@@ -22,11 +22,7 @@
     </div>
     <div v-if="!mini" class="tile-band">
       <span class="tile-name">{{ item.name }}</span>
-      <span v-if="item.continuities.length" class="tile-continuity">
-        <i class="fas fa-layer-group"></i>
-        <span>{{ continuityLine }}</span>
-      </span>
-      <span v-else-if="item.tags.length" class="tile-tags">{{ item.tags.join(' · ') }}</span>
+      <span class="tile-counts">{{ appearanceLine(item) }}</span>
       <span class="tile-meta">{{ meta }}</span>
     </div>
 
@@ -66,14 +62,10 @@ defineEmits(['new-story', 'continue', 'menu']);
 
 const url = computed(() => portraitUrl(props.item.source));
 
-const continuityLine = computed(() => {
-  const [latest, ...others] = props.item.continuities;
-  return others.length ? `${latest.name} +${others.length}` : latest.name;
-});
-
+// When they were last in a story or chat, else when they joined the library
 const meta = computed(() => {
-  const line = appearanceLine(props.item);
-  return props.item.lastActive ? `${line} · ${timeAgo(props.item.lastActive)}` : line;
+  if (props.item.lastActive) return `Active ${timeAgo(props.item.lastActive)}`;
+  return props.item.created ? `Added ${timeAgo(props.item.created)}` : '';
 });
 </script>
 
@@ -168,34 +160,16 @@ const meta = computed(() => {
   overflow-wrap: anywhere;
 }
 
-.tile-tags,
-.tile-continuity span,
+.tile-counts,
 .tile-meta {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.tile-tags {
+.tile-counts {
   font-size: clamp(11px, 6.2cqw, 14px);
   color: rgba(246, 239, 230, 0.82);
-}
-
-.tile-continuity {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: clamp(11px, 6.4cqw, 15px);
-  color: rgba(246, 239, 230, 0.9);
-}
-
-.tile-continuity i {
-  flex: none;
-  font-size: 0.8em;
-  font-style: normal;
 }
 
 .tile-meta {

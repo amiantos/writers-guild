@@ -5,7 +5,6 @@ import {
   characterFilters,
   filterCharacterItems,
   sortCharacterItems,
-  tagKey,
 } from '../characters.js';
 import { castColor } from '../../../../shared/cover-colors.js';
 
@@ -13,16 +12,14 @@ const CHARACTERS = [
   {
     id: 'mara',
     name: 'Mara Voss',
-    tags: ['Sailor', 'fantasy'],
     created: '2026-01-01T00:00:00.000Z',
   },
   {
     id: 'ilse',
     name: 'Ilse Brandt',
-    tags: ['fantasy ', 'Fantasy'],
     created: '2026-03-01T00:00:00.000Z',
   },
-  { id: 'rhee', name: 'Captain Rhee', tags: [], created: '2026-02-01T00:00:00.000Z' },
+  { id: 'rhee', name: 'Captain Rhee', created: '2026-02-01T00:00:00.000Z' },
   { id: 'ash', name: 'Ash', created: '2026-04-01T00:00:00.000Z' },
 ];
 
@@ -99,10 +96,6 @@ describe('buildCharacterItems', () => {
     expect(rhee.continuities).toEqual([]);
     expect(mara.color).toBe(castColor(['mara'], 'mara'));
   });
-
-  it('drops repeated and blank tags', () => {
-    expect(byId(items()).get('ilse').tags).toEqual(['fantasy']);
-  });
 });
 
 describe('filterCharacterItems', () => {
@@ -111,14 +104,8 @@ describe('filterCharacterItems', () => {
     expect(names(shown)).toEqual(['Mara Voss', 'Ilse Brandt', 'Ash']);
   });
 
-  it('filters by tag, whatever its case', () => {
-    const shown = filterCharacterItems(items(), { filter: { kind: 'tag', id: tagKey('Fantasy') } });
-    expect(names(shown)).toEqual(['Mara Voss', 'Ilse Brandt']);
-  });
-
-  it('searches names and tags', () => {
+  it('searches names', () => {
     expect(names(filterCharacterItems(items(), { query: 'rhee' }))).toEqual(['Captain Rhee']);
-    expect(names(filterCharacterItems(items(), { query: 'sail' }))).toEqual(['Mara Voss']);
   });
 });
 
@@ -157,14 +144,9 @@ describe('sortCharacterItems', () => {
 });
 
 describe('characterFilters', () => {
-  it('counts the characters in each Continuity and with each tag, the most used tag first', () => {
-    const { continuities, tags } = characterFilters(items());
-    expect(continuities).toEqual([
+  it('counts the characters in each Continuity', () => {
+    expect(characterFilters(items()).continuities).toEqual([
       expect.objectContaining({ id: 'k1', name: 'Saltmarsh Cycle', count: 3 }),
-    ]);
-    expect(tags).toEqual([
-      { id: 'fantasy', name: 'fantasy', count: 2 },
-      { id: 'sailor', name: 'Sailor', count: 1 },
     ]);
   });
 });
