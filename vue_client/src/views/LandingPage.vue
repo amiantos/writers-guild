@@ -17,7 +17,7 @@
         </nav>
         <h1 class="mobile-title">{{ activeSectionLabel }}</h1>
         <div class="header-actions">
-          <label v-if="onShelf" class="search search-inline">
+          <label v-if="searchable" class="search search-inline">
             <i class="fas fa-magnifying-glass"></i>
             <input
               v-model="searchQuery"
@@ -27,7 +27,7 @@
             />
           </label>
           <button
-            v-if="onShelf"
+            v-if="searchable"
             type="button"
             class="icon-btn search-toggle"
             :aria-label="searchOpen ? 'Close search' : searchLabel"
@@ -76,10 +76,18 @@
               <i class="fas fa-plus"></i> New lorebook
             </button>
           </template>
+          <button
+            v-else-if="activeSection === 'presets'"
+            type="button"
+            class="btn btn-primary header-btn"
+            @click="createNewPreset"
+          >
+            <i class="fas fa-plus"></i> New preset
+          </button>
         </div>
       </div>
       <!-- Narrower screens search from a row under the bar -->
-      <div v-if="searchOpen && onShelf" class="search-row">
+      <div v-if="searchOpen && searchable" class="search-row">
         <label class="search">
           <i class="fas fa-magnifying-glass"></i>
           <input
@@ -156,34 +164,22 @@
         @import="showImportLorebookModal = true"
       />
 
-      <template v-else-if="activeSection === 'presets'">
-        <div class="section-header">
-          <h2><i class="fas fa-sliders"></i> Configuration Presets</h2>
-          <button class="btn btn-primary" @click="createNewPreset">
-            <i class="fas fa-plus"></i> New Preset
-          </button>
-        </div>
-
-        <div v-if="loadingPresets" class="loading">Loading presets...</div>
-
-        <div v-else-if="presets.length === 0" class="empty-state">
-          <i class="fas fa-sliders"></i>
-          <p>No presets yet. Create a preset to get started!</p>
-        </div>
-
-        <PresetsTable
-          v-else
-          :presets="presets"
-          :default-preset-id="defaultPresetId"
-          @edit="editPreset"
-          @duplicate="duplicatePreset"
-          @delete="deletePreset"
-          @set-default="setDefaultPreset"
-        />
-      </template>
+      <PresetList
+        v-else-if="activeSection === 'presets'"
+        :presets="presets"
+        :default-preset-id="defaultPresetId"
+        :stories="stories"
+        :chats="chatsEnabled ? chats : []"
+        :loading="loadingPresets"
+        @edit="editPreset"
+        @duplicate="duplicatePreset"
+        @delete="deletePreset"
+        @set-default="setDefaultPreset"
+        @create="createNewPreset"
+      />
     </main>
 
-    <button v-if="onShelf" type="button" class="new-fab" @click="openNewSheet">
+    <button type="button" class="new-fab" @click="openNewSheet">
       <i class="fas fa-plus"></i> New
     </button>
 
@@ -275,10 +271,11 @@ import { useConfirm } from '../composables/useConfirm';
 import { useDataCache } from '../composables/useDataCache';
 import { useCharacterDeletion } from '../composables/useCharacterDeletion';
 import { buildLorebookDeleteMessage } from '../composables/lorebooks';
+import { buildPresetDeleteMessage } from '../composables/presets';
 import LibraryView from '../components/library/LibraryView.vue';
 import CharacterShelf from '../components/characters/CharacterShelf.vue';
 import LorebookShelf from '../components/lorebooks/LorebookShelf.vue';
-import PresetsTable from '../components/PresetsTable.vue';
+import PresetList from '../components/presets/PresetList.vue';
 import CreateCharacterModal from '../components/CreateCharacterModal.vue';
 import ImportCharacterModal from '../components/ImportCharacterModal.vue';
 import CharacterGeneratorModal from '../components/CharacterGeneratorModal.vue';
@@ -371,7 +368,7 @@ const activeSectionLabel = computed(
 );
 
 // The stories', characters' and lorebooks' shelves each keep their own search in the header, and
-// their own New sheet
+// their own New sheet. Presets, a short list, have neither; their New goes to the provider picker.
 const library = ref(null);
 const characterShelf = ref(null);
 const lorebookShelf = ref(null);
@@ -380,7 +377,7 @@ const queries = ref({ stories: '', characters: '', lorebooks: '' });
 const searchOpen = ref(false);
 const searchInput = ref(null);
 
-const onShelf = computed(() => activeSection.value in queries.value);
+const searchable = computed(() => activeSection.value in queries.value);
 const searchLabel = computed(() => `Search ${activeSection.value}`);
 const searchQuery = computed({
   get: () => queries.value[activeSection.value] ?? '',
@@ -400,7 +397,8 @@ async function toggleSearch() {
 }
 
 function openNewSheet() {
-  shelves[activeSection.value]?.value?.openNew();
+  if (activeSection.value === 'presets') createNewPreset();
+  else shelves[activeSection.value]?.value?.openNew();
 }
 
 // A character's sheet opens all their stories and chats on the stories' shelf, filtered to them.
@@ -655,16 +653,15 @@ function editPreset(presetId) {
 
 async function duplicatePreset(presetId) {
   try {
-    const originalPreset = presets.value.find((p) => p.id === presetId);
-    if (!originalPreset) {
-      throw new Error('Preset not found');
-    }
+    // The list holds a summary of each preset; the copy needs the whole of it.
+    const { preset: originalPreset } = await presetsAPI.get(presetId);
 
     const duplicateData = {
       ...originalPreset,
       name: `${originalPreset.name} (Copy)`,
     };
     delete duplicateData.id;
+    delete duplicateData.isDefault;
 
     await presetsAPI.create(duplicateData);
     await loadPresets(true);
@@ -682,7 +679,7 @@ async function deletePreset(preset) {
   }
 
   const confirmed = await confirm({
-    message: `Delete preset "${preset.name}"?\n\nThis cannot be undone.`,
+    message: buildPresetDeleteMessage(preset),
     confirmText: 'Delete Preset',
     variant: 'danger',
   });
@@ -692,6 +689,9 @@ async function deletePreset(preset) {
   try {
     await presetsAPI.delete(preset.id);
     removePresetLocally(preset.id);
+    // Stories and chats that used it go back to the default
+    if (preset.storyCount) await loadStories(true);
+    if (preset.chatCount) await loadChats();
     toast.success('Preset deleted successfully');
   } catch (error) {
     console.error('Error deleting preset:', error);
@@ -851,35 +851,6 @@ function goToSettings() {
   box-sizing: border-box;
 }
 
-.section-header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.section-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.section-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.loading {
-  text-align: center;
-  padding: 2rem;
-  color: var(--text-secondary);
-}
-
 .new-fab,
 .bottom-nav {
   display: none;
@@ -957,10 +928,6 @@ function goToSettings() {
 
   .app-main {
     padding: 1rem 1rem calc(10rem + env(safe-area-inset-bottom));
-  }
-
-  .section-header h2 {
-    font-size: 1.25rem;
   }
 
   .new-fab {

@@ -164,13 +164,3 @@ button {
   margin-bottom: 1rem;
   display: block;
 }
-
-.actions-cell {
-  display: flex;
-  gap: 0.5rem;
-  white-space: nowrap;
-}
-
-.actions-cell .btn {
-  width: 100%;
-}
