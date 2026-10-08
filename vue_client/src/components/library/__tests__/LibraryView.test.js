@@ -118,6 +118,11 @@ describe('LibraryView', () => {
     expect(shelfTitles(wrapper)).toEqual(['Story 13']);
   });
 
+  it('opens filtered to a character, as their sheet in Characters asks', () => {
+    const wrapper = mountLibrary({ initialFilter: { kind: 'character', id: 'rhee' } });
+    expect(shelfTitles(wrapper)).toEqual(['Chat with Captain Rhee', 'A Quiet Coup']);
+  });
+
   it('shows only chats, and remembers the choice', async () => {
     const wrapper = mountLibrary();
     const chats = wrapper.findAll('.segmented button').find((b) => b.text() === 'Chats');

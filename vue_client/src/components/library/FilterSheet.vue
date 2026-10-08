@@ -1,7 +1,7 @@
 <template>
   <BottomSheet labelledby="filter-sheet-title" @close="$emit('close')">
     <div class="filter-head">
-      <h2 id="filter-sheet-title">Filter the library</h2>
+      <h2 id="filter-sheet-title">{{ title }}</h2>
       <button type="button" class="icon-only" aria-label="Close" @click="$emit('close')">
         <i class="fas fa-xmark"></i>
       </button>
@@ -12,8 +12,8 @@
       v-model="query"
       type="search"
       class="filter-search"
-      placeholder="Search Continuities and characters"
-      aria-label="Search Continuities and characters"
+      :placeholder="placeholder"
+      :aria-label="placeholder"
     />
 
     <div class="filter-lists">
@@ -62,10 +62,13 @@ import BottomSheet from './BottomSheet.vue';
 import AvatarStack from './AvatarStack.vue';
 
 const props = defineProps({
-  // From libraryFilters(): every Continuity and character on the shelf, with counts
+  // From libraryFilters() or characterFilters(): every Continuity and character on the shelf,
+  // with counts
   continuities: { type: Array, default: () => [] },
   characters: { type: Array, default: () => [] },
-  charactersById: { type: Map, required: true },
+  charactersById: { type: Map, default: () => new Map() },
+  title: { type: String, default: 'Filter the library' },
+  placeholder: { type: String, default: 'Search Continuities and characters' },
   // The filter in use, {kind, id}, or null
   active: { type: Object, default: null },
 });

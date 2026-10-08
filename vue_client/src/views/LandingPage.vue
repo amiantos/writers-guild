@@ -17,20 +17,20 @@
         </nav>
         <h1 class="mobile-title">{{ activeSectionLabel }}</h1>
         <div class="header-actions">
-          <label v-if="activeSection === 'stories'" class="search search-inline">
+          <label v-if="onShelf" class="search search-inline">
             <i class="fas fa-magnifying-glass"></i>
             <input
-              v-model="libraryQuery"
+              v-model="searchQuery"
               type="search"
-              placeholder="Search stories"
-              aria-label="Search stories"
+              :placeholder="searchLabel"
+              :aria-label="searchLabel"
             />
           </label>
           <button
-            v-if="activeSection === 'stories'"
+            v-if="onShelf"
             type="button"
             class="icon-btn search-toggle"
-            :aria-label="searchOpen ? 'Close search' : 'Search stories'"
+            :aria-label="searchOpen ? 'Close search' : searchLabel"
             :aria-expanded="searchOpen"
             @click="toggleSearch"
           >
@@ -43,7 +43,7 @@
             <button
               v-if="chatsEnabled"
               type="button"
-              class="btn btn-secondary header-btn new-chat-btn"
+              class="btn btn-secondary header-btn header-secondary"
               @click="createNewChat"
             >
               <i class="fas fa-comment"></i> New chat
@@ -52,18 +52,30 @@
               <i class="fas fa-plus"></i> New story
             </button>
           </template>
+          <template v-else-if="activeSection === 'characters'">
+            <button
+              type="button"
+              class="btn btn-secondary header-btn header-secondary"
+              @click="showImportCharacterModal = true"
+            >
+              <i class="fas fa-download"></i> Import
+            </button>
+            <button type="button" class="btn btn-primary header-btn" @click="openNewSheet">
+              <i class="fas fa-plus"></i> New character
+            </button>
+          </template>
         </div>
       </div>
       <!-- Narrower screens search from a row under the bar -->
-      <div v-if="searchOpen && activeSection === 'stories'" class="search-row">
+      <div v-if="searchOpen && onShelf" class="search-row">
         <label class="search">
           <i class="fas fa-magnifying-glass"></i>
           <input
             ref="searchInput"
-            v-model="libraryQuery"
+            v-model="searchQuery"
             type="search"
-            placeholder="Search stories"
-            aria-label="Search stories"
+            :placeholder="searchLabel"
+            :aria-label="searchLabel"
           />
         </label>
       </div>
@@ -80,7 +92,8 @@
         :presets="presets"
         :default-preset-id="defaultPresetId"
         :chats-enabled="chatsEnabled"
-        :query="libraryQuery"
+        :query="queries.stories"
+        :initial-filter="libraryFilter"
         :loading="loadingStories || loadingCharacters"
         @open-story="openStory"
         @open-chat="openChat"
@@ -94,39 +107,26 @@
         @new-chat="createNewChat"
       />
 
-      <template v-else-if="activeSection === 'characters'">
-        <div class="section-header">
-          <h2><i class="fas fa-users"></i> Character Library</h2>
-          <div class="section-actions">
-            <button class="btn btn-primary" @click="showCreateCharacterModal = true">
-              <i class="fas fa-plus"></i> Create
-            </button>
-            <button class="btn btn-secondary" @click="showCharacterGeneratorModal = true">
-              <i class="fas fa-wand-magic-sparkles"></i> Generate
-            </button>
-            <button class="btn btn-secondary" @click="showImportCharacterModal = true">
-              <i class="fas fa-download"></i> Import
-            </button>
-          </div>
-        </div>
-
-        <div v-if="loadingCharacters" class="loading">Loading characters...</div>
-
-        <div v-else-if="characters.length === 0" class="empty-state">
-          <i class="fas fa-user"></i>
-          <p>No characters yet. Import a character to get started!</p>
-        </div>
-
-        <CharactersTable
-          v-else
-          :characters="characters"
-          :stories="stories"
-          @continue="showCharacterStories"
-          @new-story="createStoryWithCharacter"
-          @edit="editCharacter"
-          @delete="deleteCharacter"
-        />
-      </template>
+      <CharacterShelf
+        v-else-if="activeSection === 'characters'"
+        ref="characterShelf"
+        :characters="characters"
+        :stories="stories"
+        :chats="chats"
+        :continuities="continuities"
+        :chats-enabled="chatsEnabled"
+        :query="queries.characters"
+        :loading="loadingStories || loadingCharacters"
+        @new-story="createStoryWithCharacter"
+        @open-story="openStory"
+        @open-chat="openChat"
+        @edit="editCharacter"
+        @delete="deleteCharacter"
+        @show-in-library="showCharacterInLibrary"
+        @create="showCreateCharacterModal = true"
+        @generate="showCharacterGeneratorModal = true"
+        @import="showImportCharacterModal = true"
+      />
 
       <template v-else-if="activeSection === 'lorebooks'">
         <div class="section-header">
@@ -183,7 +183,7 @@
       </template>
     </main>
 
-    <button v-if="activeSection === 'stories'" type="button" class="new-fab" @click="openNewSheet">
+    <button v-if="onShelf" type="button" class="new-fab" @click="openNewSheet">
       <i class="fas fa-plus"></i> New
     </button>
 
@@ -199,17 +199,6 @@
         <span>{{ section.label }}</span>
       </button>
     </nav>
-
-    <!-- Character Stories Modal -->
-    <CharacterStoriesModal
-      v-if="showCharacterStoriesModal"
-      :character="selectedCharacter"
-      :stories="characterStoriesForModal"
-      :all-characters="characters"
-      @close="showCharacterStoriesModal = false"
-      @open-story="openStory"
-      @delete="deleteStory"
-    />
 
     <!-- Create Character Modal -->
     <CreateCharacterModal
@@ -286,10 +275,9 @@ import { useConfirm } from '../composables/useConfirm';
 import { useDataCache } from '../composables/useDataCache';
 import { useCharacterDeletion } from '../composables/useCharacterDeletion';
 import LibraryView from '../components/library/LibraryView.vue';
-import CharactersTable from '../components/CharactersTable.vue';
+import CharacterShelf from '../components/characters/CharacterShelf.vue';
 import LorebooksTable from '../components/LorebooksTable.vue';
 import PresetsTable from '../components/PresetsTable.vue';
-import CharacterStoriesModal from '../components/CharacterStoriesModal.vue';
 import CreateCharacterModal from '../components/CreateCharacterModal.vue';
 import ImportCharacterModal from '../components/ImportCharacterModal.vue';
 import CharacterGeneratorModal from '../components/CharacterGeneratorModal.vue';
@@ -327,10 +315,6 @@ const {
   setDefaultPresetIdLocally,
 } = useDataCache();
 
-// Character Stories Modal
-const showCharacterStoriesModal = ref(false);
-const selectedCharacter = ref(null);
-
 // Create/Import Character Modals
 const showCreateCharacterModal = ref(false);
 const showImportCharacterModal = ref(false);
@@ -345,15 +329,6 @@ const showPresetEditorModal = ref(false);
 const showProviderSelectionModal = ref(false);
 const editingPreset = ref(null);
 const selectedProvider = ref(null);
-
-const characterStoriesForModal = computed(() => {
-  if (!selectedCharacter.value) return [];
-  return stories.value.filter(
-    (story) =>
-      story.characterIds?.includes(selectedCharacter.value.id) ||
-      story.personaCharacterId === selectedCharacter.value.id,
-  );
-});
 
 // Chats are experimental: once they're turned on in Settings, they share the shelf with stories.
 const chatsEnabled = ref(false);
@@ -394,11 +369,24 @@ const activeSectionLabel = computed(
   () => sections.find((section) => section.key === activeSection.value)?.label,
 );
 
-// The library's search, in the header
+// The stories' and characters' shelves each keep their own search in the header, and their own
+// New sheet
 const library = ref(null);
-const libraryQuery = ref('');
+const characterShelf = ref(null);
+const queries = ref({ stories: '', characters: '' });
 const searchOpen = ref(false);
 const searchInput = ref(null);
+
+const onShelf = computed(() => activeSection.value in queries.value);
+const searchLabel = computed(() =>
+  activeSection.value === 'characters' ? 'Search characters' : 'Search stories',
+);
+const searchQuery = computed({
+  get: () => queries.value[activeSection.value] ?? '',
+  set: (value) => {
+    queries.value[activeSection.value] = value;
+  },
+});
 
 async function toggleSearch() {
   searchOpen.value = !searchOpen.value;
@@ -406,13 +394,26 @@ async function toggleSearch() {
     await nextTick();
     searchInput.value?.focus();
   } else {
-    libraryQuery.value = '';
+    searchQuery.value = '';
   }
 }
 
 function openNewSheet() {
-  library.value?.openNew();
+  (activeSection.value === 'characters' ? characterShelf : library).value?.openNew();
 }
+
+// A character's sheet opens all their stories and chats on the stories' shelf, filtered to them.
+const libraryFilter = ref(null);
+
+function showCharacterInLibrary(characterId) {
+  libraryFilter.value = { kind: 'character', id: characterId };
+  queries.value.stories = '';
+  activeSection.value = 'stories';
+}
+
+watch(activeSection, (section) => {
+  if (section !== 'stories') libraryFilter.value = null;
+});
 
 const chats = ref([]);
 const loadingChats = ref(false);
@@ -523,14 +524,6 @@ async function createStoryWithCharacter(characterId) {
   } catch (error) {
     console.error('Error creating story with character:', error);
     toast.error('Failed to create story');
-  }
-}
-
-function showCharacterStories(characterId) {
-  const character = characters.value.find((c) => c.id === characterId);
-  if (character) {
-    selectedCharacter.value = character;
-    showCharacterStoriesModal.value = true;
   }
 }
 
@@ -891,10 +884,11 @@ function goToSettings() {
   display: none;
 }
 
-/* Tablets and narrow windows: search folds into a button, and New chat into the New sheet */
+/* Tablets and narrow windows: search folds into a button, and New chat and Import into the New
+   sheets */
 @media (max-width: 1279px) {
   .search-inline,
-  .new-chat-btn {
+  .header-secondary {
     display: none;
   }
 
