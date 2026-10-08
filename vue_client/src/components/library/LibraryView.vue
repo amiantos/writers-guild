@@ -269,6 +269,8 @@ const props = defineProps({
   chatsEnabled: { type: Boolean, default: false },
   // The header's search text
   query: { type: String, default: '' },
+  // The filter to open on, {kind, id}, such as a character's from their sheet
+  initialFilter: { type: Object, default: null },
   loading: { type: Boolean, default: false },
 });
 
@@ -299,7 +301,7 @@ function readPrefs() {
 const prefs = readPrefs();
 const sort = ref(LIBRARY_SORTS.some((s) => s.key === prefs.sort) ? prefs.sort : 'modified');
 const type = ref(LIBRARY_TYPES.some((t) => t.key === prefs.type) ? prefs.type : 'all');
-const filter = ref(null);
+const filter = ref(props.initialFilter);
 const menuItem = ref(null);
 const showNew = ref(false);
 const showFilters = ref(false);
@@ -481,17 +483,13 @@ function runItemAction(action) {
 defineExpose({ openNew });
 </script>
 
+<style scoped src="./shelf.css"></style>
+
 <style scoped>
 .library {
   display: flex;
   flex-direction: column;
   gap: 3rem;
-}
-
-.loading {
-  text-align: center;
-  padding: 2rem;
-  color: var(--text-secondary);
 }
 
 .eyebrow {
@@ -742,43 +740,6 @@ defineExpose({ openNew });
   font-size: 1.125rem;
 }
 
-/* The shelf */
-.shelf {
-  display: flex;
-  flex-direction: column;
-  gap: 1.125rem;
-}
-
-.shelf-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px 24px;
-}
-
-.shelf-header h2 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.625rem;
-  line-height: 1.2;
-  font-weight: 600;
-}
-
-.shelf-count {
-  font-family: var(--font-ui);
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.shelf-controls {
-  margin-left: auto;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-}
-
 .segmented {
   display: flex;
   padding: 3px;
@@ -804,157 +765,6 @@ defineExpose({ openNew });
   font-weight: 600;
 }
 
-.sort {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-
-.sort select {
-  height: 40px;
-  padding: 0 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.875rem;
-}
-
-.chips {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  /* Sized to the chips rather than the viewport, so ScrollShadows notices when they change */
-  width: max-content;
-}
-
-.chip-more {
-  gap: 6px;
-  color: var(--text-secondary);
-}
-
-.chip {
-  --stack-ring: var(--bg-primary);
-  height: 40px;
-  padding: 0 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 0.875rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-  flex: none;
-}
-
-.chip:has(.chip-swatch) {
-  padding-left: 10px;
-  padding-right: 14px;
-}
-
-.chip-character {
-  padding: 0 14px 0 5px;
-}
-
-.chip[aria-pressed='true'] {
-  border-color: var(--accent-primary);
-  background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
-  font-weight: 600;
-}
-
-.chip-swatch {
-  width: 16px;
-  height: 22px;
-  flex: none;
-  border-radius: 3px;
-  box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.25);
-}
-
-.chip-continuity {
-  font-family: var(--font-display);
-  font-style: italic;
-}
-
-.chip-count {
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  font-weight: 400;
-}
-
-.chip-divider {
-  width: 1px;
-  height: 24px;
-  margin: 0 4px;
-  background: var(--border-color);
-  flex: none;
-}
-
-.shelf-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(170px, calc(50% - 10px)), 1fr));
-  gap: 2rem 1.25rem;
-  margin-top: 0.5rem;
-}
-
-.new-tile {
-  aspect-ratio: 2 / 3;
-  box-sizing: border-box;
-  padding: 1rem;
-  border: 2px dashed var(--border-color);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  text-align: center;
-}
-
-.new-tile:hover {
-  border-color: var(--accent-primary);
-}
-
-.new-tile-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.25rem;
-}
-
-.new-tile-title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.new-tile-sub {
-  font-size: 0.8125rem;
-}
-
-.no-match {
-  color: var(--text-secondary);
-}
-
-.link-btn {
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--accent-primary);
-  font-weight: 600;
-}
-
 /* Tablets and narrow windows: recent setups stay in the New sheet */
 @media (max-width: 1279px) {
   .setups {
@@ -976,40 +786,8 @@ defineExpose({ openNew });
     display: flex;
   }
 
-  .shelf-header h2 {
-    font-size: 1.25rem;
-  }
-
-  .shelf-controls {
-    margin-left: 0;
-    width: 100%;
-    flex-wrap: nowrap;
-    justify-content: space-between;
-  }
-
   .segmented button {
     padding: 0 11px;
-  }
-
-  .sort-label {
-    display: none;
-  }
-
-  .chips-scroll {
-    margin: 0 -1rem;
-  }
-
-  .chips {
-    padding: 0 1rem;
-  }
-
-  .shelf-grid {
-    gap: 1.5rem 0.875rem;
-  }
-
-  /* The New button floats over the shelf instead */
-  .new-tile {
-    display: none;
   }
 }
 </style>

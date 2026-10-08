@@ -1,7 +1,7 @@
 <template>
   <BottomSheet labelledby="filter-sheet-title" @close="$emit('close')">
     <div class="filter-head">
-      <h2 id="filter-sheet-title">Filter the library</h2>
+      <h2 id="filter-sheet-title">{{ title }}</h2>
       <button type="button" class="icon-only" aria-label="Close" @click="$emit('close')">
         <i class="fas fa-xmark"></i>
       </button>
@@ -12,8 +12,8 @@
       v-model="query"
       type="search"
       class="filter-search"
-      placeholder="Search Continuities and characters"
-      aria-label="Search Continuities and characters"
+      :placeholder="placeholder"
+      :aria-label="placeholder"
     />
 
     <div class="filter-lists">
@@ -49,7 +49,26 @@
         </button>
       </template>
 
-      <p v-if="!matchingContinuities.length && !matchingCharacters.length" class="no-match">
+      <template v-if="matchingTags.length">
+        <h3>Tags</h3>
+        <button
+          v-for="tag in matchingTags"
+          :key="tag.id"
+          type="button"
+          class="filter-row"
+          :aria-pressed="isActive('tag', tag.id)"
+          @click="$emit('pick', { kind: 'tag', id: tag.id })"
+        >
+          <span class="tag-icon"><i class="fas fa-tag"></i></span>
+          <span class="row-name">{{ tag.name }}</span>
+          <span class="row-count">{{ tag.count }}</span>
+        </button>
+      </template>
+
+      <p
+        v-if="!matchingContinuities.length && !matchingCharacters.length && !matchingTags.length"
+        class="no-match"
+      >
         Nothing matches.
       </p>
     </div>
@@ -62,10 +81,14 @@ import BottomSheet from './BottomSheet.vue';
 import AvatarStack from './AvatarStack.vue';
 
 const props = defineProps({
-  // From libraryFilters(): every Continuity and character on the shelf, with counts
+  // From libraryFilters() or characterFilters(): every Continuity, character and tag on the
+  // shelf, with counts
   continuities: { type: Array, default: () => [] },
   characters: { type: Array, default: () => [] },
-  charactersById: { type: Map, required: true },
+  tags: { type: Array, default: () => [] },
+  charactersById: { type: Map, default: () => new Map() },
+  title: { type: String, default: 'Filter the library' },
+  placeholder: { type: String, default: 'Search Continuities and characters' },
   // The filter in use, {kind, id}, or null
   active: { type: Object, default: null },
 });
@@ -85,6 +108,7 @@ const matchingContinuities = computed(() =>
 const matchingCharacters = computed(() =>
   props.characters.filter((c) => matches(c.name)).toSorted(byName),
 );
+const matchingTags = computed(() => props.tags.filter((t) => matches(t.name)).toSorted(byName));
 
 function isActive(kind, id) {
   return props.active?.kind === kind && props.active.id === id;
@@ -179,6 +203,13 @@ h3 {
   flex: none;
   border-radius: 3px;
   box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.25);
+}
+
+.tag-icon {
+  width: 32px;
+  flex: none;
+  text-align: center;
+  color: var(--text-secondary);
 }
 
 .row-name {
