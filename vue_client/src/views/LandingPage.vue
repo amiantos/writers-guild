@@ -64,6 +64,18 @@
               <i class="fas fa-plus"></i> New character
             </button>
           </template>
+          <template v-else-if="activeSection === 'lorebooks'">
+            <button
+              type="button"
+              class="btn btn-secondary header-btn header-secondary"
+              @click="showImportLorebookModal = true"
+            >
+              <i class="fas fa-download"></i> Import
+            </button>
+            <button type="button" class="btn btn-primary header-btn" @click="openNewSheet">
+              <i class="fas fa-plus"></i> New lorebook
+            </button>
+          </template>
         </div>
       </div>
       <!-- Narrower screens search from a row under the bar -->
@@ -128,33 +140,21 @@
         @import="showImportCharacterModal = true"
       />
 
-      <template v-else-if="activeSection === 'lorebooks'">
-        <div class="section-header">
-          <h2><i class="fas fa-book-open"></i> Lorebook Library</h2>
-          <div class="section-actions">
-            <button class="btn btn-primary" @click="showCreateLorebookModal = true">
-              <i class="fas fa-plus"></i> Create
-            </button>
-            <button class="btn btn-secondary" @click="showImportLorebookModal = true">
-              <i class="fas fa-download"></i> Import
-            </button>
-          </div>
-        </div>
-
-        <div v-if="loadingLorebooks" class="loading">Loading lorebooks...</div>
-
-        <div v-else-if="lorebooks.length === 0" class="empty-state">
-          <i class="fas fa-book-open"></i>
-          <p>No lorebooks yet. Create a lorebook to get started!</p>
-        </div>
-
-        <LorebooksTable
-          v-else
-          :lorebooks="lorebooks"
-          @edit="editLorebook"
-          @delete="deleteLorebook"
-        />
-      </template>
+      <LorebookShelf
+        v-else-if="activeSection === 'lorebooks'"
+        ref="lorebookShelf"
+        :lorebooks="lorebooks"
+        :stories="stories"
+        :characters="characters"
+        :continuities="continuities"
+        :query="queries.lorebooks"
+        :loading="loadingLorebooks || loadingStories"
+        @edit="editLorebook"
+        @open-story="openStory"
+        @delete="deleteLorebook"
+        @create="showCreateLorebookModal = true"
+        @import="showImportLorebookModal = true"
+      />
 
       <template v-else-if="activeSection === 'presets'">
         <div class="section-header">
@@ -274,9 +274,10 @@ import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 import { useDataCache } from '../composables/useDataCache';
 import { useCharacterDeletion } from '../composables/useCharacterDeletion';
+import { buildLorebookDeleteMessage } from '../composables/lorebooks';
 import LibraryView from '../components/library/LibraryView.vue';
 import CharacterShelf from '../components/characters/CharacterShelf.vue';
-import LorebooksTable from '../components/LorebooksTable.vue';
+import LorebookShelf from '../components/lorebooks/LorebookShelf.vue';
 import PresetsTable from '../components/PresetsTable.vue';
 import CreateCharacterModal from '../components/CreateCharacterModal.vue';
 import ImportCharacterModal from '../components/ImportCharacterModal.vue';
@@ -369,18 +370,18 @@ const activeSectionLabel = computed(
   () => sections.find((section) => section.key === activeSection.value)?.label,
 );
 
-// The stories' and characters' shelves each keep their own search in the header, and their own
-// New sheet
+// The stories', characters' and lorebooks' shelves each keep their own search in the header, and
+// their own New sheet
 const library = ref(null);
 const characterShelf = ref(null);
-const queries = ref({ stories: '', characters: '' });
+const lorebookShelf = ref(null);
+const shelves = { stories: library, characters: characterShelf, lorebooks: lorebookShelf };
+const queries = ref({ stories: '', characters: '', lorebooks: '' });
 const searchOpen = ref(false);
 const searchInput = ref(null);
 
 const onShelf = computed(() => activeSection.value in queries.value);
-const searchLabel = computed(() =>
-  activeSection.value === 'characters' ? 'Search characters' : 'Search stories',
-);
+const searchLabel = computed(() => `Search ${activeSection.value}`);
 const searchQuery = computed({
   get: () => queries.value[activeSection.value] ?? '',
   set: (value) => {
@@ -399,7 +400,7 @@ async function toggleSearch() {
 }
 
 function openNewSheet() {
-  (activeSection.value === 'characters' ? characterShelf : library).value?.openNew();
+  shelves[activeSection.value]?.value?.openNew();
 }
 
 // A character's sheet opens all their stories and chats on the stories' shelf, filtered to them.
@@ -588,7 +589,7 @@ async function deleteStory(story) {
 
 async function deleteLorebook(lorebook) {
   const confirmed = await confirm({
-    message: `Delete lorebook "${lorebook.name}"?\n\nThis cannot be undone.`,
+    message: buildLorebookDeleteMessage(lorebook),
     confirmText: 'Delete Lorebook',
     variant: 'danger',
   });

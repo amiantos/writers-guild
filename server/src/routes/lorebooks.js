@@ -94,10 +94,19 @@ router.get(
       }
     }
 
+    // The stories each lorebook is attached to, grouped the same way
+    const storyIdsByLorebook = new Map();
+    for (const { storyId, lorebookId } of storage.listStoryLorebookLinks()) {
+      const existing = storyIdsByLorebook.get(lorebookId);
+      if (existing) existing.push(storyId);
+      else storyIdsByLorebook.set(lorebookId, [storyId]);
+    }
+
     res.json({
       lorebooks: lorebooks.map((lorebook) => ({
         ...lorebook,
         characters: charactersByLorebook.get(lorebook.id) ?? [],
+        storyIds: storyIdsByLorebook.get(lorebook.id) ?? [],
       })),
     });
   }),
