@@ -1,184 +1,204 @@
 <template>
   <div class="landing-wrapper">
     <header class="app-header">
-      <h1>Writers Guild</h1>
-      <button class="settings-btn" @click="goToSettings" title="Settings">
-        <i class="fas fa-cog"></i>
-      </button>
+      <div class="header-inner">
+        <h1 class="brand">Writers Guild</h1>
+        <nav class="section-nav" aria-label="Sections">
+          <button
+            v-for="section in sections"
+            :key="section.key"
+            type="button"
+            class="section-link"
+            :aria-current="activeSection === section.key ? 'page' : undefined"
+            @click="activeSection = section.key"
+          >
+            {{ section.label }}
+          </button>
+        </nav>
+        <h1 class="mobile-title">{{ activeSectionLabel }}</h1>
+        <div class="header-actions">
+          <label v-if="activeSection === 'stories'" class="search search-inline">
+            <i class="fas fa-magnifying-glass"></i>
+            <input
+              v-model="libraryQuery"
+              type="search"
+              placeholder="Search stories"
+              aria-label="Search stories"
+            />
+          </label>
+          <button
+            v-if="activeSection === 'stories'"
+            type="button"
+            class="icon-btn search-toggle"
+            :aria-label="searchOpen ? 'Close search' : 'Search stories'"
+            :aria-expanded="searchOpen"
+            @click="toggleSearch"
+          >
+            <i :class="searchOpen ? 'fas fa-xmark' : 'fas fa-magnifying-glass'"></i>
+          </button>
+          <button type="button" class="icon-btn" aria-label="Settings" @click="goToSettings">
+            <i class="fas fa-cog"></i>
+          </button>
+          <template v-if="activeSection === 'stories'">
+            <button
+              v-if="chatsEnabled"
+              type="button"
+              class="btn btn-secondary header-btn new-chat-btn"
+              @click="createNewChat"
+            >
+              <i class="fas fa-comment"></i> New chat
+            </button>
+            <button type="button" class="btn btn-primary header-btn" @click="openNewSheet">
+              <i class="fas fa-plus"></i> New story
+            </button>
+          </template>
+        </div>
+      </div>
+      <!-- Narrower screens search from a row under the bar -->
+      <div v-if="searchOpen && activeSection === 'stories'" class="search-row">
+        <label class="search">
+          <i class="fas fa-magnifying-glass"></i>
+          <input
+            ref="searchInput"
+            v-model="libraryQuery"
+            type="search"
+            placeholder="Search stories"
+            aria-label="Search stories"
+          />
+        </label>
+      </div>
     </header>
 
     <main class="app-main">
-      <div class="landing-page">
-        <!-- Quick Access Section -->
-        <div
-          v-if="!loadingStories && !loadingCharacters && recentCharacters.length > 0"
-          class="quick-access-section"
-        >
-          <ScrollShadows hide-scrollbar edge="fade">
-            <div class="quick-access-row">
-              <div
-                v-for="character in recentCharacters"
-                :key="character.id"
-                class="quick-access-character"
-              >
-                <CharacterCard :character="character" />
-                <button
-                  class="btn btn-small btn-primary quick-continue-btn"
-                  @click="showCharacterStories(character.id)"
-                >
-                  <i class="fas fa-play"></i> Continue
-                </button>
-              </div>
-            </div>
-          </ScrollShadows>
+      <LibraryView
+        v-if="activeSection === 'stories'"
+        ref="library"
+        :stories="stories"
+        :chats="chats"
+        :characters="characters"
+        :continuities="continuities"
+        :presets="presets"
+        :default-preset-id="defaultPresetId"
+        :chats-enabled="chatsEnabled"
+        :query="libraryQuery"
+        :loading="loadingStories || loadingCharacters"
+        @open-story="openStory"
+        @open-chat="openChat"
+        @edit-story="editStory"
+        @new-from="startNewStory"
+        @duplicate="duplicateStory"
+        @delete-story="deleteStory"
+        @delete-chat="deleteChat"
+        @new-blank="createNewStory"
+        @new-with-character="createStoryWithCharacter"
+        @new-chat="createNewChat"
+      />
+
+      <template v-else-if="activeSection === 'characters'">
+        <div class="section-header">
+          <h2><i class="fas fa-users"></i> Character Library</h2>
+          <div class="section-actions">
+            <button class="btn btn-primary" @click="showCreateCharacterModal = true">
+              <i class="fas fa-plus"></i> Create
+            </button>
+            <button class="btn btn-secondary" @click="showCharacterGeneratorModal = true">
+              <i class="fas fa-wand-magic-sparkles"></i> Generate
+            </button>
+            <button class="btn btn-secondary" @click="showImportCharacterModal = true">
+              <i class="fas fa-download"></i> Import
+            </button>
+          </div>
         </div>
 
-        <Tabs v-model="activeTab" :tabs="tabs">
-          <!-- Stories Tab -->
-          <template #tab-stories>
-            <div class="section-header">
-              <h2><i class="fas fa-book"></i> All Stories</h2>
-              <button class="btn btn-primary" @click="createNewStory">
-                <i class="fas fa-plus"></i> New Story
-              </button>
-            </div>
+        <div v-if="loadingCharacters" class="loading">Loading characters...</div>
 
-            <div v-if="loadingStories" class="loading">Loading stories...</div>
+        <div v-else-if="characters.length === 0" class="empty-state">
+          <i class="fas fa-user"></i>
+          <p>No characters yet. Import a character to get started!</p>
+        </div>
 
-            <div v-else-if="stories.length === 0" class="empty-state">
-              <i class="fas fa-book"></i>
-              <p>No stories yet. Create your first story to get started!</p>
-            </div>
+        <CharactersTable
+          v-else
+          :characters="characters"
+          :stories="stories"
+          @continue="showCharacterStories"
+          @new-story="createStoryWithCharacter"
+          @edit="editCharacter"
+          @delete="deleteCharacter"
+        />
+      </template>
 
-            <StoriesTable
-              v-else
-              :stories="stories"
-              :characters="characters"
-              @open="openStory"
-              @new-from="startNewStory"
-              @duplicate="duplicateStory"
-              @delete="deleteStory"
-            />
-          </template>
+      <template v-else-if="activeSection === 'lorebooks'">
+        <div class="section-header">
+          <h2><i class="fas fa-book-open"></i> Lorebook Library</h2>
+          <div class="section-actions">
+            <button class="btn btn-primary" @click="showCreateLorebookModal = true">
+              <i class="fas fa-plus"></i> Create
+            </button>
+            <button class="btn btn-secondary" @click="showImportLorebookModal = true">
+              <i class="fas fa-download"></i> Import
+            </button>
+          </div>
+        </div>
 
-          <!-- Chats Tab (experimental, turned on in Settings) -->
-          <template #tab-chats>
-            <div class="section-header">
-              <h2><i class="fas fa-comments"></i> All Chats</h2>
-              <button class="btn btn-primary" @click="createNewChat">
-                <i class="fas fa-plus"></i> New Chat
-              </button>
-            </div>
+        <div v-if="loadingLorebooks" class="loading">Loading lorebooks...</div>
 
-            <div v-if="loadingChats" class="loading">Loading chats...</div>
+        <div v-else-if="lorebooks.length === 0" class="empty-state">
+          <i class="fas fa-book-open"></i>
+          <p>No lorebooks yet. Create a lorebook to get started!</p>
+        </div>
 
-            <div v-else-if="chats.length === 0" class="empty-state">
-              <i class="fas fa-comments"></i>
-              <p>No chats yet. Start a chat to text with your characters!</p>
-            </div>
+        <LorebooksTable
+          v-else
+          :lorebooks="lorebooks"
+          @edit="editLorebook"
+          @delete="deleteLorebook"
+        />
+      </template>
 
-            <ChatsTable
-              v-else
-              :chats="chats"
-              :characters="characters"
-              @open="openChat"
-              @delete="deleteChat"
-            />
-          </template>
+      <template v-else-if="activeSection === 'presets'">
+        <div class="section-header">
+          <h2><i class="fas fa-sliders"></i> Configuration Presets</h2>
+          <button class="btn btn-primary" @click="createNewPreset">
+            <i class="fas fa-plus"></i> New Preset
+          </button>
+        </div>
 
-          <!-- Characters Tab -->
-          <template #tab-characters>
-            <div class="section-header">
-              <h2><i class="fas fa-users"></i> Character Library</h2>
-              <div class="header-actions">
-                <button class="btn btn-primary" @click="showCreateCharacterModal = true">
-                  <i class="fas fa-plus"></i> Create
-                </button>
-                <button class="btn btn-secondary" @click="showCharacterGeneratorModal = true">
-                  <i class="fas fa-wand-magic-sparkles"></i> Generate
-                </button>
-                <button class="btn btn-secondary" @click="showImportCharacterModal = true">
-                  <i class="fas fa-download"></i> Import
-                </button>
-              </div>
-            </div>
+        <div v-if="loadingPresets" class="loading">Loading presets...</div>
 
-            <div v-if="loadingCharacters" class="loading">Loading characters...</div>
+        <div v-else-if="presets.length === 0" class="empty-state">
+          <i class="fas fa-sliders"></i>
+          <p>No presets yet. Create a preset to get started!</p>
+        </div>
 
-            <div v-else-if="characters.length === 0" class="empty-state">
-              <i class="fas fa-user"></i>
-              <p>No characters yet. Import a character to get started!</p>
-            </div>
-
-            <CharactersTable
-              v-else
-              :characters="characters"
-              :stories="stories"
-              @continue="showCharacterStories"
-              @new-story="createStoryWithCharacter"
-              @edit="editCharacter"
-              @delete="deleteCharacter"
-            />
-          </template>
-
-          <!-- Lorebooks Tab -->
-          <template #tab-lorebooks>
-            <div class="section-header">
-              <h2><i class="fas fa-book-open"></i> Lorebook Library</h2>
-              <div class="header-actions">
-                <button class="btn btn-primary" @click="showCreateLorebookModal = true">
-                  <i class="fas fa-plus"></i> Create
-                </button>
-                <button class="btn btn-secondary" @click="showImportLorebookModal = true">
-                  <i class="fas fa-download"></i> Import
-                </button>
-              </div>
-            </div>
-
-            <div v-if="loadingLorebooks" class="loading">Loading lorebooks...</div>
-
-            <div v-else-if="lorebooks.length === 0" class="empty-state">
-              <i class="fas fa-book-open"></i>
-              <p>No lorebooks yet. Create a lorebook to get started!</p>
-            </div>
-
-            <LorebooksTable
-              v-else
-              :lorebooks="lorebooks"
-              @edit="editLorebook"
-              @delete="deleteLorebook"
-            />
-          </template>
-
-          <!-- Presets Tab -->
-          <template #tab-presets>
-            <div class="section-header">
-              <h2><i class="fas fa-sliders"></i> Configuration Presets</h2>
-              <button class="btn btn-primary" @click="createNewPreset">
-                <i class="fas fa-plus"></i> New Preset
-              </button>
-            </div>
-
-            <div v-if="loadingPresets" class="loading">Loading presets...</div>
-
-            <div v-else-if="presets.length === 0" class="empty-state">
-              <i class="fas fa-sliders"></i>
-              <p>No presets yet. Create a preset to get started!</p>
-            </div>
-
-            <PresetsTable
-              v-else
-              :presets="presets"
-              :default-preset-id="defaultPresetId"
-              @edit="editPreset"
-              @duplicate="duplicatePreset"
-              @delete="deletePreset"
-              @set-default="setDefaultPreset"
-            />
-          </template>
-        </Tabs>
-      </div>
+        <PresetsTable
+          v-else
+          :presets="presets"
+          :default-preset-id="defaultPresetId"
+          @edit="editPreset"
+          @duplicate="duplicatePreset"
+          @delete="deletePreset"
+          @set-default="setDefaultPreset"
+        />
+      </template>
     </main>
+
+    <button v-if="activeSection === 'stories'" type="button" class="new-fab" @click="openNewSheet">
+      <i class="fas fa-plus"></i> New
+    </button>
+
+    <nav class="bottom-nav" aria-label="Sections">
+      <button
+        v-for="section in sections"
+        :key="section.key"
+        type="button"
+        :aria-current="activeSection === section.key ? 'page' : undefined"
+        @click="activeSection = section.key"
+      >
+        <i :class="section.icon"></i>
+        <span>{{ section.label }}</span>
+      </button>
+    </nav>
 
     <!-- Character Stories Modal -->
     <CharacterStoriesModal
@@ -251,21 +271,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
-import { storiesAPI, charactersAPI, lorebooksAPI, presetsAPI, settingsAPI } from '../services/api';
+import {
+  storiesAPI,
+  charactersAPI,
+  lorebooksAPI,
+  presetsAPI,
+  settingsAPI,
+  continuitiesAPI,
+} from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useConfirm } from '../composables/useConfirm';
 import { useDataCache } from '../composables/useDataCache';
 import { useCharacterDeletion } from '../composables/useCharacterDeletion';
-import Tabs from '../components/Tabs.vue';
-import StoriesTable from '../components/StoriesTable.vue';
+import LibraryView from '../components/library/LibraryView.vue';
 import CharactersTable from '../components/CharactersTable.vue';
-import CharacterCard from '../components/CharacterCard.vue';
 import LorebooksTable from '../components/LorebooksTable.vue';
 import PresetsTable from '../components/PresetsTable.vue';
 import CharacterStoriesModal from '../components/CharacterStoriesModal.vue';
-import ScrollShadows from '../components/ScrollShadows.vue';
 import CreateCharacterModal from '../components/CreateCharacterModal.vue';
 import ImportCharacterModal from '../components/ImportCharacterModal.vue';
 import CharacterGeneratorModal from '../components/CharacterGeneratorModal.vue';
@@ -273,7 +297,6 @@ import CreateLorebookModal from '../components/CreateLorebookModal.vue';
 import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
 import ProviderSelectionModal from '../components/ProviderSelectionModal.vue';
-import ChatsTable from '../components/chat/ChatsTable.vue';
 import { chatsAPI } from '../services/chatsApi';
 
 const router = useRouter();
@@ -332,52 +355,79 @@ const characterStoriesForModal = computed(() => {
   );
 });
 
-// Get characters from recently modified stories for quick access
-const recentCharacters = computed(() => {
-  // Get the last 15 recently modified stories
-  const recentStories = stories.value.slice(0, 15);
-
-  // Extract all character IDs from these stories (excluding persona-only characters)
-  const characterIds = new Set();
-  recentStories.forEach((story) => {
-    // Only add characters from characterIds array (not persona characters)
-    if (story.characterIds) {
-      story.characterIds.forEach((id) => characterIds.add(id));
-    }
-  });
-
-  // Map to full character objects and filter out any that don't exist
-  return Array.from(characterIds)
-    .map((id) => characters.value.find((c) => c.id === id))
-    .filter((char) => char != null);
-});
-
-// Chats are experimental: their tab shows once they're turned on in Settings.
+// Chats are experimental: once they're turned on in Settings, they share the shelf with stories.
 const chatsEnabled = ref(false);
 
-// Tabs configuration
-const tabs = computed(() => [
+const sections = [
   { key: 'stories', label: 'Stories', icon: 'fas fa-book' },
-  ...(chatsEnabled.value ? [{ key: 'chats', label: 'Chats', icon: 'fas fa-comments' }] : []),
   { key: 'characters', label: 'Characters', icon: 'fas fa-users' },
   { key: 'lorebooks', label: 'Lorebooks', icon: 'fas fa-book-open' },
   { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' },
-]);
+];
 
-// Active tab with localStorage persistence
+// Active section, remembered per browser. One that no longer exists, such as Chats or Bureaus,
+// falls back to Stories.
 const STORAGE_KEY = 'writers-guild-active-tab';
-const savedTab = localStorage.getItem(STORAGE_KEY) || 'stories';
-// Experimental tabs wait for settings to load before they can be shown, and a tab that no longer
-// exists, such as Bureaus, falls back to Stories.
-const activeTab = ref(tabs.value.some((tab) => tab.key === savedTab) ? savedTab : 'stories');
 
-// Save active tab to localStorage when it changes
-watch(activeTab, (newTab) => {
-  localStorage.setItem(STORAGE_KEY, newTab);
+function readSavedSection() {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+const savedSection = readSavedSection();
+const activeSection = ref(
+  sections.some((section) => section.key === savedSection) ? savedSection : 'stories',
+);
+
+watch(activeSection, (section) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, section);
+  } catch {
+    // Storage unavailable: the section lasts until reload.
+  }
 });
+
+const activeSectionLabel = computed(
+  () => sections.find((section) => section.key === activeSection.value)?.label,
+);
+
+// The library's search, in the header
+const library = ref(null);
+const libraryQuery = ref('');
+const searchOpen = ref(false);
+const searchInput = ref(null);
+
+async function toggleSearch() {
+  searchOpen.value = !searchOpen.value;
+  if (searchOpen.value) {
+    await nextTick();
+    searchInput.value?.focus();
+  } else {
+    libraryQuery.value = '';
+  }
+}
+
+function openNewSheet() {
+  library.value?.openNew();
+}
 
 const chats = ref([]);
 const loadingChats = ref(false);
+
+// Continuities name and color the cards that use them.
+const continuities = ref([]);
+
+async function loadContinuities() {
+  try {
+    const { continuities: list } = await continuitiesAPI.list();
+    continuities.value = list;
+  } catch (error) {
+    console.error('Error loading continuities:', error);
+  }
+}
 
 async function loadExperimentalFeatures() {
   try {
@@ -385,10 +435,6 @@ async function loadExperimentalFeatures() {
     chatsEnabled.value = Boolean(settings?.experimentalChats);
   } catch (error) {
     console.error('Failed to load settings:', error);
-  }
-  const savedTabEnabled = savedTab === 'chats' && chatsEnabled.value;
-  if (savedTabEnabled && activeTab.value === 'stories') {
-    activeTab.value = savedTab;
   }
   if (chatsEnabled.value) await loadChats();
 }
@@ -441,7 +487,7 @@ async function deleteChat(chat) {
 
 onMounted(async () => {
   // Load all data using cache - will skip API calls if data is fresh
-  await Promise.all([loadAll(), loadExperimentalFeatures()]);
+  await Promise.all([loadAll(), loadExperimentalFeatures(), loadContinuities()]);
 });
 
 async function createNewStory() {
@@ -490,6 +536,11 @@ function showCharacterStories(characterId) {
 
 function openStory(storyId) {
   router.push({ name: 'story', params: { storyId } });
+}
+
+/** Open a story on its Edit Story modal. */
+function editStory(storyId) {
+  router.push({ name: 'story', params: { storyId }, query: { edit: '1' } });
 }
 
 function editCharacter(characterId) {
@@ -564,8 +615,8 @@ async function deleteLorebook(lorebook) {
 async function handleCharacterCreated(character) {
   // Force reload characters to include the new one
   await loadCharacters(true);
-  // Switch to characters tab if not already there
-  activeTab.value = 'characters';
+  // Switch to the characters section if not already there
+  activeSection.value = 'characters';
 }
 
 async function handleCharacterImported(character) {
@@ -573,8 +624,8 @@ async function handleCharacterImported(character) {
   await loadCharacters(true);
   // Also force reload lorebooks in case character had embedded lorebook
   await loadLorebooks(true);
-  // Switch to characters tab if not already there
-  activeTab.value = 'characters';
+  // Switch to the characters section if not already there
+  activeSection.value = 'characters';
 }
 
 async function handleLorebookCreated(lorebook) {
@@ -586,8 +637,8 @@ async function handleLorebookCreated(lorebook) {
 async function handleLorebookImported(lorebook) {
   // Force reload lorebooks to include the imported one
   await loadLorebooks(true);
-  // Switch to lorebooks tab if not already there
-  activeTab.value = 'lorebooks';
+  // Switch to the lorebooks section if not already there
+  activeSection.value = 'lorebooks';
 }
 
 function createNewPreset() {
@@ -688,59 +739,130 @@ function goToSettings() {
 .app-header {
   background-color: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
-  padding: 1rem 1.5rem;
   box-shadow: var(--shadow);
   position: sticky;
   top: 0;
   z-index: 200;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
-.app-header h1 {
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.75rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.brand {
+  flex: none;
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--primary-color);
 }
 
-.settings-btn {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 1.25rem;
-  cursor: pointer;
-  padding: 0.5rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
+.mobile-title {
+  display: none;
 }
 
-.settings-btn:hover {
+.section-nav {
+  flex: none;
+  display: flex;
+  gap: 4px;
+}
+
+.section-link {
+  padding: 0.625rem 0.875rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.section-link:hover {
   color: var(--text-primary);
-  background-color: var(--bg-secondary);
+}
+
+.section-link[aria-current='page'] {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.header-actions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.search {
+  flex: 0 1 240px;
+  min-width: 140px;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.search:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.search-toggle,
+.search-row {
+  display: none !important;
+}
+
+.header-btn {
+  flex: none;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .app-main {
-  padding: 2rem;
+  padding: 2.5rem 2rem 4rem;
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
-}
-
-.landing-page {
-  /* No additional styles needed */
+  box-sizing: border-box;
 }
 
 .section-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
@@ -752,8 +874,9 @@ function goToSettings() {
   gap: 0.5rem;
 }
 
-.header-actions {
+.section-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -763,38 +886,141 @@ function goToSettings() {
   color: var(--text-secondary);
 }
 
-/* Quick Access Section */
-.quick-access-section {
-  margin-bottom: 2rem;
-  background-color: var(--bg-secondary);
-  border-radius: 8px;
-  padding: 1.25rem;
-  border: 1px solid var(--border-color);
+.new-fab,
+.bottom-nav {
+  display: none;
 }
 
-.quick-access-row {
-  display: flex;
-  gap: 1rem;
-  /* Size to the cards rather than the viewport, so ScrollShadows' resize
-     observer notices when cards are added or removed. */
-  width: max-content;
+/* Tablets and narrow windows: search folds into a button, and New chat into the New sheet */
+@media (max-width: 1279px) {
+  .search-inline,
+  .new-chat-btn {
+    display: none;
+  }
+
+  .search-toggle {
+    display: flex !important;
+  }
+
+  .header-inner {
+    padding: 0.75rem 1.25rem;
+    gap: 1rem;
+  }
+
+  .search-row {
+    display: block !important;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1.25rem 0.75rem;
+  }
+
+  .app-main {
+    padding: 2rem 1.25rem 4rem;
+  }
+
+  .search-row .search {
+    width: 100%;
+  }
 }
 
-.quick-access-character {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 210px;
-}
+/* Phones and tablets in portrait: sections move to a tab bar, and New floats over the shelf */
+@media (max-width: 900px) {
+  .header-inner {
+    padding: 0.5rem 0.5rem 0.5rem 1rem;
+    gap: 0.5rem;
+  }
 
-.quick-continue-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  font-size: 0.875rem;
-  padding: 0.5rem 0.75rem;
+  .brand,
+  .section-nav,
+  .header-btn {
+    display: none;
+  }
+
+  .mobile-title {
+    display: block;
+    flex: 1;
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.625rem;
+    line-height: 1.2;
+    font-weight: 600;
+  }
+
+  .header-actions {
+    flex: none;
+    gap: 0;
+  }
+
+  .header-actions .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .search-row {
+    padding: 0 1rem 0.75rem;
+  }
+
+  .app-main {
+    padding: 1rem 1rem calc(10rem + env(safe-area-inset-bottom));
+  }
+
+  .section-header h2 {
+    font-size: 1.25rem;
+  }
+
+  .new-fab {
+    position: fixed;
+    right: 1rem;
+    bottom: calc(5.75rem + env(safe-area-inset-bottom));
+    z-index: 210;
+    height: 56px;
+    padding: 0 1.375rem 0 1.125rem;
+    border: none;
+    border-radius: 28px;
+    background: var(--accent-primary);
+    color: #fff;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+
+  .bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 210;
+    padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .bottom-nav button {
+    height: 64px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .bottom-nav button i {
+    font-size: 1.25rem;
+  }
+
+  .bottom-nav button[aria-current='page'] {
+    color: var(--accent-primary);
+    font-weight: 600;
+  }
 }
 </style>
