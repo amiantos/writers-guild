@@ -281,6 +281,11 @@ defineExpose({ openNew });
   flex-direction: column;
 }
 
+/* The cards are taller than a story's cover, so the New tile takes their row's height */
+.new-tile {
+  aspect-ratio: auto;
+}
+
 .empty-actions {
   display: flex;
   flex-wrap: wrap;

@@ -70,10 +70,10 @@ const meta = computed(() => {
 </script>
 
 <style scoped>
+/* The portrait keeps its own 2:3 shape, and the band hangs below it, unlike a story's cover */
 .character-tile {
   position: relative;
   width: 100%;
-  aspect-ratio: 2 / 3;
   container-type: inline-size;
   display: flex;
   flex-direction: column;
@@ -111,8 +111,8 @@ const meta = computed(() => {
   position: relative;
   z-index: 2;
   pointer-events: none;
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: none;
+  aspect-ratio: 2 / 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -135,8 +135,9 @@ const meta = computed(() => {
   color: rgba(255, 255, 255, 0.85);
 }
 
+/* Grows to the row's tallest band, so the names line up under the portraits */
 .tile-band {
-  flex: none;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   gap: 3px;
