@@ -222,8 +222,13 @@ const meta = computed(
 .cover-title {
   font-family: var(--font-display);
   font-size: clamp(13px, 9cqw, 24px);
-  /* Tall enough for Literata's descenders, which the clamp would otherwise clip */
-  line-height: 1.3;
+  /* Literata's tall ascent leaves its descenders below a line this tight. The padding gives them
+     room inside the clamp's clip, and is too short to reveal a third line. */
+  line-height: 1.35;
+  padding-bottom: 0.12em;
+  /* The same for serifs that overhang the sides, like A's foot */
+  padding-inline: 0.06em;
+  margin-inline: -0.06em;
   font-weight: 600;
   display: -webkit-box;
   -webkit-line-clamp: 2;

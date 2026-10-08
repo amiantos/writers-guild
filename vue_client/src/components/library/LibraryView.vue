@@ -719,6 +719,10 @@ defineExpose({ openNew });
   font-family: var(--font-display);
   font-size: 1.0625rem;
   line-height: 1.35;
+  /* Room inside the clip for Literata's descenders and overhanging serifs */
+  padding-bottom: 0.12em;
+  padding-inline: 0.06em;
+  margin-inline: -0.06em;
   font-weight: 600;
 }
 
