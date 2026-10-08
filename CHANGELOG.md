@@ -3,6 +3,52 @@
 All notable changes to Writers Guild are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.1] - 2026-10-08
+
+### Library
+
+- The Characters section is now a shelf of portrait cards, showing each character's whole portrait
+  with a band of details below it.
+- The Lorebooks section is now a shelf of book covers.
+- The Presets section is now a list grouped by provider.
+
+## [1.5.0] - 2026-10-08
+
+### Library
+
+- The home page is now a bookshelf of story and chat cards, with layouts for desktop, tablet, and
+  mobile, replacing the character quick picker. Recent setups lead with their names so a new story
+  can start from one, and a card's cast and Persona link to their character pages.
+
+## [1.4.0] - 2026-10-06
+
+### Story mode
+
+- Enhanced Story Mode, Continuity, and the Archivist are no longer experimental and are on for
+  everyone. **Use Old Story Mode Experience** in Settings goes back to the editor and preview.
+- New Story with This Story's Setup, beside Duplicate in the story list, starts a story with the
+  same characters, Continuity, avatar frame positions, and narrative direction, but empty content
+  and scenario.
+- The Edit Story modal now holds all of a story's settings: characters, lorebooks, Continuity,
+  preset, narrative perspective, and more. It opens on its own when a blank story is created. Chats
+  are edited in the same modal.
+
+### Library
+
+- Character portraits beside stories are sharper, and thumbnails are in full colour. A one-time
+  migration regenerates the images for existing characters, which can take a minute with a large
+  library.
+
+## [1.3.1] - 2026-10-04
+
+### Experimental features
+
+- **Enhanced Story Mode**: each passage's seam now shows the prompt that wrote it, collapsed by
+  default.
+- **Archivist**: suggests card edits again alongside Continuity updates, limited to facts about a
+  character the story adds or elaborates on. A Continuity's Compact button asks the Archivist to
+  condense it, and can be undone until the story is saved.
+
 ## [1.3.0] - 2026-09-28
 
 ### Story mode
