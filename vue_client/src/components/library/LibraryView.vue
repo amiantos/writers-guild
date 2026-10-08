@@ -718,7 +718,7 @@ defineExpose({ openNew });
 .continue-title {
   font-family: var(--font-display);
   font-size: 1.0625rem;
-  line-height: 1.25;
+  line-height: 1.35;
   font-weight: 600;
 }
 

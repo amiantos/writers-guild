@@ -222,7 +222,8 @@ const meta = computed(
 .cover-title {
   font-family: var(--font-display);
   font-size: clamp(13px, 9cqw, 24px);
-  line-height: 1.18;
+  /* Tall enough for Literata's descenders, which the clamp would otherwise clip */
+  line-height: 1.3;
   font-weight: 600;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -268,8 +269,10 @@ const meta = computed(
   color: rgba(246, 239, 230, 0.72);
 }
 
+/* Over the art too, which sits above the open button */
 .cover-spine {
   position: absolute;
+  z-index: 2;
   top: 0;
   bottom: 0;
   left: 0;
