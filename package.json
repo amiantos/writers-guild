@@ -1,6 +1,6 @@
 {
   "name": "writers-guild",
-  "version": "1.3.0",
+  "version": "1.5.1",
   "description": "Writers Guild - AI-powered short story writing application",
   "private": true,
   "scripts": {
