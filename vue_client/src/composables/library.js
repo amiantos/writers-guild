@@ -178,7 +178,10 @@ export function castLine(names) {
   return `${names[0]}, ${names[1]} & ${names.length - 2} more`;
 }
 
-/** How long ago, briefly: "just now", "5m ago", "3h ago", "yesterday", "4d ago", "2w ago", a date. */
+/**
+ * How long ago, briefly: "just now", "5m ago", "3h ago", "yesterday", "4d ago", "2w ago", then a date:
+ * "Mar 4" this year, "Nov 2023" before it, which is short enough for a card's meta line.
+ */
 export function timeAgo(value, now = Date.now()) {
   const time = new Date(value).getTime();
   if (Number.isNaN(time)) return '';
@@ -193,11 +196,16 @@ export function timeAgo(value, now = Date.now()) {
   if (days < 35) return `${Math.floor(days / 7)}w ago`;
   const date = new Date(time);
   const sameYear = date.getFullYear() === new Date(now).getFullYear();
-  return date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  });
+  return date.toLocaleDateString(
+    undefined,
+    sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', year: 'numeric' },
+  );
+}
+
+/** A count for a card's meta line: in full below 10,000, then "18.2k". */
+export function shortCount(count) {
+  if (count < 10000) return count.toLocaleString();
+  return `${(count / 1000).toFixed(1).replace(/\.0$/, '')}k`;
 }
 
 /** A character's picture for a card: the medium thumbnail where there is one. */

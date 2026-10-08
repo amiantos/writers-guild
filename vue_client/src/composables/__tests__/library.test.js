@@ -6,6 +6,7 @@ import {
   libraryFilters,
   recentSetups,
   setupKey,
+  shortCount,
   sortLibraryItems,
   timeAgo,
 } from '../library.js';
@@ -200,5 +201,20 @@ describe('timeAgo', () => {
   it('gives a date past a month, and nothing for a bad date', () => {
     expect(ago(90 * DAY)).not.toMatch(/ago/);
     expect(timeAgo('not a date', now)).toBe('');
+  });
+
+  it('gives only the month and year for an earlier year', () => {
+    const earlier = ago(400 * DAY);
+    expect(earlier).toMatch(/2025/);
+    expect(earlier).not.toMatch(/\b\d{1,2},/);
+  });
+});
+
+describe('shortCount', () => {
+  it('shortens counts of ten thousand and over', () => {
+    expect(shortCount(407)).toBe('407');
+    expect(shortCount(9999)).toBe((9999).toLocaleString());
+    expect(shortCount(18240)).toBe('18.2k');
+    expect(shortCount(40000)).toBe('40k');
   });
 });

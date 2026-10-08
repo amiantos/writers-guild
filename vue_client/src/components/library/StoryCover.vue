@@ -52,7 +52,13 @@
 
 <script setup>
 import { computed } from 'vue';
-import { castLine, placeholderColor, portraitUrl, timeAgo } from '../../composables/library.js';
+import {
+  castLine,
+  placeholderColor,
+  portraitUrl,
+  shortCount,
+  timeAgo,
+} from '../../composables/library.js';
 
 const props = defineProps({
   // A card from buildLibraryItems()
@@ -82,7 +88,7 @@ const tiles = computed(() => {
 const names = computed(() => castLine(props.cast.map((c) => c.name)));
 
 const meta = computed(
-  () => `${(props.item.wordCount ?? 0).toLocaleString()} words · ${timeAgo(props.item.modified)}`,
+  () => `${shortCount(props.item.wordCount ?? 0)} words · ${timeAgo(props.item.modified)}`,
 );
 </script>
 
@@ -257,7 +263,7 @@ const meta = computed(
 
 .cover-meta {
   font-size: clamp(10px, 5.2cqw, 12px);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: rgba(246, 239, 230, 0.72);
 }

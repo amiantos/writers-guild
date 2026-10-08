@@ -52,7 +52,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import { avatarUrl, placeholderColor, timeAgo } from '../../composables/library.js';
+import { avatarUrl, placeholderColor, shortCount, timeAgo } from '../../composables/library.js';
 
 const props = defineProps({
   // A chat card from buildLibraryItems()
@@ -82,7 +82,7 @@ const more = computed(() => Math.max(0, props.cast.length - 3));
 
 const meta = computed(() => {
   const count = props.item.messageCount ?? 0;
-  return `${count.toLocaleString()} ${count === 1 ? 'message' : 'messages'} · ${timeAgo(props.item.modified)}`;
+  return `${shortCount(count)} ${count === 1 ? 'message' : 'messages'} · ${timeAgo(props.item.modified)}`;
 });
 </script>
 
@@ -249,7 +249,7 @@ const meta = computed(() => {
 .chat-meta {
   margin-top: auto;
   font-size: clamp(10px, 5.2cqw, 12px);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: rgba(238, 240, 243, 0.68);
 }
