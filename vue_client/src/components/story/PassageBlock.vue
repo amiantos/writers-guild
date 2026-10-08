@@ -22,9 +22,20 @@
       </div>
     </div>
 
-    <div v-else class="prose" v-html="html"></div>
+    <div v-else-if="html" class="prose" v-html="html"></div>
+    <p v-else class="prose notes-only">Only hidden instructions for the model.</p>
 
     <div v-if="!editing" class="turn-actions" :class="{ 'is-busy': busy }">
+      <button
+        v-if="hasNotes"
+        class="icon-btn"
+        :class="{ 'is-on': showNotes }"
+        :title="showNotes ? 'Hide the hidden instructions' : 'Show the hidden instructions'"
+        :aria-pressed="showNotes"
+        @click="showNotes = !showNotes"
+      >
+        <i class="fas" :class="showNotes ? 'fa-eye' : 'fa-eye-slash'"></i>
+      </button>
       <button class="icon-btn" title="Edit" :disabled="busy" @click="startEdit">
         <i class="fas fa-pen"></i>
       </button>
@@ -46,7 +57,7 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue';
-import { renderProse } from '../../composables/renderProse';
+import { hasHiddenNotes, renderProse } from '../../composables/renderProse';
 import { displayText } from '../../composables/storyPassages';
 
 const props = defineProps({
@@ -61,8 +72,14 @@ const emit = defineEmits(['save', 'regenerate', 'delete']);
 const editing = ref(false);
 const draft = ref('');
 const editorRef = ref(null);
+// Hidden notes, the instructions a card leaves in HTML comments for the model, stay out of sight
+// until asked for.
+const showNotes = ref(false);
 
-const html = computed(() => renderProse(displayText(props.block.text)));
+const hasNotes = computed(() => hasHiddenNotes(props.block.text));
+const html = computed(() =>
+  renderProse(displayText(props.block.text), { showHiddenNotes: showNotes.value }),
+);
 const editorRows = computed(() => Math.min(20, Math.max(3, Math.ceil(draft.value.length / 70))));
 
 function startEdit() {
@@ -102,6 +119,25 @@ function save() {
   margin: 1rem auto;
   border-radius: 8px;
   object-fit: contain;
+}
+
+.prose :deep(.hidden-note) {
+  margin: 0 0.125em;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.875em;
+  color: var(--text-secondary);
+  background-color: var(--bg-tertiary);
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.notes-only {
+  margin: 0 0 1em;
+  font-size: 0.875em;
+  font-style: italic;
+  color: var(--text-secondary);
 }
 
 .from-user .prose {
@@ -150,6 +186,10 @@ function save() {
   font-size: 0.8rem;
   min-width: 1.75rem;
   padding: 0.25rem !important;
+}
+
+.turn-actions .icon-btn.is-on {
+  color: var(--accent-primary);
 }
 
 .turn-editor {
