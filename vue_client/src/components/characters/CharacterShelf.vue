@@ -114,12 +114,12 @@
       @pick="pickFilter"
     />
 
-    <NewCharacterSheet
+    <ChoiceSheet
       v-if="showNew"
+      title="Add a character"
+      :options="NEW_OPTIONS"
       @close="showNew = false"
-      @create="finishNew('create')"
-      @generate="finishNew('generate')"
-      @import="finishNew('import')"
+      @pick="finishNew"
     />
   </div>
 </template>
@@ -128,7 +128,7 @@
 import { computed, ref, watch } from 'vue';
 import CharacterTile from './CharacterTile.vue';
 import CharacterSheet from './CharacterSheet.vue';
-import NewCharacterSheet from './NewCharacterSheet.vue';
+import ChoiceSheet from '../library/ChoiceSheet.vue';
 import FilterSheet from '../library/FilterSheet.vue';
 import ScrollShadows from '../ScrollShadows.vue';
 import {
@@ -161,6 +161,28 @@ const emit = defineEmits([
   'generate',
   'import',
 ]);
+
+const NEW_OPTIONS = [
+  {
+    key: 'create',
+    icon: 'fas fa-plus',
+    title: 'Create',
+    sub: 'Write their card yourself',
+    dashed: true,
+  },
+  {
+    key: 'generate',
+    icon: 'fas fa-wand-magic-sparkles',
+    title: 'Generate',
+    sub: 'Describe them, and the AI writes the card',
+  },
+  {
+    key: 'import',
+    icon: 'fas fa-download',
+    title: 'Import',
+    sub: 'From a character card file or a link',
+  },
+];
 
 // Sort, remembered per browser
 const PREFS_KEY = 'writers-guild-characters';

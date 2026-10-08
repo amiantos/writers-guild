@@ -1,33 +1,23 @@
 <template>
-  <BottomSheet labelledby="new-character-title" @close="$emit('close')">
+  <BottomSheet labelledby="choice-sheet-title" @close="$emit('close')">
     <div class="new-head">
-      <h2 id="new-character-title">Add a character</h2>
+      <h2 id="choice-sheet-title">{{ title }}</h2>
       <button type="button" class="icon-only" aria-label="Close" @click="$emit('close')">
         <i class="fas fa-xmark"></i>
       </button>
     </div>
 
-    <button type="button" class="new-row" @click="$emit('create')">
-      <span class="row-icon dashed"><i class="fas fa-plus"></i></span>
+    <button
+      v-for="option in options"
+      :key="option.key"
+      type="button"
+      class="new-row"
+      @click="$emit('pick', option.key)"
+    >
+      <span class="row-icon" :class="{ dashed: option.dashed }"><i :class="option.icon"></i></span>
       <span class="row-text">
-        <span class="row-title">Create</span>
-        <span class="row-sub">Write their card yourself</span>
-      </span>
-      <i class="fas fa-chevron-right row-chevron"></i>
-    </button>
-    <button type="button" class="new-row" @click="$emit('generate')">
-      <span class="row-icon"><i class="fas fa-wand-magic-sparkles"></i></span>
-      <span class="row-text">
-        <span class="row-title">Generate</span>
-        <span class="row-sub">Describe them, and the AI writes the card</span>
-      </span>
-      <i class="fas fa-chevron-right row-chevron"></i>
-    </button>
-    <button type="button" class="new-row" @click="$emit('import')">
-      <span class="row-icon"><i class="fas fa-download"></i></span>
-      <span class="row-text">
-        <span class="row-title">Import</span>
-        <span class="row-sub">From a character card file or a link</span>
+        <span class="row-title">{{ option.title }}</span>
+        <span class="row-sub">{{ option.sub }}</span>
       </span>
       <i class="fas fa-chevron-right row-chevron"></i>
     </button>
@@ -35,9 +25,16 @@
 </template>
 
 <script setup>
-import BottomSheet from '../library/BottomSheet.vue';
+import BottomSheet from './BottomSheet.vue';
 
-defineEmits(['close', 'create', 'generate', 'import']);
+// A sheet of a few ways to do one thing, such as add a character: each a row that names it.
+defineProps({
+  title: { type: String, required: true },
+  // [{key, icon, title, sub, dashed?}]; a dashed icon marks the one that starts from nothing
+  options: { type: Array, required: true },
+});
+
+defineEmits(['close', 'pick']);
 </script>
 
 <style scoped>

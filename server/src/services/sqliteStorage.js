@@ -269,7 +269,7 @@ export class SqliteStorageService {
 
       // Lorebooks
       listLorebooks: this.db.prepare(`
-        SELECT l.id, l.name, l.description, COUNT(e.id) as entry_count
+        SELECT l.id, l.name, l.description, l.created, l.modified, COUNT(e.id) as entry_count
         FROM lorebooks l
         LEFT JOIN lorebook_entries e ON l.id = e.lorebook_id
         GROUP BY l.id
@@ -311,6 +311,7 @@ export class SqliteStorageService {
         `SELECT id, name FROM characters
          WHERE json_extract(data, '$.data.extensions.ursceal_lorebook_id') = ? AND id != ?`,
       ),
+      listStoryLorebookLinks: this.db.prepare('SELECT story_id, lorebook_id FROM story_lorebooks'),
       storiesReferencingLorebook: this.db.prepare(
         `SELECT s.id, s.title FROM story_lorebooks sl
          JOIN stories s ON s.id = sl.story_id
@@ -1311,7 +1312,19 @@ export class SqliteStorageService {
       name: row.name,
       description: row.description,
       entryCount: row.entry_count,
+      created: row.created,
+      modified: row.modified,
     }));
+  }
+
+  /**
+   * Every story's attached lorebooks, as one list of links, for grouping by lorebook in one pass.
+   * @returns {Array<{storyId: string, lorebookId: string}>}
+   */
+  listStoryLorebookLinks() {
+    return this.stmts.listStoryLorebookLinks
+      .all()
+      .map((row) => ({ storyId: row.story_id, lorebookId: row.lorebook_id }));
   }
 
   async listStoryLorebooks(storyId) {

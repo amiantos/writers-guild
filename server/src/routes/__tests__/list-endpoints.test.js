@@ -34,7 +34,7 @@ describe('landing page list endpoints', () => {
   beforeEach(async () => {
     storage = new SqliteStorageService(tempDir);
     storage.db.exec(
-      'DELETE FROM characters; DELETE FROM lorebooks; DELETE FROM stories; DELETE FROM story_characters',
+      'DELETE FROM characters; DELETE FROM lorebooks; DELETE FROM stories; DELETE FROM story_characters; DELETE FROM story_lorebooks',
     );
 
     app = express();
@@ -88,6 +88,23 @@ describe('landing page list endpoints', () => {
 
       const { body } = await request(app).get('/api/lorebooks').expect(200);
       expect(body.lorebooks[0].characters).toEqual([]);
+    });
+
+    it('lists the stories each lorebook is attached to, and when it was made and edited', async () => {
+      await seedLorebook('lb-1', 'World Book');
+      await seedLorebook('lb-2', 'Unused Book');
+      const first = await storage.createStory('First');
+      const second = await storage.createStory('Second');
+      await storage.addLorebookToStory(first.id, 'lb-1');
+      await storage.addLorebookToStory(second.id, 'lb-1');
+
+      const { body } = await request(app).get('/api/lorebooks').expect(200);
+      const byId = Object.fromEntries(body.lorebooks.map((l) => [l.id, l]));
+
+      expect(byId['lb-1'].storyIds.toSorted()).toEqual([first.id, second.id].toSorted());
+      expect(byId['lb-2'].storyIds).toEqual([]);
+      expect(byId['lb-1'].created).toEqual(expect.any(String));
+      expect(byId['lb-1'].modified).toEqual(expect.any(String));
     });
 
     it('keeps entry counts alongside the linked characters', async () => {
