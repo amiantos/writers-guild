@@ -123,45 +123,48 @@
           </div>
         </div>
 
-        <div
+        <ScrollShadows
           v-if="filters.continuities.length || filters.characters.length"
-          class="chips"
-          role="group"
-          aria-label="Filter by Continuity or character"
+          class="chips-scroll"
+          hide-scrollbar
+          edge="fade"
         >
-          <button type="button" class="chip" :aria-pressed="!filter" @click="filter = null">
-            All
-          </button>
-          <button
-            v-for="continuity in filters.continuities"
-            :key="continuity.id"
-            type="button"
-            class="chip"
-            :aria-pressed="isFilter('continuity', continuity.id)"
-            @click="toggleFilter('continuity', continuity.id)"
-          >
-            <span class="chip-swatch" :style="{ background: continuity.color }"></span>
-            <span class="chip-continuity">{{ continuity.name }}</span>
-            <span class="chip-count">{{ continuity.count }}</span>
-          </button>
-          <span
-            v-if="filters.continuities.length && filters.characters.length"
-            class="chip-divider"
-            aria-hidden="true"
-          ></span>
-          <button
-            v-for="entry in filters.characters"
-            :key="entry.id"
-            type="button"
-            class="chip chip-character"
-            :aria-pressed="isFilter('character', entry.id)"
-            @click="toggleFilter('character', entry.id)"
-          >
-            <AvatarStack :characters="[charactersById.get(entry.id)]" :size="28" />
-            <span>{{ entry.name }}</span>
-            <span class="chip-count">{{ entry.count }}</span>
-          </button>
-        </div>
+          <div class="chips" role="group" aria-label="Filter by Continuity or character">
+            <button type="button" class="chip" :aria-pressed="!filter" @click="filter = null">
+              All
+            </button>
+            <button
+              v-if="hasMoreFilters"
+              type="button"
+              class="chip chip-more"
+              aria-haspopup="dialog"
+              @click="showFilters = true"
+            >
+              <i class="fas fa-magnifying-glass"></i> All filters
+            </button>
+            <template v-for="chip in chips" :key="`${chip.kind}:${chip.id}`">
+              <span v-if="chip.dividerBefore" class="chip-divider" aria-hidden="true"></span>
+              <button
+                type="button"
+                class="chip"
+                :class="{ 'chip-character': chip.kind === 'character' }"
+                :aria-pressed="isFilter(chip.kind, chip.id)"
+                @click="toggleFilter(chip.kind, chip.id)"
+              >
+                <span
+                  v-if="chip.kind === 'continuity'"
+                  class="chip-swatch"
+                  :style="{ background: chip.color }"
+                ></span>
+                <AvatarStack v-else :characters="[charactersById.get(chip.id)]" :size="28" />
+                <span :class="{ 'chip-continuity': chip.kind === 'continuity' }">
+                  {{ chip.name }}
+                </span>
+                <span class="chip-count">{{ chip.count }}</span>
+              </button>
+            </template>
+          </div>
+        </ScrollShadows>
 
         <div class="shelf-grid">
           <button type="button" class="new-tile" @click="openNew">
@@ -209,6 +212,16 @@
       @delete="runItemAction('delete')"
     />
 
+    <FilterSheet
+      v-if="showFilters"
+      :continuities="filters.continuities"
+      :characters="filters.characters"
+      :characters-by-id="charactersById"
+      :active="filter"
+      @close="showFilters = false"
+      @pick="pickFilter"
+    />
+
     <NewSheet
       v-if="showNew"
       :setups="setupRows"
@@ -230,6 +243,8 @@ import ChatCard from './ChatCard.vue';
 import AvatarStack from './AvatarStack.vue';
 import ItemSheet from './ItemSheet.vue';
 import NewSheet from './NewSheet.vue';
+import FilterSheet from './FilterSheet.vue';
+import ScrollShadows from '../ScrollShadows.vue';
 import {
   LIBRARY_SORTS,
   LIBRARY_TYPES,
@@ -287,6 +302,11 @@ const type = ref(LIBRARY_TYPES.some((t) => t.key === prefs.type) ? prefs.type : 
 const filter = ref(null);
 const menuItem = ref(null);
 const showNew = ref(false);
+const showFilters = ref(false);
+
+// The chip row holds the most recently active few; All filters lists the rest.
+const CHIP_CONTINUITIES = 6;
+const CHIP_CHARACTERS = 12;
 
 watch([sort, type], () => {
   try {
@@ -313,6 +333,33 @@ watch(filters, ({ continuities, characters }) => {
   const list = filter.value?.kind === 'continuity' ? continuities : characters;
   if (filter.value && !list.some((entry) => entry.id === filter.value.id)) filter.value = null;
 });
+
+const chips = computed(() => {
+  const continuities = filters.value.continuities.slice(0, CHIP_CONTINUITIES);
+  const characters = filters.value.characters.slice(0, CHIP_CHARACTERS);
+  const entries = [
+    ...continuities.map((c) => ({ ...c, kind: 'continuity' })),
+    ...characters.map((c) => ({ ...c, kind: 'character' })),
+  ];
+  // A filter picked from All filters stays in reach, first in the row.
+  const active = filter.value;
+  if (active && !entries.some((e) => e.kind === active.kind && e.id === active.id)) {
+    const list =
+      active.kind === 'continuity' ? filters.value.continuities : filters.value.characters;
+    const entry = list.find((e) => e.id === active.id);
+    if (entry) entries.unshift({ ...entry, kind: active.kind });
+  }
+  return entries.map((entry, index) => ({
+    ...entry,
+    dividerBefore: index > 0 && entry.kind !== entries[index - 1].kind,
+  }));
+});
+
+const hasMoreFilters = computed(
+  () =>
+    filters.value.continuities.length > CHIP_CONTINUITIES ||
+    filters.value.characters.length > CHIP_CHARACTERS,
+);
 
 const visibleItems = computed(() =>
   sortLibraryItems(
@@ -392,6 +439,11 @@ function isFilter(kind, id) {
 
 function toggleFilter(kind, id) {
   filter.value = isFilter(kind, id) ? null : { kind, id };
+}
+
+function pickFilter(picked) {
+  filter.value = picked;
+  showFilters.value = false;
 }
 
 function clearFilters() {
@@ -761,9 +813,15 @@ defineExpose({ openNew });
 
 .chips {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  /* Sized to the chips rather than the viewport, so ScrollShadows notices when they change */
+  width: max-content;
+}
+
+.chip-more {
+  gap: 6px;
+  color: var(--text-secondary);
 }
 
 .chip {
@@ -884,7 +942,15 @@ defineExpose({ openNew });
   font-weight: 600;
 }
 
-@media (max-width: 720px) {
+/* Tablets and narrow windows: recent setups stay in the New sheet */
+@media (max-width: 1279px) {
+  .setups {
+    display: none;
+  }
+}
+
+/* Phones and tablets in portrait, matching the home page's tab bar */
+@media (max-width: 900px) {
   .library {
     gap: 1.25rem;
   }
@@ -916,16 +982,12 @@ defineExpose({ openNew });
     display: none;
   }
 
-  .chips {
-    flex-wrap: nowrap;
-    overflow-x: auto;
+  .chips-scroll {
     margin: 0 -1rem;
-    padding: 0 1rem 2px;
-    scrollbar-width: none;
   }
 
-  .chips::-webkit-scrollbar {
-    display: none;
+  .chips {
+    padding: 0 1rem;
   }
 
   .shelf-grid {

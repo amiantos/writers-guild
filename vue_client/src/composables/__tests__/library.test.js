@@ -127,13 +127,13 @@ describe('sortLibraryItems', () => {
 });
 
 describe('libraryFilters', () => {
-  it('counts each Continuity and character across stories and chats', () => {
+  it('counts each Continuity and character, the most recently active first', () => {
     const { continuities, characters } = libraryFilters(items(), charactersById);
     expect(continuities).toEqual([
       { id: 'k1', name: 'Saltmarsh Cycle', color: continuityColor('Saltmarsh Cycle'), count: 1 },
     ]);
     expect(characters[0]).toEqual({ id: 'rhee', name: 'Captain Rhee', count: 2 });
-    expect(characters.map((c) => c.id)).toContain('ash');
+    expect(characters.map((c) => c.id)).toEqual(['rhee', 'mara', 'ilse', 'ash']);
   });
 
   it('leaves out characters that no longer exist', () => {

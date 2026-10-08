@@ -1,40 +1,42 @@
 <template>
   <div class="story-cover" :class="{ mini }" :style="{ '--cover-color': item.color }">
-    <button
-      type="button"
-      class="cover-face"
-      :aria-label="`Open ${item.title}`"
-      :tabindex="mini ? -1 : undefined"
-      @click="$emit('open')"
-    >
-      <span class="cover-art" :class="`cast-${tiles.length}`">
-        <span v-for="tile in tiles" :key="tile.key" class="cover-tile" :style="tile.style">
-          <img v-if="tile.url" :src="tile.url" alt="" loading="lazy" />
-          <span v-else class="tile-initial">{{ tile.initial }}</span>
-          <span v-if="tile.more" class="tile-more">+{{ tile.more }}</span>
-        </span>
-        <span v-if="tiles.length === 0" class="cover-letter">{{ item.title.charAt(0) }}</span>
+    <div class="cover-art" :class="`cast-${tiles.length}`">
+      <span v-for="tile in tiles" :key="tile.key" class="cover-tile" :style="tile.style">
+        <img v-if="tile.url" :src="tile.url" alt="" loading="lazy" />
+        <span v-else class="tile-initial">{{ tile.initial }}</span>
+        <span v-if="tile.more" class="tile-more">+{{ tile.more }}</span>
       </span>
-      <span v-if="!mini" class="cover-band">
-        <span class="cover-title">{{ item.title }}</span>
-        <span v-if="item.continuityName" class="cover-continuity">
-          <i class="fas fa-layer-group"></i>
-          <span>{{ item.continuityName }}</span>
-        </span>
-        <span v-else-if="names" class="cover-cast">{{ names }}</span>
-        <span class="cover-meta">{{ meta }}</span>
-      </span>
-      <span class="cover-spine"></span>
-    </button>
+      <span v-if="tiles.length === 0" class="cover-letter">{{ item.title.charAt(0) }}</span>
 
-    <div v-if="!mini && hoverActions" class="cover-hover">
-      <button type="button" class="hover-btn primary" @click="$emit('open')">
-        <i class="fas fa-pen-nib"></i> Continue
-      </button>
-      <button type="button" class="hover-btn" @click="$emit('new-from')">
-        <i class="fas fa-file-circle-plus"></i> New from setup
-      </button>
+      <!-- Continue and New from setup, over the art alone, for a pointer -->
+      <div v-if="!mini && hoverActions" class="cover-hover">
+        <button type="button" class="hover-btn primary" @click="$emit('open')">
+          <i class="fas fa-pen-nib"></i> Continue
+        </button>
+        <button type="button" class="hover-btn" @click="$emit('new-from')">
+          <i class="fas fa-file-circle-plus"></i> New from setup
+        </button>
+      </div>
     </div>
+    <div v-if="!mini" class="cover-band">
+      <span class="cover-title">{{ item.title }}</span>
+      <span v-if="item.continuityName" class="cover-continuity">
+        <i class="fas fa-layer-group"></i>
+        <span>{{ item.continuityName }}</span>
+      </span>
+      <span v-else-if="names" class="cover-cast">{{ names }}</span>
+      <span class="cover-meta">{{ meta }}</span>
+    </div>
+    <span class="cover-spine"></span>
+
+    <!-- The whole cover opens the story; the hover buttons and menu sit above it -->
+    <button
+      v-if="!mini"
+      type="button"
+      class="cover-open"
+      :aria-label="`Open ${item.title}`"
+      @click="$emit('open')"
+    ></button>
 
     <button
       v-if="!mini && showMenu"
@@ -90,37 +92,43 @@ const meta = computed(
   width: 100%;
   aspect-ratio: 2 / 3;
   container-type: inline-size;
-  color: #f6efe6;
-}
-
-.cover-face {
-  all: unset;
-  box-sizing: border-box;
-  position: absolute;
-  inset: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  cursor: pointer;
   border-radius: 6px;
   background: var(--cover-color, #2f3a3a);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.3),
     0 8px 18px rgba(0, 0, 0, 0.22);
-  transition: transform 0.15s ease;
+  color: #f6efe6;
 }
 
-.cover-face:focus-visible {
+.story-cover:has(.cover-open:focus-visible) {
   outline: 3px solid var(--accent-primary);
   outline-offset: 3px;
 }
 
-.mini .cover-face {
+.story-cover.mini {
   border-radius: 4px;
-  cursor: default;
+}
+
+.cover-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.cover-open:focus-visible {
+  outline: none;
 }
 
 .cover-art {
+  position: relative;
+  isolation: isolate;
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
@@ -261,17 +269,16 @@ const meta = computed(
   pointer-events: none;
 }
 
-/* Continue and New from setup, over the art, for a pointer */
+/* Over the art alone, above the cover's open button; its own buttons take clicks, the rest
+   falls through to open the story */
 .cover-hover {
   display: none;
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 62%;
+  inset: 0;
+  z-index: 2;
   padding: 0 14px;
-  border-radius: 6px 6px 0 0;
   background: rgba(14, 11, 9, 0.62);
+  pointer-events: none;
   flex-direction: column;
   justify-content: center;
   gap: 8px;
@@ -285,6 +292,7 @@ const meta = computed(
 }
 
 .hover-btn {
+  pointer-events: auto;
   height: 38px;
   border: 1px solid rgba(246, 239, 230, 0.55);
   border-radius: 8px;
@@ -310,6 +318,7 @@ const meta = computed(
 
 .cover-menu {
   position: absolute;
+  z-index: 3;
   top: 2px;
   right: 2px;
   width: 44px;

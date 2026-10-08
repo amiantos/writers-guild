@@ -17,10 +17,9 @@
         </nav>
         <h1 class="mobile-title">{{ activeSectionLabel }}</h1>
         <div class="header-actions">
-          <label v-if="activeSection === 'stories'" class="search" :class="{ open: searchOpen }">
+          <label v-if="activeSection === 'stories'" class="search search-inline">
             <i class="fas fa-magnifying-glass"></i>
             <input
-              ref="searchInput"
               v-model="libraryQuery"
               type="search"
               placeholder="Search stories"
@@ -44,7 +43,7 @@
             <button
               v-if="chatsEnabled"
               type="button"
-              class="btn btn-secondary header-btn"
+              class="btn btn-secondary header-btn new-chat-btn"
               @click="createNewChat"
             >
               <i class="fas fa-comment"></i> New chat
@@ -54,6 +53,19 @@
             </button>
           </template>
         </div>
+      </div>
+      <!-- Narrower screens search from a row under the bar -->
+      <div v-if="searchOpen && activeSection === 'stories'" class="search-row">
+        <label class="search">
+          <i class="fas fa-magnifying-glass"></i>
+          <input
+            ref="searchInput"
+            v-model="libraryQuery"
+            type="search"
+            placeholder="Search stories"
+            aria-label="Search stories"
+          />
+        </label>
       </div>
     </header>
 
@@ -738,12 +750,12 @@ function goToSettings() {
   margin: 0 auto;
   padding: 0.75rem 2rem;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1.75rem;
+  gap: 1.5rem;
 }
 
 .brand {
+  flex: none;
   margin: 0;
   font-family: var(--font-display);
   font-size: 1.375rem;
@@ -757,6 +769,7 @@ function goToSettings() {
 }
 
 .section-nav {
+  flex: none;
   display: flex;
   gap: 4px;
 }
@@ -769,6 +782,7 @@ function goToSettings() {
   color: var(--text-secondary);
   font-size: 0.875rem;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .section-link:hover {
@@ -782,14 +796,17 @@ function goToSettings() {
 }
 
 .header-actions {
-  margin-left: auto;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
 }
 
 .search {
-  width: 240px;
+  flex: 0 1 240px;
+  min-width: 140px;
   height: 40px;
   box-sizing: border-box;
   padding: 0 12px;
@@ -817,11 +834,13 @@ function goToSettings() {
   border-color: var(--accent-primary);
 }
 
-.search-toggle {
+.search-toggle,
+.search-row {
   display: none !important;
 }
 
 .header-btn {
+  flex: none;
   height: 40px;
   display: inline-flex;
   align-items: center;
@@ -872,12 +891,43 @@ function goToSettings() {
   display: none;
 }
 
-/* Phones: sections move to a tab bar, and New floats over the shelf */
-@media (max-width: 720px) {
+/* Tablets and narrow windows: search folds into a button, and New chat into the New sheet */
+@media (max-width: 1279px) {
+  .search-inline,
+  .new-chat-btn {
+    display: none;
+  }
+
+  .search-toggle {
+    display: flex !important;
+  }
+
   .header-inner {
-    padding: 0.75rem 0.5rem 0.75rem 1rem;
+    padding: 0.75rem 1.25rem;
+    gap: 1rem;
+  }
+
+  .search-row {
+    display: block !important;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1.25rem 0.75rem;
+  }
+
+  .app-main {
+    padding: 2rem 1.25rem 4rem;
+  }
+
+  .search-row .search {
+    width: 100%;
+  }
+}
+
+/* Phones and tablets in portrait: sections move to a tab bar, and New floats over the shelf */
+@media (max-width: 900px) {
+  .header-inner {
+    padding: 0.5rem 0.5rem 0.5rem 1rem;
     gap: 0.5rem;
-    flex-wrap: wrap;
   }
 
   .brand,
@@ -888,6 +938,7 @@ function goToSettings() {
 
   .mobile-title {
     display: block;
+    flex: 1;
     margin: 0;
     font-family: var(--font-display);
     font-size: 1.625rem;
@@ -896,6 +947,7 @@ function goToSettings() {
   }
 
   .header-actions {
+    flex: none;
     gap: 0;
   }
 
@@ -904,23 +956,8 @@ function goToSettings() {
     height: 44px;
   }
 
-  .search-toggle {
-    display: flex !important;
-  }
-
-  .search {
-    display: none;
-    order: 10;
-  }
-
-  .search.open {
-    display: flex;
-    width: calc(100vw - 1.5rem);
-  }
-
-  .header-actions {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+  .search-row {
+    padding: 0 1rem 0.75rem;
   }
 
   .app-main {

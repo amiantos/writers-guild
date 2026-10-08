@@ -95,6 +95,29 @@ describe('LibraryView', () => {
     expect(shelfTitles(wrapper)).toEqual(['The Lantern at Saltmarsh']);
   });
 
+  it('keeps the chip row to the most recent characters, with the rest in All filters', async () => {
+    const characters = Array.from({ length: 14 }, (_, i) => ({ id: `c${i}`, name: `Person ${i}` }));
+    const stories = characters.map((c, i) => ({
+      id: `s${i}`,
+      title: `Story ${i}`,
+      characterIds: [c.id],
+      created: '2026-01-01T00:00:00.000Z',
+      modified: `2026-01-${String(28 - i).padStart(2, '0')}T00:00:00.000Z`,
+    }));
+    const wrapper = mountLibrary({ stories, chats: [], characters, continuities: [] });
+    const chipNames = () => wrapper.findAll('.chip-character').map((c) => c.text());
+    expect(chipNames()).toHaveLength(12);
+    expect(chipNames()[0]).toContain('Person 0');
+    expect(chipNames().join()).not.toContain('Person 13');
+
+    await wrapper.find('.chip-more').trigger('click');
+    const row = wrapper.findAll('.filter-row').find((r) => r.text().includes('Person 13'));
+    await row.trigger('click');
+    expect(wrapper.find('.filter-row').exists()).toBe(false);
+    expect(chipNames()[0]).toContain('Person 13');
+    expect(shelfTitles(wrapper)).toEqual(['Story 13']);
+  });
+
   it('shows only chats, and remembers the choice', async () => {
     const wrapper = mountLibrary();
     const chats = wrapper.findAll('.segmented button').find((b) => b.text() === 'Chats');

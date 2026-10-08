@@ -119,6 +119,7 @@ const meta = computed(() => {
 }
 
 .chat-art {
+  isolation: isolate;
   flex: 0 0 46%;
   display: flex;
   align-items: center;
@@ -254,6 +255,7 @@ const meta = computed(() => {
 }
 
 .chat-badge {
+  z-index: 3;
   position: absolute;
   top: 9px;
   left: 9px;
@@ -272,6 +274,7 @@ const meta = computed(() => {
 
 .chat-hover {
   display: none;
+  z-index: 2;
   position: absolute;
   top: 0;
   left: 0;
@@ -311,6 +314,7 @@ const meta = computed(() => {
 }
 
 .chat-menu {
+  z-index: 3;
   position: absolute;
   top: 2px;
   right: 2px;

@@ -89,8 +89,6 @@ export function filterLibraryItems(
 }
 
 const byModified = (a, b) => String(b.modified).localeCompare(String(a.modified));
-const byCount = (a, b) => b.count - a.count || a.name.localeCompare(b.name);
-
 /** The cards in a LIBRARY_SORTS order. Word count puts chats, which have none, last. */
 export function sortLibraryItems(items, sort = 'modified') {
   switch (sort) {
@@ -108,8 +106,9 @@ export function sortLibraryItems(items, sort = 'modified') {
 }
 
 /**
- * The filter chips: each Continuity and character on the shelf, with how many cards have it, the
- * most used first.
+ * The filters: each Continuity and character on the shelf, with how many cards have it, the most
+ * recently active first.
+ * @param {Array} items - Cards, most recently active first, as buildLibraryItems() gives them.
  */
 export function libraryFilters(items, charactersById) {
   const continuities = new Map();
@@ -131,11 +130,10 @@ export function libraryFilters(items, charactersById) {
   }
 
   return {
-    continuities: [...continuities.values()].toSorted(byCount),
+    continuities: [...continuities.values()],
     characters: [...characterCounts]
       .filter(([id]) => charactersById.has(id))
-      .map(([id, count]) => ({ id, name: charactersById.get(id).name, count }))
-      .toSorted(byCount),
+      .map(([id, count]) => ({ id, name: charactersById.get(id).name, count })),
   };
 }
 
