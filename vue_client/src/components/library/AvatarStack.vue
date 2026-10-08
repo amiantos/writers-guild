@@ -41,7 +41,8 @@ const shown = computed(() => props.characters.slice(0, props.max));
   box-sizing: border-box;
   border-radius: 50%;
   overflow: hidden;
-  border: 2px solid var(--bg-secondary);
+  /* A ring in the background color keeps overlapping faces apart */
+  border: 2px solid var(--stack-ring, var(--bg-secondary));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -51,7 +52,7 @@ const shown = computed(() => props.characters.slice(0, props.max));
 }
 
 .stack-avatar + .stack-avatar {
-  margin-left: calc(var(--size) * -0.3);
+  margin-left: calc(var(--size) * -0.55);
 }
 
 .stack-avatar img {

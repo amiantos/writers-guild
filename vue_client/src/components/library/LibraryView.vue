@@ -598,6 +598,7 @@ defineExpose({ openNew });
 }
 
 .setups {
+  --stack-ring: var(--bg-primary);
   flex: 1 1 320px;
   max-width: 420px;
   box-sizing: border-box;
@@ -832,6 +833,7 @@ defineExpose({ openNew });
 }
 
 .chip {
+  --stack-ring: var(--bg-primary);
   height: 40px;
   padding: 0 16px;
   border: 1px solid var(--border-color);
