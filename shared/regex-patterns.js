@@ -20,3 +20,7 @@ export const HTML_IMAGE_RE = /<img[^>]+>/gi;
 export const WG_PLACEHOLDER_RE = /\[WG_IMAGE_(\d+)\]/g;
 
 export const IMAGE_EXTENSIONS = /\.(png|jpg|jpeg|webp)(?=[?#]|$)/i;
+
+// Regex pattern for HTML comments: instructions a character card hides from the reader and leaves
+// for the model. An unclosed comment runs to the end of the text, as one still streaming in does.
+export const HTML_COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;

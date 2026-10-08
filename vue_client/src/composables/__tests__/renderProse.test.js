@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import DOMPurify from 'dompurify';
-import { proseToHtml, renderProse } from '../renderProse.js';
+import { hasHiddenNotes, proseToHtml, renderProse, stripHiddenNotes } from '../renderProse.js';
 
 describe('proseToHtml', () => {
   it('returns nothing for empty text', () => {
@@ -30,6 +30,55 @@ describe('proseToHtml', () => {
     expect(proseToHtml('Look: <img src="https://example.com/a.png">')).toBe(
       '<p>Look: <img loading="lazy" class="story-image" src="https://example.com/a.png"></p>',
     );
+  });
+});
+
+describe('hidden notes', () => {
+  it('finds notes, closed or still streaming in', () => {
+    expect(hasHiddenNotes('Hi <!-- stay in character -->')).toBe(true);
+    expect(hasHiddenNotes('Hi <!-- stay in')).toBe(true);
+    expect(hasHiddenNotes('Hi there')).toBe(false);
+    expect(hasHiddenNotes('')).toBe(false);
+  });
+
+  it('strips a note inside a line', () => {
+    expect(stripHiddenNotes('She waved.<!-- {{char}} is wary --> Then she left.')).toBe(
+      'She waved. Then she left.',
+    );
+  });
+
+  it('strips a note on its own line along with the line', () => {
+    expect(stripHiddenNotes('Line one\n<!-- note -->\nLine two')).toBe('Line one\nLine two');
+    expect(stripHiddenNotes('First\n\n<!-- a\nlong\n\nnote -->\n\nSecond')).toBe('First\n\nSecond');
+    expect(stripHiddenNotes('<!-- opening note -->\n\nOnce upon a time')).toBe('Once upon a time');
+  });
+
+  it('strips an unclosed note to the end, as one still streaming in', () => {
+    expect(stripHiddenNotes('The door opened.\n\n<!-- she should')).toBe('The door opened.');
+  });
+
+  it('leaves text without notes alone', () => {
+    expect(stripHiddenNotes('Keep\n\n\nthis')).toBe('Keep\n\n\nthis');
+  });
+
+  it('leaves notes out of the prose by default', () => {
+    expect(proseToHtml('Hello.\n\n<!-- never break character -->\n\nGoodbye.')).toBe(
+      '<p>Hello.</p><p>Goodbye.</p>',
+    );
+    expect(proseToHtml('<!-- only a note -->')).toBe('');
+  });
+
+  it('shows notes as plain text, set apart, when asked', () => {
+    expect(proseToHtml('Hello.<!-- <b>never</b>\nbreak -->', { showHiddenNotes: true })).toBe(
+      '<p>Hello.<span class="hidden-note">&lt;b&gt;never&lt;/b&gt;<br>break</span></p>',
+    );
+  });
+
+  it('keeps images inside a note as text', () => {
+    expect(
+      proseToHtml('<!-- ![map](https://example.com/map.png) -->', { showHiddenNotes: true }),
+    ).toBe('<p><span class="hidden-note">![map](https://example.com/map.png)</span></p>');
+    expect(proseToHtml('<!-- <img src="https://example.com/a.png"> -->')).toBe('');
   });
 });
 

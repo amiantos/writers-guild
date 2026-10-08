@@ -349,6 +349,7 @@ import {
   HTML_IMAGE_RE,
 } from '../../../shared/regex-patterns.js';
 import DOMPurify from 'dompurify';
+import { stripHiddenNotes } from '../composables/renderProse';
 import ReasoningPanel from '../components/ReasoningPanel.vue';
 import CharacterResponseModal from '../components/CharacterResponseModal.vue';
 import GreetingSelectorModal from '../components/GreetingSelectorModal.vue';
@@ -470,7 +471,8 @@ const isStoryEmpty = computed(() => {
 // to avoid tearing down/recreating <img> elements on every streaming token.
 function renderContent(text) {
   if (!text) return '';
-  let html = text;
+  // 0. Leave out hidden notes, the instructions a card leaves in HTML comments for the model
+  let html = stripHiddenNotes(text);
 
   // 1. Extract HTML <img> tags before escaping so they survive the pipeline
   const savedImgs = [];
