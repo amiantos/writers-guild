@@ -195,7 +195,6 @@ h3 {
 }
 
 .row-avatars {
-  width: 82px;
   flex: none;
   display: flex;
 }

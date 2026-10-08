@@ -280,7 +280,9 @@ const meta = computed(() => {
   left: 0;
   right: 0;
   height: 46%;
-  padding: 0 14px;
+  box-sizing: border-box;
+  /* Clear of the menu button in the corner */
+  padding: 40px 14px 8px;
   border-radius: 14px 14px 0 0;
   background: rgba(10, 12, 15, 0.62);
   align-items: center;

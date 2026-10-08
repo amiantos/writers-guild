@@ -632,7 +632,6 @@ defineExpose({ openNew });
 }
 
 .setup-avatars {
-  width: 76px;
   flex: none;
   display: flex;
 }

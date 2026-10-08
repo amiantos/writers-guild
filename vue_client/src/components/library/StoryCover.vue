@@ -126,9 +126,12 @@ const meta = computed(
   outline: none;
 }
 
+/* Above the cover's open button, so the hover buttons can be clicked; the art itself lets clicks
+   through to open the story */
 .cover-art {
   position: relative;
-  isolation: isolate;
+  z-index: 2;
+  pointer-events: none;
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
@@ -275,10 +278,9 @@ const meta = computed(
   display: none;
   position: absolute;
   inset: 0;
-  z-index: 2;
-  padding: 0 14px;
+  /* Clear of the menu button in the corner */
+  padding: 44px 14px 12px;
   background: rgba(14, 11, 9, 0.62);
-  pointer-events: none;
   flex-direction: column;
   justify-content: center;
   gap: 8px;
