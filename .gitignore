@@ -65,6 +65,9 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
+# Local Docker Compose overrides (see docker-compose.override.yml.example)
+docker-compose.override.yml
+
 # dotenv environment variable files
 .env
 .env.*

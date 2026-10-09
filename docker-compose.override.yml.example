@@ -1,0 +1,26 @@
+# OPTIONAL override file for advanced setups. Docker Compose auto-merges
+# `docker-compose.override.yml` (if it exists, gitignored) on top of
+# `docker-compose.yml`, so this is the place to layer in your own settings
+# without touching the main file.
+#
+# To use:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   # edit values, then:
+#   docker compose up -d
+
+services:
+  writers-guild:
+    # Attach to an externally-managed reverse-proxy network (Caddy, Traefik,
+    # nginx) instead of publishing the port on the host; the proxy talks to
+    # the container over the shared Docker network at writers-guild-server:8000.
+    ports: !reset []
+    networks:
+      - proxy-network
+
+    # Or build the image from a checkout instead of pulling a release:
+    # build: .
+    # image: writers-guild:local
+
+networks:
+  proxy-network:
+    external: true

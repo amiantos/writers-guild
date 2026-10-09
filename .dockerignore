@@ -1,9 +1,28 @@
 node_modules
 **/node_modules
-npm-debug.log
-.git
-.gitignore
-README.md
+vue_client/dist
+server/public
+server/coverage
+vue_client/coverage
 data
+data*/
+.env
+.env.*
+.git
+.github
+.gitignore
 *.md
+*.log
+npm-debug.log
 .DS_Store
+.vscode
+.idea
+.claude
+docker-compose*.yml
+docker-compose.override.yml.example
+
+# Tests never run in the image. `**/` is load-bearing: .dockerignore patterns
+# are anchored at the build context root.
+**/__tests__
+**/*.test.js
+**/*.spec.js

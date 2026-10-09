@@ -51,8 +51,8 @@ const app = express();
 const PORT = process.env.PORT || config.server.port || 8000;
 const HOST = process.env.HOST || config.server.host || '0.0.0.0';
 
-// Resolve data directory path
-const DATA_ROOT = path.resolve(__dirname, config.data.root);
+// Resolve data directory path; DATA_DIR overrides config.yaml (the Docker image sets it to /data)
+const DATA_ROOT = path.resolve(__dirname, process.env.DATA_DIR || config.data.root);
 
 // Make config and data root available to routes
 app.locals.config = config;

@@ -1,23 +1,29 @@
+# Writers Guild self-hosted — download and run:
+#   curl -O https://raw.githubusercontent.com/amiantos/writers-guild/main/docker-compose.yml
+#   docker compose up -d
+#
+# Then open http://localhost:8000 and add an API key in Settings.
+#
+# To update to the latest release:
+#   docker compose pull && docker compose up -d
+
 services:
   writers-guild:
-    build: .
+    image: ghcr.io/amiantos/writers-guild:latest
     container_name: writers-guild-server
     ports:
       - '8000:8000'
     volumes:
+      # All persistent state — the SQLite database, characters, images — lives
+      # here. Back this directory up to back up Writers Guild.
       - ./data:/data
-      - ./server/config.yaml:/app/config.yaml
     environment:
-      - NODE_ENV=production
-      # HTTP Basic Authentication: set BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD
-      # in a .env file next to this compose file (see .env.example). Auth is
-      # disabled when either is empty.
+      # ───── Optional: HTTP Basic Authentication ───────────────────────────
+      # Strongly recommended if Writers Guild is reachable from anywhere but
+      # your own machine. Set both in a .env file next to this compose file:
+      #   BASIC_AUTH_USERNAME=you
+      #   BASIC_AUTH_PASSWORD=a-long-random-password
+      # Auth is disabled when either is empty.
       - BASIC_AUTH_USERNAME=${BASIC_AUTH_USERNAME:-}
       - BASIC_AUTH_PASSWORD=${BASIC_AUTH_PASSWORD:-}
     restart: unless-stopped
-    networks:
-      - proxy-network
-
-networks:
-  proxy-network:
-    external: true
