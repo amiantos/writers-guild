@@ -3,6 +3,27 @@
 All notable changes to Writers Guild are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.2] - 2026-10-09
+
+### Self-hosting
+
+- Each release is now published as a Docker image for amd64 and arm64 at
+  `ghcr.io/amiantos/writers-guild`. `docker-compose.yml` runs that image instead of building from a
+  checkout: download it with `curl` and `docker compose up -d`, and update with
+  `docker compose pull && docker compose up -d`. Data stays in `./data`. A reverse-proxy network or
+  a local build goes in a `docker-compose.override.yml` (see `docker-compose.override.yml.example`).
+- The Docker image no longer reads a mounted `server/config.yaml`; set `PORT`, `HOST`, or `DATA_DIR`
+  in the environment instead.
+- Writers Guild now runs on Node.js 24, and its dependencies are updated, including Express 5 and
+  Vite 8.
+- On Android, better-sqlite3 and sharp have to be built by hand after installing; the README has
+  the commands.
+
+### Fixes
+
+- The Docker image now includes the default characters, so onboarding can import them on first
+  launch.
+
 ## [1.5.1] - 2026-10-08
 
 ### Library
