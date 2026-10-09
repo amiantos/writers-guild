@@ -37,9 +37,9 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.3",
     "node-addon-api": "^8.9.2",
-    "node-gyp": "^13.0.2",
+    "node-gyp": "^13.1.0",
     "pngjs": "^7.0.0",
-    "supertest": "^7.3.0",
+    "supertest": "^7.3.1",
     "vitest": "^5.0.3"
   },
   "allowScripts": {
