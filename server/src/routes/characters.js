@@ -18,9 +18,15 @@ import {
   rewriteCharacterImageUrls,
 } from '../services/image-cacher.js';
 import { AssetManager } from '../services/asset-manager.js';
+import { safeFetch, readBodyWithLimit } from '../services/safe-fetch.js';
 import { sseChannel } from '../utils/sse.js';
 
 const router = express.Router();
+
+// Card images fetched by URL (import-url): bounded so a hostile or broken
+// server cannot stall an import or fill memory.
+const URL_IMPORT_TIMEOUT_MS = 30_000;
+const URL_IMPORT_MAX_BYTES = 20 * 1024 * 1024; // 20MB
 
 // Configure multer for memory storage
 const upload = multer({
@@ -612,13 +618,15 @@ router.post(
 
     if (isImageUrl) {
       try {
-        const response = await fetch(url);
+        const response = await safeFetch(url, {
+          signal: AbortSignal.timeout(URL_IMPORT_TIMEOUT_MS),
+        });
         if (!response.ok) {
+          await response.body?.cancel();
           throw new AppError(`Failed to fetch image: ${response.statusText}`, 400);
         }
 
-        const arrayBuffer = await response.arrayBuffer();
-        const imageBuffer = Buffer.from(arrayBuffer);
+        const imageBuffer = await readBodyWithLimit(response, URL_IMPORT_MAX_BYTES);
 
         // Parse character card from PNG
         const rawCardData = await CharacterParser.parseCard(imageBuffer);

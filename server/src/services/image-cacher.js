@@ -9,9 +9,9 @@
  */
 
 import crypto from 'crypto';
-import dns from 'dns/promises';
 import sharp from 'sharp';
 import { AssetManager } from './asset-manager.js';
+import { safeFetch, readBodyWithLimit } from './safe-fetch.js';
 import { MARKDOWN_IMAGE_RE, HTML_IMAGE_RE } from '../../../shared/regex-patterns.js';
 import { IMAGE_MIME_TYPES_MAP, mimeTypeToExt } from '../../../shared/mime-types.js';
 
@@ -161,129 +161,30 @@ function isHttpUrl(url) {
 }
 
 /**
- * True if an IP address is one we must never fetch from.
- *
- * Character cards are untrusted input and Writers Guild is typically
- * self-hosted on a home or private network, so an imported card must not be
- * able to make the server reach internal services or cloud metadata endpoints.
- */
-function isBlockedAddress(ip, family) {
-  if (family === 6) {
-    const v6 = ip.toLowerCase();
-    if (v6 === '::1' || v6 === '::') return true;
-    if (v6.startsWith('fe80:')) return true; // link-local
-    if (/^f[cd][0-9a-f]{2}:/.test(v6)) return true; // unique local
-    // IPv4-mapped (::ffff:a.b.c.d) — re-check as v4
-    const mapped = v6.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isBlockedAddress(mapped[1], 4);
-    return false;
-  }
-
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return true;
-  const [a, b] = parts;
-
-  if (a === 0) return true; // "this" network
-  if (a === 10) return true; // RFC1918
-  if (a === 127) return true; // loopback
-  if (a === 169 && b === 254) return true; // link-local + cloud metadata
-  if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
-  if (a === 192 && b === 168) return true; // RFC1918
-  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
-  if (a >= 224) return true; // multicast + reserved
-  return false;
-}
-
-/**
- * Resolve a hostname and confirm every address it maps to is publicly routable.
- *
- * @param {string} hostname
- * @returns {Promise<boolean>}
- */
-async function hasOnlyPublicAddresses(hostname) {
-  try {
-    const addresses = await dns.lookup(hostname, { all: true });
-    if (!addresses.length) return false;
-    return !addresses.some(({ address, family }) => isBlockedAddress(address, family));
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Validate a URL immediately before it is fetched: http(s), resolvable, and
- * not pointing at a private or link-local address.
- *
- * @param {string} url
- * @returns {Promise<boolean>}
- */
-async function isSafeToFetch(url) {
-  if (!isHttpUrl(url)) {
-    console.warn(`[ImageCacher] Skipping non-HTTP or malformed URL: ${url}`);
-    return false;
-  }
-
-  const { hostname } = new URL(url);
-  if (!(await hasOnlyPublicAddresses(hostname))) {
-    console.warn(`[ImageCacher] Refusing to fetch private or unresolvable host: ${hostname}`);
-    return false;
-  }
-
-  return true;
-}
-
-/**
  * Download a single image from a URL.
+ *
+ * Card URLs are untrusted, so this goes through safeFetch, which refuses
+ * private and internal addresses on every redirect hop.
  *
  * @param {string} url
  * @returns {Promise<{ buffer: Buffer, mimeType: string } | null>}
- *   Returns null if the URL is invalid, the download fails, or the content
+ *   Returns null if the URL is refused, the download fails, or the content
  *   is not a valid image.
  */
 async function downloadImage(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
-
   try {
-    let currentUrl = url;
-    let response = null;
-
-    // Redirects are followed manually so that every hop is re-validated —
-    // otherwise a public URL could redirect the server onto a private address.
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-      if (!(await isSafeToFetch(currentUrl))) {
-        return null;
-      }
-
-      response = await fetch(currentUrl, {
-        signal: controller.signal,
-        redirect: 'manual',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; WritersGuild/2.0)',
-          Accept: 'image/*',
-        },
-      });
-
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location');
-        if (!location) {
-          console.warn(`[ImageCacher] Redirect with no Location: ${currentUrl}`);
-          return null;
-        }
-        currentUrl = new URL(location, currentUrl).toString();
-        continue;
-      }
-
-      break;
-    }
-
-    if (response.status >= 300 && response.status < 400) {
-      console.warn(`[ImageCacher] Too many redirects: ${url}`);
-      return null;
-    }
+    const response = await safeFetch(url, {
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+      maxRedirects: MAX_REDIRECTS,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; WritersGuild/2.0)',
+        Accept: 'image/*',
+      },
+    });
 
     if (!response.ok) {
       console.warn(`[ImageCacher] Download failed (${response.status}): ${url}`);
+      await response.body?.cancel();
       return null;
     }
 
@@ -293,37 +194,19 @@ async function downloadImage(url) {
 
     if (!IMAGE_MIME_TYPES_MAP[mimeType]) {
       console.warn(`[ImageCacher] Skipping non-image Content-Type "${mimeType}": ${url}`);
+      await response.body?.cancel();
       return null;
     }
 
-    // Read body with size limit
-    const reader = response.body.getReader();
-    const chunks = [];
-    let total = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.length;
-      if (total > MAX_IMAGE_SIZE_BYTES) {
-        console.warn(`[ImageCacher] Image too large (>${MAX_IMAGE_SIZE_BYTES} bytes): ${url}`);
-        await reader.cancel();
-        return null;
-      }
-      chunks.push(value);
-    }
-
-    const buffer = Buffer.concat(chunks);
+    const buffer = await readBodyWithLimit(response, MAX_IMAGE_SIZE_BYTES);
     return { buffer, mimeType };
   } catch (err) {
-    if (err.name === 'AbortError') {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
       console.warn(`[ImageCacher] Timeout downloading: ${url}`);
     } else {
       console.warn(`[ImageCacher] Error downloading ${url}: ${err.message}`);
     }
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

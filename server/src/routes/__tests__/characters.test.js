@@ -677,16 +677,7 @@ describe('Characters API Routes', () => {
         first_mes: 'Hello from URL!',
       });
 
-      const mockResponse = {
-        ok: true,
-        statusText: 'OK',
-        arrayBuffer: async () =>
-          characterPng.buffer.slice(
-            characterPng.byteOffset,
-            characterPng.byteOffset + characterPng.byteLength,
-          ),
-      };
-      vi.stubGlobal('fetch', async () => mockResponse);
+      vi.stubGlobal('fetch', async () => new Response(characterPng));
 
       try {
         const response = await request(app)
@@ -709,16 +700,7 @@ describe('Characters API Routes', () => {
         name: 'JPEG URL Char',
       });
 
-      const mockResponse = {
-        ok: true,
-        statusText: 'OK',
-        arrayBuffer: async () =>
-          characterPng.buffer.slice(
-            characterPng.byteOffset,
-            characterPng.byteOffset + characterPng.byteLength,
-          ),
-      };
-      vi.stubGlobal('fetch', async () => mockResponse);
+      vi.stubGlobal('fetch', async () => new Response(characterPng));
 
       try {
         const response = await request(app)
@@ -738,16 +720,7 @@ describe('Characters API Routes', () => {
         name: 'WebP URL Char',
       });
 
-      const mockResponse = {
-        ok: true,
-        statusText: 'OK',
-        arrayBuffer: async () =>
-          characterPng.buffer.slice(
-            characterPng.byteOffset,
-            characterPng.byteOffset + characterPng.byteLength,
-          ),
-      };
-      vi.stubGlobal('fetch', async () => mockResponse);
+      vi.stubGlobal('fetch', async () => new Response(characterPng));
 
       try {
         const response = await request(app)
@@ -766,16 +739,7 @@ describe('Characters API Routes', () => {
         name: 'Query URL Char',
       });
 
-      const mockResponse = {
-        ok: true,
-        statusText: 'OK',
-        arrayBuffer: async () =>
-          characterPng.buffer.slice(
-            characterPng.byteOffset,
-            characterPng.byteOffset + characterPng.byteLength,
-          ),
-      };
-      vi.stubGlobal('fetch', async () => mockResponse);
+      vi.stubGlobal('fetch', async () => new Response(characterPng));
 
       try {
         const response = await request(app)
@@ -790,10 +754,10 @@ describe('Characters API Routes', () => {
     });
 
     it('should return 400 when image URL fetch fails', async () => {
-      vi.stubGlobal('fetch', async () => ({
-        ok: false,
-        statusText: 'Not Found',
-      }));
+      vi.stubGlobal(
+        'fetch',
+        async () => new Response(null, { status: 404, statusText: 'Not Found' }),
+      );
 
       try {
         const response = await request(app)
@@ -807,14 +771,45 @@ describe('Characters API Routes', () => {
       }
     });
 
+    it('should refuse an image URL pointing at a private address', async () => {
+      const fetchSpy = vi.fn();
+      vi.stubGlobal('fetch', fetchSpy);
+
+      try {
+        const response = await request(app)
+          .post('/api/characters/import-url')
+          .send({ url: 'http://192.168.1.1/card.png' })
+          .expect(400);
+
+        expect(response.body.error).toContain('non-public address');
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('should refuse an image URL larger than the import limit', async () => {
+      vi.stubGlobal(
+        'fetch',
+        async () =>
+          new Response(Buffer.alloc(16), { headers: { 'content-length': String(1024 ** 3) } }),
+      );
+
+      try {
+        const response = await request(app)
+          .post('/api/characters/import-url')
+          .send({ url: 'https://example.com/huge.png' })
+          .expect(400);
+
+        expect(response.body.error).toContain('Response larger than');
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('should return 400 when image URL returns invalid PNG', async () => {
       const notPng = Buffer.from('not a real PNG image');
-      vi.stubGlobal('fetch', async () => ({
-        ok: true,
-        statusText: 'OK',
-        arrayBuffer: async () =>
-          notPng.buffer.slice(notPng.byteOffset, notPng.byteOffset + notPng.byteLength),
-      }));
+      vi.stubGlobal('fetch', async () => new Response(notPng));
 
       try {
         const response = await request(app)
@@ -835,16 +830,7 @@ describe('Characters API Routes', () => {
         name: 'No Fallthrough Char',
       });
 
-      const mockResponse = {
-        ok: true,
-        statusText: 'OK',
-        arrayBuffer: async () =>
-          characterPng.buffer.slice(
-            characterPng.byteOffset,
-            characterPng.byteOffset + characterPng.byteLength,
-          ),
-      };
-      vi.stubGlobal('fetch', async () => mockResponse);
+      vi.stubGlobal('fetch', async () => new Response(characterPng));
 
       try {
         const response = await request(app)

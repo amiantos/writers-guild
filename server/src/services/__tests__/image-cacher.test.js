@@ -7,9 +7,6 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// DNS is stubbed globally in src/__tests__/setup.js so the SSRF guard never
-// reaches the network. The SSRF tests below drive it per case.
-import dns from 'dns/promises';
 import {
   cacheCharacterImages,
   cacheLorebookImages,
@@ -388,6 +385,9 @@ describe('cacheLorebookImages (mocked fetch + fs)', () => {
   });
 });
 
+// Hostnames are checked at connect time inside safe-fetch's guarded lookup,
+// which these tests replace by stubbing fetch — see safe-fetch.test.js for
+// those. What is testable here is what the cacher refuses before connecting.
 describe('SSRF protection', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
@@ -404,22 +404,21 @@ describe('SSRF protection', () => {
   // Character cards are untrusted and WG is usually self-hosted on a private
   // network, so an imported card must never make the server reach inward.
   const blocked = [
-    ['loopback', '127.0.0.1', 4],
-    ['RFC1918 10/8', '10.0.0.5', 4],
-    ['RFC1918 192.168/16', '192.168.1.1', 4],
-    ['RFC1918 172.16/12', '172.20.10.1', 4],
-    ['cloud metadata', '169.254.169.254', 4],
-    ['CGNAT', '100.64.0.1', 4],
-    ['IPv6 loopback', '::1', 6],
-    ['IPv6 unique local', 'fd00::1', 6],
-    ['IPv4-mapped loopback', '::ffff:127.0.0.1', 6],
+    ['loopback', 'http://127.0.0.1/pic.png'],
+    ['RFC1918 10/8', 'http://10.0.0.5/pic.png'],
+    ['RFC1918 192.168/16', 'http://192.168.1.1/pic.png'],
+    ['RFC1918 172.16/12', 'http://172.20.10.1/pic.png'],
+    ['cloud metadata', 'http://169.254.169.254/pic.png'],
+    ['CGNAT', 'http://100.64.0.1/pic.png'],
+    ['numeric loopback', 'http://2130706433/pic.png'],
+    ['IPv6 loopback', 'http://[::1]/pic.png'],
+    ['IPv6 unique local', 'http://[fd00::1]/pic.png'],
+    ['IPv4-mapped loopback', 'http://[::ffff:127.0.0.1]/pic.png'],
   ];
 
-  for (const [label, address, family] of blocked) {
-    it(`refuses to fetch a host resolving to ${label}`, async () => {
-      dns.lookup.mockResolvedValueOnce([{ address, family }]);
-
-      const card = makeCard({ description: '![x](https://internal.example/pic.png)' });
+  for (const [label, url] of blocked) {
+    it(`refuses a literal ${label} address`, async () => {
+      const card = makeCard({ description: `![x](${url})` });
       const result = await cacheCharacterImages('c-1', card, '/fake/data');
 
       expect(result.size).toBe(0);
@@ -427,8 +426,7 @@ describe('SSRF protection', () => {
     });
   }
 
-  it('allows a host resolving to a public address', async () => {
-    dns.lookup.mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }]);
+  it('fetches a public host', async () => {
     fetch.mockResolvedValue(makePngResponse());
 
     const card = makeCard({ description: '![x](https://public.example/pic.png)' });
@@ -439,18 +437,12 @@ describe('SSRF protection', () => {
   });
 
   it('re-validates redirect targets, blocking a public host that redirects inward', async () => {
-    dns.lookup
-      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }]) // public.example
-      .mockResolvedValueOnce([{ address: '169.254.169.254', family: 4 }]); // redirect target
-
-    fetch.mockResolvedValueOnce({
-      status: 302,
-      ok: false,
-      headers: {
-        get: (h) =>
-          h.toLowerCase() === 'location' ? 'http://169.254.169.254/latest/meta-data/' : null,
-      },
-    });
+    fetch.mockResolvedValueOnce(
+      new Response(null, {
+        status: 302,
+        headers: { location: 'http://169.254.169.254/latest/meta-data/' },
+      }),
+    );
 
     const card = makeCard({ description: '![x](https://public.example/pic.png)' });
     const result = await cacheCharacterImages('c-1', card, '/fake/data');
@@ -460,14 +452,15 @@ describe('SSRF protection', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('refuses a host that does not resolve', async () => {
-    dns.lookup.mockRejectedValueOnce(new Error('ENOTFOUND'));
+  it('caches nothing when the connection guard refuses the host', async () => {
+    const refused = new Error('Refusing to connect to internal.example');
+    refused.code = 'EBLOCKEDADDRESS';
+    fetch.mockRejectedValue(new TypeError('fetch failed', { cause: refused }));
 
-    const card = makeCard({ description: '![x](https://nope.invalid/pic.png)' });
+    const card = makeCard({ description: '![x](https://internal.example/pic.png)' });
     const result = await cacheCharacterImages('c-1', card, '/fake/data');
 
     expect(result.size).toBe(0);
-    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

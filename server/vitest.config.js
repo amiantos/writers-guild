@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // Stubs DNS so the image cacher's SSRF guard never reaches the network.
+    // Stubs fetch so no test reaches the network.
     setupFiles: ['./src/__tests__/setup.js'],
     coverage: {
       provider: 'v8',
