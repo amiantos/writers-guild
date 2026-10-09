@@ -44,7 +44,7 @@ router.get(
 router.post(
   '/persona',
   asyncHandler(async (req, res) => {
-    const { firstName, description } = req.body;
+    const { firstName, description } = req.body ?? {};
 
     if (!firstName || !firstName.trim()) {
       throw new AppError('First name is required', 400);
@@ -101,7 +101,7 @@ router.post(
 router.post(
   '/preset',
   asyncHandler(async (req, res) => {
-    const { provider, apiKey, baseURL, password } = req.body;
+    const { provider, apiKey, baseURL, password } = req.body ?? {};
 
     if (!provider) {
       throw new AppError('Provider is required', 400);

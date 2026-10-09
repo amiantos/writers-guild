@@ -1,0 +1,91 @@
+version: 2
+
+# Supply-chain hardening notes:
+#   * cooldown — don't surface a new version until it has been public long
+#     enough for a malicious or yanked release to be caught. Security updates
+#     ignore cooldown, so real CVEs still come through.
+#   * groups — collapse minor/patch bumps into a single PR per npm package
+#     (one lockfile rebase instead of N conflicting ones); major bumps still
+#     arrive as individual PRs so they each get a manual look. The npm groups
+#     intentionally use `update-types` with NO `patterns` selector: adding
+#     `patterns: ['*']` can silently suppress major-version PRs
+#     (dependabot-core#14202).
+updates:
+  # Root tooling (oxlint, oxfmt, concurrently)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Server dependencies
+  - package-ecosystem: npm
+    directory: /server
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Client dependencies
+  - package-ecosystem: npm
+    directory: /vue_client
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions (pinned by SHA)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns:
+          - '*'
+
+  # Docker base image. Required, not optional: the Dockerfile pins
+  # node:24-slim by digest, which also freezes the Debian packages inside it;
+  # without digest refreshes the base image stops receiving OS security patches.
+  # Digest refreshes only — never a tag bump: left unconstrained this chases
+  # the highest numeric tag, which for `node` is the non-LTS line. Moving Node
+  # majors also means bumping node-version in test.yml, so it is a deliberate
+  # change, not an automated one.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor

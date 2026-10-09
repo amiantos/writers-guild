@@ -51,8 +51,8 @@ const app = express();
 const PORT = process.env.PORT || config.server.port || 8000;
 const HOST = process.env.HOST || config.server.host || '0.0.0.0';
 
-// Resolve data directory path
-const DATA_ROOT = path.resolve(__dirname, config.data.root);
+// Resolve data directory path; DATA_DIR overrides config.yaml (the Docker image sets it to /data)
+const DATA_ROOT = path.resolve(__dirname, process.env.DATA_DIR || config.data.root);
 
 // Make config and data root available to routes
 app.locals.config = config;
@@ -143,14 +143,14 @@ if (isProduction) {
   app.use(express.static(publicPath));
 
   // Fallback to index.html for client-side routing
-  app.get('*', (req, res) => {
+  app.get('/{*splat}', (req, res) => {
     res.sendFile(path.join(publicPath, 'index.html'));
   });
 } else {
   // Development: Redirect to Vite dev server
   console.log('Development mode: Redirecting to Vite dev server on port 5173');
 
-  app.get('*', (req, res) => {
+  app.get('/{*splat}', (req, res) => {
     // Redirect any HTML page requests to the Vite dev server on the same host the
     // request came in on, so the app also works from other devices on the LAN.
     res.redirect(302, `http://${req.hostname}:5173${req.url}`);
@@ -171,7 +171,10 @@ app.use((err, req, res, _next) => {
 });
 
 // Start server
-app.listen(PORT, HOST, () => {
+app.listen(PORT, HOST, (error) => {
+  // Express 5 hands listen errors (port in use, etc.) to this callback instead of throwing
+  if (error) throw error;
+
   // At least 40 wide, and wider for a long prerelease version.
   const title = `Writers Guild v${VERSION}`;
   const width = Math.max(40, title.length + 4);

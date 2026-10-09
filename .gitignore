@@ -41,10 +41,6 @@ build/Release
 node_modules/
 jspm_packages/
 
-# Subfolder package-lock files (cause cross-platform issues with native binaries)
-server/package-lock.json
-vue_client/package-lock.json
-
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
@@ -68,6 +64,9 @@ web_modules/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Local Docker Compose overrides (see docker-compose.override.yml.example)
+docker-compose.override.yml
 
 # dotenv environment variable files
 .env

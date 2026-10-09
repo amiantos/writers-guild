@@ -6,22 +6,25 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install root dependencies
-        run: npm install
+        run: npm ci
 
       - name: Lint
         run: npm run lint
@@ -31,16 +34,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install root dependencies
-        run: npm install
+        run: npm ci
 
       - name: Check formatting
         run: npm run format:check
@@ -48,29 +51,28 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x]
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 24
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            vue_client/package-lock.json
 
       - name: Install root dependencies
-        run: npm install
+        run: npm ci
 
       - name: Install server dependencies
-        run: cd server && npm install
+        run: npm ci --prefix server
 
       - name: Install client dependencies
-        run: cd vue_client && npm install
+        run: npm ci --prefix vue_client
 
       - name: Run server tests
         run: npm run test:server
@@ -83,7 +85,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload server coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./server/coverage/coverage-final.json
           flags: server
@@ -92,7 +94,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload client coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./vue_client/coverage/coverage-final.json
           flags: client
@@ -100,27 +102,20 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
         continue-on-error: true
 
-      - name: Comment test results on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Build-only (amd64) so a broken Dockerfile fails the PR, not the release.
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          script: |
-            const fs = require('fs');
-
-            // This is a simple comment - you can enhance this to include actual test results
-            const comment = `## ✅ Tests Passed
-
-            All tests completed successfully!
-
-            - Server tests: ✓
-            - Client tests: ✓
-
-            View detailed results in the Actions tab.`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
-        continue-on-error: true
+          context: .
+          push: false
+          cache-from: type=gha

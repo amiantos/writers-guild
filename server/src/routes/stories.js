@@ -89,7 +89,7 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { title, description, needsRewritePrompt } = req.body;
+    const { title, description, needsRewritePrompt } = req.body ?? {};
 
     if (!title || !title.trim()) {
       throw new AppError('Title is required', 400);
@@ -128,7 +128,7 @@ router.get(
 router.post(
   '/:id/rewrite-prompt',
   asyncHandler(async (req, res) => {
-    const { value } = req.body;
+    const { value } = req.body ?? {};
     await storage.setStoryNeedsRewritePrompt(req.params.id, !!value);
     res.json({ success: true });
   }),
@@ -185,7 +185,7 @@ function validateAvatarWindow(win, index) {
 router.put(
   '/:id/avatar-windows',
   asyncHandler(async (req, res) => {
-    const { avatarWindows } = req.body;
+    const { avatarWindows } = req.body ?? {};
 
     if (!Array.isArray(avatarWindows)) {
       throw new AppError('avatarWindows must be an array', 400);
@@ -223,7 +223,7 @@ router.put(
       perspective,
       perspectiveTense,
       perspectiveCharacterId,
-    } = req.body;
+    } = req.body ?? {};
     const updates = {};
 
     if (title !== undefined) updates.title = title.trim();
@@ -319,7 +319,7 @@ function sanitizePassages(passages) {
 router.put(
   '/:id/content',
   asyncHandler(async (req, res) => {
-    const { content, passages } = req.body;
+    const { content, passages } = req.body ?? {};
 
     if (content === undefined) {
       throw new AppError('Content is required', 400);
@@ -445,7 +445,7 @@ router.get(
 router.post(
   '/:id/characters',
   asyncHandler(async (req, res) => {
-    const { characterId } = req.body;
+    const { characterId } = req.body ?? {};
 
     if (!characterId) {
       throw new AppError('Character ID is required', 400);
@@ -641,7 +641,7 @@ router.get(
 router.put(
   '/:id/persona',
   asyncHandler(async (req, res) => {
-    const { characterId } = req.body; // Can be null to unset
+    const { characterId } = req.body ?? {}; // Can be null to unset
 
     await storage.setStoryPersona(req.params.id, characterId);
     res.json({ success: true });
@@ -663,7 +663,7 @@ router.get(
 router.post(
   '/:id/lorebooks',
   asyncHandler(async (req, res) => {
-    const { lorebookId } = req.body;
+    const { lorebookId } = req.body ?? {};
 
     if (!lorebookId) {
       throw new AppError('Lorebook ID is required', 400);
@@ -1109,7 +1109,7 @@ router.post(
   '/:id/continue-with-instruction',
   asyncHandler(async (req, res) => {
     const { id: storyId } = req.params;
-    const { instruction } = req.body;
+    const { instruction } = req.body ?? {};
 
     // If no instruction provided, fall back to normal continue
     const hasInstruction = instruction && instruction.trim();

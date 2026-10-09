@@ -23,13 +23,15 @@ So I decided to make Writers Guild, which uses the same character cards and lore
 
 ### Local Development (Recommended)
 
+Requires Node.js 24 (the current LTS); CI and the Docker image both run 24.
+
 **Run both server and client with one command:**
 
 ```bash
 # Install dependencies (first time only)
 npm install
-cd server && npm install && cd ..
-cd vue_client && npm install && cd ..
+npm install --prefix server
+npm install --prefix vue_client
 
 # Start both server and client
 npm run dev
@@ -75,11 +77,22 @@ npm run dev
 
 ### Docker (Production)
 
+Each release is published as a multi-arch (amd64/arm64) image at
+`ghcr.io/amiantos/writers-guild`. Download the compose file and start it:
+
 ```bash
-docker-compose up -d
+curl -O https://raw.githubusercontent.com/amiantos/writers-guild/main/docker-compose.yml
+docker compose up -d
 ```
 
-This builds the Vue client and serves it from the Node.js server on http://localhost:8000.
+Writers Guild is then on http://localhost:8000, with all of its data in `./data` next to the
+compose file. To update to the latest release: `docker compose pull && docker compose up -d`.
+
+To require a password, put `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` in a `.env` file next to
+the compose file (see `.env.example`). For a reverse-proxy network or building the image from a
+checkout, copy `docker-compose.override.yml.example` to `docker-compose.override.yml` and edit it.
+
+Image tags: `latest` and `X.Y.Z` / `X.Y` follow releases; `staging` follows `main`.
 
 ## Setup
 
@@ -119,7 +132,16 @@ The version shows at the bottom of Settings and in the server's startup banner.
 
 ## Android Build
 
-- To build natively in Android you need `node-addon-api` and `node-gyp`
+better-sqlite3 and sharp publish no prebuilt binaries for Android, and neither compiles itself on
+install, so on Android (e.g. Termux) build them from source after installing the server's
+dependencies (this uses the `node-addon-api` and `node-gyp` dev dependencies):
+
+```bash
+cd server
+npm install
+npm explore better-sqlite3 -- npm run build-release
+npm explore sharp -- npm run build
+```
 
 ## API
 

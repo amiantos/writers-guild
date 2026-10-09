@@ -193,7 +193,7 @@ router.post(
 router.post(
   '/import-url',
   asyncHandler(async (req, res) => {
-    const { url } = req.body;
+    const { url } = req.body ?? {};
     const channel = sseChannel(req, res);
 
     if (!url || typeof url !== 'string') {
@@ -271,7 +271,7 @@ router.post(
 router.post(
   '/create',
   asyncHandler(async (req, res) => {
-    const { name, description } = req.body;
+    const { name, description } = req.body ?? {};
 
     if (!name || !name.trim()) {
       throw new AppError('Lorebook name is required', 400);
@@ -307,7 +307,7 @@ router.put(
   '/:lorebookId',
   asyncHandler(async (req, res) => {
     const { lorebookId } = req.params;
-    const { name, description, scanDepth, tokenBudget, recursiveScanning } = req.body;
+    const { name, description, scanDepth, tokenBudget, recursiveScanning } = req.body ?? {};
 
     // Get existing lorebook
     const existing = await storage.getLorebook(lorebookId);
@@ -358,7 +358,7 @@ router.post(
   '/:lorebookId/entries',
   asyncHandler(async (req, res) => {
     const { lorebookId } = req.params;
-    const entryData = req.body;
+    const entryData = req.body ?? {};
 
     // Get existing lorebook
     const lorebook = await storage.getLorebook(lorebookId);
@@ -415,7 +415,7 @@ router.put(
   '/:lorebookId/entries/:entryId',
   asyncHandler(async (req, res) => {
     const { lorebookId, entryId } = req.params;
-    const updates = req.body;
+    const updates = req.body ?? {};
 
     // Get existing lorebook
     const lorebook = await storage.getLorebook(lorebookId);
