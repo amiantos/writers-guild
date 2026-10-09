@@ -35,7 +35,11 @@ for (const file of ['package.json', 'server/package.json', 'vue_client/package.j
     json.version = version;
   });
 }
-for (const file of ['package-lock.json', 'server/package-lock.json', 'vue_client/package-lock.json']) {
+for (const file of [
+  'package-lock.json',
+  'server/package-lock.json',
+  'vue_client/package-lock.json',
+]) {
   update(file, (json) => {
     json.version = version;
     json.packages[''].version = version;
