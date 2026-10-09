@@ -23,13 +23,15 @@ So I decided to make Writers Guild, which uses the same character cards and lore
 
 ### Local Development (Recommended)
 
+Requires Node.js 24 (the current LTS); CI and the Docker image both run 24.
+
 **Run both server and client with one command:**
 
 ```bash
 # Install dependencies (first time only)
 npm install
-cd server && npm install && cd ..
-cd vue_client && npm install && cd ..
+npm install --prefix server
+npm install --prefix vue_client
 
 # Start both server and client
 npm run dev
@@ -119,7 +121,16 @@ The version shows at the bottom of Settings and in the server's startup banner.
 
 ## Android Build
 
-- To build natively in Android you need `node-addon-api` and `node-gyp`
+better-sqlite3 and sharp publish no prebuilt binaries for Android, and neither compiles itself on
+install, so on Android (e.g. Termux) build them from source after installing the server's
+dependencies (this uses the `node-addon-api` and `node-gyp` dev dependencies):
+
+```bash
+cd server
+npm install
+npm explore better-sqlite3 -- npm run build-release
+npm explore sharp -- npm run build
+```
 
 ## API
 

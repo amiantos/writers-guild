@@ -24,6 +24,7 @@
       }
     ],
     "import/no-unassigned-import": "off",
+    "oxc/no-async-endpoint-handlers": "off",
     "no-underscore-dangle": [
       "warn",
       {

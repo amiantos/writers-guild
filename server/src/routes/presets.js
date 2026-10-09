@@ -138,7 +138,7 @@ router.get(
 router.put(
   '/default/id',
   asyncHandler(async (req, res) => {
-    const { presetId } = req.body;
+    const { presetId } = req.body ?? {};
 
     if (!presetId) {
       return res.status(400).json({

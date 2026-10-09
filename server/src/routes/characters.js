@@ -408,7 +408,7 @@ router.post(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const { name, description, personality, scenario, first_mes } = req.body;
+    const { name, description, personality, scenario, first_mes } = req.body ?? {};
 
     if (!name || !name.trim()) {
       throw new AppError('Character name is required', 400);
@@ -461,7 +461,7 @@ router.post(
   '/create',
   upload.single('image'),
   asyncHandler(async (req, res) => {
-    const characterDataJson = req.body.characterData;
+    const characterDataJson = req.body?.characterData;
 
     if (!characterDataJson) {
       throw new AppError('Character data is required', 400);
@@ -605,7 +605,7 @@ router.post(
 router.post(
   '/import-url',
   asyncHandler(async (req, res) => {
-    const { url } = req.body;
+    const { url } = req.body ?? {};
     const channel = sseChannel(req, res);
 
     if (!url || typeof url !== 'string') {
@@ -825,7 +825,7 @@ router.put(
       system_prompt,
       alternate_greetings,
       ursceal_lorebook_id,
-    } = req.body;
+    } = req.body ?? {};
 
     // Get existing character data
     const existingData = await storage.getCharacter(characterId);
@@ -870,7 +870,7 @@ router.put(
   upload.single('image'),
   asyncHandler(async (req, res) => {
     const { characterId } = req.params;
-    const characterDataJson = req.body.characterData;
+    const characterDataJson = req.body?.characterData;
 
     if (!characterDataJson) {
       throw new AppError('Character data is required', 400);

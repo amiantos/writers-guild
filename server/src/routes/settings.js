@@ -49,7 +49,7 @@ router.put(
       onboardingCompleted,
       experimentalChats,
       experimentalOldStoryMode,
-    } = req.body;
+    } = req.body ?? {};
 
     // Get current settings
     const current = (await storage.getSettings()) || {};

@@ -22,24 +22,27 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "better-sqlite3": "^12.5.0",
-    "body-parser": "^1.20.2",
-    "compression": "^1.8.1",
-    "cors": "^2.8.5",
-    "express": "^4.21.0",
-    "helmet": "^8.1.0",
-    "multer": "^2.0.2",
-    "sharp": "^0.34.5",
-    "undici": "^7.30.0",
-    "uuid": "^11.0.3",
-    "yaml": "^2.8.1"
+    "better-sqlite3": "^13.0.3",
+    "body-parser": "^2.3.0",
+    "compression": "^1.8.2",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "multer": "^2.4.0",
+    "sharp": "^0.35.5",
+    "undici": "^8.11.2",
+    "uuid": "^14.0.2",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.0.9",
-    "node-addon-api": "^8.8.0",
-    "node-gyp": "^12.4.0",
+    "@vitest/coverage-v8": "^5.0.3",
+    "node-addon-api": "^8.9.2",
+    "node-gyp": "^13.0.2",
     "pngjs": "^7.0.0",
-    "supertest": "^7.1.4",
-    "vitest": "^4.0.9"
+    "supertest": "^7.3.0",
+    "vitest": "^5.0.3"
+  },
+  "allowScripts": {
+    "better-sqlite3": false
   }
 }
