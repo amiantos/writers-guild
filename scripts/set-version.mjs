@@ -1,6 +1,6 @@
 /**
  * Set Writers Guild's version everywhere it's recorded: the root, server, and
- * client package.json files, and the root package-lock.json.
+ * client package.json files and their package-lock.json files.
  *
  *   npm run version:set 1.1.0
  */
@@ -35,7 +35,13 @@ for (const file of ['package.json', 'server/package.json', 'vue_client/package.j
     json.version = version;
   });
 }
-update('package-lock.json', (json) => {
-  json.version = version;
-  json.packages[''].version = version;
-});
+for (const file of [
+  'package-lock.json',
+  'server/package-lock.json',
+  'vue_client/package-lock.json',
+]) {
+  update(file, (json) => {
+    json.version = version;
+    json.packages[''].version = version;
+  });
+}
