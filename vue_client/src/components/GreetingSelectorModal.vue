@@ -14,9 +14,7 @@
         <span v-if="currentLabel" class="greeting-label"> - {{ currentLabel }}</span>
       </div>
 
-      <div class="greeting-display">
-        {{ currentGreeting }}
-      </div>
+      <div ref="displayRef" class="greeting-display" v-html="renderedGreeting"></div>
 
       <div class="carousel-controls">
         <button class="btn btn-secondary" :disabled="currentIndex === 0" @click="prevGreeting">
@@ -42,9 +40,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import Modal from './Modal.vue';
-import { charactersAPI } from '../services/api';
+import { renderProse } from '../composables/renderProse';
 
 const props = defineProps({
   story: {
@@ -59,9 +57,17 @@ const loading = ref(true);
 const characters = ref([]);
 const greetings = ref([]);
 const currentIndex = ref(0);
+const displayRef = ref(null);
 
 const currentGreeting = computed(() => {
   return greetings.value[currentIndex.value]?.greeting || '';
+});
+
+const renderedGreeting = computed(() => renderProse(currentGreeting.value));
+
+// Start each greeting from its top rather than wherever the last one was scrolled to.
+watch(currentIndex, () => {
+  if (displayRef.value) displayRef.value.scrollTop = 0;
 });
 
 const currentCharacter = computed(() => {
@@ -184,11 +190,28 @@ function selectCurrent() {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   min-height: 150px;
-  max-height: 300px;
+  max-height: 50vh;
   overflow-y: auto;
-  white-space: pre-wrap;
   line-height: 1.6;
   color: var(--text-primary);
+}
+
+.greeting-display :deep(p) {
+  margin: 0 0 1em;
+}
+
+.greeting-display :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.greeting-display :deep(.story-image) {
+  display: block;
+  max-width: 100%;
+  max-height: 40vh;
+  height: auto;
+  margin: 1rem auto;
+  border-radius: 8px;
+  object-fit: contain;
 }
 
 .carousel-controls {
