@@ -51,12 +51,22 @@ describe('GreetingSelectorModal', () => {
     const content = '<img src="x.png" onerror="alert(1)">';
     const wrapper = await mountModal([{ characterName: 'Layla', index: 0, content }]);
 
-    expect(sanitize).toHaveBeenCalledWith(proseToHtml(content));
+    expect(sanitize).toHaveBeenCalledWith(proseToHtml(content, { showHiddenNotes: true }));
     expect(wrapper.find('.greeting-display').html()).toContain('<p>clean</p>');
   });
 
+  it('shows hidden notes set apart from the prose', async () => {
+    const wrapper = await mountModal([
+      { characterName: 'Layla', index: 0, content: 'Hello.<!-- Keep her guarded. -->' },
+    ]);
+
+    const note = wrapper.find('.greeting-display .hidden-note');
+    expect(note.exists()).toBe(true);
+    expect(note.text()).toBe('Keep her guarded.');
+  });
+
   it('selects the raw greeting text, not the rendered HTML', async () => {
-    const content = 'Hi.\n\n![a door](https://example.com/door.png)';
+    const content = 'Hi.<!-- note -->\n\n![a door](https://example.com/door.png)';
     const wrapper = await mountModal([{ characterName: 'Layla', index: 0, content }]);
 
     await wrapper.find('.btn-primary.full-width').trigger('click');

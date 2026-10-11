@@ -63,7 +63,10 @@ const currentGreeting = computed(() => {
   return greetings.value[currentIndex.value]?.greeting || '';
 });
 
-const renderedGreeting = computed(() => renderProse(currentGreeting.value));
+// Hidden notes are shown, set apart, so they can be weighed when choosing a greeting.
+const renderedGreeting = computed(() =>
+  renderProse(currentGreeting.value, { showHiddenNotes: true }),
+);
 
 // Start each greeting from its top rather than wherever the last one was scrolled to.
 watch(currentIndex, () => {
@@ -212,6 +215,18 @@ function selectCurrent() {
   margin: 1rem auto;
   border-radius: 8px;
   object-fit: contain;
+}
+
+.greeting-display :deep(.hidden-note) {
+  margin: 0 0.125em;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.875em;
+  color: var(--text-secondary);
+  background-color: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .carousel-controls {
