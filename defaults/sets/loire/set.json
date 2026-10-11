@@ -1,0 +1,13 @@
+{
+  "name": "The Loire",
+  "description": "Four caretakers on an Earth-Mars cycler, riding out the long leg home.",
+  "characters": [
+    "characters/halvorsen.json",
+    "characters/araya.json",
+    "characters/venkataraman.json",
+    "characters/odhiambo.json"
+  ],
+  "lorebook": "lorebook.json",
+  "continuity": "continuity.json",
+  "stories": ["stories/01-spin-down.json", "stories/02-the-cellar.json"]
+}

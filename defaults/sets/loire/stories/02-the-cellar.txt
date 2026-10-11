@@ -1,0 +1,95 @@
+The warning came in the morning packet, which meant it was already eleven minutes old.
+
+Priya read it twice, once for the content and once for the timestamps, and then hit the alarm, which on the Loire was not a klaxon but a steady, polite chime through every speaker in the Wheel and a line of red across every panel. Darwin's flare watch had seen an X-class flare on the Sun's eastern limb at 07:52 UTC and modelled the proton front reaching the Loire's position at 08:40, give or take ten minutes. The ship's own particle counter, on the Hub truss, had not seen anything yet. It would.
+
+"Thirty-seven minutes," she said into the comm. "Shelter procedure. I'm starting the clock."
+
+Halvorsen's voice came back from the Mess, flat and immediate. "Confirmed. Wekesa, dosimeters. Tomás, you have ten minutes in the Garden and then I want you on the spoke."
+
+"Ten minutes," Tomás said. "Ten minutes. I can cover half the trays in ten minutes."
+
+"Then cover half."
+
+Priya had written the shelter procedure on day sixty of the long leg, after a false alarm that had put the four of them in the Cellar for ninety minutes of confusion about who was supposed to bring what. It was two pages long and had been tested exactly once, by her, alone, with a stopwatch. She took her slate and her cardigan and a deck of cards and went up the spoke, feeling the Wheel's weight fall away under her as she climbed, and found Wekesa already in the Hub with four dosimeters in one hand and the Cellar's hatch open with the other.
+
+"Clip it on," he said. "Chest. Don't take it off until I tell you."
+
+The Cellar was exactly as big as it had been on day sixty and no bigger: a cold cylinder at the heart of the Hub, walled in water and polyethylene, with four bunks folded down from the sides and a single panel mirroring LEDGER by the hatch. Priya went to the hand-cranked scrubber and checked it, because it was on her list, and it worked, because it always had.
+
+Halvorsen came up next, with the logbook and nothing else. Tomás came last, at nine minutes and forty seconds, out of breath, with soil on his face and a pocketful of tomatoes he had apparently picked on the way out, and Wekesa pulled the hatch shut behind him and dogged it, and the four of them floated in the dim light and listened to the ship.
+
+At 08:44 the particle counter on the Hub truss began to climb. Priya watched the number on the panel go from the background count she had looked at every day for two hundred and eighty-eight days to ten times that, to a hundred times, to a figure that she had only ever seen in training slides, and then stop looking at it, because Wekesa had put a hand on her shoulder and said, quietly, "It's doing its job. Let it."
+
+The first hour was procedure. Dosimeters, checked. Water, counted. Food locker, inventoried by Tomás, who announced that someone had eaten the good biscuits on day sixty and that he had his suspicions. The Garden's lights, confirmed off from the panel to save power for the Loop, which was running the Wheel's air on its own now that there was nobody in it to breathe. The Dish, still tracking Earth, still pulling down the slow low-gain packets that were all the storm would let through.
+
+The second hour was cards.
+
+"This is not a real game," Halvorsen said, holding seven of them.
+
+"It's a real game," Priya said. "I made it up on the Darwin night shift. The rules are on the slate. It's fair, it's quick, and it works in zero g because nobody has to put anything down."
+
+"Who wins?"
+
+"Whoever's holding the most Loop when the water runs out."
+
+Halvorsen looked at her cards. Halvorsen looked at Priya. Then, in a manner that would have been invisible to anyone who had not spent two hundred and eighty-eight days learning to read it, Halvorsen played.
+
+They played for three hours. Tomás lost every hand and did not care. Wekesa won most of them and did not say so. Priya kept score on her slate in a column beside the dose readings, and at some point during the fourth hour she realised the four of them were laughing, in a shelter, in a storm, at the loneliest point in the Solar System, and that she was not frightened, and that this was something she would need to think about later, when there was room.
+
+The panel chimed at 13:10. Priya was nearest.
+
+"Dish gimbal," she said, reading. "Azimuth motor B. Current draw's up forty percent, it's reporting a degraded state. It's still tracking." She scrolled. "The electronics are hardened, but hardened isn't immune. If it fails we lose the high gain until somebody goes out and swaps it."
+
+"Can it be swapped?"
+
+"There's a spare in Stores. It's an EVA. It's on the truss." She looked at Wekesa. He nodded, once, in the way that meant yes and also meant not today.
+
+"Log it," Halvorsen said. "After."
+
+The motor failed at 16:52. The Dish stopped tracking, the high-gain link dropped, and the low-gain link, which was a fat, slow, omnidirectional whisper designed for exactly this, carried on sending and receiving text at a few hundred bytes a minute. Priya watched the packets crawl in and felt the ship get smaller around her, which was absurd, since it had always been this size.
+
+The storm on the Sun had reached Mars by then. Priya had done the geometry on the slate without being asked and shown it to nobody, because Wekesa had already done it in his head, and she had watched him do it. The proton front that was washing over the Loire would wash over Mars some hours after, and Elysium Station, where his daughter lived, would go into its own shelters, underground, and Amani would be fine, because the shelters worked, and he would not hear from her until the low-gain link had crawled through the backlog of everyone else's mail.
+
+He did not say any of this. He checked the dosimeters again, and told Tomás a long and apparently true story about a goat on Kilimanjaro, and strapped himself to a bunk and slept for four hours with his hands folded on his chest.
+
+It was Halvorsen who talked, in the end, which none of them had expected.
+
+It was the dark part of the night by the ship's clock, with the panel dimmed and Tomás snoring gently against the water wall, and Priya awake because she was always awake, and Halvorsen awake because she was Halvorsen. The commander's voice came out of the dimness without any preamble at all.
+
+"My son thinks I should stop."
+
+Priya held very still.
+
+"Eirik. He sends me these messages. Three thousand words. He has a daughter now, she is two, I have seen her for a total of nine days. He thinks four rotations is enough. He thinks I am sixty-three when the Loire gets back to Earth after the next one, and that's true, and he thinks there will be nothing left of me to come home to." A long pause. "He's not wrong. I keep thinking I'll decide on the long leg. I've been thinking it for two hundred and eighty-eight days."
+
+"You don't have to decide in here."
+
+"No." Something that might have been a laugh. "In here is the last place I'd decide anything. Go to sleep, Venkataraman."
+
+Priya did not go to sleep. But she did not say anything else, either, and after a while the commander's breathing changed, and the four of them hung in the dark at the centre of the ship with the water all around them and the storm going past outside, as silently as everything else did out here.
+
+The all-clear came at 15:30 the next day, thirty-one hours after the hatch had closed. The particle counter had been falling since dawn. Darwin's packet, when it finally crawled in, agreed. Wekesa read every dosimeter twice and wrote the numbers on the back of his hand in pen, and then said, "Everybody's fine. Nobody's happy about it, but everybody's fine," and undogged the hatch.
+
+The Wheel was still turning. It had turned the whole time, with nobody in it, at three and a half revolutions per minute, and the air in it was cold and stale and smelled of nothing. Tomás went down the spoke to the Garden ahead of everybody and the rest of them, without discussing it, followed him.
+
+The lights came up. The trays he had managed to cover looked as they had. The trays he had not looked exactly the same, which Priya understood, from his face, was the problem.
+
+"You don't see it today," he said. "You don't see it tomorrow. In a week the growth stops, or it doesn't. Maybe a third of them. Maybe none." He put his hand into the nearest tray and pressed the soil, as if it might tell him. "I'll know in a week. I'll replant what I have to. I have seed for everything but the strawberries."
+
+"Then we go without strawberries," said Halvorsen, from the hatch, "until Earth."
+
+"We go without strawberries," Tomás agreed. He took one of the tomatoes out of his pocket, considered it, and ate it. "Thursday's still Thursday. I'm cooking."
+
+Priya went to the workshop and opened a repair ticket for the Dish gimbal, azimuth motor B, with the spare's location in Stores and a draft EVA plan, and flagged it for the commander. Then she pulled up the low-gain backlog, because it was her job, and because she had been watching the queue for thirty-one hours and knew what was in it.
+
+She found Wekesa in the Hub, with the suits. He had one of them out and was checking its seals with the small light, and he did not look up when she came in, and she did not make him.
+
+"Text only," she said. "Low gain. It came in two hours ago, during the storm, and it's been sitting in the queue behind everything else because it's from Mars and Mars is last. I moved it up."
+
+She put the slate in his hand and left him alone with it.
+
+It was forty-one words. Priya had not read them, exactly, except that she had, because it had been on her screen, and so she knew that it said they had been in the shelter at Elysium for twenty hours and that it had been boring and that Amani had found another rock and would tell him about it properly when the big antenna came back. There was a photograph attached that the low-gain link had not been able to send.
+
+Wekesa read it, as far as she could tell from the spoke, three times. Then he clipped the light to his collar, and went back to the seal he had been checking, and finished it.
+
+In the Mess, Halvorsen opened the logbook, wrote the date and the day count, day 289, and the dose figures off the back of Wekesa's hand, and then, under it, in the same small square pencil, EVA required: Dish gimbal, az. motor B. She underlined it once. Then she turned to the back of the book, where she kept a different kind of list, and sat for a while with the pencil above the page, and did not write anything, and closed it.

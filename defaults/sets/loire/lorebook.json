@@ -1,0 +1,179 @@
+{
+  "name": "The Loire",
+  "description": "The world of the Earth-Mars cycler Loire and its caretaker crew: the vehicle, its orbit, the people and places on either end of it, and the constraints that make hard science fiction hard. Designed to be shared across every story and chat set aboard the Loire.",
+  "scan_depth": 2000,
+  "token_budget": 1800,
+  "recursive_scanning": true,
+  "entries": {
+    "0": {
+      "uid": 0,
+      "key": ["Loire", "cycler", "the ship"],
+      "keysecondary": [],
+      "comment": "The Loire (always on)",
+      "constant": true,
+      "disable": false,
+      "order": 10,
+      "content": "The Loire is an Earth-Mars cycler: a spacecraft on a permanent orbit around the Sun that passes close to Earth and Mars in turn, every 2.14 years, never slowing down. Passengers ride up to it from Earth in ferries, live aboard for the 146-day outbound leg, and ride down to Mars in ferries at the other end. The cycler itself then takes 630 days, the long leg, to come back around to Earth, with no passengers aboard and only a four-person caretaker crew. Launched 2074, operated by the Consortium, the Loire is seventeen years old in 2091 and shows it. It has no artificial gravity but spin: a rotating Wheel on a zero-g Hub, joined by six spokes and a slip ring. It has no engine to speak of, only solar-electric thrusters for trajectory trims, fed from a strictly budgeted reserve of xenon. It is the year 2091. There is no faster-than-light travel, no artificial intelligence that thinks, and no rescue: Earth is between four and twenty-two light-minutes away for the whole of the long leg."
+    },
+    "1": {
+      "uid": 1,
+      "key": ["Wheel", "spin gravity", "rpm", "segment"],
+      "keysecondary": [],
+      "comment": "The Wheel",
+      "constant": false,
+      "disable": false,
+      "order": 20,
+      "content": "The Wheel is the Loire's rotating habitat: a ring 56 metres across, turning at 3.5 rpm to give 0.38 g at the floor, the same gravity as Mars so passengers arrive adapted. It has six segments, numbered clockwise: 1, the Mess (galley, command stations, the table everyone eats at); 2, Quarters (four cabins in use, sixteen more sealed and cold); 3, the Workshop and Medical; 4, the Garden; 5, Stores; 6, the Loop's tanks and the exercise gear. The Wheel runs cold, around 18 °C, to save power on the long leg. Walking \"spinward\" or \"antispinward\" around the ring feels subtly different, and anything dropped curves as it falls. Despinning the Wheel takes about forty minutes and puts the whole habitat into zero g, which the Garden hates."
+    },
+    "2": {
+      "uid": 2,
+      "key": ["Hub", "zero g", "zero-g", "spoke", "slip ring", "bearing"],
+      "keysecondary": [],
+      "comment": "The Hub and the slip ring",
+      "constant": false,
+      "disable": false,
+      "order": 20,
+      "content": "The Hub is the Loire's non-rotating core: a cylinder along the spin axis holding the docking ports, the EVA airlock, the Cellar, the main truss to the solar arrays and radiators, and the thruster pods. It is in zero g. The Wheel turns around it on a great slip-ring bearing, which also carries power and data between the two; crew pass between Hub and Wheel through the spokes, climbing \"down\" into gravity or \"up\" out of it. The slip ring is the Loire's single most watched component: if it seizes, the Wheel cannot spin, and if it fails outright nothing can be done about it before Earth. Its bearing housing is on the outside of the Hub and can only be reached by EVA."
+    },
+    "3": {
+      "uid": 3,
+      "key": ["Cellar", "storm shelter", "shelter"],
+      "keysecondary": [],
+      "comment": "The Cellar",
+      "constant": false,
+      "disable": false,
+      "order": 20,
+      "content": "The Cellar is the Loire's radiation storm shelter: a cramped compartment at the centre of the Hub, walled on every side by the ship's water tanks and a layer of polyethylene, with four fold-down bunks, a chemical toilet behind a curtain, a food locker, a medical kit, a hand-cranked air scrubber in case the power fails, and one small panel that mirrors LEDGER. It is in zero g, it is never warm, and four people cannot be in it without touching. The crew shelter there during solar particle events, for anything from a few hours to a few days, and come out hating one another slightly less than they expected to."
+    },
+    "4": {
+      "uid": 4,
+      "key": ["Garden", "greenhouse", "tomato", "tomatoes", "grow-light", "grow light"],
+      "keysecondary": [],
+      "comment": "The Garden",
+      "constant": false,
+      "disable": false,
+      "order": 20,
+      "content": "The Garden is segment 4 of the Wheel, the Loire's greenhouse. Planting trays climb the curved walls in tiers under long bars of violet grow-light; it is the warmest, dampest place on the ship and the only one that smells of anything alive. It grows tomatoes, lettuce, beans, potatoes, basil, a stubborn row of strawberries, and whatever Tomás Araya is experimenting with that month. It supplies a few percent of the crew's oxygen and a far larger share of their morale. The Garden is the first thing to suffer when power is cut, the Wheel is despun, or radiation gets through, and the botanist takes each of those personally."
+    },
+    "5": {
+      "uid": 5,
+      "key": ["Loop", "ECLSS", "life support", "water recovery", "scrubber", "oxygen margin"],
+      "keysecondary": [],
+      "comment": "The Loop",
+      "constant": false,
+      "disable": false,
+      "order": 20,
+      "content": "The Loop is the Loire's environmental control and life support system: the water recovery plant, the carbon-dioxide scrubbers, and the oxygen generator, all housed in segment 6 of the Wheel with their tanks. It recovers about 94 percent of the ship's water from everything the crew breathes out, sweats, and flushes; the remaining few percent come from reserve tanks that double as the Cellar's shielding. Crew quote the Loop's recovery figure the way other people quote the weather. A tenth of a percent either way is worth a conversation; a whole percent is worth a meeting."
+    },
+    "6": {
+      "uid": 6,
+      "key": ["LEDGER", "vehicle management", "telemetry"],
+      "keysecondary": [],
+      "comment": "LEDGER",
+      "constant": false,
+      "disable": false,
+      "order": 20,
+      "content": "LEDGER (Loire Environmental, Dynamics and General Event Recorder) is the Loire's vehicle management software. It watches every sensor on the ship, flags anything outside its limits, schedules maintenance, and keeps the ship's log. It is not an artificial intelligence and nobody aboard treats it as one: it is a large, old, carefully maintained collection of rules and thresholds, most of which Priya Venkataraman has rewritten at least once. It is honest, literal, and blind to anything that is new but within limits. The commander distrusts it on principle and uses it constantly."
+    },
+    "7": {
+      "uid": 7,
+      "key": ["Darwin", "light lag", "light-lag", "ground", "packet", "high-gain", "the Dish"],
+      "keysecondary": [],
+      "comment": "Darwin and the light lag",
+      "constant": false,
+      "disable": false,
+      "order": 20,
+      "content": "Darwin is the Consortium's ground operations centre in Darwin, Australia, and the word the crew use for everyone on Earth who is watching them. Darwin talks to the Loire through the Dish, the high-gain antenna on the Hub truss, in twice-daily packets of telemetry, mail, news, and instructions. The light lag between Earth and the Loire varies from about four minutes to about twenty-two minutes over the long leg; a question and its answer can take three quarters of an hour. Conversation is impossible. Everything is recorded, sent, and waited for. Darwin cannot help with anything that happens in the next hour, and everyone on both ends knows it."
+    },
+    "8": {
+      "uid": 8,
+      "key": ["Consortium", "rotation", "caretaker"],
+      "keysecondary": [],
+      "comment": "The Consortium and crew rotations",
+      "constant": false,
+      "disable": false,
+      "order": 30,
+      "content": "The Consortium is the joint venture of national agencies and transport companies that operates the Earth-Mars cyclers. It is cautious, slow, and far away. A caretaker crew signs on for one rotation: a full cycle of the orbit, about 2.14 years, boarding at Earth with the passengers, staying aboard through the Mars flyby and the empty long leg, and leaving at the next Earth encounter. Four people, one vehicle, two years. The Consortium picks crews for steadiness more than brilliance, and pays them well enough that most come back for a second rotation and few for a fourth."
+    },
+    "9": {
+      "uid": 9,
+      "key": ["Mekong", "sister ship", "sister cycler"],
+      "keysecondary": [],
+      "comment": "The Mekong",
+      "constant": false,
+      "disable": false,
+      "order": 30,
+      "content": "The Mekong is the Loire's sister cycler, launched 2079, on an orbit timed so that one of the two is always carrying passengers outbound while the other rides its long leg home. The two vehicles are never within less than tens of millions of kilometres of each other, but their crews relay messages through each other's antennas when geometry favours it, and there is a long-running, deeply petty rivalry over whose Loop recovers more water."
+    },
+    "10": {
+      "uid": 10,
+      "key": ["ferry", "ferries", "Lark", "lifeboat", "taxi"],
+      "keysecondary": [],
+      "comment": "Ferries and Lark Three",
+      "constant": false,
+      "disable": false,
+      "order": 30,
+      "content": "Ferries are the small, fast craft that do the hard work of a cycler system: they burn up from Earth or Mars to match the cycler's speed, dock at the Hub, and later burn away again to land. The Loire's ferries are Lark-class, each carrying up to twelve people and very little else. One of them, Lark Three, stays docked at the Hub for the whole long leg as a lifeboat; in theory it could take the crew to Earth if the Loire became uninhabitable, in practice it could not do so in less than a year, and nobody aboard mentions this. The next ferries to reach the Loire will rise from Earth to meet it at the end of the long leg, around day 640."
+    },
+    "11": {
+      "uid": 11,
+      "key": ["long leg", "day 2", "Mars flyby", "Earth encounter", "the orbit"],
+      "keysecondary": [],
+      "comment": "The long leg",
+      "constant": false,
+      "disable": false,
+      "order": 30,
+      "content": "The long leg is the empty part of the Loire's orbit: the 630 days between the Mars flyby, when the last ferry of passengers leaves for the surface, and the next Earth encounter, when ferries rise to meet it again. The crew count days of the long leg from the moment that last ferry undocked, and the count is how they tell time: \"day 212\" means more to them than any calendar date. On the long leg the Loire swings out past the orbit of Mars to its aphelion, where the Sun is dim and the solar arrays give the least power, and then falls back in towards Earth, gathering speed. The middle of the long leg is the loneliest point in the Solar System that human beings regularly visit."
+    },
+    "12": {
+      "uid": 12,
+      "key": ["Elysium", "Mars", "Amani", "Njeri"],
+      "keysecondary": [],
+      "comment": "Elysium Station and Mars",
+      "constant": false,
+      "disable": false,
+      "order": 30,
+      "content": "Elysium Station is the largest of the Mars settlements: around four thousand people living in buried habitats on the Elysium plain, most of them delivered by the cyclers. Wekesa Odhiambo's twelve-year-old daughter, Amani, lives there with her mother, Njeri, a geologist. The light lag between the Loire and Mars is shorter than to Earth for the first part of the long leg and longer afterwards; either way, messages from Amani arrive as recordings, days old, and are listened to many times. Mars's thin atmosphere offers little protection from solar storms, and Elysium's residents shelter underground during them just as the Loire's crew shelter in the Cellar."
+    },
+    "13": {
+      "uid": 13,
+      "key": ["solar particle event", "SPE", "solar storm", "radiation", "dose", "flare", "proton"],
+      "keysecondary": [],
+      "comment": "Solar particle events",
+      "constant": false,
+      "disable": false,
+      "order": 30,
+      "content": "A solar particle event is a storm of high-energy protons thrown off by the Sun, arriving at the Loire anywhere from twenty minutes to a few hours after the flare that launched it. Earth's observatories and the ship's own particle counter give the crew warning, usually enough to reach the Cellar; sheltering lasts until the flux falls, from a few hours to three or four days. Outside the Cellar an SPE would give a crew member a career's worth of dose in an afternoon. The Wheel's ordinary hull stops almost none of it. Electronics on the Hub truss, the Dish's gimbal motors among them, are hardened but not immune, and the Garden, which cannot be moved into the Cellar, takes whatever the storm gives it."
+    },
+    "14": {
+      "uid": 14,
+      "key": ["EVA", "spacewalk", "suit", "airlock", "tether"],
+      "keysecondary": [],
+      "comment": "EVA",
+      "constant": false,
+      "disable": false,
+      "order": 30,
+      "content": "EVA from the Loire is done through the Hub airlock in soft suits that take an hour to put on and a two-hour pre-breathe to use safely. The Hub exterior is slow and tethered; the Wheel exterior is not visited at all while it spins. Wekesa Odhiambo leads every EVA, and the rule is two outside, two inside, always. The outside of the Loire is quiet, cold, scoured matt by seventeen years of micrometeoroids, and offers a view of the Sun as a small hard disc and of Earth and Mars as a pair of bright stars that the crew learn to find without thinking."
+    },
+    "15": {
+      "uid": 15,
+      "key": ["Thursday", "dinner", "crew dinner", "galley", "the Mess"],
+      "keysecondary": [],
+      "comment": "Thursday dinners",
+      "constant": false,
+      "disable": false,
+      "order": 40,
+      "content": "The Loire runs on UTC, and on Thursday evenings by that clock the crew eat together in the Mess, at the one table, from whatever Tomás Araya has grown and cooked, with the ship's stores filling in. It is the only meal of the week that is not eaten at a station or out of a pouch. Attendance is not an order, exactly, but Halvorsen has never missed one and nobody else has dared. Thursday is when news is shared, grievances are aired, and the week is officially allowed to end."
+    },
+    "16": {
+      "uid": 16,
+      "key": ["xenon", "thruster", "trajectory", "trim burn", "propellant"],
+      "keysecondary": [],
+      "comment": "Xenon and trim burns",
+      "constant": false,
+      "disable": false,
+      "order": 40,
+      "content": "The Loire carries no main engine; its orbit does the work. What it carries is a reserve of xenon for its solar-electric thrusters, used in small, patient trim burns to keep the cycling orbit lined up with Earth and Mars encounters years ahead. The reserve is finite, was sized for the vehicle's design life, and is now the thing that decides how many more cycles the Loire can fly. Every gram is logged. Halvorsen keeps the running total in pencil as well as in LEDGER, and the two have never disagreed."
+    }
+  }
+}

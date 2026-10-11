@@ -1,0 +1,15 @@
+{
+  "title": "Spin Down",
+  "description": "Day 212 of the long leg. A vibration LEDGER calls \"within limits\" sends Priya on her first real EVA, and the Loire's commander on a decision about who she trusts.",
+  "scenario": "Day 212 of the Loire's long leg home. The vehicle is at aphelion, Earth is twenty minutes away by radio, and a new four-hertz vibration has appeared in the slip-ring bearing that joins the Wheel to the Hub. Priya Venkataraman, the crew's newest member, has found it; now she has to convince a commander who distrusts software, a botanist who will have to despin his Garden, and herself.",
+  "perspective": "third_limited",
+  "perspectiveTense": "past",
+  "perspectiveCharacter": "characters/venkataraman.json",
+  "characters": [
+    "characters/halvorsen.json",
+    "characters/araya.json",
+    "characters/venkataraman.json",
+    "characters/odhiambo.json"
+  ],
+  "content": "01-spin-down.txt"
+}

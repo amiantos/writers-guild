@@ -256,8 +256,9 @@
         </div>
         <h1>Import Sample Content</h1>
         <p class="description">
-          Would you like to populate your library with sample characters and stories? This is a
-          great way to explore the app's features.
+          Would you like to populate your library with sample content? You'll get a handful of
+          characters, a world lorebook, two finished stories, and a continuity that carries what
+          happened in them forward. It's a good way to see how the pieces fit together.
         </p>
 
         <div class="import-options" role="radiogroup" aria-label="Import sample content choice">
@@ -274,7 +275,7 @@
             <i class="fas fa-check-circle"></i>
             <div>
               <strong>Yes, import samples</strong>
-              <p>Get started with pre-made characters and stories</p>
+              <p>Characters, a lorebook, finished stories and a continuity</p>
             </div>
           </div>
           <div
@@ -332,10 +333,22 @@
               >Imported <strong>{{ setupSummary.importedCharacters }}</strong> characters</span
             >
           </div>
+          <div class="summary-item" v-if="setupSummary.importedLorebooks">
+            <i class="fas fa-book-open"></i>
+            <span
+              >Imported <strong>{{ setupSummary.importedLorebooks }}</strong> lorebook</span
+            >
+          </div>
           <div class="summary-item" v-if="setupSummary.createdStories">
             <i class="fas fa-book"></i>
             <span
               >Created <strong>{{ setupSummary.createdStories }}</strong> sample stories</span
+            >
+          </div>
+          <div class="summary-item" v-if="setupSummary.createdContinuities">
+            <i class="fas fa-link"></i>
+            <span
+              >Created <strong>{{ setupSummary.createdContinuities }}</strong> continuity</span
             >
           </div>
         </div>
@@ -579,7 +592,9 @@ async function handleImportChoice() {
       setupSummary.value = {
         ...setupSummary.value,
         importedCharacters: result.importedCharacters,
+        importedLorebooks: result.importedLorebooks,
         createdStories: result.createdStories,
+        createdContinuities: result.createdContinuities,
       };
     }
 

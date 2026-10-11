@@ -54,7 +54,9 @@ describe('OnboardingWizard', () => {
     });
     mockOnboardingAPI.importDefaults.mockResolvedValue({
       importedCharacters: 4,
+      importedLorebooks: 1,
       createdStories: 4,
+      createdContinuities: 1,
     });
     mockOnboardingAPI.complete.mockResolvedValue({ success: true });
   });
@@ -360,7 +362,9 @@ describe('OnboardingWizard', () => {
       expect(summary.text()).toContain('John');
       expect(summary.text()).toContain('DeepSeek');
       expect(summary.text()).toContain('4 characters');
+      expect(summary.text()).toContain('1 lorebook');
       expect(summary.text()).toContain('4 sample stories');
+      expect(summary.text()).toContain('1 continuity');
     });
 
     it('should show Start Writing button', () => {

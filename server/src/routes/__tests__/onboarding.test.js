@@ -344,6 +344,26 @@ describe('Onboarding API Routes', () => {
       expect(typeof response.body.createdStories).toBe('number');
     });
 
+    it('should import the bundled sets with their lorebook and continuity', async () => {
+      const response = await request(app).post('/api/onboarding/import-defaults').expect(200);
+
+      expect(response.body.importedLorebooks).toBeGreaterThanOrEqual(1);
+      expect(response.body.createdContinuities).toBeGreaterThanOrEqual(1);
+      expect(response.body.characters.map((c) => c.name)).toContain('Ingrid Halvorsen');
+      expect(response.body.stories.map((s) => s.title)).toContain('Spin Down');
+
+      const storage = new SqliteStorageService(tempDir);
+      const continuityId = response.body.continuities[0].id;
+      const story = await storage.getStory(
+        response.body.stories.find((s) => s.title === 'The Cellar').id,
+      );
+      storage.close();
+
+      expect(story.continuityId).toBe(continuityId);
+      expect(story.lorebookIds).toEqual([response.body.lorebooks[0].id]);
+      expect(story.characterIds).toHaveLength(4);
+    });
+
     it('should set default persona on imported stories if persona exists', async () => {
       // Create persona first
       const personaResponse = await request(app)

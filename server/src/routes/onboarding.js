@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { SqliteStorageService } from '../services/sqliteStorage.js';
 import { importDefaultCharacters, createDefaultStory } from '../services/migration.js';
+import { importDefaultSets } from '../services/default-sets.js';
 import { getDefaultPresets } from '../services/default-presets.js';
 
 const router = express.Router();
@@ -178,7 +179,7 @@ router.post(
   }),
 );
 
-// Import default characters and stories
+// Import default characters, stories, lorebooks and continuities
 router.post(
   '/import-defaults',
   asyncHandler(async (req, res) => {
@@ -206,15 +207,26 @@ router.post(
       }
     }
 
+    // Import the bundled sets: characters, a lorebook, finished stories, and a
+    // continuity that belong together (see services/default-sets.js)
+    const sets = await importDefaultSets(storage, { defaultPersonaId });
+
+    const characters = [...importedCharacters, ...sets.characters];
+    const stories = [...defaultStories, ...sets.stories];
     console.log(
-      `Imported ${importedCharacters.length} characters and created ${defaultStories.length} stories`,
+      `Imported ${characters.length} characters and ${sets.lorebooks.length} lorebooks, ` +
+        `created ${stories.length} stories and ${sets.continuities.length} continuities`,
     );
 
     res.json({
-      importedCharacters: importedCharacters.length,
-      createdStories: defaultStories.length,
-      characters: importedCharacters.map((c) => ({ id: c.id, name: c.name })),
-      stories: defaultStories,
+      importedCharacters: characters.length,
+      importedLorebooks: sets.lorebooks.length,
+      createdStories: stories.length,
+      createdContinuities: sets.continuities.length,
+      characters: characters.map((c) => ({ id: c.id, name: c.name })),
+      stories,
+      lorebooks: sets.lorebooks,
+      continuities: sets.continuities.map((c) => ({ id: c.id, name: c.name })),
     });
   }),
 );
