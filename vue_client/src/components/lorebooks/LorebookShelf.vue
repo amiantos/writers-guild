@@ -104,6 +104,7 @@ import {
   lorebookUseCounts,
   sortLorebookItems,
 } from '../../composables/lorebooks.js';
+import { userStorageKey } from '../../config/storageKeys';
 
 const props = defineProps({
   lorebooks: { type: Array, default: () => [] },
@@ -133,8 +134,8 @@ const NEW_OPTIONS = [
   },
 ];
 
-// Sort, remembered per browser
-const PREFS_KEY = 'writers-guild-lorebooks';
+// Sort, remembered per browser for each user
+const PREFS_KEY = userStorageKey('writers-guild-lorebooks');
 
 function readPrefs() {
   try {

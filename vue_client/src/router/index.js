@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { onboardingAPI } from '../services/api';
+import { useAuth } from '../composables/useAuth';
 
 // Eager load landing page for fast initial load
 import LandingPage from '../views/LandingPage.vue';
@@ -11,8 +12,31 @@ const CharacterDetail = () => import('../views/CharacterDetail.vue');
 const LorebookDetail = () => import('../views/LorebookDetail.vue');
 const SettingsPage = () => import('../views/SettingsPage.vue');
 const OnboardingWizard = () => import('../views/OnboardingWizard.vue');
+const LoginPage = () => import('../views/LoginPage.vue');
+const LinkPage = () => import('../views/LinkPage.vue');
 
 const routes = [
+  // Open without signing in, once signing in is on
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginPage,
+    meta: { title: 'Sign In - Writers Guild', public: true, skipOnboardingCheck: true },
+  },
+  {
+    path: '/invite/:token',
+    name: 'invite',
+    component: LinkPage,
+    props: true,
+    meta: { title: 'Join - Writers Guild', public: true, skipOnboardingCheck: true },
+  },
+  {
+    path: '/reset-password/:token',
+    name: 'reset-password',
+    component: LinkPage,
+    props: true,
+    meta: { title: 'Reset Password - Writers Guild', public: true, skipOnboardingCheck: true },
+  },
   {
     path: '/onboarding',
     name: 'onboarding',
@@ -65,6 +89,31 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
 });
+
+// Once signing in is on, send anyone not signed in to sign in, then back where they were going.
+router.beforeEach(async (to) => {
+  const auth = useAuth();
+  try {
+    await auth.load();
+  } catch (error) {
+    // Leave it to the page to show the server isn't answering
+    console.error('Failed to check whether signing in is on:', error);
+    return true;
+  }
+
+  const signedOut = auth.authEnabled.value && !auth.user.value;
+  if (to.name === 'login') return signedOut || { name: 'home' };
+  if (to.meta.public || !signedOut) return true;
+  return { name: 'login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } };
+});
+
+/** Go to sign in, as when a session ends while the app is open. */
+export function goToSignIn() {
+  const current = router.currentRoute.value;
+  if (current.meta.public) return;
+  useAuth().setStatus({ authEnabled: true, user: null });
+  router.push({ name: 'login', query: { redirect: current.fullPath } });
+}
 
 // Track onboarding status to avoid repeated API calls
 let onboardingChecked = false;

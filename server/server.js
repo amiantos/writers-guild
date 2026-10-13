@@ -16,6 +16,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import bodyParser from 'body-parser';
 import basicAuth from './src/middleware/basic-auth.js';
+import authenticate from './src/middleware/authenticate.js';
 
 // Import route handlers
 import storiesRouter from './src/routes/stories.js';
@@ -29,9 +30,13 @@ import chatsRouter from './src/routes/chats.js';
 import archivistRouter from './src/routes/archivist.js';
 import characterGeneratorRouter from './src/routes/character-generator.js';
 import continuitiesRouter from './src/routes/continuities.js';
+import authRouter from './src/routes/auth.js';
+import usersRouter from './src/routes/users.js';
 
 // Import migration service
 import { runMigration } from './src/services/migration.js';
+import { userStorageFor } from './src/services/auth/user-storage.js';
+import { convertBasicAuth } from './src/services/auth/basic-auth-conversion.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -75,6 +80,27 @@ if (!fs.existsSync(DATA_ROOT)) {
     console.error('Migration error:', error);
     // Don't fail server start on migration error
   }
+
+  // Basic auth credentials from before there were users become the admin's
+  const { BASIC_AUTH_USERNAME: username, BASIC_AUTH_PASSWORD: password } = process.env;
+  try {
+    const users = userStorageFor(DATA_ROOT);
+    const conversion = await convertBasicAuth(users, { username, password });
+    if (conversion.converted) {
+      console.log(
+        `✓ Signing in is on: the admin signs in as ${username} with the basic auth password`,
+      );
+    } else if (conversion.reason) {
+      console.log(`Basic auth stays on. ${conversion.reason}`);
+    }
+    if (username && password && users.authEnabled()) {
+      console.log(
+        'Note: signing in is on, so BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD are no longer needed and can be removed.',
+      );
+    }
+  } catch (error) {
+    console.error('Basic auth conversion error:', error);
+  }
 })();
 
 // Security middleware
@@ -93,8 +119,8 @@ app.use(
   }),
 );
 
-// Optional HTTP Basic Authentication
-app.use(basicAuth());
+// Optional HTTP Basic Authentication, until Writers Guild's own signing in is on
+app.use(basicAuth({ signInEnabled: () => userStorageFor(DATA_ROOT).authEnabled() }));
 
 // Body parsing middleware
 // Disable compression for SSE (text/event-stream)
@@ -111,13 +137,20 @@ app.use(
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-// Request logging middleware
+// Request logging middleware. Invitation and password reset links leave their tokens out.
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+  const logged = req.path.replace(/^(\/api\/auth\/links|\/invite|\/reset-password)\/.*/, '$1/…');
+  console.log(`${new Date().toISOString()} ${req.method} ${logged}`);
   next();
 });
 
+// Whose library each request uses: the signed-in user's, or the admin's until signing in is on.
+// After the body parsers, which read the request from stream events that would lose track of it.
+app.use('/api', authenticate());
+
 // API routes
+app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
 app.use('/api/stories', storiesRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/settings', settingsRouter);

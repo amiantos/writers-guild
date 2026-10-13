@@ -7,6 +7,9 @@ import path from 'path';
 import assetsRouter from '../assets.js';
 import { errorHandler } from '../../middleware/error-handler.js';
 import { AssetManager } from '../../services/asset-manager.js';
+import { SqliteStorageService } from '../../services/sqliteStorage.js';
+import { runAsUser } from '../../services/user-context.js';
+import { UserStorage } from '../../services/auth/user-storage.js';
 
 // A real 64-char sha256-shaped name, matching what image-cacher produces.
 const HASH = 'a'.repeat(64);
@@ -14,9 +17,14 @@ const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 let dataRoot;
 let app;
+let storage;
 
 beforeEach(async () => {
   dataRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'wg-assets-'));
+  storage = new SqliteStorageService(dataRoot);
+  // The characters and lorebooks the assets belong to
+  await storage.saveCharacter('char-1', { data: { name: 'Char' } });
+  await storage.saveLorebook('lore-1', { name: 'Lore', entries: [] });
   app = express();
   app.locals.dataRoot = dataRoot;
   app.use('/api/assets', assetsRouter);
@@ -24,6 +32,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  storage.close();
   await fs.rm(dataRoot, { recursive: true, force: true });
 });
 
@@ -38,12 +47,25 @@ describe('Assets API Routes', () => {
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toBe('image/png');
       expect(res.headers['content-length']).toBe(String(PNG_BYTES.length));
-      expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+      expect(res.headers['cache-control']).toBe('private, max-age=31536000, immutable');
       expect(Buffer.from(res.body)).toEqual(PNG_BYTES);
     });
 
     it('returns 404 when the asset does not exist', async () => {
       const res = await request(app).get(`/api/assets/characters/char-1/${HASH}.png`);
+      expect(res.status).toBe(404);
+    });
+
+    it("does not serve another user's character's assets", async () => {
+      const other = new UserStorage(storage.db).createUser({ username: 'other' });
+      await runAsUser(other.id, () =>
+        storage.saveCharacter('theirs', { data: { name: 'Theirs' } }),
+      );
+      const am = new AssetManager(dataRoot, 'characters');
+      await am.writeFileOnly('theirs', `${HASH}.png`, PNG_BYTES);
+
+      const res = await request(app).get(`/api/assets/characters/theirs/${HASH}.png`);
+
       expect(res.status).toBe(404);
     });
 
@@ -72,9 +94,9 @@ describe('Assets API Routes', () => {
     it('does not resolve lorebook ids against the characters namespace', async () => {
       // Same id present only under characters/ must not be served as a lorebook.
       const am = new AssetManager(dataRoot, 'characters');
-      await am.writeFileOnly('shared-id', `${HASH}.png`, PNG_BYTES);
+      await am.writeFileOnly('char-1', `${HASH}.png`, PNG_BYTES);
 
-      const res = await request(app).get(`/api/assets/lorebooks/shared-id/${HASH}.png`);
+      const res = await request(app).get(`/api/assets/lorebooks/char-1/${HASH}.png`);
 
       expect(res.status).toBe(404);
     });

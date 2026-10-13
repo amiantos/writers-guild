@@ -258,6 +258,7 @@ import {
 } from '../../composables/library.js';
 import { joinNames } from '../../../../shared/story-titles.js';
 import { describePerspective } from '../../../../shared/perspective.js';
+import { userStorageKey } from '../../config/storageKeys';
 
 const props = defineProps({
   stories: { type: Array, default: () => [] },
@@ -287,8 +288,8 @@ const emit = defineEmits([
   'new-chat',
 ]);
 
-// Sort and Stories/Chats choice, remembered per browser
-const PREFS_KEY = 'writers-guild-library';
+// Sort and Stories/Chats choice, remembered per browser for each user
+const PREFS_KEY = userStorageKey('writers-guild-library');
 
 function readPrefs() {
   try {

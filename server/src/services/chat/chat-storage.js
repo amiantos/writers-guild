@@ -12,6 +12,10 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { MINE, mineThrough } from '../user-context.js';
+
+// Every query keeps to the current user's chats, and to the turns and links of those.
+const MY_CHAT = mineThrough('chat_id', 'chats');
 
 export const TURN_SOURCES = ['user', 'character'];
 
@@ -69,49 +73,60 @@ export class ChatStorage {
                     '$[' || t.active_swipe || '].messages')), 0)
              FROM chat_turns t WHERE t.chat_id = c.id) AS message_count
         FROM chats c
+        WHERE c.${MINE}
         ORDER BY c.modified DESC, c.rowid DESC
       `),
-      getChat: this.db.prepare('SELECT * FROM chats WHERE id = ?'),
+      getChat: this.db.prepare(`SELECT * FROM chats WHERE id = ? AND ${MINE}`),
       insertChat: this.db.prepare(`
-        INSERT INTO chats (id, title, scenario, continuity_id, persona_character_id, config_preset_id,
-                           created, modified)
-        VALUES (@id, @title, @scenario, @continuityId, @personaCharacterId, @configPresetId,
-                @created, @modified)
+        INSERT INTO chats (id, user_id, title, scenario, continuity_id, persona_character_id,
+                           config_preset_id, created, modified)
+        VALUES (@id, current_user_id(), @title, @scenario, @continuityId, @personaCharacterId,
+                @configPresetId, @created, @modified)
       `),
       updateChat: this.db.prepare(`
         UPDATE chats SET title = @title, scenario = @scenario, continuity_id = @continuityId,
                          persona_character_id = @personaCharacterId,
                          config_preset_id = @configPresetId, modified = @modified
-        WHERE id = @id
+        WHERE id = @id AND ${MINE}
       `),
-      touchChat: this.db.prepare('UPDATE chats SET modified = ? WHERE id = ?'),
-      deleteChat: this.db.prepare('DELETE FROM chats WHERE id = ?'),
+      touchChat: this.db.prepare(`UPDATE chats SET modified = ? WHERE id = ? AND ${MINE}`),
+      deleteChat: this.db.prepare(`DELETE FROM chats WHERE id = ? AND ${MINE}`),
 
       getCharacterIds: this.db.prepare(
-        'SELECT character_id FROM chat_characters WHERE chat_id = ? ORDER BY position, rowid',
+        `SELECT character_id FROM chat_characters WHERE chat_id = ? AND ${MY_CHAT}
+         ORDER BY position, rowid`,
       ),
-      clearCharacters: this.db.prepare('DELETE FROM chat_characters WHERE chat_id = ?'),
+      clearCharacters: this.db.prepare(
+        `DELETE FROM chat_characters WHERE chat_id = ? AND ${MY_CHAT}`,
+      ),
       addCharacter: this.db.prepare(
         'INSERT OR IGNORE INTO chat_characters (chat_id, character_id, position) VALUES (?, ?, ?)',
       ),
       getLorebookIds: this.db.prepare(
-        'SELECT lorebook_id FROM chat_lorebooks WHERE chat_id = ? ORDER BY rowid',
+        `SELECT lorebook_id FROM chat_lorebooks WHERE chat_id = ? AND ${MY_CHAT} ORDER BY rowid`,
       ),
-      clearLorebooks: this.db.prepare('DELETE FROM chat_lorebooks WHERE chat_id = ?'),
+      clearLorebooks: this.db.prepare(
+        `DELETE FROM chat_lorebooks WHERE chat_id = ? AND ${MY_CHAT}`,
+      ),
       addLorebook: this.db.prepare(
         'INSERT OR IGNORE INTO chat_lorebooks (chat_id, lorebook_id) VALUES (?, ?)',
       ),
-      characterExists: this.db.prepare('SELECT 1 FROM characters WHERE id = ?'),
-      lorebookExists: this.db.prepare('SELECT 1 FROM lorebooks WHERE id = ?'),
-      presetExists: this.db.prepare('SELECT 1 FROM presets WHERE id = ?'),
+      characterExists: this.db.prepare(`SELECT 1 FROM characters WHERE id = ? AND ${MINE}`),
+      lorebookExists: this.db.prepare(`SELECT 1 FROM lorebooks WHERE id = ? AND ${MINE}`),
+      presetExists: this.db.prepare(`SELECT 1 FROM presets WHERE id = ? AND ${MINE}`),
 
-      listTurns: this.db.prepare('SELECT * FROM chat_turns WHERE chat_id = ? ORDER BY position'),
-      lastTurn: this.db.prepare(
-        'SELECT * FROM chat_turns WHERE chat_id = ? ORDER BY position DESC LIMIT 1',
+      listTurns: this.db.prepare(
+        `SELECT * FROM chat_turns WHERE chat_id = ? AND ${MY_CHAT} ORDER BY position`,
       ),
-      getTurn: this.db.prepare('SELECT * FROM chat_turns WHERE chat_id = ? AND id = ?'),
+      lastTurn: this.db.prepare(
+        `SELECT * FROM chat_turns WHERE chat_id = ? AND ${MY_CHAT} ORDER BY position DESC LIMIT 1`,
+      ),
+      getTurn: this.db.prepare(
+        `SELECT * FROM chat_turns WHERE chat_id = ? AND id = ? AND ${MY_CHAT}`,
+      ),
       nextPosition: this.db.prepare(
-        'SELECT COALESCE(MAX(position), -1) + 1 AS next FROM chat_turns WHERE chat_id = ?',
+        `SELECT COALESCE(MAX(position), -1) + 1 AS next FROM chat_turns
+         WHERE chat_id = ? AND ${MY_CHAT}`,
       ),
       insertTurn: this.db.prepare(`
         INSERT INTO chat_turns (id, chat_id, position, source, character_id, sender_name, swipes,
@@ -120,10 +135,12 @@ export class ChatStorage {
                 @created, @modified)
       `),
       updateTurnSwipes: this.db.prepare(
-        'UPDATE chat_turns SET swipes = ?, active_swipe = ?, modified = ? WHERE id = ?',
+        `UPDATE chat_turns SET swipes = ?, active_swipe = ?, modified = ? WHERE id = ? AND ${MY_CHAT}`,
       ),
-      deleteTurn: this.db.prepare('DELETE FROM chat_turns WHERE chat_id = ? AND id = ?'),
-      clearTurns: this.db.prepare('DELETE FROM chat_turns WHERE chat_id = ?'),
+      deleteTurn: this.db.prepare(
+        `DELETE FROM chat_turns WHERE chat_id = ? AND id = ? AND ${MY_CHAT}`,
+      ),
+      clearTurns: this.db.prepare(`DELETE FROM chat_turns WHERE chat_id = ? AND ${MY_CHAT}`),
     };
   }
 
@@ -291,6 +308,9 @@ export class ChatStorage {
   addTurn(chatId, { source, characterId = null, senderName = '', messages, reasoning = '' }) {
     if (!TURN_SOURCES.includes(source)) {
       throw new Error(`Unknown turn source: ${source}`);
+    }
+    if (!this.stmts.getChat.get(chatId)) {
+      throw new Error(`Chat not found: ${chatId}`);
     }
     const id = uuidv4();
     const now = timestamp();

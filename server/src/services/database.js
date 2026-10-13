@@ -6,8 +6,41 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { ADMIN_USER_ID, registerUserFunction } from './user-context.js';
 
-const SCHEMA_VERSION = 20;
+const SCHEMA_VERSION = 21;
+
+/** The tables whose rows belong to one user. Everything else belongs to a row in one of these. */
+export const OWNED_TABLES = [
+  'stories',
+  'characters',
+  'lorebooks',
+  'presets',
+  'chats',
+  'continuities',
+];
+
+/** Each user's settings, after the user_id that keys them. */
+const SETTINGS_COLUMNS = `
+      show_reasoning INTEGER DEFAULT 1,
+      auto_save INTEGER DEFAULT 1,
+      show_prompt INTEGER DEFAULT 1,
+      third_person INTEGER DEFAULT 1,
+      filter_asterisks INTEGER DEFAULT 1,
+      include_dialogue_examples INTEGER DEFAULT 0,
+      lorebook_scan_depth INTEGER DEFAULT 2000,
+      lorebook_token_budget INTEGER DEFAULT 1800,
+      lorebook_recursion_depth INTEGER DEFAULT 3,
+      lorebook_enable_recursion INTEGER DEFAULT 1,
+      default_persona_id TEXT,
+      default_preset_id TEXT,
+      onboarding_completed INTEGER DEFAULT 0,
+      experimental_chats INTEGER DEFAULT 0,
+      experimental_old_story_mode INTEGER DEFAULT 0`;
+
+const SETTINGS_COLUMN_NAMES = SETTINGS_COLUMNS.split(',').map(
+  (column) => column.trim().split(/\s+/)[0],
+);
 
 /**
  * Initialize the SQLite database with schema
@@ -27,6 +60,8 @@ export function initializeDatabase(dataRoot) {
 
   // Enable WAL mode for better concurrent performance
   db.pragma('journal_mode = WAL');
+
+  registerUserFunction(db);
 
   // Create schema
   createSchema(db);
@@ -61,6 +96,8 @@ function createSchema(db) {
  * Create all database tables
  */
 function createAllTables(db) {
+  createUserTables(db);
+
   db.exec(`
     -- Schema version tracking
     CREATE TABLE IF NOT EXISTS schema_version (
@@ -68,28 +105,13 @@ function createAllTables(db) {
     );
     INSERT INTO schema_version (version) VALUES (${SCHEMA_VERSION});
 
-    -- Settings table (single row)
+    -- Each user's settings
     CREATE TABLE IF NOT EXISTS settings (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      show_reasoning INTEGER DEFAULT 1,
-      auto_save INTEGER DEFAULT 1,
-      show_prompt INTEGER DEFAULT 1,
-      third_person INTEGER DEFAULT 1,
-      filter_asterisks INTEGER DEFAULT 1,
-      include_dialogue_examples INTEGER DEFAULT 0,
-      lorebook_scan_depth INTEGER DEFAULT 2000,
-      lorebook_token_budget INTEGER DEFAULT 1800,
-      lorebook_recursion_depth INTEGER DEFAULT 3,
-      lorebook_enable_recursion INTEGER DEFAULT 1,
-      default_persona_id TEXT,
-      default_preset_id TEXT,
-      onboarding_completed INTEGER DEFAULT 0,
-      experimental_chats INTEGER DEFAULT 0,
-      experimental_old_story_mode INTEGER DEFAULT 0
+      user_id TEXT PRIMARY KEY,${SETTINGS_COLUMNS},
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
 
-    -- Insert default settings
-    INSERT OR IGNORE INTO settings (id) VALUES (1);
+    INSERT OR IGNORE INTO settings (user_id) VALUES ('${ADMIN_USER_ID}');
 
     -- Stories table
     CREATE TABLE IF NOT EXISTS stories (
@@ -247,8 +269,69 @@ function createAllTables(db) {
   createContinuityTables(db);
   createContinuitySuggestionTables(db);
   createPassagePromptTables(db);
+  addOwnerColumns(db);
 
   console.log('Database schema created successfully');
+}
+
+/**
+ * Create the tables of users and how they sign in, with the admin account a fresh install runs as.
+ * Signing in is off until the admin gives their account a password (see auth-service.js).
+ */
+function createUserTables(db) {
+  const now = new Date().toISOString();
+  db.exec(`
+    -- username is null for the admin until signing in is turned on.
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT UNIQUE COLLATE NOCASE,
+      -- 'admin' or 'user'
+      role TEXT NOT NULL DEFAULT 'user',
+      password_hash TEXT,
+      created TEXT NOT NULL,
+      modified TEXT NOT NULL
+    );
+
+    -- id is the hash of the token in the session cookie; the token itself isn't kept.
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      created TEXT NOT NULL,
+      expires TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+    -- Single-use links: 'invite' makes a new account, 'reset' sets user_id's password. Like
+    -- sessions, only the hash of the link's token is kept, and a link is deleted once used.
+    CREATE TABLE IF NOT EXISTS invitations (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL,
+      user_id TEXT,
+      created TEXT NOT NULL,
+      expires TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+  `);
+  db.prepare(
+    `INSERT OR IGNORE INTO users (id, role, created, modified) VALUES (?, 'admin', ?, ?)`,
+  ).run(ADMIN_USER_ID, now, now);
+}
+
+/**
+ * Give each of OWNED_TABLES the user its rows belong to. Rows from before there were users belong
+ * to the admin. Safe to run again: the columns are only added when missing.
+ */
+function addOwnerColumns(db) {
+  for (const table of OWNED_TABLES) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!columns.some((column) => column.name === 'user_id')) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN user_id TEXT NOT NULL DEFAULT '${ADMIN_USER_ID}'`);
+    }
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_${table}_user ON ${table}(user_id)`);
+  }
 }
 
 /**
@@ -699,6 +782,33 @@ function migrateSchema(db, fromVersion) {
         db.exec('ALTER TABLE characters ADD COLUMN portrait BLOB');
       }
       db.exec('UPDATE characters SET thumbnail = NULL, thumbnail_medium = NULL');
+    }
+
+    // Migration to version 21: Users. Everything so far belongs to the admin, and the one row of
+    // settings becomes the admin's, keyed by user like everyone else's (columns since retired go).
+    if (fromVersion < 21) {
+      createUserTables(db);
+      addOwnerColumns(db);
+      const settingsColumns = db
+        .prepare('PRAGMA table_info(settings)')
+        .all()
+        .map((column) => column.name);
+      if (settingsColumns.includes('id')) {
+        const kept = SETTINGS_COLUMN_NAMES.filter((name) => settingsColumns.includes(name)).join(
+          ', ',
+        );
+        db.exec(`
+          CREATE TABLE settings_by_user (
+            user_id TEXT PRIMARY KEY,${SETTINGS_COLUMNS},
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          );
+          INSERT INTO settings_by_user (user_id, ${kept})
+            SELECT '${ADMIN_USER_ID}', ${kept} FROM settings WHERE id = 1;
+          INSERT OR IGNORE INTO settings_by_user (user_id) VALUES ('${ADMIN_USER_ID}');
+          DROP TABLE settings;
+          ALTER TABLE settings_by_user RENAME TO settings;
+        `);
+      }
     }
 
     db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);

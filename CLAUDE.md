@@ -39,6 +39,17 @@ fixes; `npm run lint:fix` applies safe lint fixes.
   Express uses it to detect error handlers.
 - Match the surrounding code's naming, comment density, and idiom.
 
+## Users
+
+- Each row of `OWNED_TABLES` (`server/src/services/database.js`) belongs to a user. **Every query
+  on one must keep to the current user**: `AND ${MINE}` (`user_id = current_user_id()`), or
+  `mineThrough()` for a table that hangs off one, and inserts set `user_id` to
+  `current_user_id()`. See `server/src/services/user-context.js`.
+- `current_user_id()` reads the user from AsyncLocalStorage, set per request by
+  `middleware/authenticate.js`, and throws outside one. Work outside a request runs inside
+  `runAsUser()`. Tests fall back to the admin (`src/__tests__/setup.js`); isolation tests turn
+  that off with `setFallbackUserId(null)`.
+
 ## Testing
 
 - `npm run test:server` / `npm run test:client` run one side on its own.

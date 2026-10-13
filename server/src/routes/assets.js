@@ -5,16 +5,32 @@
  *
  * GET /api/assets/characters/:entityId/:filename
  * GET /api/assets/lorebooks/:entityId/:filename
- *   — Serves the asset file with proper Content-Type and immutable caching.
+ *   — Serves the asset file with proper Content-Type and immutable caching, to the user whose
+ *     character or lorebook it is.
  */
 
 import express from 'express';
 import path from 'path';
 import { asyncHandler, AppError } from '../middleware/error-handler.js';
 import { AssetManager } from '../services/asset-manager.js';
+import { SqliteStorageService } from '../services/sqliteStorage.js';
 import { mimeTypeFromExt } from '../../../shared/mime-types.js';
 
 const router = express.Router();
+
+// Opened again if the data directory changes, as it does between tests.
+let storage;
+let storageRoot;
+
+router.use((req, res, next) => {
+  const dataRoot = req.app.locals.dataRoot;
+  if (!storage || storageRoot !== dataRoot) {
+    storage?.close();
+    storage = new SqliteStorageService(dataRoot);
+    storageRoot = dataRoot;
+  }
+  next();
+});
 
 // Entity ids are uuids; anything else is a malformed or hostile path segment.
 const ENTITY_ID_RE = /^[A-Za-z0-9_-]+$/;
@@ -49,6 +65,15 @@ const serveAsset = async (req, res, entityType) => {
     throw new AppError(`Unsupported file type ${ext}`, 400);
   }
 
+  // Someone else's reads the same as one that doesn't exist.
+  const owned =
+    entityType === 'characters'
+      ? storage.characterExists(entityId)
+      : storage.lorebookExists(entityId);
+  if (!owned) {
+    throw new AppError('Asset not found', 404);
+  }
+
   const assetManager = new AssetManager(req.app.locals.dataRoot, entityType);
   const buffer = await assetManager.readAsset(entityId, filename);
 
@@ -58,7 +83,8 @@ const serveAsset = async (req, res, entityType) => {
 
   res.setHeader('Content-Type', mimeType);
   res.setHeader('Content-Length', buffer.length);
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  // Private: it's only this user's to see, so shared caches mustn't keep it.
+  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
   res.send(buffer);
 };
 

@@ -60,6 +60,9 @@ function parsedWorldBook(content = 'Dragons are real.') {
 async function freshApp(dataRoot) {
   vi.resetModules();
   const { default: charactersRouter } = await import('../../routes/characters.js');
+  // The fresh modules have their own user context, so run them as the admin too (see setup.js).
+  const { ADMIN_USER_ID, setFallbackUserId } = await import('../user-context.js');
+  setFallbackUserId(ADMIN_USER_ID);
 
   const app = express();
   app.use(express.json());
