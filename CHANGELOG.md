@@ -3,7 +3,24 @@
 All notable changes to Writers Guild are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.6.0] - 2026-10-13
+
+### Users
+
+- Writers Guild can now have users. Out of the box nothing changes: everyone uses it as the admin.
+  **Settings → Account → Turn On Signing In** gives the admin a username and password, and from then
+  on everyone signs in, with sessions lasting 30 days in that browser.
+- The admin invites people under **Settings → Users** with single-use links that work for 7 days,
+  and can give a user a password reset link or delete their account along with everything in it.
+- Each user's stories, chats, characters, lorebooks, Continuities, presets (API keys included) and
+  settings are their own, and nobody, the admin included, can see anyone else's. A new user starts at
+  onboarding. Everything from before users belongs to the admin.
+- Preferences the browser saves, such as shelf sorts, are kept per user.
+- `npm run reset-password` (or `node scripts/reset-password.js` in the Docker container) prints a
+  reset link for a locked-out admin, or for the username passed to it.
+- An install using `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` has signing in turned on with
+  those credentials at its first start, and the browser's basic auth prompt goes away. Scripts that
+  called the API with basic auth need a session instead.
 
 ### Onboarding
 
@@ -12,6 +29,11 @@ All notable changes to Writers Guild are recorded here. Versions follow
   finished stories, and a continuity whose history holds the Archivist's update between them. The
   set lives in `defaults/sets/loire/`, whose README explains the layout and how to add portraits.
   Other sets dropped into `defaults/sets/` are imported the same way.
+
+### Stories
+
+- The greeting selector renders greetings as they appear in a story, with markdown and images,
+  and shows a card's hidden notes (HTML comments) set apart in its preview.
 
 ### Fixes
 
