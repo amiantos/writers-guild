@@ -31,12 +31,14 @@ continuity's current text.
 
 ## Portraits
 
-The cards ship without images. To give a character a portrait, save a PNG next to its JSON with
-the same base name (`characters/halvorsen.png` for `characters/halvorsen.json`) and the importer
-uses it as the card image. Any PNG works; it does not need a card embedded in it.
+A card's portrait is the PNG beside its JSON with the same base name (`characters/halvorsen.png`
+for `characters/halvorsen.json`); the importer uses it as the card image. Any PNG works; it does
+not need a card embedded in it. The bundled portraits were generated from the descriptions below
+and then palette-quantized (256 colours, dithered) to keep the repository and the Docker image
+small; the originals were about three times the size.
 
-The descriptions below are written to be pasted into an image generator. They share a style so
-the four read as one crew.
+The descriptions are written to be pasted into an image generator. They share a style so the four
+read as one crew.
 
 **Shared style.** Painterly science-fiction character portrait, head and shoulders, three-quarter
 view, looking just off camera. Lit from one side by cool white panel light with a faint violet
