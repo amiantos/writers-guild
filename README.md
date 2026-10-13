@@ -156,13 +156,12 @@ writers-guild/
 ## Releases
 
 Writers Guild follows [Semantic Versioning](https://semver.org/), and each release's changes are in
-[CHANGELOG.md](CHANGELOG.md). To cut a release:
+its [GitHub release notes](https://github.com/amiantos/writers-guild/releases). To cut a release:
 
 1. Set the version everywhere it's recorded (the root, server, and client `package.json` files and
-   their lockfiles): `npm run version:set 1.1.0`
-2. Add the release to `CHANGELOG.md`, then commit and merge.
-3. Tag the merged commit (`git tag v1.1.0 && git push origin v1.1.0`) and publish a GitHub release
-   from the tag, with that version's changelog section as its notes.
+   their lockfiles): `npm run version:set 1.1.0`, then commit and merge.
+2. Tag the merged commit (`git tag v1.1.0 && git push origin v1.1.0`) and publish a GitHub release
+   from the tag, with the release's changes as its notes.
 
 The version shows at the bottom of Settings and in the server's startup banner.
 
