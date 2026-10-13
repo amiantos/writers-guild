@@ -178,4 +178,25 @@ describe('Basic Auth Middleware', () => {
       expect(res.status).toHaveBeenCalledWith(401);
     });
   });
+
+  describe('once signing in is on', () => {
+    beforeEach(() => {
+      process.env.BASIC_AUTH_USERNAME = 'admin';
+      process.env.BASIC_AUTH_PASSWORD = 'secret';
+    });
+
+    it('stands aside, so there is only the one prompt', () => {
+      let signInEnabled = false;
+      const middleware = basicAuth({ signInEnabled: () => signInEnabled });
+      const next = vi.fn();
+
+      const res = createMockRes();
+      middleware({ headers: {} }, res, next);
+      expect(res.status).toHaveBeenCalledWith(401);
+
+      signInEnabled = true;
+      middleware({ headers: {} }, createMockRes(), next);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+  });
 });

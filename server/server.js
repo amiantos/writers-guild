@@ -36,6 +36,7 @@ import usersRouter from './src/routes/users.js';
 // Import migration service
 import { runMigration } from './src/services/migration.js';
 import { userStorageFor } from './src/services/auth/user-storage.js';
+import { convertBasicAuth } from './src/services/auth/basic-auth-conversion.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -75,18 +76,30 @@ if (!fs.existsSync(DATA_ROOT)) {
     if (migrationResult.migrated) {
       console.log(`✓ ${migrationResult.message}`);
     }
-    if (
-      process.env.BASIC_AUTH_USERNAME &&
-      process.env.BASIC_AUTH_PASSWORD &&
-      userStorageFor(DATA_ROOT).authEnabled()
-    ) {
-      console.log(
-        'Note: signing in is on, so BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD are no longer needed.',
-      );
-    }
   } catch (error) {
     console.error('Migration error:', error);
     // Don't fail server start on migration error
+  }
+
+  // Basic auth credentials from before there were users become the admin's
+  const { BASIC_AUTH_USERNAME: username, BASIC_AUTH_PASSWORD: password } = process.env;
+  try {
+    const users = userStorageFor(DATA_ROOT);
+    const conversion = await convertBasicAuth(users, { username, password });
+    if (conversion.converted) {
+      console.log(
+        `✓ Signing in is on: the admin signs in as ${username} with the basic auth password`,
+      );
+    } else if (conversion.reason) {
+      console.log(`Basic auth stays on. ${conversion.reason}`);
+    }
+    if (username && password && users.authEnabled()) {
+      console.log(
+        'Note: signing in is on, so BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD are no longer needed and can be removed.',
+      );
+    }
+  } catch (error) {
+    console.error('Basic auth conversion error:', error);
   }
 })();
 
@@ -106,8 +119,8 @@ app.use(
   }),
 );
 
-// Optional HTTP Basic Authentication
-app.use(basicAuth());
+// Optional HTTP Basic Authentication, until Writers Guild's own signing in is on
+app.use(basicAuth({ signInEnabled: () => userStorageFor(DATA_ROOT).authEnabled() }));
 
 // Body parsing middleware
 // Disable compression for SSE (text/event-stream)

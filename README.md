@@ -123,8 +123,12 @@ docker compose exec writers-guild node scripts/reset-password.js     # with Dock
 Pass a username to reset someone else's. Behind a proxy that ends TLS, have it send
 `X-Forwarded-Proto: https` so the session cookie is marked `Secure`.
 
-`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` (see `.env.example`) still put an HTTP Basic
-Authentication prompt in front of everything, but with signing in on they aren't needed.
+If you used `BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` before there were users, the first start
+turns signing in on with them: the admin signs in with the same username and password, and the
+browser's basic auth prompt goes away. You can then remove them from `.env`. This happens once, so
+turning signing in off later isn't undone by a restart; with it off and the variables still set,
+basic auth guards Writers Guild again. Scripts that called the API with basic auth (`curl -u`) need
+a session instead once signing in is on.
 
 ## Setup
 

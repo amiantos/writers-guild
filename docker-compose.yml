@@ -20,9 +20,10 @@ services:
       - ./data:/data
     environment:
       # ───── Optional: HTTP Basic Authentication ───────────────────────────
-      # A password prompt in front of everything. Signing in (Settings →
-      # Account) does the same job and more, so you only need this if you want
-      # both. Set both in a .env file next to this compose file:
+      # A password prompt in front of everything, until signing in (Settings →
+      # Account) is on. On an install that already has these, the first start
+      # turns signing in on with the same username and password, and then
+      # they can be removed. Set both in a .env file next to this compose file:
       #   BASIC_AUTH_USERNAME=you
       #   BASIC_AUTH_PASSWORD=a-long-random-password
       # Auth is disabled when either is empty.
