@@ -12,6 +12,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { MINE, mineThrough } from '../user-context.js';
 
 // Where a version came from: the Continuity's first text, a later edit, a restore of an earlier
 // version, or an Archivist update accepted from a story or chat.
@@ -63,11 +64,15 @@ function versionFromRow(row) {
   };
 }
 
+// Every query keeps to the current user's Continuities, stories and chats.
+const MY_CONTINUITY = mineThrough('continuity_id', 'continuities');
+
 const WITH_COUNTS = `
   SELECT c.*,
-    (SELECT COUNT(*) FROM stories s WHERE s.continuity_id = c.id) AS story_count,
-    (SELECT COUNT(*) FROM chats h WHERE h.continuity_id = c.id) AS chat_count
+    (SELECT COUNT(*) FROM stories s WHERE s.continuity_id = c.id AND s.${MINE}) AS story_count,
+    (SELECT COUNT(*) FROM chats h WHERE h.continuity_id = c.id AND h.${MINE}) AS chat_count
   FROM continuities c
+  WHERE c.${MINE}
 `;
 
 export class ContinuityStorage {
@@ -79,40 +84,44 @@ export class ContinuityStorage {
     this.db = db;
     this.stmts = {
       list: db.prepare(`${WITH_COUNTS} ORDER BY c.name COLLATE NOCASE, c.created`),
-      get: db.prepare(`${WITH_COUNTS} WHERE c.id = ?`),
-      getContent: db.prepare('SELECT content FROM continuities WHERE id = ?'),
+      get: db.prepare(`${WITH_COUNTS} AND c.id = ?`),
+      getContent: db.prepare(`SELECT content FROM continuities WHERE id = ? AND ${MINE}`),
       insert: db.prepare(`
-        INSERT INTO continuities (id, name, content, created, modified)
-        VALUES (@id, @name, @content, @created, @modified)
+        INSERT INTO continuities (id, user_id, name, content, created, modified)
+        VALUES (@id, current_user_id(), @name, @content, @created, @modified)
       `),
       update: db.prepare(`
         UPDATE continuities SET name = @name, content = @content, modified = @modified
-        WHERE id = @id
+        WHERE id = @id AND ${MINE}
       `),
-      delete: db.prepare('DELETE FROM continuities WHERE id = ?'),
-      detachStories: db.prepare('UPDATE stories SET continuity_id = NULL WHERE continuity_id = ?'),
-      detachChats: db.prepare('UPDATE chats SET continuity_id = NULL WHERE continuity_id = ?'),
+      delete: db.prepare(`DELETE FROM continuities WHERE id = ? AND ${MINE}`),
+      detachStories: db.prepare(
+        `UPDATE stories SET continuity_id = NULL WHERE continuity_id = ? AND ${MINE}`,
+      ),
+      detachChats: db.prepare(
+        `UPDATE chats SET continuity_id = NULL WHERE continuity_id = ? AND ${MINE}`,
+      ),
       insertVersion: db.prepare(`
         INSERT INTO continuity_versions (continuity_id, content, source, source_id, created)
         VALUES (@continuityId, @content, @source, @sourceId, @created)
       `),
       listVersions: db.prepare(
-        'SELECT * FROM continuity_versions WHERE continuity_id = ? ORDER BY id',
+        `SELECT * FROM continuity_versions WHERE continuity_id = ? AND ${MY_CONTINUITY} ORDER BY id`,
       ),
-      getStoryTitle: db.prepare('SELECT title FROM stories WHERE id = ?'),
-      getChatTitle: db.prepare('SELECT title FROM chats WHERE id = ?'),
+      getStoryTitle: db.prepare(`SELECT title FROM stories WHERE id = ? AND ${MINE}`),
+      getChatTitle: db.prepare(`SELECT title FROM chats WHERE id = ? AND ${MINE}`),
       getVersion: db.prepare(
-        'SELECT * FROM continuity_versions WHERE continuity_id = ? AND id = ?',
+        `SELECT * FROM continuity_versions WHERE continuity_id = ? AND id = ? AND ${MY_CONTINUITY}`,
       ),
       characterIds: db.prepare(`
         SELECT sc.character_id AS id FROM story_characters sc
-          JOIN stories s ON s.id = sc.story_id WHERE s.continuity_id = @id
+          JOIN stories s ON s.id = sc.story_id WHERE s.continuity_id = @id AND s.${MINE}
         UNION SELECT persona_character_id FROM stories
-          WHERE continuity_id = @id AND persona_character_id IS NOT NULL
+          WHERE continuity_id = @id AND persona_character_id IS NOT NULL AND ${MINE}
         UNION SELECT hc.character_id FROM chat_characters hc
-          JOIN chats h ON h.id = hc.chat_id WHERE h.continuity_id = @id
+          JOIN chats h ON h.id = hc.chat_id WHERE h.continuity_id = @id AND h.${MINE}
         UNION SELECT persona_character_id FROM chats
-          WHERE continuity_id = @id AND persona_character_id IS NOT NULL
+          WHERE continuity_id = @id AND persona_character_id IS NOT NULL AND ${MINE}
       `),
     };
   }

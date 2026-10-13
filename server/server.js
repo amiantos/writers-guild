@@ -16,6 +16,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import bodyParser from 'body-parser';
 import basicAuth from './src/middleware/basic-auth.js';
+import authenticate from './src/middleware/authenticate.js';
 
 // Import route handlers
 import storiesRouter from './src/routes/stories.js';
@@ -29,9 +30,12 @@ import chatsRouter from './src/routes/chats.js';
 import archivistRouter from './src/routes/archivist.js';
 import characterGeneratorRouter from './src/routes/character-generator.js';
 import continuitiesRouter from './src/routes/continuities.js';
+import authRouter from './src/routes/auth.js';
+import usersRouter from './src/routes/users.js';
 
 // Import migration service
 import { runMigration } from './src/services/migration.js';
+import { userStorageFor } from './src/services/auth/user-storage.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -70,6 +74,15 @@ if (!fs.existsSync(DATA_ROOT)) {
     const migrationResult = await runMigration(DATA_ROOT);
     if (migrationResult.migrated) {
       console.log(`✓ ${migrationResult.message}`);
+    }
+    if (
+      process.env.BASIC_AUTH_USERNAME &&
+      process.env.BASIC_AUTH_PASSWORD &&
+      userStorageFor(DATA_ROOT).authEnabled()
+    ) {
+      console.log(
+        'Note: signing in is on, so BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD are no longer needed.',
+      );
     }
   } catch (error) {
     console.error('Migration error:', error);
@@ -117,7 +130,13 @@ app.use((req, res, next) => {
   next();
 });
 
+// Whose library each request uses: the signed-in user's, or the admin's until signing in is on.
+// After the body parsers, which read the request from stream events that would lose track of it.
+app.use('/api', authenticate());
+
 // API routes
+app.use('/api/auth', authRouter);
+app.use('/api/users', usersRouter);
 app.use('/api/stories', storiesRouter);
 app.use('/api/characters', charactersRouter);
 app.use('/api/settings', settingsRouter);
