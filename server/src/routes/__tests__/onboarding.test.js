@@ -344,6 +344,46 @@ describe('Onboarding API Routes', () => {
       expect(typeof response.body.createdStories).toBe('number');
     });
 
+    it('should import the bundled sets with their lorebook and continuity', async () => {
+      const response = await request(app).post('/api/onboarding/import-defaults').expect(200);
+
+      expect(response.body.importedLorebooks).toBeGreaterThanOrEqual(1);
+      expect(response.body.createdContinuities).toBeGreaterThanOrEqual(1);
+      expect(response.body.characters.map((c) => c.name)).toContain('Ingrid Halvorsen');
+      expect(response.body.stories.map((s) => s.title)).toContain('Spin Down');
+
+      const storage = new SqliteStorageService(tempDir);
+      const continuityId = response.body.continuities[0].id;
+      const story = await storage.getStory(
+        response.body.stories.find((s) => s.title === 'The Cellar').id,
+      );
+      storage.close();
+
+      expect(story.continuityId).toBe(continuityId);
+      expect(story.lorebookIds).toEqual([response.body.lorebooks[0].id]);
+      expect(story.characterIds).toHaveLength(4);
+    });
+
+    it('should leave the persona off set stories while setting it on card stories', async () => {
+      const personaResponse = await request(app)
+        .post('/api/onboarding/persona')
+        .send({ firstName: 'TestUser' })
+        .expect(201);
+      const response = await request(app).post('/api/onboarding/import-defaults').expect(200);
+
+      const storage = new SqliteStorageService(tempDir);
+      const cardStory = await storage.getStory(
+        response.body.stories.find((s) => s.title.startsWith('A Story with')).id,
+      );
+      const setStory = await storage.getStory(
+        response.body.stories.find((s) => s.title === 'Spin Down').id,
+      );
+      storage.close();
+
+      expect(cardStory.personaCharacterId).toBe(personaResponse.body.id);
+      expect(setStory.personaCharacterId).toBeNull();
+    });
+
     it('should set default persona on imported stories if persona exists', async () => {
       // Create persona first
       const personaResponse = await request(app)

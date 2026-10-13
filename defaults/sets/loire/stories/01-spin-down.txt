@@ -1,0 +1,101 @@
+The signature was four point two hertz, and it should not have been there.
+
+Priya had been looking at the Wheel bearing telemetry for six hours, which was five and three-quarters longer than LEDGER thought the problem deserved. The vehicle management system had flagged the new vibration at 03:40 ship time, assessed it as within limits, logged it, and moved on, because that was what LEDGER did with things that were within limits. Priya had rewritten the module that made that decision. She knew exactly how stupid it was.
+
+She filtered the trace again. The noise fell away and the line underneath it stayed: a small, regular shudder in the slip ring, coming and going in bursts, like someone tapping a fingernail on the hull of a ship that was seventeen years old and a hundred and ten million kilometres from the nearest person who could fix it.
+
+"It's not the pumps," she said aloud, to the empty workshop. She had already crossed the pumps off. She had crossed off the Loop's compressor, the exercise treadmill, the Garden's irrigation cycle, and the thermal expansion of the spokes as the Wheel passed in and out of the Hub's shadow. The list on her slate had eleven items left, and the one she kept looking at was the one she least wanted to be true.
+
+She took the slate and went to find the commander.
+
+Halvorsen was in the Mess, at the table, with the paper logbook open and a cup of the bad coffee going cold beside it. She did not look up until Priya had stopped walking. Then she looked at the slate before she looked at Priya, which was, Priya had learned, a compliment.
+
+"Slip ring," Halvorsen said.
+
+"Four point two hertz. Intermittent. Started at 03:40. LEDGER says within limits."
+
+"LEDGER says." Halvorsen turned the slate towards herself and studied the filtered trace for a long moment. Her face did nothing. "What do you say?"
+
+Priya had rehearsed this. "I say it's new, and it's in the bearing, and the bearing is the one thing on this ship we can't do without and can't replace. I say we should despin and put eyes on the housing before it gets worse. I know what that costs."
+
+"Do you."
+
+"Forty minutes to despin, forty to spin up, two hours of pre-breathe for the EVA, call it six hours of zero g in the Wheel. The Garden won't like it."
+
+"The Garden," said Halvorsen, "is not the ship." She closed the logbook. "Get Wekesa. Tell Tomás."
+
+Tomás took it the way Priya had known he would, which was loudly, and then well. He stood in the Garden with his hands on his hips and said that six hours in zero g would drop every flower on the tomatoes, that the irrigation would float out of the trays, that he had just, just, got the strawberries to set, and that Halvorsen had never once in her life understood that the Garden was the ship, and then he said, "Fine. Fine. Give me thirty minutes to net everything," and started pulling mesh out of a locker before Priya had finished nodding.
+
+"She's right, you know," he said over his shoulder. "Don't tell her I said so. If that bearing goes we're a tin can for four hundred days. Go. Go and put your hand on it."
+
+Wekesa was already in the Hub when Priya climbed up the spoke, going from the heavy, ordinary feeling of the Wheel to the odd lightness of the top, where the floor stopped being a floor. He had the suits out. He was checking the seals on hers with a small light, one at a time, and did not hurry when he saw her.
+
+"Two outside, two inside," he said. "You and me outside. The commander says you found it, so you look at it. Tomás on comms, Halvorsen on the despin." He clipped the light to his collar. "You've done the Hub exterior twice."
+
+"In training. In the pool."
+
+"The pool is the same, except you can't drown." He said it without smiling, which was how she knew he meant it kindly. "We go slowly. You tell me everything you're about to do before you do it. If you don't know what to do, you stop, and you hold on, and you tell me that. There is no situation out there that gets worse because you stopped and held on."
+
+The despin took forty-one minutes. Priya spent them in the airlock with her suit on and her visor up, breathing pure oxygen, watching the Wheel's rotation count down on the little panel and feeling nothing at all, because the Hub did not turn and never had. Somewhere below her, in the Garden, Tomás was talking to his plants. Somewhere in the Mess, Halvorsen was writing the rpm down in pencil every five minutes. Priya held her own hands still in her lap and went through the procedure she had written for this, line by line, and then went through it again.
+
+The outside of the Loire was quiet.
+
+That was the thing nobody had told her. The pool had been full of the sound of her own breathing and the hiss of the regulator and the instructors' voices, and all of that was still there, but under it and around it was a silence so complete it had a texture. The Hub's hull stretched away from her in both directions, matt grey, pocked with seventeen years of tiny impacts, every one of which someone had logged. The Sun was a hard white coin, small enough to cover with a thumb. She did not look for Earth. Wekesa had told her not to, the first time out.
+
+"Tether check," she said.
+
+"Tether check," said Wekesa, four metres ahead of her, moving along the handrail the way water moves.
+
+"Moving to the next rail."
+
+"Moving."
+
+The slip-ring housing was a broad collar where the Hub met the Wheel, and now that the Wheel was still it was simply a wall of dark metal with a seam around it, and it took her a moment to find what she was looking for because she had expected it to be bigger. A bright scar, no longer than her thumb, on the outer rim of the housing. A micrometeoroid strike. The hull had done its job and stopped it, mostly.
+
+"I see it," she said. "Impact on the outer rim. There's something in it."
+
+"Say again."
+
+"There's a fragment. It's lodged. It's in the gap between the housing and the shield plate, and when the Wheel turns, I think, the plate flexes and taps it against the housing. Four point two hertz. That's the spin rate times the number of shield plates, I'd have to check, but that's it. That's the signature."
+
+A pause, which was Wekesa coming to look, and then a longer pause, which was Wekesa looking.
+
+"Well found," he said.
+
+He got it out with a pair of long forceps from the medical kit, because the EVA tool bag did not contain anything meant for picking a fragment of someone else's spacecraft, or of a comet, out of a seam. It took eleven minutes. Priya held the light and the tether and said nothing, and when he finally lifted it clear she saw that it was a flake of something dark and glassy no larger than a fingernail, and that he was holding it as carefully as he would have held a splinter from a child's hand.
+
+"Tomás," Wekesa said. "Tell the commander we're bringing her a souvenir."
+
+"She'll want to weigh it," Tomás said in their ears. Priya laughed, which she had not expected to do a hundred and ten million kilometres from anywhere, in a suit, with her hands shaking.
+
+They taped a patch over the scar, because the shield plate was still sound and a patch was what they had. They came in through the airlock, and Priya sat on the floor of the Hub, which was not a floor, and let Wekesa take her helmet off because her fingers had decided they were done for the day.
+
+"You stopped and held on," he said. "Twice. I saw you. That's the whole of the job. The rest is just reach."
+
+The spin-up took forty-three minutes. Priya felt it come back as a slow leaning, the Hub's lightness thickening into weight as she climbed down the spoke into the Wheel, until the floor was a floor again and the Garden, when she reached it, was a disaster.
+
+It was a cheerful disaster. Tomás had netted everything, and the nets had mostly held, and a long drift of soil and water had still got loose and was now a dark smear up one curved wall where it had settled when the gravity returned. Tomás was wiping it down with a cloth and humming. The tomatoes had dropped, by Priya's count, perhaps a third of their flowers.
+
+"Two thirds," Tomás said, when he saw her counting. "Two thirds held. That's the right way to say it." He straightened, looked at her, and whatever he saw made him put the cloth down. "You found it?"
+
+"Fragment in the housing. Wekesa pulled it."
+
+"Then I don't care about the flowers." He said it simply. "Here." He reached into the netted strawberry tray and came out with one, small and not quite red, and put it in her hand. "I said I was saving them for a bad day. This was a good one. Different rules."
+
+Halvorsen was in the Mess, where Halvorsen was. The fragment was on the table in front of her, in a sample bag, beside the logbook. She had, in fact, weighed it: the figure was written in the margin in her small square hand, in milligrams. She looked up as Priya came in, and then she did something Priya had not seen her do in two hundred and twelve days, which was close the logbook without finishing the line.
+
+"Sit."
+
+Priya sat. Her hands were still unreliable, so she put them flat on the table.
+
+"LEDGER said within limits," Halvorsen said.
+
+"It was within limits."
+
+"Yes. And you came to me anyway, with a trace and a list of what it wasn't, and you were right." She pushed the bad coffee across the table. It was still warm. "Next time you don't wait six hours. Next time you come to me at hour one with the trace and the list, and I'll say LEDGER says, and you'll say what you said today. That's how this works. Understood?"
+
+"Understood."
+
+Halvorsen nodded, once, and opened the logbook, and finished the line.
+
+Priya drank the coffee. It was terrible. Out the Mess window, which was not a window but a screen, the Wheel's slow turn carried the stars past at three and a half revolutions per minute, and the Garden's violet light leaked out along the curve of the ring from segment four, and the slip ring, under her feet and all around her, ran as quiet as it had on the day it was made.

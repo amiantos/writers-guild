@@ -3,6 +3,22 @@
 All notable changes to Writers Guild are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Onboarding
+
+- Importing sample content now also brings in _The Loire_, a hard science-fiction set that shows
+  the app's features working together: four original characters, a world lorebook attached to two
+  finished stories, and a continuity whose history holds the Archivist's update between them. The
+  set lives in `defaults/sets/loire/`, whose README explains the layout and how to add portraits.
+  Other sets dropped into `defaults/sets/` are imported the same way.
+
+### Fixes
+
+- In the story view, the edit and delete buttons beside a paragraph with no passage record (older
+  stories, text from the plain editor, imported stories) faded out as the pointer crossed to them,
+  so they could not be clicked. They now stay until the pointer reaches them.
+
 ## [1.5.2] - 2026-10-09
 
 ### Self-hosting

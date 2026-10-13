@@ -1,0 +1,14 @@
+{
+  "title": "The Cellar",
+  "description": "Day 288. A solar storm puts the Loire's four caretakers in the shelter for thirty-one hours, and what they carry out with them is not what they carried in.",
+  "scenario": "Day 288 of the Loire's long leg home, seventy-six days after the slip-ring repair. An X-class flare has thrown a storm of protons at the ship, and the crew have thirty-seven minutes to reach the Cellar, the water-walled shelter at the heart of the Hub, and stay there until the Sun is finished with them. Four people, one cold room, no gravity, and a daughter on Mars in the path of the same storm.",
+  "perspective": "third",
+  "perspectiveTense": "past",
+  "characters": [
+    "characters/halvorsen.json",
+    "characters/araya.json",
+    "characters/venkataraman.json",
+    "characters/odhiambo.json"
+  ],
+  "content": "02-the-cellar.txt"
+}
