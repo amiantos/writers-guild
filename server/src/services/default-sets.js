@@ -215,15 +215,15 @@ export async function listDefaultSetDirs(root = DEFAULT_SETS_DIR) {
 
 /**
  * Import a set that `readDefaultSet` returned: its characters, its lorebook, its
- * stories (each with the cast, the lorebook, and the persona attached, in the
- * continuity), and the continuity with its version history.
+ * stories (each with the cast and the lorebook attached, in the continuity), and
+ * the continuity with its version history. A set's stories are finished ensemble
+ * pieces about their own cast, so unlike the one-card stories migration.js makes,
+ * they get no persona.
  * @param {import('./sqliteStorage.js').SqliteStorageService} storage
  * @param {Object} set
- * @param {Object} [options]
- * @param {string|null} [options.defaultPersonaId] - Set as each story's persona when given.
  * @returns {Promise<Object>} What was created: characters, lorebook, continuity, stories.
  */
-export async function importDefaultSet(storage, set, { defaultPersonaId = null } = {}) {
+export async function importDefaultSet(storage, set) {
   const continuities = new ContinuityStorage(storage.db);
 
   const characterIds = new Map();
@@ -267,7 +267,6 @@ export async function importDefaultSet(storage, set, { defaultPersonaId = null }
       await storage.addCharacterToStory(created.id, characterIds.get(path));
     }
     if (lorebook) await storage.addLorebookToStory(created.id, lorebook.id);
-    if (defaultPersonaId) await storage.setStoryPersona(created.id, defaultPersonaId);
     await storage.updateStoryContent(created.id, story.content);
     storyIds.set(story.path, created.id);
     stories.push({ id: created.id, title: story.title });
@@ -294,15 +293,14 @@ export async function importDefaultSet(storage, set, { defaultPersonaId = null }
  * @param {import('./sqliteStorage.js').SqliteStorageService} storage
  * @param {Object} [options]
  * @param {string} [options.root] - Where the sets live; defaults to `defaults/sets`.
- * @param {string|null} [options.defaultPersonaId]
  * @returns {Promise<{characters: Array, lorebooks: Array, continuities: Array, stories: Array}>}
  */
-export async function importDefaultSets(storage, { root = DEFAULT_SETS_DIR, ...options } = {}) {
+export async function importDefaultSets(storage, { root = DEFAULT_SETS_DIR } = {}) {
   const result = { characters: [], lorebooks: [], continuities: [], stories: [] };
   for (const dir of await listDefaultSetDirs(root)) {
     try {
       const set = await readDefaultSet(dir);
-      const imported = await importDefaultSet(storage, set, options);
+      const imported = await importDefaultSet(storage, set);
       result.characters.push(...imported.characters);
       if (imported.lorebook) result.lorebooks.push(imported.lorebook);
       if (imported.continuity) result.continuities.push(imported.continuity);

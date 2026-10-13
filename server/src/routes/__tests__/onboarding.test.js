@@ -364,6 +364,26 @@ describe('Onboarding API Routes', () => {
       expect(story.characterIds).toHaveLength(4);
     });
 
+    it('should leave the persona off set stories while setting it on card stories', async () => {
+      const personaResponse = await request(app)
+        .post('/api/onboarding/persona')
+        .send({ firstName: 'TestUser' })
+        .expect(201);
+      const response = await request(app).post('/api/onboarding/import-defaults').expect(200);
+
+      const storage = new SqliteStorageService(tempDir);
+      const cardStory = await storage.getStory(
+        response.body.stories.find((s) => s.title.startsWith('A Story with')).id,
+      );
+      const setStory = await storage.getStory(
+        response.body.stories.find((s) => s.title === 'Spin Down').id,
+      );
+      storage.close();
+
+      expect(cardStory.personaCharacterId).toBe(personaResponse.body.id);
+      expect(setStory.personaCharacterId).toBeNull();
+    });
+
     it('should set default persona on imported stories if persona exists', async () => {
       // Create persona first
       const personaResponse = await request(app)

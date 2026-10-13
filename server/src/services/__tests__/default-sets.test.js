@@ -113,15 +113,10 @@ describe('default sets', () => {
   });
 
   describe('importDefaultSet', () => {
-    it('links the stories to the cast, the lorebook, the persona and the continuity', async () => {
-      await storage.saveCharacter('persona-1', {
-        spec: 'chara_card_v2',
-        spec_version: '2.0',
-        data: { name: 'Reader', extensions: { is_persona: true } },
-      });
+    it('links the stories to the cast, the lorebook and the continuity, with no persona', async () => {
       const set = await readDefaultSet(LOIRE_DIR);
 
-      const result = await importDefaultSet(storage, set, { defaultPersonaId: 'persona-1' });
+      const result = await importDefaultSet(storage, set);
 
       expect(result.characters).toHaveLength(4);
       expect(result.stories).toHaveLength(2);
@@ -131,7 +126,7 @@ describe('default sets', () => {
         const story = await storage.getStory(id);
         expect(story.characterIds.sort()).toEqual([...characterIds].sort());
         expect(story.lorebookIds).toEqual([result.lorebook.id]);
-        expect(story.personaCharacterId).toBe('persona-1');
+        expect(story.personaCharacterId).toBeNull();
         expect(story.continuityId).toBe(result.continuity.id);
         expect(story.needsRewritePrompt).toBe(false);
         expect(story.content.length).toBeGreaterThan(1000);

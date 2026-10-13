@@ -208,8 +208,9 @@ router.post(
     }
 
     // Import the bundled sets: characters, a lorebook, finished stories, and a
-    // continuity that belong together (see services/default-sets.js)
-    const sets = await importDefaultSets(storage, { defaultPersonaId });
+    // continuity that belong together (see services/default-sets.js). Their
+    // stories are about their own cast, so the persona stays off them.
+    const sets = await importDefaultSets(storage);
 
     const characters = [...importedCharacters, ...sets.characters];
     const stories = [...defaultStories, ...sets.stories];
