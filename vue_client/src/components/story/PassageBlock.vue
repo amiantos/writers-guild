@@ -172,6 +172,18 @@ function save() {
   flex-direction: column;
 }
 
+/* The actions stand a little off the paragraph's edge, and they only show while the block is
+   hovered, so a transparent bridge spans the gap: the pointer can cross to them without the
+   block losing its hover and fading them out. */
+.no-seam .turn-actions::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: 1rem;
+}
+
 .turn:hover .turn-actions,
 .turn:focus-within .turn-actions {
   opacity: 1;
@@ -219,12 +231,16 @@ function save() {
   gap: 0.5rem;
 }
 
-/* Too narrow for room beside the text, so over its top corner instead. */
+/* Too narrow for room beside the text, so over its top corner instead, with no gap to bridge. */
 @media (max-width: 860px) {
   .no-seam .turn-actions {
     top: -0.25rem;
     right: 0;
     flex-direction: row;
+  }
+
+  .no-seam .turn-actions::before {
+    display: none;
   }
 }
 
