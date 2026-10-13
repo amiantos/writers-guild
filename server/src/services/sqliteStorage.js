@@ -5,6 +5,7 @@
 
 import { initializeDatabase, calculateWordCount } from './database.js';
 import { computeCharacterChecksum, computeLorebookChecksum } from './checksum-service.js';
+import { MINE, mineThrough } from './user-context.js';
 import { v4 as uuidv4 } from 'uuid';
 import sharp from 'sharp';
 import { gzipSync, gunzipSync } from 'zlib';
@@ -14,6 +15,12 @@ import { gzipSync, gunzipSync } from 'zlib';
  * enough for the passage it was written for to be recorded, since a save can land mid-generation.
  */
 const UNREFERENCED_PROMPT_GRACE_MS = 60 * 60 * 1000;
+
+// Every query keeps to the current user's library: rows of the tables a user owns are theirs by
+// user_id, and the rows hanging off them are theirs through their story, character or lorebook.
+const MY_STORY = mineThrough('story_id', 'stories');
+const MY_CHARACTER = mineThrough('character_id', 'characters');
+const MY_LOREBOOK = mineThrough('lorebook_id', 'lorebooks');
 
 /**
  * Where a character version came from. original: the card as it was imported or created, kept
@@ -103,7 +110,10 @@ export class SqliteStorageService {
     // Settings statements
     this.stmts = {
       // Settings
-      getSettings: this.db.prepare('SELECT * FROM settings WHERE id = 1'),
+      getSettings: this.db.prepare(`SELECT * FROM settings WHERE ${MINE}`),
+      ensureSettings: this.db.prepare(
+        'INSERT OR IGNORE INTO settings (user_id) VALUES (current_user_id())',
+      ),
       updateSettings: this.db.prepare(`
         UPDATE settings SET
           show_reasoning = @showReasoning,
@@ -121,7 +131,7 @@ export class SqliteStorageService {
           onboarding_completed = @onboardingCompleted,
           experimental_chats = @experimentalChats,
           experimental_old_story_mode = @experimentalOldStoryMode
-        WHERE id = 1
+        WHERE ${MINE}
       `),
 
       // Stories
@@ -129,38 +139,41 @@ export class SqliteStorageService {
         SELECT id, title, description, scenario, created, modified, persona_character_id, config_preset_id, word_count,
                continuity_id, perspective, perspective_tense, perspective_character_id
         FROM stories
+        WHERE ${MINE}
         ORDER BY modified DESC
       `),
-      getStory: this.db.prepare('SELECT * FROM stories WHERE id = ?'),
+      getStory: this.db.prepare(`SELECT * FROM stories WHERE id = ? AND ${MINE}`),
       insertStory: this.db.prepare(`
-        INSERT INTO stories (id, title, description, content, word_count, needs_rewrite_prompt, persona_character_id, config_preset_id, created, modified)
-        VALUES (@id, @title, @description, @content, @wordCount, @needsRewritePrompt, @personaCharacterId, @configPresetId, @created, @modified)
+        INSERT INTO stories (id, user_id, title, description, content, word_count, needs_rewrite_prompt, persona_character_id, config_preset_id, created, modified)
+        VALUES (@id, current_user_id(), @title, @description, @content, @wordCount, @needsRewritePrompt, @personaCharacterId, @configPresetId, @created, @modified)
       `),
       setStoryNeedsRewritePrompt: this.db.prepare(
-        'UPDATE stories SET needs_rewrite_prompt = ? WHERE id = ?',
+        `UPDATE stories SET needs_rewrite_prompt = ? WHERE id = ? AND ${MINE}`,
       ),
       updateStoryAvatarWindows: this.db.prepare(
-        'UPDATE stories SET avatar_windows = ? WHERE id = ?',
+        `UPDATE stories SET avatar_windows = ? WHERE id = ? AND ${MINE}`,
       ),
-      updateStoryPassages: this.db.prepare('UPDATE stories SET passages = ? WHERE id = ?'),
+      updateStoryPassages: this.db.prepare(
+        `UPDATE stories SET passages = ? WHERE id = ? AND ${MINE}`,
+      ),
       insertPassagePrompt: this.db.prepare(
         'INSERT INTO passage_prompts (story_id, id, system, user, created) VALUES (?, ?, ?, ?, ?)',
       ),
       getPassagePrompt: this.db.prepare(
-        'SELECT system, user, created FROM passage_prompts WHERE story_id = ? AND id = ?',
+        `SELECT system, user, created FROM passage_prompts WHERE story_id = ? AND id = ? AND ${MY_STORY}`,
       ),
       listPassagePromptIds: this.db.prepare(
-        'SELECT id, created FROM passage_prompts WHERE story_id = ?',
+        `SELECT id, created FROM passage_prompts WHERE story_id = ? AND ${MY_STORY}`,
       ),
       deletePassagePrompt: this.db.prepare(
-        'DELETE FROM passage_prompts WHERE story_id = ? AND id = ?',
+        `DELETE FROM passage_prompts WHERE story_id = ? AND id = ? AND ${MY_STORY}`,
       ),
       copyPassagePrompts: this.db.prepare(`
         INSERT INTO passage_prompts (story_id, id, system, user, created)
-        SELECT ?, id, system, user, created FROM passage_prompts WHERE story_id = ?
+        SELECT ?, id, system, user, created FROM passage_prompts WHERE story_id = ? AND ${MY_STORY}
       `),
       updateStoryContentAndPassages: this.db.prepare(
-        'UPDATE stories SET content = ?, word_count = ?, modified = ?, passages = ? WHERE id = ?',
+        `UPDATE stories SET content = ?, word_count = ?, modified = ?, passages = ? WHERE id = ? AND ${MINE}`,
       ),
       updateStoryMetadata: this.db.prepare(`
         UPDATE stories SET title = @title, description = @description, scenario = @scenario,
@@ -169,53 +182,60 @@ export class SqliteStorageService {
                           perspective_character_id = @perspectiveCharacterId,
                           persona_character_id = @personaCharacterId,
                           config_preset_id = @configPresetId, modified = @modified
-        WHERE id = @id
+        WHERE id = @id AND ${MINE}
       `),
       updateStoryContent: this.db.prepare(
-        'UPDATE stories SET content = ?, word_count = ?, modified = ? WHERE id = ?',
+        `UPDATE stories SET content = ?, word_count = ?, modified = ? WHERE id = ? AND ${MINE}`,
       ),
-      deleteStory: this.db.prepare('DELETE FROM stories WHERE id = ?'),
+      deleteStory: this.db.prepare(`DELETE FROM stories WHERE id = ? AND ${MINE}`),
 
       // Characters
       listCharacters: this.db.prepare(
-        'SELECT id, name, created, modified FROM characters ORDER BY name',
+        `SELECT id, name, created, modified FROM characters WHERE ${MINE} ORDER BY name`,
       ),
       getCharacter: this.db.prepare(
-        'SELECT id, name, data, created, modified FROM characters WHERE id = ?',
+        `SELECT id, name, data, created, modified FROM characters WHERE id = ? AND ${MINE}`,
       ),
-      getCharacterImage: this.db.prepare('SELECT image FROM characters WHERE id = ?'),
-      getCharacterThumbnail: this.db.prepare('SELECT thumbnail FROM characters WHERE id = ?'),
+      getCharacterImage: this.db.prepare(`SELECT image FROM characters WHERE id = ? AND ${MINE}`),
+      getCharacterThumbnail: this.db.prepare(
+        `SELECT thumbnail FROM characters WHERE id = ? AND ${MINE}`,
+      ),
       getCharacterThumbnailMedium: this.db.prepare(
-        'SELECT thumbnail_medium FROM characters WHERE id = ?',
+        `SELECT thumbnail_medium FROM characters WHERE id = ? AND ${MINE}`,
       ),
-      getCharacterPortrait: this.db.prepare('SELECT portrait FROM characters WHERE id = ?'),
+      getCharacterPortrait: this.db.prepare(
+        `SELECT portrait FROM characters WHERE id = ? AND ${MINE}`,
+      ),
       updateCharacterThumbnails: this.db.prepare(`
         UPDATE characters
         SET thumbnail = @thumbnail, thumbnail_medium = @thumbnailMedium, portrait = @portrait
-        WHERE id = @id AND image = @image
+        WHERE id = @id AND image = @image AND ${MINE}
       `),
       insertCharacter: this.db.prepare(`
-        INSERT INTO characters (id, name, data, image, thumbnail, thumbnail_medium, portrait,
-                                created, modified, import_origin_checksum,
+        INSERT INTO characters (id, user_id, name, data, image, thumbnail, thumbnail_medium,
+                                portrait, created, modified, import_origin_checksum,
                                 import_internal_checksum, current_checksum)
-        VALUES (@id, @name, @data, @image, @thumbnail, @thumbnailMedium, @portrait, @created,
-                @modified, @importOriginChecksum, @importInternalChecksum, @currentChecksum)
+        VALUES (@id, current_user_id(), @name, @data, @image, @thumbnail, @thumbnailMedium,
+                @portrait, @created, @modified, @importOriginChecksum, @importInternalChecksum,
+                @currentChecksum)
       `),
       updateCharacter: this.db.prepare(`
-        UPDATE characters SET name = @name, data = @data, modified = @modified WHERE id = @id
+        UPDATE characters SET name = @name, data = @data, modified = @modified
+        WHERE id = @id AND ${MINE}
       `),
       updateCharacterWithImage: this.db.prepare(`
-        UPDATE characters SET name = @name, data = @data, image = @image, thumbnail = @thumbnail, thumbnail_medium = @thumbnailMedium, portrait = @portrait, modified = @modified WHERE id = @id
+        UPDATE characters SET name = @name, data = @data, image = @image, thumbnail = @thumbnail, thumbnail_medium = @thumbnailMedium, portrait = @portrait, modified = @modified
+        WHERE id = @id AND ${MINE}
       `),
       updateCharacterCurrentChecksum: this.db.prepare(
-        'UPDATE characters SET current_checksum = ? WHERE id = ?',
+        `UPDATE characters SET current_checksum = ? WHERE id = ? AND ${MINE}`,
       ),
       findCharactersByOriginChecksum: this.db.prepare(
         `SELECT id, name, current_checksum, import_internal_checksum
-         FROM characters WHERE import_origin_checksum = ?`,
+         FROM characters WHERE import_origin_checksum = ? AND ${MINE}`,
       ),
       charactersMissingChecksum: this.db.prepare(
-        'SELECT id FROM characters WHERE current_checksum IS NULL',
+        `SELECT id FROM characters WHERE current_checksum IS NULL AND ${MINE}`,
       ),
       listCharacterSummaries: this.db.prepare(`
         SELECT id, name, data, created,
@@ -224,56 +244,60 @@ export class SqliteStorageService {
                thumbnail_medium IS NOT NULL AS has_thumbnail_medium,
                portrait IS NOT NULL AS has_portrait
         FROM characters
+        WHERE ${MINE}
         ORDER BY name
       `),
-      deleteCharacter: this.db.prepare('DELETE FROM characters WHERE id = ?'),
+      deleteCharacter: this.db.prepare(`DELETE FROM characters WHERE id = ? AND ${MINE}`),
       getCharacterVersionBase: this.db.prepare(
-        'SELECT data, created, current_checksum, import_internal_checksum FROM characters WHERE id = ?',
+        `SELECT data, created, current_checksum, import_internal_checksum FROM characters
+         WHERE id = ? AND ${MINE}`,
       ),
 
       // Character versions
       listCharacterVersions: this.db.prepare(
-        'SELECT * FROM character_versions WHERE character_id = ? ORDER BY id',
+        `SELECT * FROM character_versions WHERE character_id = ? AND ${MY_CHARACTER} ORDER BY id`,
       ),
-      getStoryTitle: this.db.prepare('SELECT title FROM stories WHERE id = ?'),
-      getChatTitle: this.db.prepare('SELECT title FROM chats WHERE id = ?'),
+      getStoryTitle: this.db.prepare(`SELECT title FROM stories WHERE id = ? AND ${MINE}`),
+      getChatTitle: this.db.prepare(`SELECT title FROM chats WHERE id = ? AND ${MINE}`),
       getCharacterVersion: this.db.prepare(
-        'SELECT * FROM character_versions WHERE character_id = ? AND id = ?',
+        `SELECT * FROM character_versions WHERE character_id = ? AND id = ? AND ${MY_CHARACTER}`,
       ),
       hasCharacterVersions: this.db.prepare(
-        'SELECT 1 FROM character_versions WHERE character_id = ? LIMIT 1',
+        `SELECT 1 FROM character_versions WHERE character_id = ? AND ${MY_CHARACTER} LIMIT 1`,
       ),
       insertCharacterVersion: this.db.prepare(`
         INSERT INTO character_versions (character_id, data, checksum, image_changed, source, source_id, created)
         VALUES (@characterId, @data, @checksum, @imageChanged, @source, @sourceId, @created)
       `),
-      characterExists: this.db.prepare('SELECT 1 FROM characters WHERE id = ?'),
+      characterExists: this.db.prepare(`SELECT 1 FROM characters WHERE id = ? AND ${MINE}`),
 
       // Story-Character relationships
       getStoryCharacterIds: this.db.prepare(
-        'SELECT character_id FROM story_characters WHERE story_id = ?',
+        `SELECT character_id FROM story_characters WHERE story_id = ? AND ${MY_STORY}`,
       ),
       addStoryCharacter: this.db.prepare(
         'INSERT OR IGNORE INTO story_characters (story_id, character_id) VALUES (?, ?)',
       ),
       removeStoryCharacter: this.db.prepare(
-        'DELETE FROM story_characters WHERE story_id = ? AND character_id = ?',
+        `DELETE FROM story_characters WHERE story_id = ? AND character_id = ? AND ${MY_STORY}`,
       ),
       getStoriesUsingCharacter: this.db.prepare(`
         SELECT s.id, s.title FROM stories s
         JOIN story_characters sc ON s.id = sc.story_id
-        WHERE sc.character_id = ?
+        WHERE sc.character_id = ? AND s.${MINE}
       `),
       getStoryIdsUsingCharacter: this.db.prepare(`
-        SELECT story_id AS id FROM story_characters WHERE character_id = ?
-        UNION SELECT id FROM stories WHERE persona_character_id = ?
+        SELECT story_id AS id FROM story_characters WHERE character_id = ? AND ${MY_STORY}
+        UNION SELECT id FROM stories WHERE persona_character_id = ? AND ${MINE}
       `),
-      updateStoryModified: this.db.prepare('UPDATE stories SET modified = ? WHERE id = ?'),
+      updateStoryModified: this.db.prepare(
+        `UPDATE stories SET modified = ? WHERE id = ? AND ${MINE}`,
+      ),
       clearStoryPersona: this.db.prepare(
-        'UPDATE stories SET persona_character_id = NULL WHERE id = ?',
+        `UPDATE stories SET persona_character_id = NULL WHERE id = ? AND ${MINE}`,
       ),
       setStoryPersona: this.db.prepare(
-        'UPDATE stories SET persona_character_id = ?, modified = ? WHERE id = ?',
+        `UPDATE stories SET persona_character_id = ?, modified = ? WHERE id = ? AND ${MINE}`,
       ),
 
       // Lorebooks
@@ -281,53 +305,58 @@ export class SqliteStorageService {
         SELECT l.id, l.name, l.description, l.created, l.modified, COUNT(e.id) as entry_count
         FROM lorebooks l
         LEFT JOIN lorebook_entries e ON l.id = e.lorebook_id
+        WHERE l.${MINE}
         GROUP BY l.id
         ORDER BY l.name
       `),
-      getLorebook: this.db.prepare('SELECT * FROM lorebooks WHERE id = ?'),
+      getLorebook: this.db.prepare(`SELECT * FROM lorebooks WHERE id = ? AND ${MINE}`),
       getLorebookEntries: this.db.prepare(
-        'SELECT * FROM lorebook_entries WHERE lorebook_id = ? ORDER BY display_index',
+        `SELECT * FROM lorebook_entries WHERE lorebook_id = ? AND ${MY_LOREBOOK}
+         ORDER BY display_index`,
       ),
       insertLorebook: this.db.prepare(`
-        INSERT INTO lorebooks (id, name, description, scan_depth, token_budget, recursive_scanning,
-                               extensions, created, modified,
+        INSERT INTO lorebooks (id, user_id, name, description, scan_depth, token_budget,
+                               recursive_scanning, extensions, created, modified,
                                import_origin_checksum, import_internal_checksum, current_checksum)
-        VALUES (@id, @name, @description, @scanDepth, @tokenBudget, @recursiveScanning,
-                @extensions, @created, @modified,
+        VALUES (@id, current_user_id(), @name, @description, @scanDepth, @tokenBudget,
+                @recursiveScanning, @extensions, @created, @modified,
                 @importOriginChecksum, @importInternalChecksum, @currentChecksum)
       `),
       updateLorebook: this.db.prepare(`
         UPDATE lorebooks SET name = @name, description = @description, scan_depth = @scanDepth,
                             token_budget = @tokenBudget, recursive_scanning = @recursiveScanning,
                             extensions = @extensions, modified = @modified
-        WHERE id = @id
+        WHERE id = @id AND ${MINE}
       `),
       updateLorebookCurrentChecksum: this.db.prepare(
-        'UPDATE lorebooks SET current_checksum = ? WHERE id = ?',
+        `UPDATE lorebooks SET current_checksum = ? WHERE id = ? AND ${MINE}`,
       ),
       findLorebooksByOriginChecksum: this.db.prepare(
         `SELECT id, name, current_checksum, import_internal_checksum
-         FROM lorebooks WHERE import_origin_checksum = ?`,
+         FROM lorebooks WHERE import_origin_checksum = ? AND ${MINE}`,
       ),
       findLorebooksByCurrentChecksum: this.db.prepare(
-        'SELECT id, name FROM lorebooks WHERE current_checksum = ? ORDER BY created',
+        `SELECT id, name FROM lorebooks WHERE current_checksum = ? AND ${MINE} ORDER BY created`,
       ),
-      lorebookNameExists: this.db.prepare('SELECT 1 FROM lorebooks WHERE name = ?'),
+      lorebookNameExists: this.db.prepare(`SELECT 1 FROM lorebooks WHERE name = ? AND ${MINE}`),
       lorebooksMissingChecksum: this.db.prepare(
-        'SELECT id FROM lorebooks WHERE current_checksum IS NULL',
+        `SELECT id FROM lorebooks WHERE current_checksum IS NULL AND ${MINE}`,
       ),
       charactersReferencingLorebook: this.db.prepare(
         `SELECT id, name FROM characters
-         WHERE json_extract(data, '$.data.extensions.ursceal_lorebook_id') = ? AND id != ?`,
+         WHERE json_extract(data, '$.data.extensions.ursceal_lorebook_id') = ? AND id != ?
+           AND ${MINE}`,
       ),
-      listStoryLorebookLinks: this.db.prepare('SELECT story_id, lorebook_id FROM story_lorebooks'),
+      listStoryLorebookLinks: this.db.prepare(
+        `SELECT story_id, lorebook_id FROM story_lorebooks WHERE ${MY_STORY}`,
+      ),
       storiesReferencingLorebook: this.db.prepare(
         `SELECT s.id, s.title FROM story_lorebooks sl
          JOIN stories s ON s.id = sl.story_id
-         WHERE sl.lorebook_id = ?`,
+         WHERE sl.lorebook_id = ? AND s.${MINE}`,
       ),
-      deleteLorebook: this.db.prepare('DELETE FROM lorebooks WHERE id = ?'),
-      lorebookExists: this.db.prepare('SELECT 1 FROM lorebooks WHERE id = ?'),
+      deleteLorebook: this.db.prepare(`DELETE FROM lorebooks WHERE id = ? AND ${MINE}`),
+      lorebookExists: this.db.prepare(`SELECT 1 FROM lorebooks WHERE id = ? AND ${MINE}`),
 
       // Lorebook entries
       insertLorebookEntry: this.db.prepare(`
@@ -353,48 +382,51 @@ export class SqliteStorageService {
           depth = @depth, scan_depth = @scanDepth, entry_group = @group,
           prevent_recursion = @preventRecursion, delay_until_recursion = @delayUntilRecursion,
           display_index = @displayIndex, extensions = @extensions
-        WHERE id = @id AND lorebook_id = @lorebookId
+        WHERE id = @id AND lorebook_id = @lorebookId AND ${MY_LOREBOOK}
       `),
       deleteLorebookEntry: this.db.prepare(
-        'DELETE FROM lorebook_entries WHERE id = ? AND lorebook_id = ?',
+        `DELETE FROM lorebook_entries WHERE id = ? AND lorebook_id = ? AND ${MY_LOREBOOK}`,
       ),
-      deleteLorebookEntries: this.db.prepare('DELETE FROM lorebook_entries WHERE lorebook_id = ?'),
+      deleteLorebookEntries: this.db.prepare(
+        `DELETE FROM lorebook_entries WHERE lorebook_id = ? AND ${MY_LOREBOOK}`,
+      ),
 
       // Story-Lorebook relationships
       getStoryLorebookIds: this.db.prepare(
-        'SELECT lorebook_id FROM story_lorebooks WHERE story_id = ?',
+        `SELECT lorebook_id FROM story_lorebooks WHERE story_id = ? AND ${MY_STORY}`,
       ),
       addStoryLorebook: this.db.prepare(
         'INSERT OR IGNORE INTO story_lorebooks (story_id, lorebook_id) VALUES (?, ?)',
       ),
       removeStoryLorebook: this.db.prepare(
-        'DELETE FROM story_lorebooks WHERE story_id = ? AND lorebook_id = ?',
+        `DELETE FROM story_lorebooks WHERE story_id = ? AND lorebook_id = ? AND ${MY_STORY}`,
       ),
 
       // Presets
       listPresets: this.db.prepare(
         `SELECT id, name, provider, is_default, api_config, generation_settings FROM presets
+         WHERE ${MINE}
          ORDER BY name`,
       ),
-      getPreset: this.db.prepare('SELECT * FROM presets WHERE id = ?'),
+      getPreset: this.db.prepare(`SELECT * FROM presets WHERE id = ? AND ${MINE}`),
       insertPreset: this.db.prepare(`
-        INSERT INTO presets (id, name, provider, api_config, generation_settings, lorebook_settings, prompt_templates, is_default)
-        VALUES (@id, @name, @provider, @apiConfig, @generationSettings, @lorebookSettings, @promptTemplates, @isDefault)
+        INSERT INTO presets (id, user_id, name, provider, api_config, generation_settings, lorebook_settings, prompt_templates, is_default)
+        VALUES (@id, current_user_id(), @name, @provider, @apiConfig, @generationSettings, @lorebookSettings, @promptTemplates, @isDefault)
       `),
       updatePreset: this.db.prepare(`
         UPDATE presets SET name = @name, provider = @provider, api_config = @apiConfig,
                           generation_settings = @generationSettings, lorebook_settings = @lorebookSettings,
                           prompt_templates = @promptTemplates, is_default = @isDefault
-        WHERE id = @id
+        WHERE id = @id AND ${MINE}
       `),
-      deletePreset: this.db.prepare('DELETE FROM presets WHERE id = ?'),
+      deletePreset: this.db.prepare(`DELETE FROM presets WHERE id = ? AND ${MINE}`),
       clearStoryPreset: this.db.prepare(
-        'UPDATE stories SET config_preset_id = NULL WHERE config_preset_id = ?',
+        `UPDATE stories SET config_preset_id = NULL WHERE config_preset_id = ? AND ${MINE}`,
       ),
       clearChatPreset: this.db.prepare(
-        'UPDATE chats SET config_preset_id = NULL WHERE config_preset_id = ?',
+        `UPDATE chats SET config_preset_id = NULL WHERE config_preset_id = ? AND ${MINE}`,
       ),
-      presetExists: this.db.prepare('SELECT 1 FROM presets WHERE id = ?'),
+      presetExists: this.db.prepare(`SELECT 1 FROM presets WHERE id = ? AND ${MINE}`),
 
       // Story History (undo/redo)
       insertHistory: this.db.prepare(`
@@ -402,7 +434,7 @@ export class SqliteStorageService {
         VALUES (?, ?, ?, ?)
       `),
       getHistoryPosition: this.db.prepare(
-        'SELECT history_id FROM story_history_position WHERE story_id = ?',
+        `SELECT history_id FROM story_history_position WHERE story_id = ? AND ${MY_STORY}`,
       ),
       setHistoryPosition: this.db.prepare(`
         INSERT INTO story_history_position (story_id, history_id) VALUES (?, ?)
@@ -410,37 +442,37 @@ export class SqliteStorageService {
       `),
       getHistoryBefore: this.db.prepare(`
         SELECT * FROM story_history
-        WHERE story_id = ? AND id < ?
+        WHERE story_id = ? AND id < ? AND ${MY_STORY}
         ORDER BY id DESC LIMIT 1
       `),
       getHistoryAfter: this.db.prepare(`
         SELECT * FROM story_history
-        WHERE story_id = ? AND id > ?
+        WHERE story_id = ? AND id > ? AND ${MY_STORY}
         ORDER BY id ASC LIMIT 1
       `),
       getLatestHistory: this.db.prepare(`
         SELECT * FROM story_history
-        WHERE story_id = ?
+        WHERE story_id = ? AND ${MY_STORY}
         ORDER BY id DESC LIMIT 1
       `),
       getHistoryEntry: this.db.prepare(`
-        SELECT * FROM story_history WHERE id = ?
+        SELECT * FROM story_history WHERE id = ? AND ${MY_STORY}
       `),
       countHistoryBefore: this.db.prepare(`
         SELECT COUNT(*) as count FROM story_history
-        WHERE story_id = ? AND id < ?
+        WHERE story_id = ? AND id < ? AND ${MY_STORY}
       `),
       countHistoryAfter: this.db.prepare(`
         SELECT COUNT(*) as count FROM story_history
-        WHERE story_id = ? AND id > ?
+        WHERE story_id = ? AND id > ? AND ${MY_STORY}
       `),
       deleteHistoryAfter: this.db.prepare(`
         DELETE FROM story_history
-        WHERE story_id = ? AND id > ?
+        WHERE story_id = ? AND id > ? AND ${MY_STORY}
       `),
       pruneOldHistory: this.db.prepare(`
         DELETE FROM story_history
-        WHERE story_id = ? AND id NOT IN (
+        WHERE story_id = ? AND ${MY_STORY} AND id NOT IN (
           SELECT id FROM story_history
           WHERE story_id = ?
           ORDER BY id DESC
@@ -448,7 +480,7 @@ export class SqliteStorageService {
         )
       `),
       countHistory: this.db.prepare(
-        'SELECT COUNT(*) as count FROM story_history WHERE story_id = ?',
+        `SELECT COUNT(*) as count FROM story_history WHERE story_id = ? AND ${MY_STORY}`,
       ),
     };
   }
@@ -539,6 +571,8 @@ export class SqliteStorageService {
   // ==================== Settings Operations ====================
 
   async getSettings() {
+    // A user's settings start as the defaults.
+    this.stmts.ensureSettings.run();
     const row = this.stmts.getSettings.get();
     if (!row) return null;
 
@@ -791,6 +825,9 @@ export class SqliteStorageService {
    * @returns {string} The prompt's id.
    */
   savePassagePrompt(storyId, { system, user }) {
+    if (!this.stmts.getStory.get(storyId)) {
+      throw new Error(`Story not found: ${storyId}`);
+    }
     const id = uuidv4();
     this.stmts.insertPassagePrompt.run(
       storyId,
@@ -874,14 +911,15 @@ export class SqliteStorageService {
       const scenario = blank ? '' : existing.scenario || '';
       if (scenario || existing.continuity_id) {
         this.db
-          .prepare('UPDATE stories SET scenario = ?, continuity_id = ? WHERE id = ?')
+          .prepare(`UPDATE stories SET scenario = ?, continuity_id = ? WHERE id = ? AND ${MINE}`)
           .run(scenario, existing.continuity_id ?? null, newId);
       }
 
       // Copy the narrative perspective
       this.db
         .prepare(
-          'UPDATE stories SET perspective = ?, perspective_tense = ?, perspective_character_id = ? WHERE id = ?',
+          `UPDATE stories SET perspective = ?, perspective_tense = ?, perspective_character_id = ?
+           WHERE id = ? AND ${MINE}`,
         )
         .run(
           existing.perspective ?? null,
@@ -971,6 +1009,11 @@ export class SqliteStorageService {
       created: row.created,
       modified: row.modified,
     }));
+  }
+
+  /** Whether the current user has this character. */
+  characterExists(characterId) {
+    return !!this.stmts.characterExists.get(characterId);
   }
 
   async listStoryCharacters(storyId) {
@@ -1320,6 +1363,11 @@ export class SqliteStorageService {
   }
 
   // ==================== Lorebook Operations ====================
+
+  /** Whether the current user has this lorebook. */
+  lorebookExists(lorebookId) {
+    return !!this.stmts.lorebookExists.get(lorebookId);
+  }
 
   async listAllLorebooks() {
     const rows = this.stmts.listLorebooks.all();

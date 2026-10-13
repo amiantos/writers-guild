@@ -18,6 +18,7 @@ import {
   rewriteCharacterImageUrls,
 } from '../services/image-cacher.js';
 import { AssetManager } from '../services/asset-manager.js';
+import { keepingUser } from '../services/user-context.js';
 import { safeFetch, readBodyWithLimit } from '../services/safe-fetch.js';
 import { sseChannel } from '../utils/sse.js';
 
@@ -341,7 +342,7 @@ router.get(
 // Upload new character to global library (import PNG)
 router.post(
   '/import',
-  upload.single('character'),
+  keepingUser(upload.single('character')),
   asyncHandler(async (req, res) => {
     const channel = sseChannel(req, res);
 
@@ -459,7 +460,7 @@ router.post(
 // Create character with optional image
 router.post(
   '/create',
-  upload.single('image'),
+  keepingUser(upload.single('image')),
   asyncHandler(async (req, res) => {
     const characterDataJson = req.body?.characterData;
 
@@ -531,7 +532,7 @@ router.post(
  */
 router.post(
   '/import-json',
-  jsonUpload.single('character'),
+  keepingUser(jsonUpload.single('character')),
   asyncHandler(async (req, res) => {
     if (!req.file) {
       throw new AppError('No character file provided', 400);
@@ -743,7 +744,7 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+    res.setHeader('Cache-Control', 'private, max-age=86400'); // Cache for 1 day, for this user only
     res.send(imageBuffer);
   }),
 );
@@ -760,7 +761,7 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'image/webp');
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+    res.setHeader('Cache-Control', 'private, max-age=86400'); // Cache for 1 day, for this user only
     res.send(thumbnailBuffer);
   }),
 );
@@ -777,7 +778,7 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'image/webp');
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+    res.setHeader('Cache-Control', 'private, max-age=86400'); // Cache for 1 day, for this user only
     res.send(thumbnailBuffer);
   }),
 );
@@ -794,7 +795,7 @@ router.get(
     }
 
     res.setHeader('Content-Type', 'image/webp');
-    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+    res.setHeader('Cache-Control', 'private, max-age=86400'); // Cache for 1 day, for this user only
     res.send(portraitBuffer);
   }),
 );
@@ -867,7 +868,7 @@ router.put(
 // Update character with new image
 router.put(
   '/:characterId/update-with-image',
-  upload.single('image'),
+  keepingUser(upload.single('image')),
   asyncHandler(async (req, res) => {
     const { characterId } = req.params;
     const characterDataJson = req.body?.characterData;

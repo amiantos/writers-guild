@@ -507,7 +507,7 @@ describe('Characters API Routes', () => {
       const response = await request(app).get(`/api/characters/${charId}/image`).expect(200);
 
       expect(response.headers['content-type']).toBe('image/png');
-      expect(response.headers['cache-control']).toBe('public, max-age=86400');
+      expect(response.headers['cache-control']).toBe('private, max-age=86400');
       expect(response.body).toBeDefined();
     });
   });
@@ -551,7 +551,7 @@ describe('Characters API Routes', () => {
       const response = await request(app).get(`/api/characters/${charId}/thumbnail`).expect(200);
 
       expect(response.headers['content-type']).toBe('image/webp');
-      expect(response.headers['cache-control']).toBe('public, max-age=86400');
+      expect(response.headers['cache-control']).toBe('private, max-age=86400');
     });
   });
 
@@ -598,7 +598,7 @@ describe('Characters API Routes', () => {
         .expect(200);
 
       expect(response.headers['content-type']).toBe('image/webp');
-      expect(response.headers['cache-control']).toBe('public, max-age=86400');
+      expect(response.headers['cache-control']).toBe('private, max-age=86400');
     });
   });
 
@@ -633,7 +633,7 @@ describe('Characters API Routes', () => {
           })
           .expect(200);
         expect(response.headers['content-type']).toBe('image/webp');
-        expect(response.headers['cache-control']).toBe('public, max-age=86400');
+        expect(response.headers['cache-control']).toBe('private, max-age=86400');
         return sharp(response.body).metadata();
       };
 

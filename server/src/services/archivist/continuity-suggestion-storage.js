@@ -10,6 +10,11 @@
  * Methods are synchronous, like better-sqlite3 itself.
  */
 
+import { MINE, mineThrough } from '../user-context.js';
+
+// Every query keeps to the suggestions for the current user's Continuities.
+const MY_CONTINUITY = mineThrough('continuity_id', 'continuities');
+
 function suggestionFromRow(row) {
   return {
     id: row.id,
@@ -34,13 +39,13 @@ export class ContinuitySuggestionStorage {
     this.stmts = {
       proposed: db.prepare(`
         SELECT * FROM continuity_suggestions
-        WHERE source_kind = ? AND source_id = ? AND status = 'proposed'
+        WHERE source_kind = ? AND source_id = ? AND status = 'proposed' AND ${MY_CONTINUITY}
         ORDER BY id DESC LIMIT 1
       `),
-      get: db.prepare('SELECT * FROM continuity_suggestions WHERE id = ?'),
+      get: db.prepare(`SELECT * FROM continuity_suggestions WHERE id = ? AND ${MY_CONTINUITY}`),
       clearProposed: db.prepare(`
         DELETE FROM continuity_suggestions
-        WHERE source_kind = ? AND source_id = ? AND status = 'proposed'
+        WHERE source_kind = ? AND source_id = ? AND status = 'proposed' AND ${MY_CONTINUITY}
       `),
       insert: db.prepare(`
         INSERT INTO continuity_suggestions (continuity_id, source_kind, source_id, base, replace,
@@ -48,10 +53,12 @@ export class ContinuitySuggestionStorage {
         VALUES (@continuityId, @sourceKind, @sourceId, @base, @replace, @rationale, 'proposed',
                 @created)
       `),
-      update: db.prepare('UPDATE continuity_suggestions SET status = ?, replace = ? WHERE id = ?'),
-      continuityExists: db.prepare('SELECT 1 FROM continuities WHERE id = ?'),
-      storyExists: db.prepare('SELECT 1 FROM stories WHERE id = ?'),
-      chatExists: db.prepare('SELECT 1 FROM chats WHERE id = ?'),
+      update: db.prepare(
+        `UPDATE continuity_suggestions SET status = ?, replace = ? WHERE id = ? AND ${MY_CONTINUITY}`,
+      ),
+      continuityExists: db.prepare(`SELECT 1 FROM continuities WHERE id = ? AND ${MINE}`),
+      storyExists: db.prepare(`SELECT 1 FROM stories WHERE id = ? AND ${MINE}`),
+      chatExists: db.prepare(`SELECT 1 FROM chats WHERE id = ? AND ${MINE}`),
     };
   }
 

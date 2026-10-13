@@ -10,6 +10,11 @@
  * with the rest of the schema in database.js.
  */
 
+import { MINE, mineThrough } from '../user-context.js';
+
+// Every query keeps to the suggestions for the current user's characters.
+const MY_CHARACTER = mineThrough('character_id', 'characters');
+
 export const SUGGESTION_SOURCE_KINDS = ['story', 'chat'];
 export const SUGGESTION_STATUSES = ['proposed', 'accepted', 'rejected'];
 
@@ -38,19 +43,22 @@ export class CardSuggestionStorage {
     this.db = db;
     this.stmts = {
       listForSource: db.prepare(
-        'SELECT * FROM card_suggestions WHERE source_kind = ? AND source_id = ? ORDER BY id',
+        `SELECT * FROM card_suggestions WHERE source_kind = ? AND source_id = ? AND ${MY_CHARACTER}
+         ORDER BY id`,
       ),
-      get: db.prepare('SELECT * FROM card_suggestions WHERE id = ?'),
+      get: db.prepare(`SELECT * FROM card_suggestions WHERE id = ? AND ${MY_CHARACTER}`),
       insert: db.prepare(`
         INSERT INTO card_suggestions (character_id, source_kind, source_id, field, find, replace,
                                       rationale, quote, status, created)
         VALUES (@characterId, @sourceKind, @sourceId, @field, @find, @replace, @rationale, @quote,
                 'proposed', @created)
       `),
-      update: db.prepare('UPDATE card_suggestions SET status = ?, replace = ? WHERE id = ?'),
-      storyExists: db.prepare('SELECT 1 FROM stories WHERE id = ?'),
-      chatExists: db.prepare('SELECT 1 FROM chats WHERE id = ?'),
-      characterExists: db.prepare('SELECT 1 FROM characters WHERE id = ?'),
+      update: db.prepare(
+        `UPDATE card_suggestions SET status = ?, replace = ? WHERE id = ? AND ${MY_CHARACTER}`,
+      ),
+      storyExists: db.prepare(`SELECT 1 FROM stories WHERE id = ? AND ${MINE}`),
+      chatExists: db.prepare(`SELECT 1 FROM chats WHERE id = ? AND ${MINE}`),
+      characterExists: db.prepare(`SELECT 1 FROM characters WHERE id = ? AND ${MINE}`),
     };
   }
 

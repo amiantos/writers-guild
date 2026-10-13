@@ -284,6 +284,7 @@ import ImportLorebookModal from '../components/ImportLorebookModal.vue';
 import PresetEditorModal from '../components/PresetEditorModal.vue';
 import ProviderSelectionModal from '../components/ProviderSelectionModal.vue';
 import { chatsAPI } from '../services/chatsApi';
+import { userStorageKey } from '../config/storageKeys';
 
 const router = useRouter();
 const toast = useToast();
@@ -338,9 +339,9 @@ const sections = [
   { key: 'presets', label: 'Presets', icon: 'fas fa-sliders' },
 ];
 
-// Active section, remembered per browser. One that no longer exists, such as Chats or Bureaus,
-// falls back to Stories.
-const STORAGE_KEY = 'writers-guild-active-tab';
+// Active section, remembered per browser for each user. One that no longer exists, such as Chats
+// or Bureaus, falls back to Stories.
+const STORAGE_KEY = userStorageKey('writers-guild-active-tab');
 
 function readSavedSection() {
   try {

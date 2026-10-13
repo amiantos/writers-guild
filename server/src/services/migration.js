@@ -14,6 +14,8 @@ import { CharacterParser } from './character-parser.js';
 import { LorebookParser } from './lorebook-parser.js';
 import { PromptBuilder } from './prompt-builder.js';
 import { MacroProcessor } from './macro-processor.js';
+import { ADMIN_USER_ID, runAsUser } from './user-context.js';
+import { UserStorage } from './auth/user-storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -406,6 +408,11 @@ export { importDefaultCharacters, createDefaultStory, generateMissingThumbnails 
  * @returns {Promise<Object>} Migration result
  */
 export async function runMigration(dataRoot) {
+  // Data from before there were users is the admin's.
+  return runAsUser(ADMIN_USER_ID, () => runAdminMigration(dataRoot));
+}
+
+async function runAdminMigration(dataRoot) {
   // First, run SQLite migration if needed (migrates file data to database)
   try {
     const sqliteMigrationResult = await runSqliteMigration(dataRoot);
@@ -424,18 +431,23 @@ export async function runMigration(dataRoot) {
   const storage = new SqliteStorageService(dataRoot);
   const migrationResult = await migrate(storage);
 
-  // Backfill any missing character thumbnails (runs every startup; no-op when up to date)
-  try {
-    await generateMissingThumbnails(storage);
-  } catch (error) {
-    console.error('Thumbnail backfill error:', error);
-  }
+  // The backfills go through each user's library in turn.
+  for (const { id } of new UserStorage(storage.db).listUsers()) {
+    await runAsUser(id, async () => {
+      // Backfill any missing character thumbnails (runs every startup; no-op when up to date)
+      try {
+        await generateMissingThumbnails(storage);
+      } catch (error) {
+        console.error('Thumbnail backfill error:', error);
+      }
 
-  // Backfill checksums for entities that predate schema v9 (no-op when up to date)
-  try {
-    await storage.backfillChecksums();
-  } catch (error) {
-    console.error('Checksum backfill error:', error);
+      // Backfill checksums for entities that predate schema v9 (no-op when up to date)
+      try {
+        await storage.backfillChecksums();
+      } catch (error) {
+        console.error('Checksum backfill error:', error);
+      }
+    });
   }
 
   return migrationResult;

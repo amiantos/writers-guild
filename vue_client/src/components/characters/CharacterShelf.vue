@@ -138,6 +138,7 @@ import {
   filterCharacterItems,
   sortCharacterItems,
 } from '../../composables/characters.js';
+import { userStorageKey } from '../../config/storageKeys';
 
 const props = defineProps({
   characters: { type: Array, default: () => [] },
@@ -184,8 +185,8 @@ const NEW_OPTIONS = [
   },
 ];
 
-// Sort, remembered per browser
-const PREFS_KEY = 'writers-guild-characters';
+// Sort, remembered per browser for each user
+const PREFS_KEY = userStorageKey('writers-guild-characters');
 
 function readPrefs() {
   try {

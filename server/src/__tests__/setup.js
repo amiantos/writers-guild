@@ -9,6 +9,7 @@
  * safe-fetch.test.js unmocks undici to exercise the real connection guard.
  */
 import { vi } from 'vitest';
+import { ADMIN_USER_ID, setFallbackUserId } from '../services/user-context.js';
 
 vi.mock('undici', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -28,3 +29,10 @@ vi.mock('undici', async (importOriginal) => ({
 globalThis.fetch = vi.fn(async (url) => {
   throw new Error(`Unmocked network request in tests: ${url}`);
 });
+
+/**
+ * Run storage as the admin by default, as a single-user install does. Most tests call storage or
+ * mount a router directly, without the auth middleware that sets whose library a request uses;
+ * the tests of users and signing in turn this off to see each request keep to its own user.
+ */
+setFallbackUserId(ADMIN_USER_ID);

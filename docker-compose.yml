@@ -2,7 +2,8 @@
 #   curl -O https://raw.githubusercontent.com/amiantos/writers-guild/main/docker-compose.yml
 #   docker compose up -d
 #
-# Then open http://localhost:8000 and add an API key in Settings.
+# Then open http://localhost:8000 and add an API key in Settings. To require a
+# password, and to invite other people, turn on signing in under Settings → Account.
 #
 # To update to the latest release:
 #   docker compose pull && docker compose up -d
@@ -19,8 +20,10 @@ services:
       - ./data:/data
     environment:
       # ───── Optional: HTTP Basic Authentication ───────────────────────────
-      # Strongly recommended if Writers Guild is reachable from anywhere but
-      # your own machine. Set both in a .env file next to this compose file:
+      # A password prompt in front of everything, until signing in (Settings →
+      # Account) is on. On an install that already has these, the first start
+      # turns signing in on with the same username and password, and then
+      # they can be removed. Set both in a .env file next to this compose file:
       #   BASIC_AUTH_USERNAME=you
       #   BASIC_AUTH_PASSWORD=a-long-random-password
       # Auth is disabled when either is empty.

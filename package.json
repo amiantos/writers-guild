@@ -12,6 +12,7 @@
     "client:dev:lan": "cd vue_client && npm run dev:lan",
     "build": "cd vue_client && npm run build",
     "server:start": "cd server && npm start",
+    "reset-password": "cd server && npm run reset-password --",
     "test": "npm run test:server && npm run test:client",
     "test:server": "cd server && npm test",
     "test:client": "cd vue_client && npm test",

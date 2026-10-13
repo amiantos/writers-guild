@@ -11,6 +11,7 @@ import { LorebookParser } from '../services/lorebook-parser.js';
 import { cacheAndRewriteLorebookImages } from '../services/image-cacher.js';
 import { computeLorebookChecksum } from '../services/checksum-service.js';
 import { AssetManager } from '../services/asset-manager.js';
+import { keepingUser } from '../services/user-context.js';
 import { safeFetch, readBodyWithLimit } from '../services/safe-fetch.js';
 import { sseChannel } from '../utils/sse.js';
 
@@ -135,7 +136,7 @@ router.get(
  */
 router.post(
   '/import',
-  upload.single('lorebook'),
+  keepingUser(upload.single('lorebook')),
   asyncHandler(async (req, res) => {
     if (!req.file) {
       throw new AppError('No lorebook file provided', 400);
