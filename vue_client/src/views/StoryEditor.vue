@@ -363,7 +363,7 @@ import ThirdPersonPromptModal from '../components/ThirdPersonPromptModal.vue';
 import EnhancedStoryView from '../components/story/EnhancedStoryView.vue';
 import StoryModeComposer from '../components/story/StoryModeComposer.vue';
 import StoryOverflowMenu from '../components/story/StoryOverflowMenu.vue';
-import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys';
+import { SKIP_THIRD_PERSON_PROMPT_KEY, userStorageKey } from '../config/storageKeys';
 import { describePerspective } from '../../../shared/perspective.js';
 import {
   appendText,
@@ -599,7 +599,7 @@ function handleKeyboardShortcut(event) {
 
 // Check if we should show the third person prompt (respects "don't ask again" preference)
 function shouldShowThirdPersonPrompt() {
-  return localStorage.getItem(SKIP_THIRD_PERSON_PROMPT_KEY) !== 'true';
+  return localStorage.getItem(userStorageKey(SKIP_THIRD_PERSON_PROMPT_KEY)) !== 'true';
 }
 
 onMounted(async () => {

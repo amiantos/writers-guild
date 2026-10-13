@@ -8,9 +8,9 @@
  */
 
 import { AsyncLocalStorage, AsyncResource } from 'node:async_hooks';
+import { ADMIN_USER_ID } from '../../../shared/users.js';
 
-/** The account a fresh install runs as, signed in or not, and the owner of everything before. */
-export const ADMIN_USER_ID = 'admin';
+export { ADMIN_USER_ID };
 
 const context = new AsyncLocalStorage();
 

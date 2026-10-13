@@ -26,7 +26,7 @@
 <script setup>
 import { ref } from 'vue';
 import Modal from './Modal.vue';
-import { SKIP_THIRD_PERSON_PROMPT_KEY } from '../config/storageKeys';
+import { SKIP_THIRD_PERSON_PROMPT_KEY, userStorageKey } from '../config/storageKeys';
 
 defineProps({
   // How the story is told, from describePerspective() in shared/perspective.js
@@ -43,7 +43,7 @@ const isProcessing = ref(false);
 
 function savePreference() {
   if (dontAskAgain.value) {
-    localStorage.setItem(SKIP_THIRD_PERSON_PROMPT_KEY, 'true');
+    localStorage.setItem(userStorageKey(SKIP_THIRD_PERSON_PROMPT_KEY), 'true');
   }
 }
 
