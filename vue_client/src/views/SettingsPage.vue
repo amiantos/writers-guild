@@ -19,6 +19,9 @@
     <!-- Main Content -->
     <div v-else class="detail-content">
       <div class="sections-container">
+        <!-- Account and Users Sections: first once signing in is on, and last until then -->
+        <AccountSettings v-if="authEnabled" />
+
         <!-- Display Settings Section -->
         <section class="edit-section">
           <div class="section-header">
@@ -99,6 +102,8 @@
           </div>
         </section>
 
+        <AccountSettings v-if="!authEnabled" />
+
         <!-- Legacy Lorebook Settings Section (if needed for backwards compat) -->
         <section v-if="false" class="edit-section">
           <div class="section-header">
@@ -178,9 +183,12 @@ import { onBeforeRouteLeave } from 'vue-router';
 import { settingsAPI, charactersAPI } from '../services/api';
 import { useToast } from '../composables/useToast';
 import { useNavigation } from '../composables/useNavigation';
+import AccountSettings from '../components/settings/AccountSettings.vue';
+import { useAuth } from '../composables/useAuth';
 
 const toast = useToast();
 const { goBack } = useNavigation();
+const { authEnabled } = useAuth();
 const appVersion = __APP_VERSION__;
 
 // State

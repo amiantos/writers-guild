@@ -124,9 +124,10 @@ app.use(
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-// Request logging middleware
+// Request logging middleware. Invitation and password reset links leave their tokens out.
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
+  const logged = req.path.replace(/^(\/api\/auth\/links|\/invite|\/reset-password)\/.*/, '$1/…');
+  console.log(`${new Date().toISOString()} ${req.method} ${logged}`);
   next();
 });
 

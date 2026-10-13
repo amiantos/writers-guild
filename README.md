@@ -12,6 +12,7 @@ AI-powered short story writing application that supports Tavern character cards 
 - **ST Macro Support** - Supports ST macros like `{{random:a,b,c}}` and `{{pick:x,y,z}}`
 - **Generation Control** - Continue the story from a specific character's perspective; open-ended generation based on story context; or request specific events to occur.
 - **Chats (experimental)** - Text with one or more of your characters, in a scenario you describe, with any provider. Turn it on under Experimental Features in Settings; its prompts are customizable in each preset.
+- **Users (optional)** - Turn on signing in to password-protect your Writers Guild, then invite other people by link, each with a private library of their own.
 
 ## Motivations
 
@@ -55,8 +56,8 @@ npm run dev:lan
 
 Then open `http://<your-machine-ip>:5173` on the other device. Only do this on
 a network you trust — the API serves your stories and your configured provider
-API keys. If you want a password prompt in front of it, you can optionally set
-`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` in `.env` (see `.env.example`).
+API keys. To require a password, turn on signing in (see
+[Users and signing in](#users-and-signing-in)).
 
 Docker and `npm run server:start` are unaffected — they keep binding all
 interfaces per `server/config.yaml`. `HOST` overrides that value when set.
@@ -88,11 +89,42 @@ docker compose up -d
 Writers Guild is then on http://localhost:8000, with all of its data in `./data` next to the
 compose file. To update to the latest release: `docker compose pull && docker compose up -d`.
 
-To require a password, put `BASIC_AUTH_USERNAME` and `BASIC_AUTH_PASSWORD` in a `.env` file next to
-the compose file (see `.env.example`). For a reverse-proxy network or building the image from a
-checkout, copy `docker-compose.override.yml.example` to `docker-compose.override.yml` and edit it.
+To require a password, turn on signing in (see [Users and signing in](#users-and-signing-in)). For
+a reverse-proxy network or building the image from a checkout, copy
+`docker-compose.override.yml.example` to `docker-compose.override.yml` and edit it.
 
 Image tags: `latest` and `X.Y.Z` / `X.Y` follow releases; `staging` follows `main`.
+
+### Users and signing in
+
+Out of the box Writers Guild has no accounts: anyone who can reach it uses it, as its admin. To
+password-protect it, open **Settings → Account → Turn On Signing In** and choose a username and
+password. From then on:
+
+- Everyone signs in. Sessions last 30 days in that browser.
+- Under **Settings → Users** you can invite people. There's no signing up: each invitation is a
+  link that makes one account and works for 7 days. Send it to them, and they choose a username and
+  password.
+- Each person's library is their own: stories, chats, characters, lorebooks, Continuities, presets
+  (API keys included) and settings. A new user starts at onboarding, like a fresh install. Nobody,
+  the admin included, can see anyone else's.
+- The admin can give a user a link to reset their password, or delete their account along with
+  everything in it.
+- Signing in can be turned off again only when the admin is the only user.
+
+If you forget the admin's password, make a reset link from the server, then open the path it
+prints on your Writers Guild:
+
+```bash
+npm run reset-password                                                # from a checkout
+docker compose exec writers-guild node scripts/reset-password.js     # with Docker
+```
+
+Pass a username to reset someone else's. Behind a proxy that ends TLS, have it send
+`X-Forwarded-Proto: https` so the session cookie is marked `Secure`.
+
+`BASIC_AUTH_USERNAME` / `BASIC_AUTH_PASSWORD` (see `.env.example`) still put an HTTP Basic
+Authentication prompt in front of everything, but with signing in on they aren't needed.
 
 ## Setup
 
@@ -152,6 +184,8 @@ The server runs on port 8000 and provides:
 - `/api/lorebooks` - Lorebook management
 - `/api/settings` - User settings
 - `/api/chats` - Chats and their messages (experimental)
+- `/api/auth` - Signing in and out, and invitation and password reset links
+- `/api/users` - Users and invitations (admin only)
 - `/` - Serves the Vue client (production) or forwards to Vite (dev)
 
 ## Community & Discussion

@@ -327,3 +327,25 @@ describe('deleting a user', () => {
     expect(userStorageFor(dataRoot).getUser(ADMIN_USER_ID).hasPassword).toBe(false);
   });
 });
+
+describe('sessions', () => {
+  it('last as long as they are used, the cookie with them', async () => {
+    const users = userStorageFor(dataRoot);
+    // Signing in back on, as it was turned off above
+    users.setCredentials(ADMIN_USER_ID, { username: 'boss', passwordHash: 'unused' });
+    const token = users.createSession(ADMIN_USER_ID);
+    // As if signed in 20 days ago
+    users.db
+      .prepare('UPDATE sessions SET expires = ?')
+      .run(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString());
+
+    const { headers } = await request(app)
+      .get('/api/auth/status')
+      .set('Cookie', `wg_session=${token}`)
+      .expect(200);
+
+    expect(headers['set-cookie'][0]).toMatch(/^wg_session=.+; Max-Age=2592000$/);
+    const { expires } = users.db.prepare('SELECT expires FROM sessions').get();
+    expect(Date.parse(expires) - Date.now()).toBeGreaterThan(29 * 24 * 60 * 60 * 1000);
+  });
+});

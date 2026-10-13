@@ -79,11 +79,13 @@ export default function authenticate() {
     }
 
     const token = readCookie(req, SESSION_COOKIE);
-    const user = users.userForSession(token);
-    if (user) {
-      req.user = user;
+    const session = users.sessionFor(token);
+    if (session) {
+      // The cookie lasts as long as the session, which goes on while it's used.
+      if (session.extended) setSessionCookie(req, res, token);
+      req.user = session.user;
       req.sessionToken = token;
-      return runAsUser(user.id, next);
+      return runAsUser(session.user.id, next);
     }
 
     if (isPublic(req)) return next();

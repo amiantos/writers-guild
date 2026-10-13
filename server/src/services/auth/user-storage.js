@@ -240,17 +240,28 @@ export class UserStorage {
     return token;
   }
 
-  /** The user a session cookie's token signs in, or null once it's expired or gone. */
-  userForSession(token) {
+  /**
+   * The user a session cookie's token signs in, extending the session while it's in use.
+   * @returns {{user: Object, extended: boolean}|null} null once it's expired or gone; `extended`
+   *   when the cookie should be set again to last as long.
+   */
+  sessionFor(token) {
     if (!token) return null;
     const id = hashToken(token);
     const session = this.stmts.getSession.get(id);
     const now = Date.now();
     if (!session || Date.parse(session.expires) <= now) return null;
-    if (Date.parse(session.expires) - now < SESSION_TTL_MS - SESSION_REFRESH_MS) {
+    const extended = Date.parse(session.expires) - now < SESSION_TTL_MS - SESSION_REFRESH_MS;
+    if (extended) {
       this.stmts.extendSession.run(new Date(now + SESSION_TTL_MS).toISOString(), id);
     }
-    return this.getUser(session.user_id);
+    const user = this.getUser(session.user_id);
+    return user ? { user, extended } : null;
+  }
+
+  /** The user a session cookie's token signs in, or null once it's expired or gone. */
+  userForSession(token) {
+    return this.sessionFor(token)?.user ?? null;
   }
 
   deleteSession(token) {
