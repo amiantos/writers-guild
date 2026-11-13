@@ -26,9 +26,9 @@
     "version:set": "node scripts/set-version.mjs"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6",
-    "oxfmt": "^0.71.0",
-    "oxlint": "^1.86.0"
+    "concurrently": "^10.0.7",
+    "oxfmt": "^0.76.0",
+    "oxlint": "^1.91.0"
   },
   "keywords": [
     "novel",
