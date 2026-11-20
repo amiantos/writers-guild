@@ -15,7 +15,7 @@
 # see .github/dependabot.yml.
 
 # Stage 1: Build Vue client
-FROM node:24-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS client-builder
+FROM node:24-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS client-builder
 
 WORKDIR /app/vue_client
 
@@ -27,7 +27,7 @@ COPY vue_client/ ./
 RUN npm run build
 
 # Stage 2: Install server production dependencies
-FROM node:24-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS server-deps
+FROM node:24-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS server-deps
 
 WORKDIR /app/server
 
@@ -35,7 +35,7 @@ COPY server/package*.json ./
 RUN npm ci --omit=dev
 
 # Stage 3: Runtime image
-FROM node:24-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
+FROM node:24-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends tini \
